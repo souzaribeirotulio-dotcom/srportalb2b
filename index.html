@@ -1758,36 +1758,71 @@ document.body.classList.toggle('admin',ADM);
 {const s=LSG('sr_b2b_sessao',null), ci=LSG('sr_b2b_cli',null); if(s&&ci&&(CONFIG.modo==='api'||USA_SB()||CLIENTES[s]))loadCli(s,ci).then(render).catch(()=>{LSS('sr_b2b_sessao',null);tokSet('sr_b2b_tok',null);CLI=null;CNPJ=null;document.body.classList.remove('logged');drawUser();render()}); else drawUser();
  if(ADM&&USA_SB()) carregaClientesAdm();}
 
-/* Ponte somente de leitura/navegação para a Souzinha. Não expõe preços nem dados privados. */
+/* Ponte segura: só produtos cadastrados podem aparecer em cards ou nas ações. */
 window.SouzinhaPortal={
-  navigate:function(view){go(view);},
-  search:function(query){
-    cat='';
-    const m=document.getElementById('marca');if(m)m.value='';
-    const q=document.getElementById('q');q.value=String(query||'').slice(0,100);
-    go('cat');render();
-    q.dispatchEvent(new Event('input',{bubbles:true}));
-  },
-  candidates:function(phrase){
-    const stop=new Set(['quero','preciso','procurando','procuro','comprar','para','uma','uns','das','dos','que','tem','com','qual','algum','alguma','favor','voce','voces','souzinha','ola','oi','bom','dia','boa','tarde','noite','empresa','ajuda','itens','produtos','produto','precisando','saber','consegue','poderia','gostaria','meu','minha','seria','mais']);
-    const terms=termosBusca(String(phrase||'')).filter(x=>x.length>2&&!stop.has(x)).slice(0,7);
-    if(!terms.length)return [];
-    const mapa=mapaSinonimos();
-    const weighted=P.filter(p=>!p.off).map(p=>{
-      const idx=indiceBusca(p,mapa);
-      const category=norm(p.c||'');
-      let score=0;
-      for(const t of terms){
-        const c=buscaCanonica(t,mapa);
-        if(idx.canonicas.some(w=>w===c))score+=6;
-        else if(idx.canonicas.some(w=>w.includes(c)||c.includes(w)&&w.length>3))score+=3;
-        else if(category.includes(t))score+=2;
-      }
-      return {p,score};
-    }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||a.p.t.localeCompare(b.p.t,'pt')).slice(0,12);
-    return weighted.map(({p})=>({cod:p.cod,name:p.t,category:p.c,unit:p.u}));
+ navigate:function(v){go(v)},
+ search:function(query){
+  cat='';const m=document.getElementById('marca');if(m)m.value='';
+  const q=document.getElementById('q');q.value=String(query||'').slice(0,100);go('cat');render();
+  q.dispatchEvent(new Event('input',{bubbles:true}));
+ },
+ candidates:function(phrase){
+  const text=norm(String(phrase||''));
+  const bySeg=[
+   {re:/academia|fitness|pilates|estudio de treino|box de cross|vestiario/,codes:['124514','000308','22','06050','2KP100','775','100119','53235','001482','1KP60','100039','4200']},
+   {re:/clinica|consultorio|hospital|odontol/,codes:['124514','100039','22','000308','1KP60','06050','100119','53235','12036ST']},
+   {re:/restaurante|lanchonete|delivery|cafeteria/,codes:['002525','775','100293','001482','1KP60','10032','000859','2651','4200']},
+   {re:/escola|colegio|creche/,codes:['124514','000308','22','06050','1KP60','775','53235','001482']},
+   {re:/escritorio|condominio|empresa|escritorios/,codes:['124514','000308','22','06050','1KP60','775','100119','001482']}
+  ];
+  const preset=bySeg.find(x=>x.re.test(text));
+  const result=[],seen=new Set();
+  const add=p=>{if(p&&!p.off&&!seen.has(p.cod)){seen.add(p.cod);result.push(p)}};
+  if(preset)preset.codes.forEach(c=>add(byCod[c]));
+  const stop=new Set(['quero','preciso','procurando','procuro','comprar','para','uma','uns','das','dos','que','tem','com','qual','algum','alguma','favor','voce','voces','souzinha','ola','oi','bom','dia','boa','tarde','noite','empresa','ajuda','itens','produtos','produto','precisando','saber','consegue','poderia','gostaria','meu','minha','seria','mais','montar','lista','minhas','monte','pode']);
+  const terms=termosBusca(text).filter(x=>x.length>2&&!stop.has(x)).slice(0,8),map=mapaSinonimos();
+  if(terms.length){
+   const weighted=P.filter(p=>!p.off).map(p=>{
+    const idx=indiceBusca(p,map);let score=0;
+    for(const t of terms){const c=buscaCanonica(t,map);
+     if(idx.canonicas.some(w=>w===c))score+=6;
+     else if(idx.canonicas.some(w=>w.includes(c)||(c.includes(w)&&w.length>3)))score+=3;
+    }
+    return {p,score};
+   }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||a.p.t.localeCompare(b.p.t,'pt'));
+   weighted.forEach(x=>{if(result.length<24)add(x.p)});
   }
+  return result.slice(0,24).map(p=>({cod:p.cod,name:p.t,category:p.c,unit:p.u}));
+ },
+ product:function(code){
+  const p=byCod[String(code)];if(!p||p.off)return null;
+  return {code:p.cod,name:p.t,category:p.c,unit:p.u,image:imgUrl(p),price:vePreco()?brl(base(p)):null,listed:!!(CLI&&CLI.lista.some(x=>x.cod===p.cod))};
+ },
+ addCart:function(code){
+  const p=byCod[String(code)];if(!p||p.off)return;
+  need(()=>{addCart(p.cod,1);render()});
+ },
+ addList:function(code){
+  const p=byCod[String(code)];if(!p||p.off)return;
+  need(()=>{
+   if(!CLI.lista.some(x=>x.cod===p.cod)){CLI.lista.push({cod:p.cod,ult:0,dt:'',med:0});saveLista();toast('Produto adicionado à Minha Lista ⭐')}
+   else toast('Este produto já está na Minha Lista');
+   render();
+  });
+ },
+ addMany:function(codes){
+  const items=[...new Set(codes)].map(c=>byCod[c]).filter(p=>p&&!p.off);
+  if(!items.length)return;
+  need(()=>{
+   let n=0;for(const p of items)if(!CLI.lista.some(x=>x.cod===p.cod)){CLI.lista.push({cod:p.cod,ult:0,dt:'',med:0});n++;}
+   if(n)saveLista();
+   toast(n?n+' produtos adicionados à Minha Lista ⭐':'Todos os produtos já estão na Minha Lista');
+   render();
+  });
+ },
+ view:function(code){const p=byCod[String(code)];if(p&&!p.off)openDet(p)}
 };
+
 
 drawCats(); render(); updSem();
 </script>
