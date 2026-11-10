@@ -48,6 +48,12 @@ document.getElementById('marca').innerHTML += marcas.map(m=>`<option>${esc(m)}</
 document.getElementById('tot').textContent = P.length; document.getElementById('nMarcas').textContent = new Set(P.map(p=>p.m).filter(Boolean)).size;
 
 function render(){
+  const cenário=MOVIMENTO_MOCK.cenarioCatalogo;
+  if(cenário==='falha'||cenário==='carregando'){
+    document.getElementById('cnt').innerHTML='— produtos';
+    document.getElementById('grid').innerHTML='<div class="empty">'+(cenário==='falha'?'Falha simulada ao carregar os produtos. Tente novamente.':'Carregando produtos demonstrativos…')+'</div>';
+    return;
+  }
   const q = norm(document.getElementById('q').value.trim());
   const m = document.getElementById('marca').value, o = document.getElementById('ord').value;
   const so=document.getElementById('soSem').checked && document.body.classList.contains('edit');
@@ -229,11 +235,7 @@ const API = {
 };
 /* UNIDADES ALTERNATIVAS (exemplo — fatores a confirmar com o cadastro do G360)
    fator = quantas unidades padrão cabem na unidade alternativa. preco opcional (senão = preço × fator) */
-const ALT = {
-  "55544":[{id:"CX",nome:"Caixa",fator:25,preco:112.00}], "100562":[{id:"CX",nome:"Caixa",fator:25,preco:135.00}], "775":[{id:"CX",nome:"Caixa",fator:25,preco:135.00}],
-  "4200":[{id:"CX",nome:"Caixa",fator:25,preco:116.00}], "101430":[{id:"CX",nome:"Caixa",fator:20,preco:141.00}], "000864":[{id:"CX",nome:"Caixa",fator:20,preco:370.00}],
-  "001897":[{id:"CX",nome:"Caixa",fator:20,preco:283.00}], "24096":[{id:"CX",nome:"Caixa",fator:50,preco:525.00}]
-};
+const ALT = {"775":[{"id":"CX","nome":"Caixa","fator":25,"preco":789.6}],"4200":[{"id":"CX","nome":"Caixa","fator":25,"preco":2565.6}],"24096":[{"id":"CX","nome":"Caixa","fator":50,"preco":1771.2}],"55544":[{"id":"CX","nome":"Caixa","fator":25,"preco":1677.6}],"100562":[{"id":"CX","nome":"Caixa","fator":25,"preco":2517.6}],"101430":[{"id":"CX","nome":"Caixa","fator":20,"preco":670.08}],"000864":[{"id":"CX","nome":"Caixa","fator":20,"preco":1380.48}],"001897":[{"id":"CX","nome":"Caixa","fator":20,"preco":2090.88}]};
 const unidades = p => [{id:'',nome:p.u,fator:1}, ...(ALT[p.cod]||[])];
 const unOf = (p,id) => unidades(p).find(u=>u.id===(id||'')) || unidades(p)[0];
 const kOf = (cod,id) => id ? cod+'@'+id : cod;
@@ -243,6 +245,7 @@ const FERIADOS_PADRAO=[["2026-01-01","Confraternização Universal"],["2026-04-0
 const CFG = Object.assign({soEstoque:true, bloquear:true,
   formas:[{id:"pix",nome:"PIX",obs:"Pagamento à vista"},{id:"din",nome:"Dinheiro na entrega",obs:"Pagamento ao receber"},{id:"b14",nome:"Boleto 14 dias",obs:"Vencimento 14 dias após faturamento"},{id:"b28",nome:"Boleto 28 dias",obs:"Vencimento 28 dias após faturamento"},{id:"b2856",nome:"Boleto 28/56 dias",obs:"2 parcelas"}],
   vendedores:["Carlos","Ana"], feriados:FERIADOS_PADRAO, pagPadrao:["pix"]}, (()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_cfg'))||{}}catch(e){return {}}})());
+if(MOVIMENTO_MOCK.cenarioCatalogo==='indisponivel') CFG.soEstoque=false;
 let CONG = (()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_cong'))||null}catch(e){return null}})() || {"12345678000190":{"4200":4.49,"400801":22.90,"001482":27.50}}; // exemplo de preços congelados
 const congOf = p => (typeof CNPJ!=='undefined'&&CNPJ&&CONG[CNPJ]&&CONG[CNPJ][p.cod]!=null) ? CONG[CNPJ][p.cod] : null;
 const base = p => congOf(p) ?? p.p;
@@ -839,11 +842,11 @@ function bindCliForm(){ bindCep('k');
   ['kWa','kTel'].forEach(id=>$(id).addEventListener('input',e=>e.target.value=e.target.value.replace(/\D/g,'').slice(0,11)));
   $('kBusca').onclick=async()=>{ const c=$('kCnpj').value.replace(/\D/g,''), m=$('kCnpjM');
     if(!cnpjOk(c)){m.className='okmsg bad';m.textContent='CNPJ inválido. Confira os números.';return}
-    m.className='okmsg';m.textContent='Buscando dados na Receita Federal…';
+    m.className='okmsg';m.textContent='Carregando dados de demonstração…';
     try{ const j=await buscaCNPJ(c); $('kRaz').value=j.razao_social||''; $('kFan').value=j.nome_fantasia||'';
       $('kCep').value=(j.cep||'').replace(/\D/g,''); $('kLog').value=[j.descricao_tipo_de_logradouro,j.logradouro].filter(Boolean).join(' '); $('kNum').value=j.numero||''; $('kCom').value=j.complemento||''; $('kBai').value=j.bairro||''; $('kCid').value=j.municipio?j.municipio.toLowerCase().replace(/(^|\s|-)\S/g,s=>s.toUpperCase()):''; $('kUf').value=j.uf||'';
       if(j.ddd_telefone_1)$('kTel').value=String(j.ddd_telefone_1).replace(/\D/g,'');
-      $('kIEM').className='okmsg'; $('kIEM').textContent='Buscando inscrição estadual no Sintegra…';
+      $('kIEM').className='okmsg'; $('kIEM').textContent='Simulando consulta de inscrição estadual…';
       buscaIE(c,j.uf).then(({L,ativa})=>{ if(ativa){ $('kIsento').checked=false; $('kIE').disabled=false; $('kIE').value=ativa.ie; $('kIEM').className='okmsg'; $('kIEM').textContent=`✓ Inscrição estadual ativa em ${ativa.uf}${L.length>1?` (${L.length} inscrições encontradas)`:''}`; }
         else { $('kIEM').className='okmsg bad'; $('kIEM').textContent=L.length?'Inscrição estadual encontrada, mas não está ativa. Confira com sua contabilidade.':'Nenhuma inscrição estadual encontrada. Se a empresa for isenta, marque "Isento".'; if(L.length)$('kIE').value=L[0].ie; } })
         .catch(err=>{ $('kIEM').className='okmsg bad'; $('kIEM').textContent=err.message; });
@@ -935,3 +938,4 @@ document.body.classList.toggle('admin',ADM);
 {const s=LSG('sr_b2b_sessao',null), ci=LSG('sr_b2b_cli',null); if(s&&ci&&(CONFIG.modo==='api'||USA_SB()||CLIENTES[s]))loadCli(s,ci).then(render).catch(()=>{LSS('sr_b2b_sessao',null);tokSet('sr_b2b_tok',null);CLI=null;CNPJ=null;document.body.classList.remove('logged');drawUser();render()}); else drawUser();
  if(ADM&&USA_SB()) carregaClientesAdm();}
 drawCats(); render(); updSem();
+if(MOVIMENTO_MOCK.cenarioCatalogo==='carregando')setTimeout(()=>{MOVIMENTO_MOCK.cenarioCatalogo='normal';render()},650);
