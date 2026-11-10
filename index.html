@@ -744,7 +744,7 @@ const CLIENTES_SEED = {
 };
 /* Base de clientes (demonstração: fica neste navegador). Em produção: tabela de clientes do G360/Supabase. */
 let CLIENTES = (()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_clientes'))||null}catch(e){return null}})() || JSON.parse(JSON.stringify(CLIENTES_SEED));
-const saveClientes=()=>{try{localStorage.setItem('sr_b2b_clientes',JSON.stringify(CLIENTES))}catch(e){}};
+const saveClientes=()=>{ if(typeof CONFIG!=='undefined'&&USA_SB())return; try{localStorage.setItem('sr_b2b_clientes',JSON.stringify(CLIENTES))}catch(e){}};
 
 /* ======================================================================
    CAMADA DE INTEGRAÇÃO (esboço) — Portal B2B ⇄ Movimento G360
@@ -768,8 +768,17 @@ const saveClientes=()=>{try{localStorage.setItem('sr_b2b_clientes',JSON.stringif
      ADMIN: PUT /admin/produtos/{cod} {descricao, marca, categoria, preco?, descricao_longa, ativo, unidades_alternativas}
             PUT /admin/clientes/{cnpj}/precos-congelados [{cod, preco}] · GET/PUT /admin/config {so_com_estoque, bloquear_acima_estoque}
      GET  /clientes/{cnpj}/pedidos → [{numero, data, total, status, pagamento, itens:[...]}]
+   Hoje: clientes/cadastro/aprovação/endereços já usam o Supabase (funções portal_* no banco).
    ====================================================================== */
-const CONFIG = { modo:'demo', baseUrl:'https://API-DA-MOVIMENTO/b2b/v1' };
+const CONFIG = { modo:'demo', baseUrl:'https://API-DA-MOVIMENTO/b2b/v1', clientes:'supabase' };
+/* Supabase (clientes, aprovação, login e endereços) — chave pública; as tabelas só abrem pelas funções portal_* */
+const SB = { url:'https://cvhcgihumdvytjvbkxvt.supabase.co', key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2aGNnaWh1bWR2eXRqdmJreHZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQwNDQxODUsImV4cCI6MjEwOTYyMDE4NX0.-WPr_AKUUfjUCoWOfRpHqtiqFZk8ziKqcMWEaIOXrM0' };
+const USA_SB = () => CONFIG.clientes==='supabase';
+async function rpc(fn,args){ let r; try{ r=await fetch(`${SB.url}/rest/v1/rpc/${fn}`,{method:'POST',headers:{'Content-Type':'application/json',apikey:SB.key,Authorization:'Bearer '+SB.key},body:JSON.stringify(args||{})}); }
+  catch(e){ throw new Error('Sem conexão com o servidor. Verifique sua internet.'); }
+  const j=await r.json().catch(()=>null); if(!r.ok) throw new Error((j&&(j.message||j.hint))||('Erro '+r.status)); return j; }
+const tokGet=k=>{try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}, tokSet=(k,v)=>{try{v?localStorage.setItem(k,JSON.stringify(v)):localStorage.removeItem(k)}catch(e){}};
+const daBase = c => ({...c, nome:c.razao_social, lista:(CLIENTES_SEED[c.cnpj]&&CLIENTES_SEED[c.cnpj].lista)||[], criado_em:(c.criado_em||'').slice(0,10)});
 let TOKEN = null;
 async function http(met, path, body){
   const r = await fetch(CONFIG.baseUrl+path, {method:met, headers:{'Content-Type':'application/json', ...(TOKEN?{Authorization:'Bearer '+TOKEN}:{})}, body:body?JSON.stringify(body):undefined});
@@ -777,6 +786,7 @@ async function http(met, path, body){
 }
 const API = {
   async login(cnpj, senha){
+    if(USA_SB()){ const r=await rpc('portal_login_cliente',{p_cnpj:cnpj,p_senha:senha}); tokSet('sr_b2b_tok',r.token); const c=daBase(r.cliente); CLIENTES[c.cnpj]=c; return {cnpj:c.cnpj, razao_social:c.razao_social, fantasia:c.fantasia||c.razao_social, vendedor:c.vendedor}; }
     if(CONFIG.modo==='api'){ const r=await http('POST','/auth/login',{cnpj,senha}); TOKEN=r.token; return r.cliente; }
     const c=CLIENTES[cnpj]; if(!c||c.senha!==senha) throw new Error('CNPJ ou senha incorretos.');
     if(c.status==='pendente') throw new Error('Seu cadastro está em análise. Avisaremos pelo WhatsApp assim que for liberado.');
@@ -791,18 +801,19 @@ const API = {
     if(CONFIG.modo==='api') return http('GET',`/clientes/${cnpj}/pagamentos`);
     return (CLIENTES[cnpj].pagamentos||[]).map(id=>CFG.formas.find(f=>f.id===id)).filter(Boolean).map(f=>({id:f.id, descricao:f.nome, observacao:f.obs}));
   },
-  async cliente(cnpj){ if(CONFIG.modo==='api') return http('GET',`/clientes/${cnpj}`); const c=CLIENTES[cnpj]; return {...c, cnpj}; },
-  async cadastrar(d){ if(CONFIG.modo==='api') return http('POST','/clientes/cadastro',d);
+  async cliente(cnpj){ if(USA_SB()){ const tk=tokGet('sr_b2b_tok'); if(!tk) throw new Error('Sessão expirada'); const c=daBase(await rpc('portal_meu_cadastro',{p_token:tk})); CLIENTES[c.cnpj]=c; return c; } if(CONFIG.modo==='api') return http('GET',`/clientes/${cnpj}`); const c=CLIENTES[cnpj]; return {...c, cnpj}; },
+  async cadastrar(d){ if(USA_SB()) return rpc('portal_cadastrar',{d}); if(CONFIG.modo==='api') return http('POST','/clientes/cadastro',d);
     if(CLIENTES[d.cnpj]) throw new Error('Este CNPJ já possui cadastro. Faça login ou fale com a Souza Ribeiro.');
     CLIENTES[d.cnpj]={...d, nome:d.razao_social, status:'pendente', codigo:'', pagamentos:[...CFG.pagPadrao], enderecos:[], lista:[], criado_em:new Date().toISOString().slice(0,10)}; saveClientes(); return {status:'pendente'}; },
-  async salvarEnderecos(cnpj,lista){ if(CONFIG.modo==='api') return http('PUT',`/clientes/${cnpj}/enderecos`,lista); CLIENTES[cnpj].enderecos=lista; saveClientes(); return true; },
-  async salvarClienteAdmin(cnpj,dados){ if(CONFIG.modo==='api') return http('PUT',`/admin/clientes/${cnpj}`,dados); CLIENTES[cnpj]={...(CLIENTES[cnpj]||{lista:[]}),...dados}; saveClientes(); return true; },
+  async salvarEnderecos(cnpj,lista){ if(USA_SB()){ await rpc('portal_salvar_enderecos',{p_token:tokGet('sr_b2b_tok'),p_lista:lista}); if(CLIENTES[cnpj])CLIENTES[cnpj].enderecos=lista; return true; } if(CONFIG.modo==='api') return http('PUT',`/clientes/${cnpj}/enderecos`,lista); CLIENTES[cnpj].enderecos=lista; saveClientes(); return true; },
+  async salvarClienteAdmin(cnpj,dados){ if(USA_SB()){ const c=daBase(await rpc('portal_admin_salvar_cliente',{p_token:tokGet('sr_b2b_tokadm'),p_cnpj:cnpj,d:dados})); CLIENTES[c.cnpj]=c; return true; } if(CONFIG.modo==='api') return http('PUT',`/admin/clientes/${cnpj}`,dados); CLIENTES[cnpj]={...(CLIENTES[cnpj]||{lista:[]}),...dados}; saveClientes(); return true; },
   async criarPedido(ped){
     if(CONFIG.modo==='api') return http('POST','/pedidos',ped);
     await new Promise(r=>setTimeout(r,400)); const seq=(LSG('sr_b2b_seq',0)||0)+1; LSS('sr_b2b_seq',seq);
     return {numero:'B2B-'+String(seq).padStart(5,'0'), status:'Recebido'};
   },
-  async loginAdmin(u,s){ if(CONFIG.modo==='api'){const r=await http('POST','/auth/admin',{usuario:u,senha:s});TOKEN=r.token;return r} if(u!=='admin'||s!=='1234')throw new Error('Usuário ou senha incorretos.'); return {usuario:u}; },
+  async listarClientes(){ if(USA_SB()){ const L=await rpc('portal_admin_clientes',{p_token:tokGet('sr_b2b_tokadm')}); const o={}; L.forEach(c=>o[c.cnpj]=daBase(c)); return o; } return CLIENTES; },
+  async loginAdmin(u,s){ if(USA_SB()){ const r=await rpc('portal_login_admin',{p_usuario:u,p_senha:s}); tokSet('sr_b2b_tokadm',r.token); return r; } if(CONFIG.modo==='api'){const r=await http('POST','/auth/admin',{usuario:u,senha:s});TOKEN=r.token;return r} if(u!=='admin'||s!=='1234')throw new Error('Usuário ou senha incorretos.'); return {usuario:u}; },
   async salvarProduto(cod,dados){ if(CONFIG.modo==='api') return http('PUT','/admin/produtos/'+encodeURIComponent(cod),dados); return true; },
   async salvarCongelados(cnpj,lista){ if(CONFIG.modo==='api') return http('PUT',`/admin/clientes/${cnpj}/precos-congelados`,Object.entries(lista).map(([cod,preco])=>({cod,preco}))); return true; },
   async salvarConfig(cfg){ if(CONFIG.modo==='api') return http('PUT','/admin/config',cfg); return true; },
@@ -853,7 +864,7 @@ const onlyD=s=>s.replace(/\D/g,'');
 
 async function loadCli(c, info){
   CNPJ=c; info=info||LSG('sr_b2b_cli',null);
-  const [lista,pags,rec]=await Promise.all([API.lista(c),API.pagamentos(c),API.cliente(c)]);
+  const rec=await API.cliente(c); const [lista,pags]=await Promise.all([API.lista(c),API.pagamentos(c)]);
   const extra=LSG('sr_b2b_lista_'+c,null);
   CLI={nome:info.razao_social, fantasia:info.fantasia, vendedor:info.vendedor, rec,
     pagamentos:pags.map(f=>({id:f.id,nome:f.descricao,obs:f.observacao||''})),
@@ -862,7 +873,8 @@ async function loadCli(c, info){
 }
 const saveLista=()=>LSS('sr_b2b_lista_'+CNPJ,CLI.lista);
 const saveCart=()=>{LSS('sr_b2b_cart_'+CNPJ,CART);updCart()};
-function sairConta(){ if(CLI){LSS('sr_b2b_sessao',null);CLI=null;CNPJ=null;CART={};document.body.classList.remove('logged');updCart()}
+function sairConta(){ const ta=tokGet('sr_b2b_tokadm'),tc=tokGet('sr_b2b_tok'); if(USA_SB()){ if(tc&&CLI)rpc('portal_sair',{p_token:tc}).catch(()=>{}); if(ta&&ADM)rpc('portal_sair',{p_token:ta}).catch(()=>{}); if(CLI)tokSet('sr_b2b_tok',null); if(ADM)tokSet('sr_b2b_tokadm',null); }
+  if(CLI){LSS('sr_b2b_sessao',null);CLI=null;CNPJ=null;CART={};document.body.classList.remove('logged');updCart()}
   if(ADM)setAdm(false); $('mConta').classList.remove('open'); render(); drawUser(); go('cat'); toast('Você saiu da conta'); }
 function drawUser(){ saud(); const tc=document.getElementById('tbContaT'); if(tc) tc.textContent=CLI?CLI.fantasia.split(' ')[0]:(ADM?'Admin':'Entrar');
   $('user').innerHTML=(CLI||ADM)?`<b id="uName" style="cursor:pointer" title="Minha conta">${CLI?esc(CLI.fantasia):'Administrador'}</b><a id="sair">Sair</a>`:`<a id="entrar">Entrar</a>`;
@@ -870,7 +882,7 @@ function drawUser(){ saud(); const tc=document.getElementById('tbContaT'); if(tc
   if($('uName'))$('uName').onclick=()=>$('tbConta').click(); }
 let afterLogin=null;
 let LT='cli';
-function setLT(m){LT=m;$('lgCli').hidden=m==='adm';$('lgAdmT').hidden=m!=='adm';$('lgAdm').hidden=m==='adm';$('lgVolta').hidden=m!=='adm';$('lgL').textContent=m==='adm'?'Usuário':'CNPJ';$('lgC').placeholder=m==='adm'?'admin':'00.000.000/0000-00';$('lgC').inputMode=m==='adm'?'text':'numeric';$('lgE').textContent=''}
+function setLT(m){LT=m;$('lgCli').hidden=m==='adm';$('lgAdmT').hidden=m!=='adm';$('lgAdm').hidden=m==='adm';$('lgVolta').hidden=m!=='adm';$('lgL').textContent=m==='adm'?'Usuário':'CNPJ';$('lgC').placeholder=m==='adm'?'Usuário':'Apenas números do CNPJ';$('lgC').inputMode=m==='adm'?'text':'numeric';$('lgE').textContent=''}
 $('lgAdm').onclick=()=>setLT('adm'); $('lgVolta').onclick=()=>setLT('cli'); $('lgCad').onclick=()=>{$('mLogin').classList.remove('open');openCad()};
 function openLogin(next,modo){setLT(modo||'cli');afterLogin=next||null;$('lgE').textContent='';$('mLogin').classList.add('open');setTimeout(()=>$('lgC').focus(),50)}
 const need=fn=>CLI?fn():openLogin(fn);
@@ -878,7 +890,7 @@ $('lgX').onclick=()=>$('mLogin').classList.remove('open');
 $('lgS').onkeydown=e=>{if(e.key==='Enter')$('lgOk').click()};
 $('lgOk').onclick=async()=>{
   if(LT==='adm'){ try{ await API.loginAdmin($('lgC').value.trim(),$('lgS').value) }catch(e){ $('lgE').textContent=e.message; return }
-    setAdm(true); $('mLogin').classList.remove('open'); $('lgS').value=''; toast('Modo administrador ativado'); const f=afterLogin; afterLogin=null; render(); if(f)f(); else go('adm'); return; }
+    setAdm(true); $('mLogin').classList.remove('open'); $('lgS').value=''; if(USA_SB())carregaClientesAdm().catch(()=>{}); toast('Modo administrador ativado'); const f=afterLogin; afterLogin=null; render(); if(f)f(); else go('adm'); return; }
   const c=onlyD($('lgC').value), s=$('lgS').value; let cl;
   try{ cl=await API.login(c,s) }catch(e){ $('lgE').textContent=e.message; return }
   LSS('sr_b2b_sessao',c); LSS('sr_b2b_cli',cl); await loadCli(c,cl); $('mLogin').classList.remove('open'); render(); toast('Bem-vindo, '+cl.fantasia+'!');
@@ -1423,10 +1435,11 @@ function openCad(){ $('admBox').innerHTML=''; $('mAdm').classList.remove('open')
 }
 $('mCad').onclick=e=>{if(e.target.id==='mCad')$('mCad').classList.remove('open')};
 /* admin: clientes */
-['clQ','clSt'].forEach(id=>$(id).addEventListener('input',drawCli));
-function recarregaClientes(){ try{const x=JSON.parse(localStorage.getItem('sr_b2b_clientes')); if(x)CLIENTES=x;}catch(e){} }
+['clQ','clSt'].forEach(id=>$(id).addEventListener('input',()=>drawCli(false)));
+async function carregaClientesAdm(){ try{ CLIENTES=await API.listarClientes(); }catch(e){ if(/Sessão/i.test(e.message)){ toast('Sessão do admin expirou. Entre novamente.'); tokSet('sr_b2b_tokadm',null); setAdm(false); openLogin(()=>go('adm'),'adm'); } else toast(e.message); throw e; } fillCgCli(); updMrgBadge(); }
+function recarregaClientes(){ if(USA_SB())return; try{const x=JSON.parse(localStorage.getItem('sr_b2b_clientes')); if(x)CLIENTES=x;}catch(e){} }
 window.addEventListener('storage',e=>{ if(e.key==='sr_b2b_clientes'){ recarregaClientes(); if(ADM){updMrgBadge(); if(VIEW==='adm'&&AT==='cli')drawCli();} } });
-function drawCli(){ recarregaClientes(); const q=norm($('clQ').value.trim()), st=$('clSt').value;
+async function drawCli(refetch=true){ if(USA_SB()&&refetch){ $('clPanel').innerHTML='<div class="empty2">Carregando clientes…</div>'; try{ await carregaClientesAdm(); }catch(e){ $('clPanel').innerHTML=`<div class="empty2">${esc(e.message)}</div>`; return } } recarregaClientes(); const q=norm($('clQ').value.trim()), st=$('clSt').value;
   const L=Object.entries(CLIENTES).map(([cnpj,c])=>({cnpj,...c})).filter(c=>(!st||c.status===st)&&(!q||norm([c.nome,c.fantasia,c.cnpj,c.codigo,c.cidade].join(' ')).includes(q)))
     .sort((a,b)=>(a.status==='pendente'?0:1)-(b.status==='pendente'?0:1)||(b.criado_em||'').localeCompare(a.criado_em||''));
   $('clPanel').innerHTML=`<div class="crow2 h"><div>Cliente (${L.length})</div><div>Cód. G360</div><div>Cidade</div><div>Situação</div><div></div></div>`+(L.length?L.map(c=>`<div class="crow2" data-c="${c.cnpj}">
@@ -1483,7 +1496,8 @@ $('contaBox').addEventListener('click',async e=>{const id=e.target.dataset.rme; 
 $('mConta').onclick=e=>{if(e.target.id==='mConta')$('mConta').classList.remove('open')};
 document.body.classList.toggle('admin',ADM);
 /* ---------- início ---------- */
-{const s=LSG('sr_b2b_sessao',null), ci=LSG('sr_b2b_cli',null); if(s&&ci&&(CONFIG.modo==='api'||CLIENTES[s]))loadCli(s,ci).then(render); else drawUser();}
+{const s=LSG('sr_b2b_sessao',null), ci=LSG('sr_b2b_cli',null); if(s&&ci&&(CONFIG.modo==='api'||USA_SB()||CLIENTES[s]))loadCli(s,ci).then(render).catch(()=>{LSS('sr_b2b_sessao',null);tokSet('sr_b2b_tok',null);CLI=null;CNPJ=null;document.body.classList.remove('logged');drawUser();render()}); else drawUser();
+ if(ADM&&USA_SB()) carregaClientesAdm();}
 drawCats(); render(); updSem();
 </script>
 </body>
