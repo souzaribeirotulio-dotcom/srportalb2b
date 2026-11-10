@@ -141,6 +141,7 @@ footer{text-align:center;color:var(--tx3);font-size:12px;padding:10px 20px 34px}
 .mgsum{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}.mgsum .stat b{font-size:22px}.mgsum .stat.bad b{color:var(--red)}
 .adm-only{display:none!important}
 body.admin .hb.adm-only,body.admin .tool.adm-only,body.admin .tabbar .adm-only{display:flex!important}
+.isen{display:flex!important;align-items:center;gap:6px;margin:0!important;white-space:nowrap;text-transform:none!important;letter-spacing:0!important;font-size:13px!important;color:var(--tx2)!important;padding:0 6px}.isen input{accent-color:var(--lima);width:16px;height:16px}
 .lgfoot{margin-top:16px;text-align:center;font-size:12px}.lgfoot a{color:var(--tx3);cursor:pointer;text-decoration:underline}
 .lockp{width:100%;margin-top:10px;height:40px;border-radius:10px;border:1px dashed rgba(178,224,74,.45);background:var(--limas);color:var(--lima);font-weight:700;font-size:12.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
 .lockp:hover{background:rgba(178,224,74,.2)}
@@ -553,7 +554,8 @@ textarea{resize:vertical}
   <label>Senha</label><input id="lgS" type="password" placeholder="Sua senha" autocomplete="current-password">
   <div class="err" id="lgE"></div>
   <div class="act"><button class="btn sec" id="lgX">Cancelar</button><button class="btn pri" id="lgOk">Entrar</button></div>
-  <div class="lgfoot"><a id="lgAdm">Acesso do administrador</a><a id="lgVolta" hidden>← Voltar para o login de cliente</a></div>
+  <div id="lgEsq" hidden><label>E-mail do cadastro</label><input id="lgEm" type="email" placeholder="email@empresa.com.br"><div class="hint" id="lgEsqM">Informe o CNPJ e o e-mail do cadastro. Enviaremos uma senha nova para esse e-mail.</div></div>
+  <div class="lgfoot"><a id="lgEsqL">Esqueci minha senha</a> · <a id="lgAdm">Acesso do administrador</a><a id="lgVolta" hidden>← Voltar para o login de cliente</a></div>
 </div></div>
 
 <div class="mod" id="mCad"><div class="box lg" id="cadBox"></div></div>
@@ -758,7 +760,7 @@ const saveClientes=()=>{ if(typeof CONFIG!=='undefined'&&USA_SB())return; try{lo
      POST /pedidos               {cliente_cnpj, itens:[{cod, qtd, unidade, fator, qtd_base, preco}], pagamento_id, observacao, origem} → {numero, status}
        unidade = 'PADRAO' ou código da unidade alternativa (ex.: 'CX'); qtd_base = qtd × fator na unidade padrão
      GET  /produtos inclui unidades_alternativas:[{id, nome, fator, preco?}] e estoque_disponivel (sempre atualizado)
-     POST /clientes/cadastro {cnpj, razao_social, fantasia, responsavel, whats, telefone, email, cep, logradouro, numero, complemento, bairro, cidade, uf, origem, senha} → {status:'pendente'}
+     POST /clientes/cadastro {cnpj, razao_social, fantasia, inscricao_estadual ('ISENTO' se isento), responsavel, whats, telefone, email, cep, logradouro, numero, complemento, bairro, cidade, uf, origem, senha} → {status:'pendente'}
      GET  /clientes/{cnpj} → dados do cadastro + enderecos:[...]   · PUT /clientes/{cnpj}/enderecos [{apelido, cep, logradouro, numero, complemento, bairro, cidade, uf}]
      ADMIN: GET /admin/clientes · PUT /admin/clientes/{cnpj} {codigo (= código no G360), status (pendente|aprovado|reprovado|bloqueado), pagamentos:[ids], vendedor, ...}
      POST /pedidos inclui endereco_entrega {...} e previsao_entrega (ISO)
@@ -882,13 +884,19 @@ function drawUser(){ saud(); const tc=document.getElementById('tbContaT'); if(tc
   if($('uName'))$('uName').onclick=()=>$('tbConta').click(); }
 let afterLogin=null;
 let LT='cli';
-function setLT(m){LT=m;$('lgCli').hidden=m==='adm';$('lgAdmT').hidden=m!=='adm';$('lgAdm').hidden=m==='adm';$('lgVolta').hidden=m!=='adm';$('lgL').textContent=m==='adm'?'Usuário':'CNPJ';$('lgC').placeholder=m==='adm'?'Usuário':'Apenas números do CNPJ';$('lgC').inputMode=m==='adm'?'text':'numeric';$('lgE').textContent=''}
-$('lgAdm').onclick=()=>setLT('adm'); $('lgVolta').onclick=()=>setLT('cli'); $('lgCad').onclick=()=>{$('mLogin').classList.remove('open');openCad()};
+function setLT(m){LT=m;$('lgCli').hidden=m!=='cli';$('lgAdmT').hidden=m!=='adm';$('lgAdm').hidden=m!=='cli';$('lgEsqL').hidden=m!=='cli';$('lgVolta').hidden=m==='cli';$('lgEsq').hidden=m!=='esq';$('lgS').hidden=m==='esq';$('lgS').previousElementSibling.hidden=m==='esq';$('lgOk').textContent=m==='esq'?'Enviar senha nova':'Entrar';$('lgAdmT').innerHTML=m==='esq'?'<h3 style="margin:8px 0 2px">Recuperar senha</h3>':'<h3 style="margin:8px 0 2px">Acesso do administrador</h3>';if(m==='esq')$('lgAdmT').hidden=false;$('lgVolta').textContent='← Voltar para o login';$('lgL').textContent=m==='adm'?'Usuário':'CNPJ';$('lgC').placeholder=m==='adm'?'Usuário':'Apenas números do CNPJ';$('lgC').inputMode=m==='adm'?'text':'numeric';$('lgE').textContent=''}
+$('lgAdm').onclick=()=>setLT('adm');
+$('lgEsqL').onclick=()=>setLT('esq'); $('lgVolta').onclick=()=>setLT('cli'); $('lgCad').onclick=()=>{$('mLogin').classList.remove('open');openCad()};
 function openLogin(next,modo){setLT(modo||'cli');afterLogin=next||null;$('lgE').textContent='';$('mLogin').classList.add('open');setTimeout(()=>$('lgC').focus(),50)}
 const need=fn=>CLI?fn():openLogin(fn);
 $('lgX').onclick=()=>$('mLogin').classList.remove('open');
 $('lgS').onkeydown=e=>{if(e.key==='Enter')$('lgOk').click()};
 $('lgOk').onclick=async()=>{
+  if(LT==='esq'){ const c=onlyD($('lgC').value), em=$('lgEm').value.trim(); if(c.length!==14||!em){$('lgE').textContent='Informe o CNPJ (só números) e o e-mail do cadastro.';return}
+    $('lgOk').disabled=true; $('lgE').textContent='';
+    try{ const r=await fetch(SB.url+'/functions/v1/portal-esqueci-senha',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB.key,Authorization:'Bearer '+SB.key},body:JSON.stringify({cnpj:c,email:em})}); const j=await r.json().catch(()=>({}));
+      if(!r.ok) $('lgE').textContent=j.erro||'Não foi possível enviar agora.'; else { $('lgEsqM').innerHTML='<b style="color:#8fd14f">✓ '+esc(j.mensagem)+'</b>'; }
+    }catch(e){ $('lgE').textContent='Sem conexão. Tente novamente.' } $('lgOk').disabled=false; return; }
   if(LT==='adm'){ try{ await API.loginAdmin($('lgC').value.trim(),$('lgS').value) }catch(e){ $('lgE').textContent=e.message; return }
     setAdm(true); $('mLogin').classList.remove('open'); $('lgS').value=''; if(USA_SB())carregaClientesAdm().catch(()=>{}); toast('Modo administrador ativado'); const f=afterLogin; afterLogin=null; render(); if(f)f(); else go('adm'); return; }
   const c=onlyD($('lgC').value), s=$('lgS').value; let cl;
@@ -1189,10 +1197,21 @@ function drawCfg(){ $('cfgPanel').innerHTML=[['soEstoque','Mostrar somente produ
      <div style="margin-top:10px;font-size:12px;color:var(--tx2)">Feriados considerados (não são dias úteis):</div>
      <div style="margin-top:6px;max-height:170px;overflow:auto">${[...CFG.feriados].sort().map(([d,n])=>`<span class="tagl">${d.split('-').reverse().join('/')} · ${esc(n)} <button data-rmh="${d}">×</button></span>`).join('')}</div>
      <div class="fxurl" style="margin-top:6px"><input id="cfHD" type="date"><input id="cfHN" placeholder="Nome do feriado"><button class="btn sec" id="cfHA">Adicionar</button></div></div>`;
+  if(USA_SB()){ $('cfgPanel').insertAdjacentHTML('afterbegin',`<div class="ci2" style="display:block"><b>Administradores do portal</b><small>Quem pode entrar no painel do administrador. Cada um entra com o próprio usuário e senha.</small><div id="cfAdm" style="margin-top:10px">Carregando…</div>
+     <div class="fgrid" style="margin-top:8px"><div><label>Usuário</label><input class="inp" id="cfAU" placeholder="ex.: carlos"></div><div><label>Nome</label><input class="inp" id="cfAN" placeholder="Nome da pessoa"></div>
+     <div class="full"><label>Senha (mín. 6 caracteres)</label><div class="fxurl"><input class="inp" id="cfAS" type="text" placeholder="Para usuário existente, digite só se quiser trocar"><button class="btn sec" id="cfAA">Salvar usuário</button></div></div></div><div class="err" id="cfAE"></div></div>`); drawAdmins(); }
   $('cfMg').onchange=()=>{CFG.margemMin=+$('cfMg').value||0;salvaCfg();updMrgBadge()};
   $('cfFA').onclick=()=>{const n=$('cfFN').value.trim(); if(!n)return; CFG.formas.push({id:'f'+Date.now().toString(36),nome:n,obs:$('cfFO').value.trim()}); salvaCfg(); drawCfg()};
   $('cfVA').onclick=()=>{const n=$('cfVN').value.trim(); if(!n||CFG.vendedores.includes(n))return; CFG.vendedores.push(n); salvaCfg(); drawCfg()};
   $('cfHA').onclick=()=>{const d=$('cfHD').value,n=$('cfHN').value.trim()||'Feriado'; if(!d)return; CFG.feriados=CFG.feriados.filter(x=>x[0]!==d).concat([[d,n]]); salvaCfg(); drawCfg()}; }
+async function drawAdmins(){ const el=$('cfAdm'); if(!el)return; try{ const L=await rpc('portal_admin_usuarios',{p_token:tokGet('sr_b2b_tokadm')});
+    el.innerHTML=L.map(a=>`<span class="tagl"><b>${esc(a.usuario)}</b>${a.nome?' · '+esc(a.nome):''} <button data-edu="${esc(a.usuario)}" data-nm="${esc(a.nome||'')}" title="Trocar senha" style="color:var(--lima)">✎</button><button data-rmu="${esc(a.usuario)}" title="Remover">×</button></span>`).join(''); }
+  catch(e){ el.textContent=e.message } }
+$('cfgPanel').addEventListener('click',async e=>{const d=e.target.dataset;
+  if(e.target.id==='cfAA'){ $('cfAE').textContent=''; try{ await rpc('portal_admin_salvar_usuario',{p_token:tokGet('sr_b2b_tokadm'),p_usuario:$('cfAU').value,p_nome:$('cfAN').value.trim(),p_senha:$('cfAS').value}); toast('Administrador salvo ✓'); $('cfAU').value=$('cfAN').value=$('cfAS').value=''; drawAdmins(); }catch(err){ $('cfAE').textContent=err.message } return }
+  if(d.edu){ $('cfAU').value=d.edu; $('cfAN').value=d.nm; $('cfAS').value=''; $('cfAS').focus(); toast('Digite a nova senha e clique em Salvar usuário'); return }
+  if(d.rmu){ if(!e.target.dataset.ok){ e.target.dataset.ok=1; e.target.textContent='remover?'; return } try{ await rpc('portal_admin_remover_usuario',{p_token:tokGet('sr_b2b_tokadm'),p_usuario:d.rmu}); toast('Administrador removido'); drawAdmins(); }catch(err){ toast(err.message) } return }
+});
 $('cfgPanel').addEventListener('click',e=>{const d=e.target.dataset;
   if(d.rmf){CFG.formas=CFG.formas.filter(f=>f.id!==d.rmf);CFG.pagPadrao=CFG.pagPadrao.filter(x=>x!==d.rmf);salvaCfg();drawCfg()}
   if(d.rmv){CFG.vendedores=CFG.vendedores.filter(v=>v!==d.rmv);salvaCfg();drawCfg()}
@@ -1358,6 +1377,9 @@ const fmtTel=c=>{c=(c||'').replace(/\D/g,'');return c.length===11?c.replace(/^(\
 function cnpjOk(c){c=(c||'').replace(/\D/g,''); if(c.length!==14||/^(\d)\1+$/.test(c))return false;
   const dv=n=>{let s=0,p=n-7;for(let i=0;i<n;i++){s+=+c[i]*p--;if(p<2)p=9}const r=s%11;return r<2?0:11-r}; return dv(12)===+c[12]&&dv(13)===+c[13];}
 async function buscaCNPJ(c){ const r=await fetch('https://brasilapi.com.br/api/cnpj/v1/'+c); if(!r.ok) throw new Error(r.status===404?'CNPJ não encontrado na Receita.':'Consulta indisponível agora — preencha manualmente.'); return r.json(); }
+async function buscaIE(c,uf){ const r=await fetch('https://publica.cnpj.ws/cnpj/'+c); if(r.status===429) throw new Error('Muitas consultas seguidas — aguarde 1 minuto e clique em Buscar dados de novo, ou digite a inscrição.'); if(!r.ok) throw new Error('Não foi possível consultar a inscrição estadual.');
+  const j=await r.json(), L=((j.estabelecimento||{}).inscricoes_estaduais||[]).map(x=>({ie:x.inscricao_estadual,ativo:x.ativo,uf:x.estado&&x.estado.sigla}));
+  return {L, ativa:L.find(x=>x.ativo&&(!uf||x.uf===uf))||L.find(x=>x.ativo), j}; }
 async function buscaCEP(c){ try{ const r=await fetch('https://brasilapi.com.br/api/cep/v1/'+c); if(r.ok){const j=await r.json(); return {logradouro:j.street||'',bairro:j.neighborhood||'',cidade:j.city||'',uf:j.state||''}} }catch(e){}
   const r=await fetch('https://viacep.com.br/ws/'+c+'/json/'); const j=await r.json(); if(j.erro) throw new Error('CEP não encontrado.'); return {logradouro:j.logradouro,bairro:j.bairro,cidade:j.localidade,uf:j.uf}; }
 const endTxt=e=>`${e.logradouro||''}${e.numero?', '+e.numero:''}${e.complemento?' – '+e.complemento:''} · ${e.bairro||''} · ${e.cidade||''}/${e.uf||''} · CEP ${fmtCEP(e.cep)}`;
@@ -1384,13 +1406,17 @@ function cliForm(d={},admin=false){ return `
   <div class="cnpjrow"><input class="inp" id="kCnpj" inputmode="numeric" maxlength="14" placeholder="Apenas números (14 dígitos)" value="${esc(d.cnpj||'')}" ${admin&&d.cnpj?'readonly':''}><button class="btn sec" id="kBusca" type="button">Buscar dados</button></div>
   <div class="okmsg" id="kCnpjM">${d.cnpj?'':'Digite só os números do CNPJ, sem pontos, barra ou hífen. Os dados da empresa são preenchidos automaticamente.'}</div>
   <div class="fgrid"><div class="full"><label>Razão social <span class="req">*</span></label><input class="inp" id="kRaz" value="${esc(d.nome||d.razao_social||'')}"></div>
-   <div class="full"><label>Nome fantasia</label><input class="inp" id="kFan" value="${esc(d.fantasia||'')}"></div></div>
+   <div class="full"><label>Nome fantasia</label><input class="inp" id="kFan" value="${esc(d.fantasia||'')}"></div>
+   <div class="full"><label>Inscrição estadual <span class="req">*</span></label>
+     <div class="cnpjrow"><input class="inp" id="kIE" inputmode="numeric" placeholder="Buscada automaticamente pelo CNPJ" value="${esc(d.inscricao_estadual&&d.inscricao_estadual!=='ISENTO'?d.inscricao_estadual:'')}" ${d.inscricao_estadual==='ISENTO'?'disabled':''}>
+       <label class="isen"><input type="checkbox" id="kIsento" ${d.inscricao_estadual==='ISENTO'?'checked':''}> Isento</label></div>
+     <div class="okmsg" id="kIEM"></div></div></div>
   <div class="csec">Endereço da empresa (também usado para entrega)</div>${addrFields('k',d)}
   <div class="csec">Contato</div>
   <div class="fgrid"><div class="full"><label>Nome do responsável pelas compras <span class="req">*</span></label><input class="inp" id="kResp" value="${esc(d.responsavel||'')}"></div>
    <div><label>WhatsApp <span class="req">*</span></label><input class="inp" id="kWa" inputmode="numeric" maxlength="11" placeholder="DDD + número, só números" value="${esc((d.whats||'').replace(/\D/g,''))}"></div>
    <div><label>Telefone da empresa</label><input class="inp" id="kTel" inputmode="numeric" maxlength="11" placeholder="Só números" value="${esc((d.telefone||'').replace(/\D/g,''))}"></div>
-   <div class="full"><label>E-mail</label><input class="inp" id="kEm" type="email" value="${esc(d.email||'')}"></div>
+   <div class="full"><label>E-mail <span class="req">*</span></label><input class="inp" id="kEm" type="email" placeholder="Usado para recuperar a senha" value="${esc(d.email||'')}"></div>
    <div class="full"><label>Como conheceu a Souza Ribeiro? <span class="req">*</span></label><select class="inp" id="kOri"><option value="">Selecione…</option>${origens().map(o=>`<option ${o===d.origem?'selected':''}>${esc(o)}</option>`).join('')}</select></div></div>
   ${admin?`<div class="csec">Liberação (admin)</div>
   <div class="fgrid"><div><label>Código do cliente no G360</label><input class="inp" id="kCod" value="${esc(d.codigo||'')}" placeholder="Ex.: 1045"></div>
@@ -1404,6 +1430,8 @@ function cliForm(d={},admin=false){ return `
 function bindCliForm(){ bindCep('k');
   const mk=()=>{const i=$('kCnpj'),c=i.value.replace(/\D/g,'').slice(0,14); i.value=c; return c};
   $('kCnpj').addEventListener('input',()=>{const c=mk(); if(c.length===14&&!$('kCnpj').readOnly)$('kBusca').click()});
+  $('kIsento').onchange=()=>{ $('kIE').disabled=$('kIsento').checked; if($('kIsento').checked){$('kIE').value='';$('kIEM').textContent=''} };
+  $('kIE').addEventListener('input',e=>e.target.value=e.target.value.replace(/[^0-9A-Za-z]/g,'').slice(0,20));
   ['kWa','kTel'].forEach(id=>$(id).addEventListener('input',e=>e.target.value=e.target.value.replace(/\D/g,'').slice(0,11)));
   $('kBusca').onclick=async()=>{ const c=$('kCnpj').value.replace(/\D/g,''), m=$('kCnpjM');
     if(!cnpjOk(c)){m.className='okmsg bad';m.textContent='CNPJ inválido. Confira os números.';return}
@@ -1411,14 +1439,18 @@ function bindCliForm(){ bindCep('k');
     try{ const j=await buscaCNPJ(c); $('kRaz').value=j.razao_social||''; $('kFan').value=j.nome_fantasia||'';
       $('kCep').value=(j.cep||'').replace(/\D/g,''); $('kLog').value=[j.descricao_tipo_de_logradouro,j.logradouro].filter(Boolean).join(' '); $('kNum').value=j.numero||''; $('kCom').value=j.complemento||''; $('kBai').value=j.bairro||''; $('kCid').value=j.municipio?j.municipio.toLowerCase().replace(/(^|\s|-)\S/g,s=>s.toUpperCase()):''; $('kUf').value=j.uf||'';
       if(j.ddd_telefone_1)$('kTel').value=String(j.ddd_telefone_1).replace(/\D/g,'');
+      $('kIEM').className='okmsg'; $('kIEM').textContent='Buscando inscrição estadual no Sintegra…';
+      buscaIE(c,j.uf).then(({L,ativa})=>{ if(ativa){ $('kIsento').checked=false; $('kIE').disabled=false; $('kIE').value=ativa.ie; $('kIEM').className='okmsg'; $('kIEM').textContent=`✓ Inscrição estadual ativa em ${ativa.uf}${L.length>1?` (${L.length} inscrições encontradas)`:''}`; }
+        else { $('kIEM').className='okmsg bad'; $('kIEM').textContent=L.length?'Inscrição estadual encontrada, mas não está ativa. Confira com sua contabilidade.':'Nenhuma inscrição estadual encontrada. Se a empresa for isenta, marque "Isento".'; if(L.length)$('kIE').value=L[0].ie; } })
+        .catch(err=>{ $('kIEM').className='okmsg bad'; $('kIEM').textContent=err.message; });
       if($('kCep').value.length===8){const num=$('kNum').value,com=$('kCom').value; $('kCep').dispatchEvent(new Event('input')); setTimeout(()=>{if(num)$('kNum').value=num; if(com)$('kCom').value=com},1500);} if(j.email&&!$('kEm').value)$('kEm').value=j.email.toLowerCase();
       m.textContent=`✓ ${j.descricao_situacao_cadastral?'Situação na Receita: '+j.descricao_situacao_cadastral:'Dados encontrados'} — confira e complete.`;
       if(j.descricao_situacao_cadastral&&j.descricao_situacao_cadastral!=='ATIVA'){m.className='okmsg bad'}
     }catch(err){m.className='okmsg bad';m.textContent=err.message||'Não foi possível consultar. Preencha manualmente.'} };
 }
 function lerCliForm(admin){ const a=readAddr('k'), c=$('kCnpj').value.replace(/\D/g,'');
-  const d={cnpj:c,razao_social:$('kRaz').value.trim(),fantasia:$('kFan').value.trim()||$('kRaz').value.trim(),...a,responsavel:$('kResp').value.trim(),whats:$('kWa').value.replace(/\D/g,''),telefone:$('kTel').value.replace(/\D/g,''),email:$('kEm').value.trim(),origem:$('kOri').value};
-  const falta=[]; if(!cnpjOk(c))falta.push('CNPJ válido'); if(!d.razao_social)falta.push('razão social'); if(!addrOk(a))falta.push('endereço completo'); if(!d.responsavel)falta.push('responsável'); if(d.whats.length<10)falta.push('WhatsApp com DDD'); if(!d.origem)falta.push('como nos conheceu');
+  const d={cnpj:c,razao_social:$('kRaz').value.trim(),fantasia:$('kFan').value.trim()||$('kRaz').value.trim(),inscricao_estadual:$('kIsento').checked?'ISENTO':$('kIE').value.trim(),...a,responsavel:$('kResp').value.trim(),whats:$('kWa').value.replace(/\D/g,''),telefone:$('kTel').value.replace(/\D/g,''),email:$('kEm').value.trim(),origem:$('kOri').value};
+  const falta=[]; if(!cnpjOk(c))falta.push('CNPJ válido'); if(!d.razao_social)falta.push('razão social'); if(!d.inscricao_estadual)falta.push('inscrição estadual (ou marque Isento)'); if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email))falta.push('e-mail válido'); if(!addrOk(a))falta.push('endereço completo'); if(!d.responsavel)falta.push('responsável'); if(d.whats.length<10)falta.push('WhatsApp com DDD'); if(!d.origem)falta.push('como nos conheceu');
   if(!admin){const s=$('kSen').value; if(s.length<6)falta.push('senha com 6+ caracteres'); else if(s!==$('kSen2').value)falta.push('senhas iguais'); d.senha=s;}
   return {d,falta}; }
 /* cadastro público */
@@ -1443,7 +1475,7 @@ async function drawCli(refetch=true){ if(USA_SB()&&refetch){ $('clPanel').innerH
   const L=Object.entries(CLIENTES).map(([cnpj,c])=>({cnpj,...c})).filter(c=>(!st||c.status===st)&&(!q||norm([c.nome,c.fantasia,c.cnpj,c.codigo,c.cidade].join(' ')).includes(q)))
     .sort((a,b)=>(a.status==='pendente'?0:1)-(b.status==='pendente'?0:1)||(b.criado_em||'').localeCompare(a.criado_em||''));
   $('clPanel').innerHTML=`<div class="crow2 h"><div>Cliente (${L.length})</div><div>Cód. G360</div><div>Cidade</div><div>Situação</div><div></div></div>`+(L.length?L.map(c=>`<div class="crow2" data-c="${c.cnpj}">
-    <div class="nm"><b>${esc(c.fantasia||c.nome)}</b><small>${fmtCNPJ(c.cnpj)} · ${esc(c.nome||'')}</small><small>${esc(c.origem||'')}${c.whats?' · '+fmtTel(c.whats):''}</small></div>
+    <div class="nm"><b>${esc(c.fantasia||c.nome)}</b><small>${fmtCNPJ(c.cnpj)} · ${esc(c.nome||'')}</small><small>IE: ${esc(c.inscricao_estadual||'não informada')}${c.email?' · '+esc(c.email):''}</small><small>${esc(c.origem||'')}${c.whats?' · '+fmtTel(c.whats):''}</small></div>
     <div class="sm sm2">${c.codigo?esc(c.codigo):'<span style="color:var(--tx3)">—</span>'}</div><div class="sm">${esc(c.cidade||'')}${c.uf?'/'+c.uf:''}${c.codigo?'<span class="som"> · cód. '+esc(c.codigo)+'</span>':''}</div>
     <div class="stw"><span class="stt ${c.status}">${{pendente:'Aguardando',aprovado:'Aprovado',reprovado:'Reprovado',bloqueado:'Bloqueado'}[c.status]||c.status}</span></div>
     <div class="ab2">${c.status==='pendente'?'<button class="ap" data-ap>Aprovar</button><button class="rp" data-rp>Reprovar</button>':''}<button data-ed>Editar</button></div></div>`).join(''):'<div class="empty2">Nenhum cliente encontrado.</div>'); }
