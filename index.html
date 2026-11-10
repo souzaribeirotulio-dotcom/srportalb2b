@@ -1989,6 +1989,34 @@ window.SouzinhaPortal={
 };
 
 
+
+/* Interfaces mínimas para as funcionalidades adicionais, sem expor tokens admin ao cliente. */
+window.SRListaAdminBridge={
+ isAdmin:()=>!!ADM&&(!USA_SB()||!!tokGet('sr_b2b_tokadm')),
+ clientName:cn=>{const c=CLIENTES[cn];return (c?.fantasia||c?.nome||c?.razao_social||cn)+' · '+fmtCNPJ(cn)},
+ catalog:()=>P.filter(p=>!p.off).map(p=>({cod:p.cod,name:p.t,unit:p.u,category:p.c,brand:p.m,price:p.p,image:imgUrl(p)})),
+ product:cod=>{const p=byCod[cod];return p&&!p.off?{cod:p.cod,name:p.t,unit:p.u,category:p.c,brand:p.m,price:p.p,image:imgUrl(p)}:null},
+ seed:cn=>(CLIENTES[cn]?.lista||[]).map(v=>Array.isArray(v)?{cod:v[0],ultima_qtd:v[1]||0,ultima_data:v[2]||null,media_qtd:v[3]||0,qtd_sugerida:0}:v),
+ get:async cn=>USA_SB()?rpc('portal_admin_lista_cliente',{p_token:tokGet('sr_b2b_tokadm'),p_cnpj:cn}):{configurada:false,lista:[],congelados:CONG[cn]||{}},
+ save:async(cn,itens)=>{
+  if(USA_SB())return rpc('portal_admin_salvar_lista_cliente',{p_token:tokGet('sr_b2b_tokadm'),p_cnpj:cn,p_itens:itens});
+  CLIENTES[cn].lista=itens.map(i=>[i.cod,i.ultima_qtd||0,i.ultima_data||'',i.media_qtd||0]);
+  const old={...(CONG[cn]||{})};for(const i of itens){if(i.preco_modo==='congelar')old[i.cod]=i.preco;else if(i.preco_modo==='remover')delete old[i.cod]}
+  CONG[cn]=old;saveClientes();return {salvo:true,itens:itens.length};
+ },
+ refresh:async cn=>{
+  if(USA_SB())CONG[cn]=await API.buscarCongeladosAdmin(cn);
+  if(CNPJ===cn&&CLI)await loadCli(cn,LSG('sr_b2b_cli',null));
+  if(VIEW==='adm'&&AT==='cong')drawCong();
+ }
+};
+window.SRNegociacaoBridge={
+ customer:()=>CLI?{cnpj:CNPJ,nome:CLI.nome,vendedor:CLI.vendedor}:null,
+ isAdmin:()=>!!ADM&&(!USA_SB()||!!tokGet('sr_b2b_tokadm')),
+ items:source=>(source==='lista'?listaItems():cartItems()).map(i=>({cod:i.p.cod,nome:i.p.t,q:i.q,preco:pu(i.p,i.un),unidade:unTxt(i.p,i.un),un_id:i.un.id})),
+ sample:()=>['124514','22','001482'].map(cod=>{const p=byCod[cod];return p?{cod:p.cod,nome:p.t,q:5,preco:p.p,unidade:p.u,un_id:'',ultima_qtd:0,media_qtd:0}:null}).filter(Boolean)
+};
+
 drawCats(); render(); updSem();
 carregarFotosCompartilhadas().catch(e=>console.warn('Fotos compartilhadas:',e.message));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)carregarFotosCompartilhadas().catch(()=>{});});
