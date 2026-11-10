@@ -115,3 +115,14 @@
  #souzinha-widget .sz-product-img{width:56px;height:60px}
  #souzinha-widget .sz-product-card{padding:8px;gap:8px}
 }
+
+/* Atendimento humano: link oficial WhatsApp dentro do chat */
+#souzinha-widget .sz-whatsapp-link{
+ display:block;align-self:stretch;text-align:center;
+ border-radius:11px;padding:12px 14px;
+ background:#1fa855;color:white;font-size:12px;font-weight:700;
+ text-decoration:none;line-height:1.4;border:1px solid #75db96;
+ transition:filter .15s;
+}
+#souzinha-widget .sz-whatsapp-link:hover{filter:brightness(1.08)}
+#souzinha-widget .sz-whatsapp-link:focus-visible{outline:3px solid #b2e04a;outline-offset:3px}
