@@ -2,7 +2,7 @@
    Eventos não bloqueiam o uso do portal. Toda leitura do painel exige token admin. */
 let intelBuscaTimer=null, intelUltimaBusca='',intelUltimaBuscaEm=0;
 let intelCartTimer=null, intelFilaCarrinho=Promise.resolve(), intelSequenciaPainel=0;
-const intelAtivo=()=>typeof CLI!=='undefined'&&!!CLI&&!!CNPJ&&USA_SB()&&!!tokGet('sr_b2b_tok');
+const intelAtivo=()=>typeof CLI!=='undefined'&&!!CLI&&!!CNPJ&&!(typeof ADM!=='undefined'&&ADM)&&USA_SB()&&!!tokGet('sr_b2b_tok');
 const intelNumero=n=>Number(n||0).toLocaleString('pt-BR');
 const intelSeguroTexto=s=>esc(String(s||''));
 function intelEvento(evento,cod=null,termo=null,resultados=null){
