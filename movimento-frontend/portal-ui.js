@@ -199,6 +199,7 @@ const API = {
   async login(cnpj, senha){
     if(USA_SB()){ const r=await rpc('portal_login_cliente',{p_cnpj:cnpj,p_senha:senha}); tokSet('sr_b2b_tok',r.token); const c=daBase(r.cliente); CLIENTES[c.cnpj]=c; return {cnpj:c.cnpj, razao_social:c.razao_social, fantasia:c.fantasia||c.razao_social, vendedor:c.vendedor}; }
     if(CONFIG.modo==='api'){ const r=await http('POST','/auth/login',{cnpj,senha}); TOKEN=r.token; return r.cliente; }
+    if(new URLSearchParams(location.search).get('mock_sessao')==='expirada')throw new Error('Sessão demonstrativa expirada. Entre novamente.');
     const c=CLIENTES[cnpj]; if(!c||c.senha!==senha) throw new Error('CNPJ ou senha incorretos.');
     if(c.status==='pendente') throw new Error('Seu cadastro está em análise. Avisaremos pelo WhatsApp assim que for liberado.');
     if(c.status!=='aprovado') throw new Error('Cadastro não liberado. Fale com a Souza Ribeiro.');
@@ -246,10 +247,10 @@ const CFG = Object.assign({soEstoque:true, bloquear:true,
   formas:[{id:"pix",nome:"PIX",obs:"Pagamento à vista"},{id:"din",nome:"Dinheiro na entrega",obs:"Pagamento ao receber"},{id:"b14",nome:"Boleto 14 dias",obs:"Vencimento 14 dias após faturamento"},{id:"b28",nome:"Boleto 28 dias",obs:"Vencimento 28 dias após faturamento"},{id:"b2856",nome:"Boleto 28/56 dias",obs:"2 parcelas"}],
   vendedores:["Carlos","Ana"], feriados:FERIADOS_PADRAO, pagPadrao:["pix"]}, (()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_cfg'))||{}}catch(e){return {}}})());
 if(MOVIMENTO_MOCK.cenarioCatalogo==='indisponivel') CFG.soEstoque=false;
-let CONG = (()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_cong'))||null}catch(e){return null}})() || {"12345678000190":{"4200":4.49,"400801":22.90,"001482":27.50}}; // exemplo de preços congelados
+let CONG = (()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_cong'))||null}catch(e){return null}})() || {}; // preços personalizados definidos só em memória nesta simulação
 const congOf = p => (typeof CNPJ!=='undefined'&&CNPJ&&CONG[CNPJ]&&CONG[CNPJ][p.cod]!=null) ? CONG[CNPJ][p.cod] : null;
 const base = p => congOf(p) ?? p.p;
-const pu = (p,un) => { const c=congOf(p); if(!un.id) return base(p); return c!=null ? +(c*un.fator).toFixed(2) : (un.preco ?? +(p.p*un.fator).toFixed(2)); };
+const pu = (p,un) => MOVIMENTO_MOCK.precoUnitario(p,un,congOf(p));
 const fmtQ = n => (+n).toLocaleString('pt-BR',{maximumFractionDigits:2});
 const stkHtml = p => p.s<=0 ? '<div class="stk no">Sem estoque</div>' : p.s<10 ? `<div class="stk low">Últimas ${fmtQ(p.s)} ${p.u.toLowerCase()}${p.s>1?'s':''}</div>` : '<div class="stk ok">Em estoque</div>';
 const vePreco = () => !!(typeof CLI!=='undefined'&&CLI) || (typeof ADM!=='undefined'&&ADM);
@@ -260,7 +261,7 @@ const plur = (s,q) => q>1 ? s.replace(/^(\S+?)(ão)?$/i,(m,a,b)=>b?a+'ões':(/[a
 const unTxt = (p,un) => un.id ? `${un.nome} c/ ${un.fator} ${p.u.toLowerCase()}s` : p.u;
 const fromK = k => { const [c,id]=k.split('@'); const p=byCod[c]; return p?{p,un:unOf(p,id),k}:null };
 const itemsOf = o => Object.entries(o).filter(([k,q])=>q>0).map(([k,q])=>{const x=fromK(k);return x&&{...x,q}}).filter(Boolean);
-const lineTot = i => pu(i.p,i.un)*i.q;
+const lineTot = i => MOVIMENTO_MOCK.totalLinha(pu(i.p,i.un),i.q);
 const unselHtml = (p,sel,cls='') => ALT[p.cod] ? `<div class="unsel ${cls}">${unidades(p).map(u=>`<button data-un="${u.id}" class="${u.id===(sel||'')?'on':''}">${u.id?`${u.nome} (${u.fator})`:p.u}</button>`).join('')}</div>` : '';
 const byCod = Object.fromEntries(P.map(p=>[p.cod,p]));
 const LSG=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}};
@@ -906,14 +907,7 @@ function openCliAdm(cn){ $('cadBox').innerHTML=''; $('mCad').classList.remove('o
 }
 /* previsão de entrega */
 const isoD=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-function previsao(cidade,now=new Date()){ if(!norm(cidade||'').includes('uberlandia')) return {data:null,txt:`Entrega em ${cidade||'sua cidade'}`,sub:'O prazo será confirmado pelo vendedor após o pedido.'};
-  const FER=new Set(CFG.feriados.map(x=>x[0])), util=d=>d.getDay()!==0&&d.getDay()!==6&&!FER.has(isoD(d));
-  let d=new Date(now);
-  if(!(util(now)&&now.getHours()<10)){ do{ d.setDate(d.getDate()+1) }while(!util(d)); }
-  const hj=isoD(now), am=isoD(new Date(now.getTime()+864e5)), wd=d.toLocaleDateString('pt-BR',{weekday:'long'});
-  const quando=isoD(d)===hj?'Hoje':isoD(d)===am?'Amanhã':wd[0].toUpperCase()+wd.slice(1);
-  return {data:isoD(d),txt:`${quando}, ${d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}, até as 18h`,
-    sub:util(now)&&now.getHours()<10?'Pedido feito até 10h em dia útil é entregue no mesmo dia.':'Pedidos após 10h, fim de semana ou feriado são entregues no próximo dia útil.'}; }
+function previsao(cidade){return MOVIMENTO_MOCK.previsaoEntrega(cidade)}
 /* conta do cliente */
 $('tbConta').onclick=()=>{ if(!CLI&&!ADM){openLogin();return} drawConta(); $('mConta').classList.add('open'); };
 function drawConta(addForm){ const cl=()=>$('mConta').classList.remove('open'), r=CLI?CLI.rec:null;
