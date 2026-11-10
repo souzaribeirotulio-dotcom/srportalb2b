@@ -12,6 +12,17 @@
   window.MOVIMENTO_MOCK={
     produtos: cenarioCatalogo==='vazio'?[]:cenarioCatalogo==='indisponivel'?produtos.map((p,i)=>({...p,s:i<3?0:p.s})):produtos,
     cenarioCatalogo,
+    precoUnitario(p,un,precoCongelado){
+      const precoBase=precoCongelado??p.p;
+      if(!un.id) return precoBase;
+      return un.preco??+(precoBase*un.fator).toFixed(2);
+    },
+    totalLinha(valorUnitario,quantidade){
+      return +(valorUnitario*quantidade).toFixed(2);
+    },
+    previsaoEntrega(_cidade){
+      return {data:null,txt:'Prazo de entrega demonstrativo',sub:'A previsão real será calculada e confirmada pelo backend da Movimento.'};
+    },
     async consultarCNPJ(cnpj){
       await pausa();
       return {razao_social:'Empresa Demonstração Ltda',nome_fantasia:'Empresa Demonstração',cep:'38400000',descricao_tipo_de_logradouro:'Avenida',logradouro:'Exemplo',numero:'100',complemento:'',bairro:'Centro',municipio:'Uberlândia',uf:'MG',ddd_telefone_1:'34999990000',descricao_situacao_cadastral:'ATIVA'};
