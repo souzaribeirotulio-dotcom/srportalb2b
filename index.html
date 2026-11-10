@@ -1097,7 +1097,7 @@ const API = {
   async inteligencia(dias){if(USA_SB())return rpc('portal_intel_dashboard',{p_token:tokGet('sr_b2b_tokadm'),p_dias:Number(dias)});throw new Error('Inteligência comercial requer a integração de dados.');},
   async listarClientes(){ if(USA_SB()){ const L=await rpc('portal_admin_clientes',{p_token:tokGet('sr_b2b_tokadm')}); const o={}; L.forEach(c=>o[c.cnpj]=daBase(c)); return o; } return CLIENTES; },
   async loginAdmin(u,s){ if(USA_SB()){ const r=await rpc('portal_login_admin',{p_usuario:u,p_senha:s}); tokSet('sr_b2b_tokadm',r.token); return r; } if(CONFIG.modo==='api'){const r=await http('POST','/auth/admin',{usuario:u,senha:s});TOKEN=r.token;return r} if(u!=='admin'||s!=='1234')throw new Error('Usuário ou senha incorretos.'); return {usuario:u}; },
-  async salvarProduto(cod,dados){ if(CONFIG.modo==='api') return http('PUT','/admin/produtos/'+encodeURIComponent(cod),dados); return true; },
+  async salvarProduto(cod,dados){ if(USA_SB())return window.SRPersistencia.saveProduct(cod,dados); if(CONFIG.modo==='api') return http('PUT','/admin/produtos/'+encodeURIComponent(cod),dados); return true; },
   async buscarCongeladosAdmin(cnpj){
     if(USA_SB())return rpc('portal_admin_precos_congelados',{p_token:tokGet('sr_b2b_tokadm'),p_cnpj:cnpj});
     return CONG[cnpj]||{};
@@ -1114,8 +1114,8 @@ const API = {
     return o;
   },
   async salvarCongelados(cnpj,lista){ if(CONFIG.modo==='api') return http('PUT',`/admin/clientes/${cnpj}/precos-congelados`,Object.entries(lista).map(([cod,preco])=>({cod,preco}))); return true; },
-  async salvarConfig(cfg){ if(CONFIG.modo==='api') return http('PUT','/admin/config',cfg); return true; },
-  async salvarClips(cod,lista){ if(CONFIG.modo==='api') return http('PUT','/admin/produtos/'+encodeURIComponent(cod)+'/clips',lista.map(c=>({id:c.id,titulo:c.titulo,video_url:c.src}))); return true; },
+  async salvarConfig(cfg){ if(USA_SB())return window.SRPersistencia.saveConfig(cfg); if(CONFIG.modo==='api') return http('PUT','/admin/config',cfg); return true; },
+  async salvarClips(cod,lista){ if(USA_SB())return window.SRPersistencia.saveClips(cod,lista,DEMO_OFF,DEMO_TT); if(CONFIG.modo==='api') return http('PUT','/admin/produtos/'+encodeURIComponent(cod)+'/clips',lista.map(c=>({id:c.id,titulo:c.titulo,video_url:c.src}))); return true; },
   async pedidos(cnpj){
     if(CONFIG.modo==='api') return http('GET',`/clientes/${cnpj}/pedidos`);
     return LSG('sr_b2b_pedidos_'+cnpj,[]);
@@ -1387,7 +1387,7 @@ function aplicaOv(cod){ const p=byCod[cod], o=ORIG[cod], v=PADM[cod]||{};
   p.f=p.f.map(([k,x])=>[k, k==='Marca'?p.m : k==='Vendido por'?p.u : k==='Categoria'?p.c : x]); }
 Object.keys(PADM).forEach(c=>byCod[c]&&aplicaOv(c));
 const salvaPADM=()=>LSS('sr_b2b_admin_prod',PADM);
-const salvaCfg=()=>LSS('sr_b2b_cfg',CFG);
+const salvaCfg=()=>{LSS('sr_b2b_cfg',CFG);return (USA_SB()&&window.SRPersistencia?API.salvarConfig(CFG):Promise.resolve(true)).catch(e=>{toast('Configuração não salva no servidor: '+e.message);return false})};
 const salvaCong=()=>{if(!USA_SB())LSS('sr_b2b_cong',CONG)};
 async function sincronizaCongeladosCliente(){
   if(!USA_SB()||!CNPJ||!CLI)return;
@@ -1460,12 +1460,23 @@ function drawAProd(){ const q=norm($('aQ').value.trim()), c=$('aCat').value, st=
     <div class="tgw"><button class="tg ${p.off?'':'on'}" data-tg title="Mostrar no catálogo"></button></div>
     <button class="tool ab" data-ed>Editar</button></div>`}).join('');
 }
-$('aPanel').addEventListener('click',e=>{const r=e.target.closest('.arow[data-c]');if(!r)return;const cod=r.dataset.c;
+$('aPanel').addEventListener('click',async e=>{const r=e.target.closest('.arow[data-c]');if(!r)return;const cod=r.dataset.c;
   if(e.target.closest('[data-ed]')||e.target.tagName==='IMG'){openAdmEd(cod);return}
-  if(e.target.closest('[data-tg]')){PADM[cod]={...(PADM[cod]||{}),off:!byCod[cod].off};salvaAdm(cod);drawAProd()}});
-$('aPanel').addEventListener('change',e=>{if(!e.target.matches('[data-pr]'))return;const cod=e.target.closest('.arow').dataset.c,v=+e.target.value;
-  if(v>0){PADM[cod]={...(PADM[cod]||{}),p:+v.toFixed(2)};salvaAdm(cod);toast('Preço atualizado: '+brl(v));drawAProd()}});
-function salvaAdm(cod){ aplicaOv(cod); salvaPADM(); API.salvarProduto(cod,PADM[cod]); render(); updMrgBadge(); }
+  if(e.target.closest('[data-tg]')){PADM[cod]={...(PADM[cod]||{}),off:!byCod[cod].off};const ok=await salvaAdm(cod);drawAProd();if(ok)toast('Visibilidade salva para todos ✓')}});
+$('aPanel').addEventListener('change',async e=>{if(!e.target.matches('[data-pr]'))return;const cod=e.target.closest('.arow').dataset.c,v=+e.target.value;
+  if(v>0){PADM[cod]={...(PADM[cod]||{}),p:+v.toFixed(2)};const ok=await salvaAdm(cod);if(ok)toast('Preço publicado: '+brl(v));drawAProd()}});
+async function salvaAdm(cod){
+  const before=USA_SB()?window.SRPersistencia?.remoteProduct(cod):null;
+  try{
+    await API.salvarProduto(cod,PADM[cod]??null);
+    aplicaOv(cod);salvaPADM();render();updMrgBadge();
+    return true;
+  }catch(e){
+    if(USA_SB()){if(before==null)delete PADM[cod];else PADM[cod]=before;aplicaOv(cod)}
+    toast('Não foi salvo no servidor: '+e.message);render();updMrgBadge();
+    return false;
+  }
+}
 /* edição completa */
 let AE=null;
 function openAdmEd(cod){ const p=byCod[cod]; AE={cod,alt:JSON.parse(JSON.stringify(ALT[cod]||[]))};
@@ -1493,10 +1504,10 @@ function openAdmEd(cod){ const p=byCod[cod]; AE={cod,alt:JSON.parse(JSON.stringi
   $('eP').oninput=prevMg; $('eAddU').onclick=()=>{AE.alt.push({id:'CX',nome:'Caixa',fator:'',preco:null});drawAlt()};
   $('eX').onclick=()=>$('mAdm').classList.remove('open');
   $('eFoto').onclick=()=>{$('mAdm').classList.remove('open');openMod(p)};
-  $('eRst').onclick=()=>{delete PADM[cod];salvaAdm(cod);$('mAdm').classList.remove('open');drawAdm();toast('Produto restaurado')};
-  $('eOk').onclick=()=>{ const ncm=$('eNcm').value.replace(/\D/g,'');if(ncm.length&&ncm.length!==8){toast('Informe um NCM válido com 8 dígitos.');$('eNcm').focus();return;}const alt=AE.alt.filter(u=>u.nome&&+u.fator>0).map(u=>({id:(u.id||u.nome.slice(0,2)).toUpperCase(),nome:u.nome,fator:+u.fator,...(+u.preco>0?{preco:+(+u.preco).toFixed(2)}:{})}));
+  $('eRst').onclick=async()=>{delete PADM[cod];const ok=await salvaAdm(cod);if(!ok)return;$('mAdm').classList.remove('open');drawAdm();toast('Produto restaurado para todos ✓')};
+  $('eOk').onclick=async()=>{ const ncm=$('eNcm').value.replace(/\D/g,'');if(ncm.length&&ncm.length!==8){toast('Informe um NCM válido com 8 dígitos.');$('eNcm').focus();return;}const alt=AE.alt.filter(u=>u.nome&&+u.fator>0).map(u=>({id:(u.id||u.nome.slice(0,2)).toUpperCase(),nome:u.nome,fator:+u.fator,...(+u.preco>0?{preco:+(+u.preco).toFixed(2)}:{})}));
     PADM[cod]={...(PADM[cod]||{}),t:$('eT').value.trim()||p.t,m:$('eM').value.trim(),c:$('eC').value,u:$('eU').value.trim()||p.u,p:+(+$('eP').value).toFixed(2)||p.p,d:$('eD').value.trim(),ncm,tagsBusca:$('eBusca').value.trim(),alt,off:!$('eOff').checked};
-    salvaAdm(cod); $('mAdm').classList.remove('open'); drawAdm(); toast('Produto salvo ✓'); };
+    const ok=await salvaAdm(cod);if(!ok)return;$('mAdm').classList.remove('open');drawAdm();toast('Produto salvo no servidor ✓'); };
 }
 function prevMg(){const p=byCod[AE.cod],v=+$('eP').value,m=margem(v,p.k);$('ePm').innerHTML=m==null?'':`Margem bruta: <b class="mg ${mgCls(m)}" style="font-size:12px">${m.toFixed(1)}%</b>`;drawAltPrev()}
 function drawAlt(){ $('eAlt').innerHTML=AE.alt.map((u,i)=>`<div class="urow" data-i="${i}"><input data-f="nome" value="${esc(u.nome||'')}" placeholder="Caixa"><input data-f="id" value="${esc(u.id||'')}" placeholder="CX"><input data-f="fator" type="number" value="${u.fator||''}" placeholder="25"><input data-f="preco" type="number" step="0.01" value="${u.preco??''}" placeholder="auto"><button class="rm" data-rm>×</button></div><div class="uprev" data-pv="${i}"></div>`).join('');
@@ -1567,7 +1578,7 @@ function drawCfg(){ $('cfgPanel').innerHTML=[['soEstoque','Mostrar somente produ
      <small>Uma linha por grupo de palavras equivalentes, separadas por vírgula. Ex.: marmita, marmitex, quentinha. Para aplicações específicas, use as palavras-chave na edição de cada produto.</small>
      <textarea class="inp" id="cfBuscaSinonimos" rows="5" style="width:100%;margin-top:10px" spellcheck="false">${esc(CFG.buscaSinonimos??SINONIMOS_PADRAO)}</textarea>
      <div class="row" style="margin-top:8px"><button class="btn sec" id="cfBuscaSalvar">Salvar sinônimos</button></div>
-     <small style="margin-top:8px">Por enquanto, alterações manuais ficam neste navegador até a integração com a Movimento.</small></div>
+     <small style="margin-top:8px">As configurações são salvas no Supabase e compartilhadas com os clientes do portal. A integração com a Movimento ainda será configurada.</small></div>
    <div class="ci2" style="display:block"><b>Vendedores</b><small>Aparecem no cadastro em "Como conheceu a Souza Ribeiro?" e no cadastro do cliente.</small>
      <div style="margin-top:10px">${CFG.vendedores.map(v=>`<span class="tagl">${esc(v)} <button data-rmv="${esc(v)}">×</button></span>`).join('')}</div>
      <div class="fxurl" style="margin-top:6px"><input id="cfVN" placeholder="Nome do vendedor"><button class="btn sec" id="cfVA">Adicionar</button></div></div>
@@ -1578,7 +1589,7 @@ function drawCfg(){ $('cfgPanel').innerHTML=[['soEstoque','Mostrar somente produ
   if(USA_SB()){ $('cfgPanel').insertAdjacentHTML('afterbegin',`<div class="ci2" style="display:block"><b>Administradores do portal</b><small>Quem pode entrar no painel do administrador. Cada um entra com o próprio usuário e senha.</small><div id="cfAdm" style="margin-top:10px">Carregando…</div>
      <div class="fgrid" style="margin-top:8px"><div><label>Usuário</label><input class="inp" id="cfAU" placeholder="ex.: carlos"></div><div><label>Nome</label><input class="inp" id="cfAN" placeholder="Nome da pessoa"></div>
      <div class="full"><label>Senha (mín. 6 caracteres)</label><div class="fxurl"><input class="inp" id="cfAS" type="text" placeholder="Para usuário existente, digite só se quiser trocar"><button class="btn sec" id="cfAA">Salvar usuário</button></div></div></div><div class="err" id="cfAE"></div></div>`); drawAdmins(); }
-  $('cfBuscaSalvar').onclick=()=>{CFG.buscaSinonimos=$('cfBuscaSinonimos').value.trim();salvaCfg();render();toast('Sinônimos atualizados neste navegador ✓')};
+  $('cfBuscaSalvar').onclick=()=>{CFG.buscaSinonimos=$('cfBuscaSinonimos').value.trim();salvaCfg();render();toast('Sinônimos salvos ✓')};
   $('cfMg').onchange=()=>{CFG.margemMin=+$('cfMg').value||0;salvaCfg();updMrgBadge()};
   $('cfFA').onclick=()=>{const n=$('cfFN').value.trim(); if(!n)return; CFG.formas.push({id:'f'+Date.now().toString(36),nome:n,obs:$('cfFO').value.trim()}); salvaCfg(); drawCfg()};
   $('cfVA').onclick=()=>{const n=$('cfVN').value.trim(); if(!n||CFG.vendedores.includes(n))return; CFG.vendedores.push(n); salvaCfg(); drawCfg()};
@@ -1596,7 +1607,7 @@ $('cfgPanel').addEventListener('click',e=>{const d=e.target.dataset;
   if(d.rmv){CFG.vendedores=CFG.vendedores.filter(v=>v!==d.rmv);salvaCfg();drawCfg()}
   if(d.rmh){CFG.feriados=CFG.feriados.filter(x=>x[0]!==d.rmh);salvaCfg();drawCfg()}});
 $('cfgPanel').addEventListener('change',e=>{const id=e.target.dataset.pp; if(!id)return; CFG.pagPadrao=e.target.checked?[...new Set([...CFG.pagPadrao,id])]:CFG.pagPadrao.filter(x=>x!==id); salvaCfg();});
-$('cfgPanel').addEventListener('click',e=>{const k=e.target.dataset.k;if(!k)return;CFG[k]=!CFG[k];salvaCfg();API.salvarConfig(CFG);drawCfg();render()});
+$('cfgPanel').addEventListener('click',e=>{const k=e.target.dataset.k;if(!k)return;CFG[k]=!CFG[k];salvaCfg();drawCfg();render()});
 /* exportar / importar / sair */
 $('aExp').onclick=()=>{const b=new Blob([JSON.stringify({produtos:PADM,imagens:OV,congelados:CONG,config:CFG},null,1)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='sr_portal_b2b_admin.json';a.click();toast('Alterações exportadas')};
 $('aImp').onclick=()=>$('aImpF').click();
@@ -2023,6 +2034,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)carregarFo
 setInterval(()=>{if(!document.hidden)carregarFotosCompartilhadas().catch(()=>{});},60000);
 atualizarBotaoFotosLocais();
 </script>
+<script defer src="/portal-persistencia.js"></script>
 <script defer src="/portal-listas-admin.js"></script>
 <script defer src="/portal-negociacao.js"></script>
 <script defer src="/souzinha-escola.js"></script>
