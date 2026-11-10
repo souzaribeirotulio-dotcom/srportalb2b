@@ -472,6 +472,7 @@ textarea{resize:vertical}
 }
 </style>
 <link rel="stylesheet" href="/souzinha.css">
+<link rel="stylesheet" href="/portal-negociacao.css">
 </head>
 <body>
 <div class="fundo"><div class="grade"></div><div class="b1"></div><div class="b2"></div></div>
@@ -535,7 +536,7 @@ textarea{resize:vertical}
 <div class="view wrap" id="vAdm" hidden>
   <div class="ph"><div><h2>Painel do <em>administrador</em></h2><p>Edite nomes, descrições, preços, unidades alternativas e fotos. As alterações aparecem na hora no catálogo.</p></div>
     <div class="row"><button class="tool" id="aExp">⬇ Exportar</button><button class="tool" id="aImp">⬆ Importar</button><button class="tool" id="pubLocal" type="button">☁ Fotos antigas (verificando…)</button><button class="tool" id="pubImportFotos" type="button">⬆ Importar fotos</button><input type="file" id="aImpF" accept=".json" hidden><button class="tool" id="aSair">Sair do admin</button></div></div>
-  <div class="ltabs atabs"><button data-at="cli">Clientes <span class="mk" id="cliN" style="background:rgba(255,196,0,.18)"></span></button><button class="on" data-at="prod">Produtos</button><button data-at="cong">Preços congelados</button><button data-at="mrg">Margens <span class="mk" id="mrgN" style="background:rgba(255,107,107,.16);color:#ff8a8a"></span></button><button data-at="intel">Inteligência</button><button data-at="souzinha">🎓 Escola do Souzinha</button><button data-at="cfg">Configurações</button></div>
+  <div class="ltabs atabs"><button data-at="cli">Clientes <span class="mk" id="cliN" style="background:rgba(255,196,0,.18)"></span></button><button class="on" data-at="prod">Produtos</button><button data-at="cong">Preços congelados</button><button data-at="mrg">Margens <span class="mk" id="mrgN" style="background:rgba(255,107,107,.16);color:#ff8a8a"></span></button><button data-at="intel">Inteligência</button><button data-at="neg">Negociações</button><button data-at="souzinha">🎓 Escola do Souzinha</button><button data-at="cfg">Configurações</button></div>
   <div id="atProd">
   <div class="afil"><div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="aQ" type="search" placeholder="Buscar produto, marca ou código…"></div>
     <select id="aCat"><option value="">Todas as categorias</option></select>
@@ -568,13 +569,14 @@ textarea{resize:vertical}
     </div>
     <div id="intelPanel" aria-live="polite"></div>
   </div>
-  <div id="atSouzinha" hidden><div id="souzinhaEscola"></div></div>
+  <div id="atNeg" hidden><div id="negAdminView"></div></div>
+   <div id="atSouzinha" hidden><div id="souzinhaEscola"></div></div>
    <div id="atCfg" hidden><div class="panel cfgp" id="cfgPanel"></div></div>
 </div>
 
 <div class="view wrap" id="vPed" hidden>
   <div class="ph"><div><h2>Meus <em>Pedidos</em></h2><p>Acompanhe os pedidos feitos pelo portal.</p></div></div>
-  <div class="panel" id="pPanel"></div>
+  <div class="panel" id="pPanel"></div><div id="negClientView"></div>
 </div>
 
 <div class="shade" id="shade"></div>
@@ -582,7 +584,7 @@ textarea{resize:vertical}
   <div class="dh"><b>Seu carrinho</b><button id="dClose">×</button></div>
   <div class="db" id="dBody"></div>
   <div class="df"><div class="t"><span>Total</span><b id="dTot">R$ 0,00</b></div>
-    <button class="btn pri" style="width:100%" id="dGo">Finalizar pedido</button></div>
+    <button class="btn out" style="width:100%;margin-bottom:9px" id="dNeg">🤝 Solicitar negociação</button><button class="btn pri" style="width:100%" id="dGo">Finalizar pedido</button></div>
 </aside>
 
 <div class="mod" id="mLogin"><div class="box login">
@@ -1073,6 +1075,7 @@ const API = {
     return {cnpj, razao_social:c.nome, fantasia:c.fantasia, vendedor:c.vendedor};
   },
   async lista(cnpj){
+    if(USA_SB())return rpc('portal_minha_lista',{p_token:tokGet('sr_b2b_tok')});
     if(CONFIG.modo==='api') return http('GET',`/clientes/${cnpj}/lista`);
     return (CLIENTES[cnpj].lista||[]).map(([cod,q,d,m])=>({cod, ultima_qtd:q, ultima_data:d, media_qtd:m}));
   },
@@ -1161,13 +1164,24 @@ async function loadCli(c, info){
   CNPJ=c; info=info||LSG('sr_b2b_cli',null);
   const rec=await API.cliente(c); const [lista,pags]=await Promise.all([API.lista(c),API.pagamentos(c)]);
   const extra=LSG('sr_b2b_lista_'+c,null);
+   const fonte=USA_SB()&&lista?.configurada===true?(lista.lista||[]):(extra||(Array.isArray(lista)?lista:[]));
   CLI={nome:info.razao_social, fantasia:info.fantasia, vendedor:info.vendedor, rec,
     pagamentos:pags.map(f=>({id:f.id,nome:f.descricao,obs:f.observacao||''})),
-    lista:(extra||lista.map(l=>({cod:l.cod,ult:l.ultima_qtd,dt:l.ultima_data,med:l.media_qtd}))).filter(l=>byCod[l.cod])};
-  CART=LSG('sr_b2b_cart_'+c,{}); document.body.classList.add('logged'); drawUser(); updCart();
+    lista:fonte.map(l=>({cod:l.cod,ult:l.ult??l.ultima_qtd??0,dt:l.dt??l.ultima_data??'',med:l.med??l.media_qtd??0,sug:l.sug??l.qtd_sugerida??0})).filter(l=>byCod[l.cod])};
+  CART=LSG('sr_b2b_cart_'+c,{}); if(USA_SB()){LQ={};CLI.lista.forEach(l=>{if(l.sug>0)LQ[kOf(l.cod,'')]=l.sug});} document.body.classList.add('logged'); drawUser(); updCart();
   if(USA_SB())await sincronizaCongeladosCliente();
 }
-const saveLista=()=>LSS('sr_b2b_lista_'+CNPJ,CLI.lista);
+let srListaSync=Promise.resolve();
+ const saveLista=()=>{
+  if(!CLI||!CNPJ)return;
+  const c=CNPJ,snapshot=CLI.lista.map(l=>({cod:l.cod,ultima_qtd:l.ult||0,ultima_data:l.dt||null,media_qtd:l.med||0,qtd_sugerida:l.sug||0}));
+  LSS('sr_b2b_lista_'+c,CLI.lista);
+  if(USA_SB()){
+   const token=tokGet('sr_b2b_tok');
+   srListaSync=srListaSync.catch(()=>{}).then(()=>rpc('portal_salvar_minha_lista',{p_token:token,p_itens:snapshot}))
+    .catch(e=>toast('Falha ao salvar Minha Lista: '+e.message));
+  }
+ };
 const saveCart=()=>{LSS('sr_b2b_cart_'+CNPJ,CART);updCart();intelProgramarCarrinho()};
 function sairConta(){ const ta=tokGet('sr_b2b_tokadm'),tc=tokGet('sr_b2b_tok'); if(USA_SB()){ if(tc&&CLI)rpc('portal_sair',{p_token:tc}).catch(()=>{}); if(ta&&ADM)rpc('portal_sair',{p_token:ta}).catch(()=>{}); if(CLI)tokSet('sr_b2b_tok',null); if(ADM)tokSet('sr_b2b_tokadm',null); }
   if(CLI){LSS('sr_b2b_sessao',null);CLI=null;CNPJ=null;CART={};if(USA_SB())CONG={};document.body.classList.remove('logged');updCart()}
@@ -1178,15 +1192,16 @@ function drawUser(){ saud(); const tc=document.getElementById('tbContaT'); if(tc
   if($('uName'))$('uName').onclick=()=>$('tbConta').click(); }
 let afterLogin=null;
 let LT='cli';
-function setLT(m){LT=m;$('lgCli').hidden=m!=='cli';$('lgAdmT').hidden=m!=='adm';$('lgAdm').hidden=m!=='cli';$('lgEsqL').hidden=m!=='cli';$('lgVolta').hidden=m==='cli';$('lgEsq').hidden=m!=='esq';$('lgS').hidden=m==='esq';$('lgS').previousElementSibling.hidden=m==='esq';$('lgOk').textContent=m==='esq'?'Enviar senha nova':'Entrar';$('lgAdmT').innerHTML=m==='esq'?'<h3 style="margin:8px 0 2px">Recuperar senha</h3>':'<h3 style="margin:8px 0 2px">Acesso do administrador</h3>';if(m==='esq')$('lgAdmT').hidden=false;$('lgVolta').textContent='← Voltar para o login';$('lgL').textContent=m==='adm'?'Usuário':'CNPJ';$('lgC').placeholder=m==='adm'?'Usuário':'Apenas números do CNPJ';$('lgC').inputMode=m==='adm'?'text':'numeric';$('lgE').textContent=''}
+function setLT(m){LT=m;$('lgCli').hidden=m!=='cli';$('lgAdmT').hidden=m!=='adm';$('lgAdm').hidden=m!=='cli';$('lgEsqL').hidden=m!=='cli';$('lgVolta').hidden=m==='cli';$('lgEsq').hidden=m!=='esq';$('lgS').hidden=m==='esq';$('lgS').previousElementSibling.hidden=m==='esq';$('lgOk').textContent=m==='esq'?'Enviar senha nova':'Entrar';$('lgAdmT').innerHTML=m==='esq'?'<h3 style="margin:8px 0 2px">Recuperar senha</h3>':'<h3 style="margin:8px 0 2px">Acesso do administrador</h3>';if(m==='esq')$('lgAdmT').hidden=false;$('lgVolta').textContent='← Voltar para o login';$('lgL').textContent=m==='adm'?'Usuário':'CNPJ';$('lgC').placeholder=m==='adm'?'Usuário':'00.000.000/0000-00 (pode colar)';$('lgC').inputMode=m==='adm'?'text':'numeric';$('lgE').textContent=''}
 $('lgAdm').onclick=()=>setLT('adm');
 $('lgEsqL').onclick=()=>setLT('esq'); $('lgVolta').onclick=()=>setLT('cli'); $('lgCad').onclick=()=>{$('mLogin').classList.remove('open');openCad()};
 function openLogin(next,modo){setLT(modo||'cli');afterLogin=next||null;$('lgE').textContent='';$('mLogin').classList.add('open');setTimeout(()=>$('lgC').focus(),50)}
-const need=fn=>CLI?fn():openLogin(fn);
+$('lgC').addEventListener('input',()=>{if(LT==='adm')return;const dig=onlyD($('lgC').value).slice(0,14);$('lgC').value=dig.length===14?dig.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5'):dig});
+ const need=fn=>CLI?fn():openLogin(fn);
 $('lgX').onclick=()=>$('mLogin').classList.remove('open');
 $('lgS').onkeydown=e=>{if(e.key==='Enter')$('lgOk').click()};
 $('lgOk').onclick=async()=>{
-  if(LT==='esq'){ const c=onlyD($('lgC').value), em=$('lgEm').value.trim(); if(c.length!==14||!em){$('lgE').textContent='Informe o CNPJ (só números) e o e-mail do cadastro.';return}
+  if(LT==='esq'){ const c=onlyD($('lgC').value), em=$('lgEm').value.trim(); if(c.length!==14||!em){$('lgE').textContent='Informe o CNPJ (com ou sem pontuação) e o e-mail do cadastro.';return}
     $('lgOk').disabled=true; $('lgE').textContent='';
     try{ const r=await fetch(SB.url+'/functions/v1/portal-esqueci-senha',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB.key,Authorization:'Bearer '+SB.key},body:JSON.stringify({cnpj:c,email:em})}); const j=await r.json().catch(()=>({}));
       if(!r.ok) $('lgE').textContent=j.erro||'Não foi possível enviar agora.'; else { $('lgEsqM').innerHTML='<b style="color:#8fd14f">✓ '+esc(j.mensagem)+'</b>'; }
@@ -1205,7 +1220,7 @@ function go(v,arg){ if(v==='adm'&&!ADM){openLogin(()=>go(v),'adm');return}
   VIEW=v; document.querySelectorAll('.hb[data-v],.tabbar [data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   const map={cat:'vCat',lista:'vLista',ped:'vPed',adm:'vAdm',clips:'vClips'}; document.body.classList.toggle('clipsmode',v==='clips'); if(v!=='clips')pauseClips(); document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==map[v]);
   document.querySelector('header nav').style.display=v==='cat'?'':'none';
-  if(v==='lista')drawLista(); if(v==='ped')drawPed(); if(v==='adm')drawAdm(); window.scrollTo(0,0); if(v==='clips')drawClips(arg); if(v==='lista'&&USA_SB()&&CLI)sincronizaCongeladosCliente().catch(e=>toast('Preços: '+e.message)); }
+  if(v==='lista')drawLista(); if(v==='ped'){drawPed();window.SRNegociacao?.renderClient();} if(v==='adm')drawAdm(); window.scrollTo(0,0); if(v==='clips')drawClips(arg); if(v==='lista'&&USA_SB()&&CLI)sincronizaCongeladosCliente().catch(e=>toast('Preços: '+e.message)); }
 document.querySelectorAll('.hb[data-v],.tabbar [data-v]').forEach(b=>b.onclick=()=>go(b.dataset.v));
 
 /* ---------- catálogo: quantidade / adicionar / lista ---------- */
@@ -1240,7 +1255,8 @@ function drawCart(){const it=cartItems();
     ${avisoEst(p,qtdBase(CART,p.cod))}
     <div class="r">${brl(pu(p,un)*q)}<br><button class="x">Remover</button></div></div>`).join(''):'<div class="empty2">Seu carrinho está vazio.</div>';
   $('dTot').textContent=brl(cartTot()); $('dGo').disabled=!it.length||(CFG.bloquear&&excede(CART).length>0);
-  $('dGo').textContent=CFG.bloquear&&excede(CART).length?'Ajuste as quantidades ao estoque':'Finalizar pedido';}
+  $('dGo').textContent=CFG.bloquear&&excede(CART).length?'Ajuste as quantidades ao estoque':'Finalizar pedido';
+  $('dNeg').disabled=!it.length;}
 $('dBody').addEventListener('click',e=>{const r=e.target.closest('.ci');if(!r)return;const c=r.dataset.c;
   if(e.target.dataset.d){CART[c]=Math.max(0,(CART[c]||0)+(+e.target.dataset.d));if(!CART[c])delete CART[c];saveCart()}
   if(e.target.classList.contains('x')){delete CART[c];saveCart()}});
@@ -1249,6 +1265,7 @@ const openCart=()=>need(()=>{drawCart();$('drawer').classList.add('open');$('sha
 const closeCart=()=>{$('drawer').classList.remove('open');$('shade').classList.remove('open')};
 $('cartBtn').onclick=openCart; $('dClose').onclick=closeCart; $('shade').onclick=closeCart;
 $('dGo').onclick=()=>{closeCart();checkout(cartItems(),'carrinho')};
+ $('dNeg').onclick=()=>{closeCart();window.SRNegociacao?.openFrom('carrinho')};
 
 /* ---------- Minha Lista ---------- */
 let LQ={}, LU={}; // quantidades e unidade escolhida na lista
@@ -1259,20 +1276,21 @@ function drawLista(){
   $('lPanel').innerHTML=`<div class="lrow h"><div></div><div>Produto</div><div>Histórico</div><div>Preço</div><div>Quantidade</div><div style="text-align:right">Subtotal</div></div>`+
    L.map(x=>{const un=unOf(x.p,LU[x.cod]), q=LQ[kOf(x.cod,un.id)]||0;return `<div class="lrow ${q?'sel':''}" data-c="${x.cod}"><img src="${imgUrl(x.p)}" referrerpolicy="no-referrer" onerror="this.src=ph(byCod['${x.cod}'])">
      <div class="nm">${esc(x.p.t)}<small>Cód. ${esc(x.cod)} · ${esc(x.p.m||'')}</small>${stkHtml(x.p)}${unselHtml(x.p,un.id,'sm')}<div class="lw">${avisoEst(x.p,qtdBase(LQ,x.cod))}</div></div>
-     <div class="hist">${x.dt?`Última compra: <b>${x.ult}</b> em ${fmtD(x.dt)}<br>Média: ${x.med} ${x.p.u.toLowerCase()}${x.med>1?'s':''}/pedido`:'Adicionado por você'}</div>
+     <div class="hist">${x.dt?`Última compra: <b>${x.ult}</b> em ${fmtD(x.dt)}<br>Média: ${x.med} ${x.p.u.toLowerCase()}${x.med>1?'s':''}/pedido`:'Adicionado por você'}${x.sug?'<br>Quantidade sugerida: <b>'+x.sug+'</b>':''}</div>
      <div class="pr">${brl(pu(x.p,un))}<small>/ ${unTxt(x.p,un).toLowerCase()}</small>${econ(x.p,un)?`<div class="ueq">${econ(x.p,un).replace(' · ','<br>')}</div>`:''}</div>
      <div class="qty"><button data-d="-1">−</button><input type="number" min="0" value="${q||''}" placeholder="0"><button data-d="1">+</button></div>
      <div class="sub2">${q?brl(q*pu(x.p,un)):'—'}</div></div>`}).join('')+
    `<div class="sticky"><div class="tt"><span id="lN"></span> Total:<b id="lT"></b></div>
-     <button class="btn out" id="lClr">Limpar</button><button class="btn out" id="lAdd">Adicionar ao carrinho</button><button class="btn pri" id="lBuy">Fechar pedido agora</button></div>`;
+     <button class="btn out" id="lClr">Limpar</button><button class="btn out" id="lAdd">Adicionar ao carrinho</button><button class="btn out" id="lNeg">🤝 Negociar valores</button><button class="btn pri" id="lBuy">Fechar pedido agora</button></div>`;
   updLista();
   $('lClr').onclick=()=>{LQ={};drawLista()};
   $('lAdd').onclick=()=>{const it=listaItems(); it.forEach(i=>CART[i.k]=(CART[i.k]||0)+i.q); saveCart(); LQ={}; drawLista(); toast(it.length+' produtos adicionados ao carrinho'); openCart()};
   $('lBuy').onclick=()=>checkout(listaItems(),'lista');
+   $('lNeg').onclick=()=>window.SRNegociacao?.openFrom('lista');
 }
 const listaItems=()=>itemsOf(LQ);
 function updLista(){const it=listaItems(),tot=it.reduce((s,i)=>s+lineTot(i),0);
-  $('lN').textContent=it.length?it.length+' itens ·':'Nenhum item ·'; $('lT').textContent=brl(tot); $('lAdd').disabled=$('lBuy').disabled=!it.length||(CFG.bloquear&&excede(LQ).length>0);}
+  $('lN').textContent=it.length?it.length+' itens ·':'Nenhum item ·'; $('lT').textContent=brl(tot); $('lAdd').disabled=$('lBuy').disabled=!it.length||(CFG.bloquear&&excede(LQ).length>0); $('lNeg').disabled=!it.length;}
 const rowK=row=>{const c=row.dataset.c;return kOf(c,unOf(byCod[c],LU[c]).id)};
 function setLQ(row,v){const c=row.dataset.c,un=unOf(byCod[c],LU[c]),k=kOf(c,un.id);v=Math.max(0,v|0);if(v)LQ[k]=v;else delete LQ[k];
   row.querySelector('.qty input').value=v||'';row.querySelector('.lw').innerHTML=avisoEst(byCod[c],qtdBase(LQ,c));row.querySelector('.sub2').textContent=v?brl(v*pu(byCod[c],un)):'—';row.classList.toggle('sel',!!v);updLista()}
@@ -1426,8 +1444,8 @@ function alertasMargem(){ const L=[], lim=CFG.margemMin;
 function updMrgBadge(){ const pend=Object.values(CLIENTES).filter(c=>c.status==='pendente').length, n=alertasMargem().baixo.length+pend; $('mrgN').textContent=alertasMargem().baixo.length||''; $('cliN').textContent=pend||''; document.querySelectorAll('[data-v=adm]').forEach(b=>{let s=b.querySelector('.bdg2'); if(!s){s=document.createElement('b');s.className='bdg bdg2';b.style.position='relative';b.appendChild(s)} s.textContent=n||''}); }
 let AT='prod';
 function drawAdm(){ document.querySelectorAll('[data-at]').forEach(b=>b.classList.toggle('on',b.dataset.at===AT));
-  $('atCli').hidden=AT!=='cli'; $('atProd').hidden=AT!=='prod'; $('atCong').hidden=AT!=='cong'; $('atMrg').hidden=AT!=='mrg'; $('atIntel').hidden=AT!=='intel'; $('atSouzinha').hidden=AT!=='souzinha'; $('atCfg').hidden=AT!=='cfg';
-  if(AT==='cli')drawCli(); if(AT==='prod')drawAProd(); if(AT==='cong')sincronizaCongeladosAdmin($('cgCli').value); if(AT==='mrg')drawMrg(); if(AT==='intel')drawIntel(); if(AT==='souzinha')window.SouzinhaEscola?.load(); if(AT==='cfg')drawCfg(); updMrgBadge(); }
+  $('atCli').hidden=AT!=='cli'; $('atProd').hidden=AT!=='prod'; $('atCong').hidden=AT!=='cong'; $('atMrg').hidden=AT!=='mrg'; $('atIntel').hidden=AT!=='intel'; $('atNeg').hidden=AT!=='neg'; $('atSouzinha').hidden=AT!=='souzinha'; $('atCfg').hidden=AT!=='cfg';
+  if(AT==='cli')drawCli(); if(AT==='prod')drawAProd(); if(AT==='cong')sincronizaCongeladosAdmin($('cgCli').value); if(AT==='mrg')drawMrg(); if(AT==='intel')drawIntel(); if(AT==='neg')window.SRNegociacao?.renderAdmin(); if(AT==='souzinha')window.SouzinhaEscola?.load(); if(AT==='cfg')drawCfg(); updMrgBadge(); }
 document.querySelectorAll('[data-at]').forEach(b=>b.onclick=()=>{AT=b.dataset.at;drawAdm()});
 $('aCat').innerHTML+=Object.keys(cats).sort().map(c=>`<option>${c}</option>`).join('');
 ['aQ','aCat','aSt'].forEach(id=>$(id).addEventListener('input',drawAProd));
@@ -1776,8 +1794,8 @@ const origens=()=>[...CFG.vendedores.map(v=>'Vendedor: '+v),'Instagram','Google'
 function cliForm(d={},admin=false){ return `
   <div class="csec">Empresa</div>
   <label>CNPJ <span class="req">*</span></label>
-  <div class="cnpjrow"><input class="inp" id="kCnpj" inputmode="numeric" maxlength="14" placeholder="Apenas números (14 dígitos)" value="${esc(d.cnpj||'')}" ${admin&&d.cnpj?'readonly':''}><button class="btn sec" id="kBusca" type="button">Buscar dados</button></div>
-  <div class="okmsg" id="kCnpjM">${d.cnpj?'':'Digite só os números do CNPJ, sem pontos, barra ou hífen. Os dados da empresa são preenchidos automaticamente.'}</div>
+  <div class="cnpjrow"><input class="inp" id="kCnpj" inputmode="numeric" maxlength="18" placeholder="00.000.000/0000-00" value="${esc(fmtCNPJ(d.cnpj||''))}" ${admin&&d.cnpj?'readonly':''}><button class="btn sec" id="kBusca" type="button">Buscar dados</button></div>
+  <div class="okmsg" id="kCnpjM">${d.cnpj?'':'Digite ou cole o CNPJ com ou sem pontuação. Os dados da empresa serão preenchidos automaticamente.'}</div>
   <div class="fgrid"><div class="full"><label>Razão social <span class="req">*</span></label><input class="inp" id="kRaz" value="${esc(d.nome||d.razao_social||'')}"></div>
    <div class="full"><label>Nome fantasia</label><input class="inp" id="kFan" value="${esc(d.fantasia||'')}"></div>
    <div class="full"><label>Inscrição estadual <span class="req">*</span></label>
@@ -1801,7 +1819,7 @@ function cliForm(d={},admin=false){ return `
   :`<div class="csec">Acesso</div><div class="fgrid"><div><label>Crie uma senha <span class="req">*</span></label><input class="inp" id="kSen" type="password" placeholder="Mínimo 6 caracteres"></div>
    <div><label>Repita a senha <span class="req">*</span></label><input class="inp" id="kSen2" type="password"></div></div>`}`; }
 function bindCliForm(){ bindCep('k');
-  const mk=()=>{const i=$('kCnpj'),c=i.value.replace(/\D/g,'').slice(0,14); i.value=c; return c};
+  const mk=()=>{const i=$('kCnpj'),c=i.value.replace(/\D/g,'').slice(0,14); i.value=fmtCNPJ(c); return c};
   $('kCnpj').addEventListener('input',()=>{const c=mk(); if(c.length===14&&!$('kCnpj').readOnly)$('kBusca').click()});
   $('kIsento').onchange=()=>{ $('kIE').disabled=$('kIsento').checked; if($('kIsento').checked){$('kIE').value='';$('kIEM').textContent=''} };
   $('kIE').addEventListener('input',e=>e.target.value=e.target.value.replace(/[^0-9A-Za-z]/g,'').slice(0,20));
@@ -1851,10 +1869,11 @@ async function drawCli(refetch=true){ if(USA_SB()&&refetch){ $('clPanel').innerH
     <div class="nm"><b>${esc(c.fantasia||c.nome)}</b><small>${fmtCNPJ(c.cnpj)} · ${esc(c.nome||'')}</small><small>IE: ${esc(c.inscricao_estadual||'não informada')}${c.email?' · '+esc(c.email):''}</small><small>${esc(c.origem||'')}${c.whats?' · '+fmtTel(c.whats):''}</small></div>
     <div class="sm sm2">${c.codigo?esc(c.codigo):'<span style="color:var(--tx3)">—</span>'}</div><div class="sm">${esc(c.cidade||'')}${c.uf?'/'+c.uf:''}${c.codigo?'<span class="som"> · cód. '+esc(c.codigo)+'</span>':''}</div>
     <div class="stw"><span class="stt ${c.status}">${{pendente:'Aguardando',aprovado:'Aprovado',reprovado:'Reprovado',bloqueado:'Bloqueado'}[c.status]||c.status}</span></div>
-    <div class="ab2">${c.status==='pendente'?'<button class="ap" data-ap>Aprovar</button><button class="rp" data-rp>Reprovar</button>':''}<button data-ed>Editar</button></div></div>`).join(''):'<div class="empty2">Nenhum cliente encontrado.</div>'); }
+    <div class="ab2">${c.status==='pendente'?'<button class="ap" data-ap>Aprovar</button><button class="rp" data-rp>Reprovar</button>':''}<button data-lista>⭐ Minha Lista</button><button data-ed>Editar</button></div></div>`).join(''):'<div class="empty2">Nenhum cliente encontrado.</div>'); }
 $('clPanel').addEventListener('click',async e=>{const r=e.target.closest('.crow2[data-c]');if(!r)return;const cn=r.dataset.c;
   if(e.target.matches('[data-ap]')){await API.salvarClienteAdmin(cn,{status:'aprovado'});drawCli();updMrgBadge();toast('Cliente aprovado ✓ — avise pelo WhatsApp '+fmtTel(CLIENTES[cn].whats));return}
   if(e.target.matches('[data-rp]')){await API.salvarClienteAdmin(cn,{status:'reprovado'});drawCli();updMrgBadge();toast('Cadastro reprovado');return}
+  if(e.target.matches('[data-lista]')){window.SRListaAdmin?.open(cn);return}
   if(e.target.matches('[data-ed]'))openCliAdm(cn);});
 $('clNovo').onclick=()=>openCliAdm(null);
 function openCliAdm(cn){ $('cadBox').innerHTML=''; $('mCad').classList.remove('open'); const d=cn?{cnpj:cn,...CLIENTES[cn]}:{status:'aprovado'};
@@ -1970,12 +1989,42 @@ window.SouzinhaPortal={
 };
 
 
+
+/* Interfaces mínimas para as funcionalidades adicionais, sem expor tokens admin ao cliente. */
+window.SRListaAdminBridge={
+ isAdmin:()=>!!ADM&&(!USA_SB()||!!tokGet('sr_b2b_tokadm')),
+ clientName:cn=>{const c=CLIENTES[cn];return (c?.fantasia||c?.nome||c?.razao_social||cn)+' · '+fmtCNPJ(cn)},
+ catalog:()=>P.filter(p=>!p.off).map(p=>({cod:p.cod,name:p.t,unit:p.u,category:p.c,brand:p.m,price:p.p,image:imgUrl(p)})),
+ product:cod=>{const p=byCod[cod];return p&&!p.off?{cod:p.cod,name:p.t,unit:p.u,category:p.c,brand:p.m,price:p.p,image:imgUrl(p)}:null},
+ seed:cn=>(CLIENTES[cn]?.lista||[]).map(v=>Array.isArray(v)?{cod:v[0],ultima_qtd:v[1]||0,ultima_data:v[2]||null,media_qtd:v[3]||0,qtd_sugerida:0}:v),
+ get:async cn=>USA_SB()?rpc('portal_admin_lista_cliente',{p_token:tokGet('sr_b2b_tokadm'),p_cnpj:cn}):{configurada:false,lista:[],congelados:CONG[cn]||{}},
+ save:async(cn,itens)=>{
+  if(USA_SB())return rpc('portal_admin_salvar_lista_cliente',{p_token:tokGet('sr_b2b_tokadm'),p_cnpj:cn,p_itens:itens});
+  CLIENTES[cn].lista=itens.map(i=>[i.cod,i.ultima_qtd||0,i.ultima_data||'',i.media_qtd||0]);
+  const old={...(CONG[cn]||{})};for(const i of itens){if(i.preco_modo==='congelar')old[i.cod]=i.preco;else if(i.preco_modo==='remover')delete old[i.cod]}
+  CONG[cn]=old;saveClientes();return {salvo:true,itens:itens.length};
+ },
+ refresh:async cn=>{
+  if(USA_SB())CONG[cn]=await API.buscarCongeladosAdmin(cn);
+  if(CNPJ===cn&&CLI)await loadCli(cn,LSG('sr_b2b_cli',null));
+  if(VIEW==='adm'&&AT==='cong')drawCong();
+ }
+};
+window.SRNegociacaoBridge={
+ customer:()=>CLI?{cnpj:CNPJ,nome:CLI.nome,vendedor:CLI.vendedor}:null,
+ isAdmin:()=>!!ADM&&(!USA_SB()||!!tokGet('sr_b2b_tokadm')),
+ items:source=>(source==='lista'?listaItems():cartItems()).map(i=>({cod:i.p.cod,nome:i.p.t,q:i.q,preco:pu(i.p,i.un),unidade:unTxt(i.p,i.un),un_id:i.un.id})),
+ sample:()=>['124514','22','001482'].map(cod=>{const p=byCod[cod];return p?{cod:p.cod,nome:p.t,q:5,preco:p.p,unidade:p.u,un_id:'',ultima_qtd:0,media_qtd:0}:null}).filter(Boolean)
+};
+
 drawCats(); render(); updSem();
 carregarFotosCompartilhadas().catch(e=>console.warn('Fotos compartilhadas:',e.message));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)carregarFotosCompartilhadas().catch(()=>{});});
 setInterval(()=>{if(!document.hidden)carregarFotosCompartilhadas().catch(()=>{});},60000);
 atualizarBotaoFotosLocais();
 </script>
+<script defer src="/portal-listas-admin.js"></script>
+<script defer src="/portal-negociacao.js"></script>
 <script defer src="/souzinha-escola.js"></script>
 <script defer src="/souzinha.js"></script>
 </body>
