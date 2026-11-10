@@ -5,6 +5,12 @@ alter table public.portal_clientes
   add column if not exists marketing_opt_in boolean not null default false,
   add column if not exists marketing_opt_in_em timestamptz;
 
+-- O banco original aceita apenas pendente/aprovado/reprovado/bloqueado.
+-- Acrescenta etapa de confirmação sem alterar os demais registros.
+alter table public.portal_clientes drop constraint if exists portal_clientes_status_check;
+alter table public.portal_clientes add constraint portal_clientes_status_check
+check (status in ('email_pendente','pendente','aprovado','reprovado','bloqueado'));
+
 create table if not exists public.portal_email_verificacoes (
   cnpj text primary key references public.portal_clientes(cnpj) on delete cascade,
   token_hash text not null unique check (token_hash ~ '^[0-9a-f]{64}$'),
