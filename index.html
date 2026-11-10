@@ -513,11 +513,10 @@ textarea{resize:vertical}
   <button class="tool adm-only" id="edt">✏️ Editar imagens</button>
 </div>
 <div class="edbar">
-  <div class="t"><b>Modo edição:</b> clique em qualquer produto para trocar a foto (colar link ou enviar arquivo). As alterações ficam salvas neste navegador.</div>
+  <div class="t"><b>Modo edição:</b> clique em qualquer produto para trocar a foto (colar link ou enviar arquivo). Ao salvar, as fotos são publicadas para todos os clientes.</div>
   <label style="font-size:13px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="soSem"> Só para conferir (<span id="nSem">0</span>)</label>
   <button class="tool" id="exp">⬇️ Exportar imagens</button>
   <button class="tool" id="imp">⬆️ Importar</button>
-  <button class="tool" id="pubLocal" hidden>☁ Publicar fotos deste navegador</button>
   <input type="file" id="impF" accept=".json" hidden>
 </div>
 
@@ -535,7 +534,7 @@ textarea{resize:vertical}
 
 <div class="view wrap" id="vAdm" hidden>
   <div class="ph"><div><h2>Painel do <em>administrador</em></h2><p>Edite nomes, descrições, preços, unidades alternativas e fotos. As alterações aparecem na hora no catálogo.</p></div>
-    <div class="row"><button class="tool" id="aExp">⬇ Exportar</button><button class="tool" id="aImp">⬆ Importar</button><input type="file" id="aImpF" accept=".json" hidden><button class="tool" id="aSair">Sair do admin</button></div></div>
+    <div class="row"><button class="tool" id="aExp">⬇ Exportar</button><button class="tool" id="aImp">⬆ Importar</button><button class="tool" id="pubLocal" type="button">☁ Fotos antigas (verificando…)</button><button class="tool" id="pubImportFotos" type="button">⬆ Importar fotos</button><input type="file" id="aImpF" accept=".json" hidden><button class="tool" id="aSair">Sair do admin</button></div></div>
   <div class="ltabs atabs"><button data-at="cli">Clientes <span class="mk" id="cliN" style="background:rgba(255,196,0,.18)"></span></button><button class="on" data-at="prod">Produtos</button><button data-at="cong">Preços congelados</button><button data-at="mrg">Margens <span class="mk" id="mrgN" style="background:rgba(255,107,107,.16);color:#ff8a8a"></span></button><button data-at="intel">Inteligência</button><button data-at="souzinha">🎓 Escola do Souzinha</button><button data-at="cfg">Configurações</button></div>
   <div id="atProd">
   <div class="afil"><div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="aQ" type="search" placeholder="Buscar produto, marca ou código…"></div>
@@ -660,8 +659,9 @@ function contaFotosLocais(){
 function atualizarBotaoFotosLocais(){
   const b=document.getElementById('pubLocal');if(!b)return;
   const n=contaFotosLocais();
-  b.hidden=!n;
-  b.textContent='☁ Publicar fotos deste navegador'+(n?' ('+n+')':'');
+  b.hidden=false;
+  b.textContent=n?'☁ Publicar fotos antigas ('+n+')':'☁ Fotos antigas (0)';
+  b.title=n?'Publicar fotos salvas neste navegador para todos os clientes':'Nenhuma foto antiga encontrada neste navegador. Use Importar fotos se estiver em outro navegador ou domínio.';
 }
 function fotoHttpsValida(texto){
   if(typeof texto!=='string'||texto.length>2048||/[\s"'<>\\]/.test(texto))return false;
@@ -950,6 +950,7 @@ $('mDel').onclick=async()=>{
 $('exp').onclick=()=>{const all={...IMG0,...OV}; const b=new Blob([JSON.stringify(all,null,1)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='sr_portal_b2b_imagens.json'; a.click(); toast(Object.keys(all).length+' imagens exportadas')};
 $('imp').onclick=()=>$('impF').click();
+$('pubImportFotos').onclick=()=>$('impF').click();
 async function importarFotosCompartilhadas(itens){
   const linhas=Object.entries(itens).filter(([cod,v])=>byCod[cod]&&(typeof v==='string'||Array.isArray(v)));
   let publicadas=0,erros=0;
@@ -980,7 +981,7 @@ $('pubLocal').onclick=async()=>{
     (typeof v==='string'||Array.isArray(v)));
   const ignoradas=Object.keys(FOTOS_LOCAIS).filter(c=>!!OV[c]).length;
   if(!pendentes.length){
-    toast(ignoradas?'As fotos destes produtos já estão publicadas. Nada foi substituído.':'Sem fotos locais pendentes.');
+    toast(ignoradas?'As fotos destes produtos já estão publicadas. Nada foi substituído.':'Nenhuma foto antiga neste navegador. Se tiver um arquivo, use Importar fotos.');
     return;
   }
   if(!window.confirm('Publicar '+pendentes.length+' produto(s) deste navegador para todos? Produtos já publicados por outros administradores serão preservados.'))return;
