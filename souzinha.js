@@ -37,7 +37,7 @@ function open(){
  fab.setAttribute('aria-expanded','true');
  panel.setAttribute('aria-modal',matchMedia('(max-width:700px)').matches?'true':'false');
  if(!opened){
-  say('Olá! 😊 Sou a Souzinha, assistente virtual da Souza Ribeiro. Me conta o que você precisa comprar ou como posso facilitar seu pedido.');
+  say('Olá! 😊 Sou o Souzinha, seu assistente de compras da Souza Ribeiro. Posso ajudar a montar uma lista de produtos para sua empresa. O que você precisa?');
   opened=true;
  }
  // No celular, não levantar o teclado antes de o comprador pedir.
@@ -71,6 +71,50 @@ function suggest(query){
  b.addEventListener('click',()=>search(query));
  messages.appendChild(b);scroll();
 }
+
+function productCards(codes){
+ const api=window.SouzinhaPortal;
+ if(!api||!Array.isArray(codes))return;
+ const products=[...new Set(codes)].slice(0,6).map(c=>api.product(c)).filter(Boolean);
+ if(!products.length)return;
+ const wrapper=document.createElement('section');
+ wrapper.className='sz-products';
+ const top=document.createElement('div');top.className='sz-products-title';top.textContent='Produtos que podem te atender';wrapper.appendChild(top);
+ const list=document.createElement('div');list.className='sz-products-list';wrapper.appendChild(list);
+ function makeButton(label,action,klass){
+  const b=document.createElement('button');b.type='button';b.textContent=label;b.className=klass||'';
+  b.addEventListener('click',action);return b;
+ }
+ function makeCard(p,index){
+  const row=document.createElement('div');row.className='sz-product-card';
+  if(index>=3)row.hidden=true;
+  const image=document.createElement('img');image.className='sz-product-img';image.loading='lazy';image.alt=p.name;image.referrerPolicy='no-referrer';
+  image.src=p.image;
+  image.onerror=function(){this.onerror=null;this.style.display='none'};
+  row.appendChild(image);
+  const details=document.createElement('div');details.className='sz-product-details';
+  const name=document.createElement('div');name.className='sz-product-name';name.textContent=p.name;details.appendChild(name);
+  const code=document.createElement('small');code.textContent='Cód. '+p.code+' · '+p.unit;details.appendChild(code);
+  if(p.price){const price=document.createElement('b');price.className='sz-product-price';price.textContent=p.price;details.appendChild(price)}
+  const actions=document.createElement('div');actions.className='sz-product-actions';
+  actions.appendChild(makeButton('+ Carrinho',()=>{close();api.addCart(p.code)},'sz-product-buy'));
+  actions.appendChild(makeButton('☆ Minha Lista',()=>{close();api.addList(p.code)},'sz-product-save'));
+  actions.appendChild(makeButton('Ver',()=>{close();api.view(p.code)},'sz-product-view'));
+  details.appendChild(actions);row.appendChild(details);list.appendChild(row);
+ }
+ products.forEach(makeCard);
+ if(products.length>3){
+  const expand=makeButton('Ver mais '+(products.length-3)+' produtos',()=>{
+   list.querySelectorAll('.sz-product-card[hidden]').forEach(x=>x.hidden=false);
+   expand.remove();scroll();
+  },'sz-products-expand');
+  wrapper.appendChild(expand);
+ }
+ const saveAll=makeButton('⭐ Adicionar opções à Minha Lista',()=>{close();api.addMany(products.map(x=>x.code))},'sz-products-all');
+ wrapper.appendChild(saveAll);
+ messages.appendChild(wrapper);scroll();
+}
+
 function setBusy(v){
  busy=v;sendBtn.disabled=v;input.disabled=v;
  root.classList.toggle('sz-busy',v);
@@ -82,11 +126,12 @@ async function chat(text){
  say(message,true);
  input.value='';
  const oldHistory=history.slice(-12);
- const typing=say('Souzinha está escrevendo…');
+ const typing=say('O Souzinha está escrevendo…');
  typing.classList.add('sz-typing');
  setBusy(true);
  try{
-  const candidates=window.SouzinhaPortal?.candidates?.(message)||[];
+  const context=oldHistory.filter(x=>x.role==='user').slice(-3).map(x=>x.content).join(' ');
+  const candidates=window.SouzinhaPortal?.candidates?.(context+' '+message)||[];
   const ctrl=new AbortController();
   const timer=setTimeout(()=>ctrl.abort(),19000);
   let response;
@@ -108,7 +153,8 @@ async function chat(text){
   typing.textContent=data.reply;
   history.push({role:'user',content:message},{role:'assistant',content:data.reply});
   if(history.length>16)history.splice(0,history.length-16);
-  if(data.search_query)suggest(data.search_query);
+  if(data.product_codes?.length)productCards(data.product_codes);
+  else if(data.search_query)suggest(data.search_query);
  }catch(e){
   typing.classList.remove('sz-typing');
   typing.classList.add('sz-error');
