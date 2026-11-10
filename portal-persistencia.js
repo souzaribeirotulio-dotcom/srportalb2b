@@ -21,14 +21,16 @@ function savePending(key,data){try{if(data) localStorage.setItem(key,JSON.string
 function isAdmin(){return !!ADM&&!!tokGet('sr_b2b_tokadm')}
 function showControls(){
  const host=document.getElementById('aSair')?.parentElement;
- if(!host||!isAdmin())return;
+ if(!host)return;
+ if(!isAdmin()){const old=document.getElementById('pubPersistLocal');if(old)old.hidden=true;return}
  const nprod=Object.keys(state.legacyProd||{}).length;
  const nclips=(state.legacyClips||[]).length;
  const hasCfg=!!state.legacyCfg;
+ const hasDemo=!!state.legacyDemo;
  let b=document.getElementById('pubPersistLocal');
  if(!b){b=document.createElement('button');b.id='pubPersistLocal';b.className='tool';b.type='button';b.addEventListener('click',publishLegacy);host.insertBefore(b,host.firstChild)}
- b.hidden=!nprod&&!hasCfg&&!nclips;
- b.textContent='☁ Publicar dados antigos ('+(nprod+(hasCfg?1:0)+nclips)+')';
+ b.hidden=!nprod&&!hasCfg&&!nclips&&!hasDemo;
+ b.textContent='☁ Publicar dados antigos ('+(nprod+(hasCfg?1:0)+(hasDemo?1:0)+nclips)+')';
  b.title='Publicar edições e clips que antes só existiam neste computador.';
 }
 async function refreshCatalog(){
@@ -52,7 +54,9 @@ async function refreshCatalog(){
 }
 async function refreshConfig(){
  const isAuthed=isAdmin();
- const result=await rpc(isAuthed?'portal_admin_config':'portal_config_publica',isAuthed?{p_token:tokGet('sr_b2b_tokadm')}:{});
+ let result;
+ try{result=await rpc(isAuthed?'portal_admin_config':'portal_config_publica',isAuthed?{p_token:tokGet('sr_b2b_tokadm')}:{})}
+ catch(e){if(!isAuthed)throw e;result=await rpc('portal_config_publica',{})}
  if(!own(result))throw new Error('Configurações não retornaram dados válidos');
  const previous=localJson('sr_b2b_cfg',null);
  if(own(previous)&&Object.keys(previous).length&&JSON.stringify(previous)!==JSON.stringify(result)){
@@ -69,6 +73,8 @@ function salvaCfgLocal(){try{localStorage.setItem('sr_b2b_cfg',JSON.stringify(CF
 async function refreshClips(){
  const data=await rpc('portal_clips_catalogo',{});
  if(!data||!Array.isArray(data.clips)||!Array.isArray(data.demo_off)||!own(data.demo_tt))throw new Error('Clips inválidos recebidos do servidor');
+ const oldDemo=state.legacyDemo||{off:localJson('sr_b2b_clips_demo_off',[]),tt:localJson('sr_b2b_clips_demo_tt',{})};
+ if(!state.legacyDemo&&(JSON.stringify(oldDemo.off)!==JSON.stringify(data.demo_off)||JSON.stringify(oldDemo.tt)!==JSON.stringify(data.demo_tt))){state.legacyDemo=oldDemo;savePending('sr_b2b_clips_demo_pendente_nuvem',oldDemo)}
  const prev=state.legacyClips||localJson('sr_b2b_clips',[]);
  const pending=(Array.isArray(prev)?prev:[]).filter(c=>c&&c.id&&!data.clips.some(r=>r.id===c.id));
  if(pending.length){state.legacyClips=pending;savePending('sr_b2b_clips_pendente_nuvem',pending)}
@@ -167,9 +173,9 @@ async function publishLegacy(){
  if(!isAdmin())return;
  const prod=state.legacyProd||{},cfg=state.legacyCfg;
  const n=Object.keys(prod).length;
- if(!n&&!cfg&&!legacyClipCountAll())return;
+ if(!n&&!cfg&&!legacyClipCountAll()&&!state.legacyDemo)return;
  const msg='Existem '+n+' edições de produtos'+(cfg?', configurações':'')+' e '+legacyClipCountAll()+
- ' clips antigos salvos neste computador.\n\nPublicar os produtos/configurações pode substituir ajustes atuais desses campos no servidor. Continuar?';
+ ' clips antigos'+(state.legacyDemo?' e configurações de clips demonstrativos':'')+' salvos neste computador.\n\nPublicar os produtos/configurações pode substituir ajustes atuais desses campos no servidor. Continuar?';
  if(!confirm(msg))return;
  let successes=0,errors=[];
  for(const [cod,v] of Object.entries(prod)){
@@ -177,6 +183,7 @@ async function publishLegacy(){
   try{await saveProduct(cod,v);successes++}catch(e){errors.push(cod+': '+e.message)}
  }
  if(cfg){try{await saveConfig(cfg);Object.assign(CFG,cfg);salvaCfgLocal();successes++}catch(e){errors.push('Configuração: '+e.message)}}
+ if(state.legacyDemo){try{const d=state.legacyDemo;const r=await rpc('portal_admin_salvar_clips_demo',{p_token:tokGet('sr_b2b_tokadm'),p_demo_off:d.off,p_demo_tt:d.tt});if(!r?.salvo)throw Error('Sem confirmação do servidor');state.legacyDemo=null;savePending('sr_b2b_clips_demo_pendente_nuvem',null);successes++}catch(e){errors.push('Clips demonstrativos: '+e.message)}}
  await Promise.allSettled([refreshCatalog(),refreshConfig()]);
  toast(errors.length?'Publicação parcial: '+errors[0]:successes+' alterações antigas publicadas ✓');
  if(legacyClipCountAll())alert('Os clips antigos podem ser publicados individualmente em Admin → Produtos → Editar → Clips.');
