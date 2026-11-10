@@ -1,3 +1,8 @@
+-- Prepara colunas mesmo quando as migrações são ordenadas pelo nome.
+alter table public.portal_clientes add column if not exists email_verificado_em timestamptz;
+alter table public.portal_clientes add column if not exists marketing_opt_in boolean not null default false;
+alter table public.portal_clientes add column if not exists marketing_opt_in_em timestamptz;
+
 -- Bloqueia aprovação prematura e registra consentimento na criação.
 -- Aplicar após 20261110_verificacao_email_cadastro.sql.
 create or replace function public.portal_cadastrar(d jsonb)
