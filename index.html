@@ -917,6 +917,21 @@ const API = {
   async listarClientes(){ if(USA_SB()){ const L=await rpc('portal_admin_clientes',{p_token:tokGet('sr_b2b_tokadm')}); const o={}; L.forEach(c=>o[c.cnpj]=daBase(c)); return o; } return CLIENTES; },
   async loginAdmin(u,s){ if(USA_SB()){ const r=await rpc('portal_login_admin',{p_usuario:u,p_senha:s}); tokSet('sr_b2b_tokadm',r.token); return r; } if(CONFIG.modo==='api'){const r=await http('POST','/auth/admin',{usuario:u,senha:s});TOKEN=r.token;return r} if(u!=='admin'||s!=='1234')throw new Error('Usuário ou senha incorretos.'); return {usuario:u}; },
   async salvarProduto(cod,dados){ if(CONFIG.modo==='api') return http('PUT','/admin/produtos/'+encodeURIComponent(cod),dados); return true; },
+  async buscarCongeladosAdmin(cnpj){
+    if(USA_SB())return rpc('portal_admin_precos_congelados',{p_token:tokGet('sr_b2b_tokadm'),p_cnpj:cnpj});
+    return CONG[cnpj]||{};
+  },
+  async buscarMeusCongelados(){
+    if(USA_SB())return rpc('portal_meus_precos_congelados',{p_token:tokGet('sr_b2b_tok')});
+    return CONG[CNPJ]||{};
+  },
+  async salvarPrecoCongelado(cnpj,cod,preco){
+    if(USA_SB())return rpc('portal_admin_salvar_preco_congelado',{p_token:tokGet('sr_b2b_tokadm'),p_cnpj:cnpj,p_cod:cod,p_preco:preco});
+    if(CONFIG.modo==='api')throw new Error('Integração de preços personalizados ainda não configurada.');
+    const o={...(CONG[cnpj]||{})};
+    if(preco===null)delete o[cod];else o[cod]=preco;
+    return o;
+  },
   async salvarCongelados(cnpj,lista){ if(CONFIG.modo==='api') return http('PUT',`/admin/clientes/${cnpj}/precos-congelados`,Object.entries(lista).map(([cod,preco])=>({cod,preco}))); return true; },
   async salvarConfig(cfg){ if(CONFIG.modo==='api') return http('PUT','/admin/config',cfg); return true; },
   async salvarClips(cod,lista){ if(CONFIG.modo==='api') return http('PUT','/admin/produtos/'+encodeURIComponent(cod)+'/clips',lista.map(c=>({id:c.id,titulo:c.titulo,video_url:c.src}))); return true; },
@@ -941,7 +956,7 @@ const FERIADOS_PADRAO=[["2026-01-01","Confraternização Universal"],["2026-04-0
 const CFG = Object.assign({soEstoque:true, bloquear:true,
   formas:[{id:"pix",nome:"PIX",obs:"Pagamento à vista"},{id:"din",nome:"Dinheiro na entrega",obs:"Pagamento ao receber"},{id:"b14",nome:"Boleto 14 dias",obs:"Vencimento 14 dias após faturamento"},{id:"b28",nome:"Boleto 28 dias",obs:"Vencimento 28 dias após faturamento"},{id:"b2856",nome:"Boleto 28/56 dias",obs:"2 parcelas"}],
   vendedores:["Carlos","Ana"], feriados:FERIADOS_PADRAO, pagPadrao:["pix"], buscaSinonimos:SINONIMOS_PADRAO}, (()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_cfg'))||{}}catch(e){return {}}})());
-let CONG = (()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_cong'))||null}catch(e){return null}})() || {"12345678000190":{"4200":4.49,"400801":22.90,"001482":27.50}}; // exemplo de preços congelados
+let CONG = USA_SB()?{}:((()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_cong'))||null}catch(e){return null}})() || {"12345678000190":{"4200":4.49,"400801":22.90,"001482":27.50}}); // Supabase: somente preços lidos do servidor
 const congOf = p => (typeof CNPJ!=='undefined'&&CNPJ&&CONG[CNPJ]&&CONG[CNPJ][p.cod]!=null) ? CONG[CNPJ][p.cod] : null;
 const base = p => congOf(p) ?? p.p;
 const pu = (p,un) => { const c=congOf(p); if(!un.id) return base(p); return c!=null ? +(c*un.fator).toFixed(2) : (un.preco ?? +(p.p*un.fator).toFixed(2)); };
@@ -972,11 +987,12 @@ async function loadCli(c, info){
     pagamentos:pags.map(f=>({id:f.id,nome:f.descricao,obs:f.observacao||''})),
     lista:(extra||lista.map(l=>({cod:l.cod,ult:l.ultima_qtd,dt:l.ultima_data,med:l.media_qtd}))).filter(l=>byCod[l.cod])};
   CART=LSG('sr_b2b_cart_'+c,{}); document.body.classList.add('logged'); drawUser(); updCart();
+  if(USA_SB())await sincronizaCongeladosCliente();
 }
 const saveLista=()=>LSS('sr_b2b_lista_'+CNPJ,CLI.lista);
 const saveCart=()=>{LSS('sr_b2b_cart_'+CNPJ,CART);updCart()};
 function sairConta(){ const ta=tokGet('sr_b2b_tokadm'),tc=tokGet('sr_b2b_tok'); if(USA_SB()){ if(tc&&CLI)rpc('portal_sair',{p_token:tc}).catch(()=>{}); if(ta&&ADM)rpc('portal_sair',{p_token:ta}).catch(()=>{}); if(CLI)tokSet('sr_b2b_tok',null); if(ADM)tokSet('sr_b2b_tokadm',null); }
-  if(CLI){LSS('sr_b2b_sessao',null);CLI=null;CNPJ=null;CART={};document.body.classList.remove('logged');updCart()}
+  if(CLI){LSS('sr_b2b_sessao',null);CLI=null;CNPJ=null;CART={};if(USA_SB())CONG={};document.body.classList.remove('logged');updCart()}
   if(ADM)setAdm(false); $('mConta').classList.remove('open'); render(); drawUser(); go('cat'); toast('Você saiu da conta'); }
 function drawUser(){ saud(); const tc=document.getElementById('tbContaT'); if(tc) tc.textContent=CLI?CLI.fantasia.split(' ')[0]:(ADM?'Admin':'Entrar');
   $('user').innerHTML=(CLI||ADM)?`<b id="uName" style="cursor:pointer" title="Minha conta">${CLI?esc(CLI.fantasia):'Administrador'}</b><a id="sair">Sair</a>`:`<a id="entrar">Entrar</a>`;
@@ -1011,7 +1027,7 @@ function go(v,arg){ if(v==='adm'&&!ADM){openLogin(()=>go(v),'adm');return}
   VIEW=v; document.querySelectorAll('.hb[data-v],.tabbar [data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   const map={cat:'vCat',lista:'vLista',ped:'vPed',adm:'vAdm',clips:'vClips'}; document.body.classList.toggle('clipsmode',v==='clips'); if(v!=='clips')pauseClips(); document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==map[v]);
   document.querySelector('header nav').style.display=v==='cat'?'':'none';
-  if(v==='lista')drawLista(); if(v==='ped')drawPed(); if(v==='adm')drawAdm(); window.scrollTo(0,0); if(v==='clips')drawClips(arg); }
+  if(v==='lista')drawLista(); if(v==='ped')drawPed(); if(v==='adm')drawAdm(); window.scrollTo(0,0); if(v==='clips')drawClips(arg); if(v==='lista'&&USA_SB()&&CLI)sincronizaCongeladosCliente().catch(e=>toast('Preços: '+e.message)); }
 document.querySelectorAll('.hb[data-v],.tabbar [data-v]').forEach(b=>b.onclick=()=>go(b.dataset.v));
 
 /* ---------- catálogo: quantidade / adicionar / lista ---------- */
@@ -1123,6 +1139,10 @@ function drawChkEnd(sel,form){ const E=ends();
   if(form){bindCep('q'); $('qC').onclick=()=>drawChkEnd(sel); $('qOk').onclick=()=>salvarNovoEnd('q',$('qAp').value,id=>drawChkEnd(id));}
 }
 async function confirmar(){
+  if(USA_SB()&&CLI){
+    try{await sincronizaCongeladosCliente();}catch(e){toast('Não foi possível validar os preços personalizados: '+e.message);return}
+    if(CHK&&CHK.itens){CHK.itens=CHK.itens.map(i=>({...i}));}
+  }
   const pg=document.querySelector('input[name=pg]:checked'); if(!pg){$('cErr').textContent='Selecione a forma de pagamento.';return}
   const f=CLI.pagamentos.find(x=>x.id===pg.value), itens=CHK.itens;
   const enId=(document.querySelector('input[name=en]:checked')||{}).value; if(!enId){$('cErr').textContent='Selecione o endereço de entrega.';return}
@@ -1170,7 +1190,47 @@ function aplicaOv(cod){ const p=byCod[cod], o=ORIG[cod], v=PADM[cod]||{};
 Object.keys(PADM).forEach(c=>byCod[c]&&aplicaOv(c));
 const salvaPADM=()=>LSS('sr_b2b_admin_prod',PADM);
 const salvaCfg=()=>LSS('sr_b2b_cfg',CFG);
-const salvaCong=()=>LSS('sr_b2b_cong',CONG);
+const salvaCong=()=>{if(!USA_SB())LSS('sr_b2b_cong',CONG)};
+async function sincronizaCongeladosCliente(){
+  if(!USA_SB()||!CNPJ||!CLI)return;
+  const c=CNPJ;
+  const o=await API.buscarMeusCongelados();
+  if(c!==CNPJ||!CLI)return;
+  CONG[c]=o||{};
+  render();updCart();
+  if(VIEW==='lista')drawLista();
+  if(VIEW==='adm'&&AT==='cong')drawCong();
+}
+let cargaCongAdmin=0;
+async function sincronizaCongeladosAdmin(cnpj){
+  if(!cnpj)return;
+  if(!USA_SB()){drawCong();return}
+  const chave=++cargaCongAdmin;
+  $('cgPanel').innerHTML='<div class="empty2">Carregando preços personalizados…</div>';
+  try{
+    const dados=await API.buscarCongeladosAdmin(cnpj);
+    if(chave!==cargaCongAdmin||$('cgCli').value!==cnpj)return;
+    CONG[cnpj]=dados||{};drawCong();
+  }catch(e){
+    if(chave!==cargaCongAdmin)return;
+    $('cgPanel').innerHTML='<div class="empty2">Não foi possível carregar os preços personalizados: '+esc(e.message)+'</div>';
+  }
+}
+let gravandoCongelado=false;
+async function alterarCongelado(cnpj,cod,preco){
+  if(gravandoCongelado)return;
+  gravandoCongelado=true;
+  const a=$('cgAdd');if(a)a.disabled=true;
+  try{
+    const dados=await API.salvarPrecoCongelado(cnpj,cod,preco);
+    CONG[cnpj]=dados||{};salvaCong();
+    drawCong();updMrgBadge();render();
+    if(CNPJ===cnpj&&CLI){updCart();if(VIEW==='lista')drawLista();}
+    toast(preco===null?'Preço congelado removido ✓':'Preço congelado salvo para o cliente ✓');
+    return true;
+  }catch(e){toast('Erro ao salvar no servidor: '+e.message);await sincronizaCongeladosAdmin(cnpj);return false}
+  finally{gravandoCongelado=false;if(a)a.disabled=false}
+}
 const margem=(preco,custo)=>preco>0&&custo>0?(preco-custo)/preco*100:null;
 const mgCls=m=>m==null?'':m<CFG.margemMin?'bad':m<CFG.margemMin+10?'mid':'ok';
 if(CFG.margemMin==null)CFG.margemMin=25;
@@ -1187,7 +1247,7 @@ function updMrgBadge(){ const pend=Object.values(CLIENTES).filter(c=>c.status===
 let AT='prod';
 function drawAdm(){ document.querySelectorAll('[data-at]').forEach(b=>b.classList.toggle('on',b.dataset.at===AT));
   $('atCli').hidden=AT!=='cli'; $('atProd').hidden=AT!=='prod'; $('atCong').hidden=AT!=='cong'; $('atMrg').hidden=AT!=='mrg'; $('atCfg').hidden=AT!=='cfg';
-  if(AT==='cli')drawCli(); if(AT==='prod')drawAProd(); if(AT==='cong')drawCong(); if(AT==='mrg')drawMrg(); if(AT==='cfg')drawCfg(); updMrgBadge(); }
+  if(AT==='cli')drawCli(); if(AT==='prod')drawAProd(); if(AT==='cong')sincronizaCongeladosAdmin($('cgCli').value); if(AT==='mrg')drawMrg(); if(AT==='cfg')drawCfg(); updMrgBadge(); }
 document.querySelectorAll('[data-at]').forEach(b=>b.onclick=()=>{AT=b.dataset.at;drawAdm()});
 $('aCat').innerHTML+=Object.keys(cats).sort().map(c=>`<option>${c}</option>`).join('');
 ['aQ','aCat','aSt'].forEach(id=>$(id).addEventListener('input',drawAProd));
@@ -1252,7 +1312,7 @@ function drawAltPrev(){ if(!AE)return; const p=byCod[AE.cod], bp=+$('eP').value|
 const fillCgCli=()=>$('cgCli').innerHTML=Object.entries(CLIENTES).filter(([c,x])=>x.status==='aprovado').map(([c,x])=>`<option value="${c}">${esc(x.fantasia)} — ${c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5')}</option>`).join('');
 fillCgCli();
 $('cgList').innerHTML=P.map(p=>`<option value="${esc(p.cod)} · ${esc(p.t)}">`).join('');
-$('cgCli').onchange=drawCong;
+$('cgCli').onchange=()=>sincronizaCongeladosAdmin($('cgCli').value);
 function drawCong(){ if(!$('cgCli').options.length)fillCgCli(); const cn=$('cgCli').value, o=CONG[cn]||{}, L=Object.keys(o).map(c=>byCod[c]).filter(Boolean);
   $('cgPanel').innerHTML=L.length?L.map(p=>{const v=o[p.cod],m=margem(v,p.k),d=v-p.p;return `<div class="crow" data-c="${p.cod}"><img src="${imgUrl(p)}" referrerpolicy="no-referrer" onerror="this.src=ph(byCod['${p.cod}'])">
     <div class="nm">${esc(p.t)}<small>Cód. ${esc(p.cod)} · ${esc(p.u)}</small></div>
@@ -1261,11 +1321,24 @@ function drawCong(){ if(!$('cgCli').options.length)fillCgCli(); const cn=$('cgCl
     <div class="df2"><span style="color:${d<0?'#8fd14f':d>0?'#ffd45c':'var(--tx3)'}">${d===0?'igual':(d<0?'−':'+')+brl(Math.abs(d))}</span><br><span class="mg ${mgCls(m)}" style="font-size:12px">${m==null?'sem custo':'margem '+m.toFixed(1)+'%'}</span></div>
     <button class="rm" data-rm title="Remover">×</button></div>`}).join(''):'<div class="empty2">Nenhum preço congelado para este cliente. Busque um produto acima e informe o preço.</div>'; }
 $('cgQ').onchange=()=>{const cod=$('cgQ').value.split(' · ')[0], p=byCod[cod]; if(p&&!$('cgP').value)$('cgP').value=p.p.toFixed(2)};
-$('cgAdd').onclick=()=>{const cn=$('cgCli').value, cod=$('cgQ').value.split(' · ')[0], v=+$('cgP').value;
-  if(!byCod[cod]){toast('Escolha um produto da lista');return} if(!(v>0)){toast('Informe o preço');return}
-  (CONG[cn]=CONG[cn]||{})[cod]=+v.toFixed(2); salvaCong(); API.salvarCongelados(cn,CONG[cn]); $('cgQ').value=''; $('cgP').value=''; drawCong(); updMrgBadge(); toast('Preço congelado ✓')};
-$('cgPanel').addEventListener('click',e=>{if(e.target.dataset.rm===undefined)return;const cn=$('cgCli').value,cod=e.target.closest('.crow').dataset.c;delete CONG[cn][cod];salvaCong();API.salvarCongelados(cn,CONG[cn]);drawCong();updMrgBadge()});
-$('cgPanel').addEventListener('change',e=>{if(!e.target.matches('[data-cg]'))return;const cn=$('cgCli').value,cod=e.target.closest('.crow').dataset.c,v=+e.target.value;if(v>0){CONG[cn][cod]=+v.toFixed(2);salvaCong();API.salvarCongelados(cn,CONG[cn]);drawCong();updMrgBadge()}});
+$('cgAdd').onclick=async()=>{const cn=$('cgCli').value,cod=$('cgQ').value.split(' · ')[0],v=+$('cgP').value;
+  if(!cn||!CLIENTES[cn]){toast('Selecione um cliente válido');return}
+  if(!byCod[cod]){toast('Escolha um produto da lista');return}
+  if(!(v>0)||!Number.isFinite(v)){toast('Informe um preço válido');return}
+  if(await alterarCongelado(cn,cod,+v.toFixed(2))){$('cgQ').value='';$('cgP').value='';}
+};
+$('cgPanel').addEventListener('click',async e=>{
+  if(e.target.dataset.rm===undefined)return;
+  const cn=$('cgCli').value,r=e.target.closest('.crow[data-c]');
+  if(!cn||!r)return;await alterarCongelado(cn,r.dataset.c,null);
+});
+$('cgPanel').addEventListener('change',async e=>{
+  if(!e.target.matches('[data-cg]'))return;
+  const cn=$('cgCli').value,r=e.target.closest('.crow[data-c]'),v=+e.target.value;
+  if(!cn||!r)return;
+  if(!(v>0)||!Number.isFinite(v)){toast('Informe um preço válido');drawCong();return}
+  await alterarCongelado(cn,r.dataset.c,+v.toFixed(2));
+});
 /* margens */
 $('mgLim').oninput=()=>{CFG.margemMin=+$('mgLim').value||0;salvaCfg();drawMrg();updMrgBadge()}; $('mgTipo').onchange=drawMrg;
 function drawMrg(){ $('mgLim').value=CFG.margemMin; const A=alertasMargem(), tp=$('mgTipo').value, L=A.baixo.filter(x=>!tp||x.tipo===tp);
