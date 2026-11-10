@@ -801,6 +801,7 @@ const API = {
   },
   async pagamentos(cnpj){
     if(CONFIG.modo==='api') return http('GET',`/clientes/${cnpj}/pagamentos`);
+    await syncPagamento;
     return (CLIENTES[cnpj].pagamentos||[]).map(id=>CFG.formas.find(f=>f.id===id)).filter(Boolean).map(f=>({id:f.id, descricao:f.nome, observacao:f.obs}));
   },
   async cliente(cnpj){ if(USA_SB()){ const tk=tokGet('sr_b2b_tok'); if(!tk) throw new Error('Sessão expirada'); const c=daBase(await rpc('portal_meu_cadastro',{p_token:tk})); CLIENTES[c.cnpj]=c; return c; } if(CONFIG.modo==='api') return http('GET',`/clientes/${cnpj}`); const c=CLIENTES[cnpj]; return {...c, cnpj}; },
@@ -818,7 +819,7 @@ const API = {
   async loginAdmin(u,s){ if(USA_SB()){ const r=await rpc('portal_login_admin',{p_usuario:u,p_senha:s}); tokSet('sr_b2b_tokadm',r.token); return r; } if(CONFIG.modo==='api'){const r=await http('POST','/auth/admin',{usuario:u,senha:s});TOKEN=r.token;return r} if(u!=='admin'||s!=='1234')throw new Error('Usuário ou senha incorretos.'); return {usuario:u}; },
   async salvarProduto(cod,dados){ if(CONFIG.modo==='api') return http('PUT','/admin/produtos/'+encodeURIComponent(cod),dados); return true; },
   async salvarCongelados(cnpj,lista){ if(CONFIG.modo==='api') return http('PUT',`/admin/clientes/${cnpj}/precos-congelados`,Object.entries(lista).map(([cod,preco])=>({cod,preco}))); return true; },
-  async salvarConfig(cfg){ if(CONFIG.modo==='api') return http('PUT','/admin/config',cfg); return true; },
+  async salvarConfig(cfg){ if(USA_SB()) return rpc('portal_admin_salvar_pagamentos',{p_token:tokGet('sr_b2b_tokadm'),p_formas:cfg.formas,p_padrao:cfg.pagPadrao}); if(CONFIG.modo==='api') return http('PUT','/admin/config',cfg); return true; },
   async salvarClips(cod,lista){ if(CONFIG.modo==='api') return http('PUT','/admin/produtos/'+encodeURIComponent(cod)+'/clips',lista.map(c=>({id:c.id,titulo:c.titulo,video_url:c.src}))); return true; },
   async pedidos(cnpj){
     if(CONFIG.modo==='api') return http('GET',`/clientes/${cnpj}/pedidos`);
@@ -841,6 +842,11 @@ const FERIADOS_PADRAO=[["2026-01-01","Confraternização Universal"],["2026-04-0
 const CFG = Object.assign({soEstoque:true, bloquear:true,
   formas:[{id:"pix",nome:"PIX",obs:"Pagamento à vista"},{id:"din",nome:"Dinheiro na entrega",obs:"Pagamento ao receber"},{id:"b14",nome:"Boleto 14 dias",obs:"Vencimento 14 dias após faturamento"},{id:"b28",nome:"Boleto 28 dias",obs:"Vencimento 28 dias após faturamento"},{id:"b2856",nome:"Boleto 28/56 dias",obs:"2 parcelas"}],
   vendedores:["Carlos","Ana"], feriados:FERIADOS_PADRAO, pagPadrao:["pix"]}, (()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_cfg'))||{}}catch(e){return {}}})());
+async function carregarPagamentosPadrao(){if(!USA_SB())return;const c=await rpc('portal_config_pagamentos');if(c.configurada){CFG.formas=c.formas;CFG.pagPadrao=c.pagPadrao;salvaCfg()}}
+const syncPagamento=carregarPagamentosPadrao().catch(e=>console.warn('Falha config pagamento',e.message));
+async function salvarPagamentosPadrao(){if(USA_SB())await rpc('portal_admin_salvar_pagamentos',{p_token:tokGet('sr_b2b_tokadm'),p_formas:CFG.formas,p_padrao:CFG.pagPadrao})}
+async function enviarVerificacaoEmail(cnpj,email){const r=await fetch(SB.url+'/functions/v1/portal-enviar-verificacao',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB.key,Authorization:'Bearer '+SB.key},body:JSON.stringify({cnpj,email})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.erro||'Não foi possível enviar o link');return j}
+
 let CONG = (()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_cong'))||null}catch(e){return null}})() || {"12345678000190":{"4200":4.49,"400801":22.90,"001482":27.50}}; // exemplo de preços congelados
 const congOf = p => (typeof CNPJ!=='undefined'&&CNPJ&&CONG[CNPJ]&&CONG[CNPJ][p.cod]!=null) ? CONG[CNPJ][p.cod] : null;
 const base = p => congOf(p) ?? p.p;
@@ -1190,6 +1196,7 @@ function drawCfg(){ $('cfgPanel').innerHTML=[['soEstoque','Mostrar somente produ
      <div class="fxurl" style="margin-top:6px"><input id="cfFN" placeholder="Nova forma (ex.: Boleto 21 dias)"><input id="cfFO" placeholder="Observação (opcional)"><button class="btn sec" id="cfFA">Adicionar</button></div>
      <div style="margin-top:12px;font-size:12px;color:var(--tx2)">Liberadas automaticamente para cadastros novos:</div>
      <div class="chks" style="margin-top:6px">${CFG.formas.map(f=>`<label><input type="checkbox" data-pp="${f.id}" ${CFG.pagPadrao.includes(f.id)?'checked':''}>${esc(f.nome)}</label>`).join('')}</div></div>
+   ${USA_SB()?`<div class="ci2" style="display:block"><button class="btn sec" id="cfSalvarPagamentos">Salvar pagamentos padrão no servidor</button></div>`:''}
    <div class="ci2" style="display:block"><b>Vendedores</b><small>Aparecem no cadastro em "Como conheceu a Souza Ribeiro?" e no cadastro do cliente.</small>
      <div style="margin-top:10px">${CFG.vendedores.map(v=>`<span class="tagl">${esc(v)} <button data-rmv="${esc(v)}">×</button></span>`).join('')}</div>
      <div class="fxurl" style="margin-top:6px"><input id="cfVN" placeholder="Nome do vendedor"><button class="btn sec" id="cfVA">Adicionar</button></div></div>
@@ -1200,8 +1207,9 @@ function drawCfg(){ $('cfgPanel').innerHTML=[['soEstoque','Mostrar somente produ
   if(USA_SB()){ $('cfgPanel').insertAdjacentHTML('afterbegin',`<div class="ci2" style="display:block"><b>Administradores do portal</b><small>Quem pode entrar no painel do administrador. Cada um entra com o próprio usuário e senha.</small><div id="cfAdm" style="margin-top:10px">Carregando…</div>
      <div class="fgrid" style="margin-top:8px"><div><label>Usuário</label><input class="inp" id="cfAU" placeholder="ex.: carlos"></div><div><label>Nome</label><input class="inp" id="cfAN" placeholder="Nome da pessoa"></div>
      <div class="full"><label>Senha (mín. 6 caracteres)</label><div class="fxurl"><input class="inp" id="cfAS" type="text" placeholder="Para usuário existente, digite só se quiser trocar"><button class="btn sec" id="cfAA">Salvar usuário</button></div></div></div><div class="err" id="cfAE"></div></div>`); drawAdmins(); }
+  if($('cfSalvarPagamentos'))$('cfSalvarPagamentos').onclick=async()=>{try{await salvarPagamentosPadrao();toast('Pagamentos padrão salvos ✓')}catch(e){toast(e.message)}};
   $('cfMg').onchange=()=>{CFG.margemMin=+$('cfMg').value||0;salvaCfg();updMrgBadge()};
-  $('cfFA').onclick=()=>{const n=$('cfFN').value.trim(); if(!n)return; CFG.formas.push({id:'f'+Date.now().toString(36),nome:n,obs:$('cfFO').value.trim()}); salvaCfg(); drawCfg()};
+  $('cfFA').onclick=async()=>{const n=$('cfFN').value.trim(); if(!n)return; CFG.formas.push({id:'f'+Date.now().toString(36),nome:n,obs:$('cfFO').value.trim()}); salvaCfg();if(USA_SB())try{await salvarPagamentosPadrao()}catch(e){toast(e.message)}drawCfg()};
   $('cfVA').onclick=()=>{const n=$('cfVN').value.trim(); if(!n||CFG.vendedores.includes(n))return; CFG.vendedores.push(n); salvaCfg(); drawCfg()};
   $('cfHA').onclick=()=>{const d=$('cfHD').value,n=$('cfHN').value.trim()||'Feriado'; if(!d)return; CFG.feriados=CFG.feriados.filter(x=>x[0]!==d).concat([[d,n]]); salvaCfg(); drawCfg()}; }
 async function drawAdmins(){ const el=$('cfAdm'); if(!el)return; try{ const L=await rpc('portal_admin_usuarios',{p_token:tokGet('sr_b2b_tokadm')});
@@ -1213,10 +1221,10 @@ $('cfgPanel').addEventListener('click',async e=>{const d=e.target.dataset;
   if(d.rmu){ if(!e.target.dataset.ok){ e.target.dataset.ok=1; e.target.textContent='remover?'; return } try{ await rpc('portal_admin_remover_usuario',{p_token:tokGet('sr_b2b_tokadm'),p_usuario:d.rmu}); toast('Administrador removido'); drawAdmins(); }catch(err){ toast(err.message) } return }
 });
 $('cfgPanel').addEventListener('click',e=>{const d=e.target.dataset;
-  if(d.rmf){CFG.formas=CFG.formas.filter(f=>f.id!==d.rmf);CFG.pagPadrao=CFG.pagPadrao.filter(x=>x!==d.rmf);salvaCfg();drawCfg()}
+  if(d.rmf){CFG.formas=CFG.formas.filter(f=>f.id!==d.rmf);CFG.pagPadrao=CFG.pagPadrao.filter(x=>x!==d.rmf);salvaCfg();if(USA_SB())salvarPagamentosPadrao().catch(e=>toast(e.message));drawCfg()}
   if(d.rmv){CFG.vendedores=CFG.vendedores.filter(v=>v!==d.rmv);salvaCfg();drawCfg()}
   if(d.rmh){CFG.feriados=CFG.feriados.filter(x=>x[0]!==d.rmh);salvaCfg();drawCfg()}});
-$('cfgPanel').addEventListener('change',e=>{const id=e.target.dataset.pp; if(!id)return; CFG.pagPadrao=e.target.checked?[...new Set([...CFG.pagPadrao,id])]:CFG.pagPadrao.filter(x=>x!==id); salvaCfg();});
+$('cfgPanel').addEventListener('change',async e=>{const id=e.target.dataset.pp; if(!id)return; CFG.pagPadrao=e.target.checked?[...new Set([...CFG.pagPadrao,id])]:CFG.pagPadrao.filter(x=>x!==id); salvaCfg();if(USA_SB())try{await salvarPagamentosPadrao();toast('Pagamentos padrão sincronizados ✓')}catch(err){toast(err.message)}});
 $('cfgPanel').addEventListener('click',e=>{const k=e.target.dataset.k;if(!k)return;CFG[k]=!CFG[k];salvaCfg();API.salvarConfig(CFG);drawCfg();render()});
 /* exportar / importar / sair */
 $('aExp').onclick=()=>{const b=new Blob([JSON.stringify({produtos:PADM,imagens:OV,congelados:CONG,config:CFG},null,1)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='sr_portal_b2b_admin.json';a.click();toast('Alterações exportadas')};
@@ -1425,7 +1433,7 @@ function cliForm(d={},admin=false){ return `
   <label>Formas de pagamento liberadas</label><div class="chks">${CFG.formas.map(f=>`<label><input type="checkbox" data-fp="${f.id}" ${(d.pagamentos||CFG.pagPadrao).includes(f.id)?'checked':''}>${esc(f.nome)}</label>`).join('')}</div>
   ${(d.enderecos||[]).length?`<label>Outros endereços de entrega</label><div class="elist">${d.enderecos.map(x=>`<div class="eitem"><div><b>${esc(x.apelido||'Endereço')}</b><small>${esc(endTxt(x))}</small></div></div>`).join('')}</div>`:''}
   <div class="csec">Acesso</div><div class="fgrid"><div class="full"><label>${d.senha?'Nova senha (deixe em branco para manter)':'Senha de acesso'}</label><input class="inp" id="kSen" type="text" placeholder="${d.senha?'••••':'Defina uma senha'}"></div></div>`
-  :`<div class="csec">Acesso</div><div class="fgrid"><div><label>Crie uma senha <span class="req">*</span></label><input class="inp" id="kSen" type="password" placeholder="Mínimo 6 caracteres"></div>
+  :`<div class="csec">Comunicação</div><label style="display:flex;align-items:flex-start;gap:8px;margin:12px 0"><input type="checkbox" id="kMarketing" style="margin-top:3px"><span>Quero receber ofertas e novidades da Souza Ribeiro por e-mail. Posso cancelar quando quiser.</span></label><div class="csec">Acesso</div><div class="fgrid"><div><label>Crie uma senha <span class="req">*</span></label><input class="inp" id="kSen" type="password" placeholder="Mínimo 6 caracteres"></div>
    <div><label>Repita a senha <span class="req">*</span></label><input class="inp" id="kSen2" type="password"></div></div>`}`; }
 function bindCliForm(){ bindCep('k');
   const mk=()=>{const i=$('kCnpj'),c=i.value.replace(/\D/g,'').slice(0,14); i.value=c; return c};
@@ -1451,7 +1459,7 @@ function bindCliForm(){ bindCep('k');
 function lerCliForm(admin){ const a=readAddr('k'), c=$('kCnpj').value.replace(/\D/g,'');
   const d={cnpj:c,razao_social:$('kRaz').value.trim(),fantasia:$('kFan').value.trim()||$('kRaz').value.trim(),inscricao_estadual:$('kIsento').checked?'ISENTO':$('kIE').value.trim(),...a,responsavel:$('kResp').value.trim(),whats:$('kWa').value.replace(/\D/g,''),telefone:$('kTel').value.replace(/\D/g,''),email:$('kEm').value.trim(),origem:$('kOri').value};
   const falta=[]; if(!cnpjOk(c))falta.push('CNPJ válido'); if(!d.razao_social)falta.push('razão social'); if(!d.inscricao_estadual)falta.push('inscrição estadual (ou marque Isento)'); if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email))falta.push('e-mail válido'); if(!addrOk(a))falta.push('endereço completo'); if(!d.responsavel)falta.push('responsável'); if(d.whats.length<10)falta.push('WhatsApp com DDD'); if(!d.origem)falta.push('como nos conheceu');
-  if(!admin){const s=$('kSen').value; if(s.length<6)falta.push('senha com 6+ caracteres'); else if(s!==$('kSen2').value)falta.push('senhas iguais'); d.senha=s;}
+  if(!admin){const s=$('kSen').value; if(s.length<6)falta.push('senha com 6+ caracteres'); else if(s!==$('kSen2').value)falta.push('senhas iguais'); d.senha=s;d.marketing_opt_in=!!$('kMarketing')?.checked;}
   return {d,falta}; }
 /* cadastro público */
 function openCad(){ $('admBox').innerHTML=''; $('mAdm').classList.remove('open'); $('cadBox').innerHTML=`<div class="fxh"><div><h3>Criar cadastro</h3><div class="sub">Preencha os dados da sua empresa. Após a aprovação você recebe a liberação pelo WhatsApp e já pode comprar.</div></div><button class="fxx" id="kX">×</button></div>
@@ -1462,7 +1470,9 @@ function openCad(){ $('admBox').innerHTML=''; $('mAdm').classList.remove('open')
   $('kOk').onclick=async()=>{ const {d,falta}=lerCliForm(false); if(falta.length){$('kE').textContent='Falta preencher: '+falta.join(', ')+'.';return}
     $('kOk').disabled=true; $('kOk').textContent='Enviando…';
     try{ await API.cadastrar(d); }catch(e){ $('kE').textContent=e.message; $('kOk').disabled=false; $('kOk').textContent='Enviar cadastro'; return }
-    $('cadBox').innerHTML=`<div class="ok"><div class="ic2">✓</div><h3>Cadastro enviado!</h3><p>Recebemos os dados da <b>${esc(d.fantasia)}</b>. Nossa equipe vai analisar e você recebe a liberação pelo WhatsApp <b>${esc(fmtTel(d.whats))}</b>.</p></div><div class="act" style="justify-content:center"><button class="btn pri" id="kF">Voltar ao catálogo</button></div>`;
+    let avisoEnvio='';if(USA_SB())try{await enviarVerificacaoEmail(d.cnpj,d.email)}catch(e){avisoEnvio=e.message;}
+    $('cadBox').innerHTML=`<div class="ok"><div class="ic2">✉</div><h3>Confirme seu e-mail</h3><p>O cadastro só ficará disponível para aprovação depois de confirmar <b>${esc(d.email)}</b> pelo link recebido. Confira também o spam. O link vale por 24 horas.</p>${avisoEnvio?`<p class="err">${esc(avisoEnvio)}</p>`:''}</div><div class="act" style="justify-content:center"><button class="btn sec" id="kReenvio">Reenviar link</button><button class="btn pri" id="kF">Voltar ao catálogo</button></div>`;
+    $('kReenvio').onclick=async()=>{const b=$('kReenvio');b.disabled=true;try{const j=await enviarVerificacaoEmail(d.cnpj,d.email);toast(j.mensagem||'E-mail reenviado ✓')}catch(e){toast(e.message)}finally{b.disabled=false}};
     $('kF').onclick=()=>$('mCad').classList.remove('open'); if(ADM)updMrgBadge(); };
 }
 $('mCad').onclick=e=>{if(e.target.id==='mCad')$('mCad').classList.remove('open')};
@@ -1530,6 +1540,11 @@ document.body.classList.toggle('admin',ADM);
 /* ---------- início ---------- */
 {const s=LSG('sr_b2b_sessao',null), ci=LSG('sr_b2b_cli',null); if(s&&ci&&(CONFIG.modo==='api'||USA_SB()||CLIENTES[s]))loadCli(s,ci).then(render).catch(()=>{LSS('sr_b2b_sessao',null);tokSet('sr_b2b_tok',null);CLI=null;CNPJ=null;document.body.classList.remove('logged');drawUser();render()}); else drawUser();
  if(ADM&&USA_SB()) carregaClientesAdm();}
+const tkEmail=new URLSearchParams(location.search).get('verificar_email');
+if(tkEmail){history.replaceState(null,'',location.pathname);$('cadBox').innerHTML='<div class="ok"><h3>Confirmando e-mail…</h3></div>';$('mCad').classList.add('open');
+ rpc('portal_confirmar_email',{p_token:tkEmail}).then(r=>{$('cadBox').innerHTML='<div class="ok"><div class="ic2">'+(r.ok?'✓':'!')+'</div><h3>'+(r.ok?'E-mail confirmado!':'Link inválido ou vencido')+'</h3><p>'+esc(r.mensagem||r.erro||'Solicite outro link')+'</p></div><div class="act" style="justify-content:center"><button id="kF" class="btn pri">Fechar</button></div>';$('kF').onclick=()=>$('mCad').classList.remove('open')})
+ .catch(e=>{$('cadBox').innerHTML='<div class="ok"><h3>Erro</h3><p>'+esc(e.message)+'</p></div><button id="kF" class="btn pri">Fechar</button>';$('kF').onclick=()=>$('mCad').classList.remove('open')});}
+syncPagamento.then(()=>{if(ADM&&VIEW==='adm'&&AT==='cfg')drawCfg();if(CLI&&CNPJ)loadCli(CNPJ,LSG('sr_b2b_cli',null)).then(render).catch(()=>{})});
 drawCats(); render(); updSem();
 </script>
 </body>
