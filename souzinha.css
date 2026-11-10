@@ -126,3 +126,14 @@
 }
 #souzinha-widget .sz-whatsapp-link:hover{filter:brightness(1.08)}
 #souzinha-widget .sz-whatsapp-link:focus-visible{outline:3px solid #b2e04a;outline-offset:3px}
+
+/* CTA clicável e visível mesmo quando o texto da IA apenas menciona WhatsApp */
+#souzinha-widget .sz-whatsapp-link{
+ display:flex!important;flex-direction:row;align-items:center;justify-content:center;gap:9px;
+ width:100%;min-height:48px;cursor:pointer;box-shadow:0 5px 16px #0003;
+}
+#souzinha-widget .sz-whatsapp-link svg{flex:none;width:22px;height:22px}
+#souzinha-widget .sz-chip-human{
+ border-color:#4fd77f;background:#176a37;color:#f4fff7;font-weight:700;
+}
+#souzinha-widget .sz-chip-human:hover{background:#228349}
