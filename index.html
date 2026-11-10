@@ -1756,6 +1756,38 @@ document.body.classList.toggle('admin',ADM);
 /* ---------- início ---------- */
 {const s=LSG('sr_b2b_sessao',null), ci=LSG('sr_b2b_cli',null); if(s&&ci&&(CONFIG.modo==='api'||USA_SB()||CLIENTES[s]))loadCli(s,ci).then(render).catch(()=>{LSS('sr_b2b_sessao',null);tokSet('sr_b2b_tok',null);CLI=null;CNPJ=null;document.body.classList.remove('logged');drawUser();render()}); else drawUser();
  if(ADM&&USA_SB()) carregaClientesAdm();}
+
+/* Ponte somente de leitura/navegação para a Souzinha. Não expõe preços nem dados privados. */
+window.SouzinhaPortal={
+  navigate:function(view){go(view);},
+  search:function(query){
+    cat='';
+    const m=document.getElementById('marca');if(m)m.value='';
+    const q=document.getElementById('q');q.value=String(query||'').slice(0,100);
+    go('cat');render();
+    q.dispatchEvent(new Event('input',{bubbles:true}));
+  },
+  candidates:function(phrase){
+    const stop=new Set(['quero','preciso','procurando','procuro','comprar','para','uma','uns','das','dos','que','tem','com','qual','algum','alguma','favor','voce','voces','souzinha','ola','oi','bom','dia','boa','tarde','noite','empresa','ajuda','itens','produtos','produto','precisando','saber','consegue','poderia','gostaria','meu','minha','seria','mais']);
+    const terms=termosBusca(String(phrase||'')).filter(x=>x.length>2&&!stop.has(x)).slice(0,7);
+    if(!terms.length)return [];
+    const mapa=mapaSinonimos();
+    const weighted=P.filter(p=>!p.off).map(p=>{
+      const idx=indiceBusca(p,mapa);
+      const category=norm(p.c||'');
+      let score=0;
+      for(const t of terms){
+        const c=buscaCanonica(t,mapa);
+        if(idx.canonicas.some(w=>w===c))score+=6;
+        else if(idx.canonicas.some(w=>w.includes(c)||c.includes(w)&&w.length>3))score+=3;
+        else if(category.includes(t))score+=2;
+      }
+      return {p,score};
+    }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||a.p.t.localeCompare(b.p.t,'pt')).slice(0,12);
+    return weighted.map(({p})=>({cod:p.cod,name:p.t,category:p.c,unit:p.u}));
+  }
+};
+
 drawCats(); render(); updSem();
 </script>
 <script defer src="/souzinha.js"></script>
