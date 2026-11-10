@@ -10,7 +10,7 @@ root.innerHTML=[
  '<section id="sz-panel" class="sz-panel" role="dialog" aria-label="Conversa com a Souzinha" aria-modal="false">',
  '<div class="sz-head"><span class="sz-avatar"><img src="/assets/souzinha-sac.svg" alt=""></span><div class="sz-head-txt"><strong>Souzinha</strong><small>Assistente virtual · Souza Ribeiro</small></div><button type="button" class="sz-close" aria-label="Fechar conversa">×</button></div>',
  '<div class="sz-messages" role="log" aria-live="polite" aria-relevant="additions text"></div>',
- '<div class="sz-actions" aria-label="Acessos rápidos"><button type="button" class="sz-chip" data-sz="buscar">🔎 Buscar produto</button><button type="button" class="sz-chip" data-sz="lista">📋 Minha Lista</button><button type="button" class="sz-chip" data-sz="pedidos">🧾 Meus pedidos</button><button type="button" class="sz-chip" data-sz="ajuda">💬 Como comprar</button></div>',
+ '<div class="sz-actions" aria-label="Acessos rápidos"><button type="button" class="sz-chip" data-sz="buscar">🔎 Buscar produto</button><button type="button" class="sz-chip" data-sz="lista">📋 Minha Lista</button><button type="button" class="sz-chip" data-sz="pedidos">🧾 Meus pedidos</button><button type="button" class="sz-chip" data-sz="ajuda">💬 Como comprar</button><button type="button" class="sz-chip" data-sz="humano">🟢 Atendimento humano</button></div>',
  '<form class="sz-form"><input class="sz-input" type="text" maxlength="600" autocomplete="off" placeholder="Converse com a Souzinha..." aria-label="Escreva para a Souzinha"><button class="sz-send" type="submit" aria-label="Enviar mensagem">➤</button></form>',
  '<div class="sz-footnote">A Souzinha orienta sua compra. Preços e estoque são confirmados no portal.</div>',
  '</section>'
@@ -72,6 +72,28 @@ function suggest(query){
  messages.appendChild(b);scroll();
 }
 
+
+// Canal oficial informado pela Souza Ribeiro. Este link não repassa dados do comprador.
+const SOUZINHA_WHATSAPP='https://wa.me/553425895323';
+function humanRequested(message){
+ const s=String(message||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ return /\b(whats(?:app)?|telefone|atendimento humano|pessoa de verdade|atendente|falar com (?:um |uma |o |a )?(?:humano|pessoa|vendedor|gerente|gerencia|equipe)|contato da empresa|contato do vendedor|suporte humano)\b/.test(s);
+}
+function showWhatsApp(){
+ const a=document.createElement('a');
+ a.className='sz-whatsapp-link';
+ a.href=SOUZINHA_WHATSAPP;
+ a.target='_blank';
+ a.rel='noopener noreferrer';
+ a.textContent='💬 Conversar no WhatsApp da Souza Ribeiro';
+ a.setAttribute('aria-label','Abrir WhatsApp da Souza Ribeiro em nova aba');
+ messages.appendChild(a);scroll();
+}
+function helpHuman(){
+ say('Claro! Você pode falar diretamente com a equipe da Souza Ribeiro pelo WhatsApp oficial (34) 2589-5323. Clique abaixo para abrir a conversa.');
+ showWhatsApp();
+}
+
 function productCards(codes){
  const api=window.SouzinhaPortal;
  if(!api||!Array.isArray(codes))return;
@@ -125,6 +147,7 @@ async function chat(text){
  if(!message)return;
  say(message,true);
  input.value='';
+ if(humanRequested(message)){helpHuman();return;}
  const oldHistory=history.slice(-12);
  const typing=say('O Souzinha está escrevendo…');
  typing.classList.add('sz-typing');
@@ -153,6 +176,7 @@ async function chat(text){
   typing.textContent=data.reply;
   history.push({role:'user',content:message},{role:'assistant',content:data.reply});
   if(history.length>16)history.splice(0,history.length-16);
+  if(data.contact_support)showWhatsApp();
   if(data.product_codes?.length)productCards(data.product_codes);
   else if(data.search_query)suggest(data.search_query);
  }catch(e){
@@ -168,6 +192,7 @@ root.querySelectorAll('[data-sz]').forEach(b=>b.addEventListener('click',()=>{
  const a=b.dataset.sz;
  if(a==='lista')return navigate('lista');
  if(a==='pedidos')return navigate('ped');
+ if(a==='humano')return helpHuman();
  if(a==='buscar'){input.focus({preventScroll:true});return chat('Você pode me ajudar a encontrar um produto?');}
  if(a==='ajuda')return chat('Como faço para comprar pelo portal?');
 }));
