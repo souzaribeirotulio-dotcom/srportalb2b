@@ -1424,7 +1424,9 @@ function openCad(){ $('admBox').innerHTML=''; $('mAdm').classList.remove('open')
 $('mCad').onclick=e=>{if(e.target.id==='mCad')$('mCad').classList.remove('open')};
 /* admin: clientes */
 ['clQ','clSt'].forEach(id=>$(id).addEventListener('input',drawCli));
-function drawCli(){ const q=norm($('clQ').value.trim()), st=$('clSt').value;
+function recarregaClientes(){ try{const x=JSON.parse(localStorage.getItem('sr_b2b_clientes')); if(x)CLIENTES=x;}catch(e){} }
+window.addEventListener('storage',e=>{ if(e.key==='sr_b2b_clientes'){ recarregaClientes(); if(ADM){updMrgBadge(); if(VIEW==='adm'&&AT==='cli')drawCli();} } });
+function drawCli(){ recarregaClientes(); const q=norm($('clQ').value.trim()), st=$('clSt').value;
   const L=Object.entries(CLIENTES).map(([cnpj,c])=>({cnpj,...c})).filter(c=>(!st||c.status===st)&&(!q||norm([c.nome,c.fantasia,c.cnpj,c.codigo,c.cidade].join(' ')).includes(q)))
     .sort((a,b)=>(a.status==='pendente'?0:1)-(b.status==='pendente'?0:1)||(b.criado_em||'').localeCompare(a.criado_em||''));
   $('clPanel').innerHTML=`<div class="crow2 h"><div>Cliente (${L.length})</div><div>Cód. G360</div><div>Cidade</div><div>Situação</div><div></div></div>`+(L.length?L.map(c=>`<div class="crow2" data-c="${c.cnpj}">
