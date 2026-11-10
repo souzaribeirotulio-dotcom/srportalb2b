@@ -63,3 +63,55 @@
  #souzinha-widget .sz-form{padding-bottom:10px}
  #souzinha-widget .sz-fab{bottom:calc(80px + env(safe-area-inset-bottom,0px))}
 }
+
+
+/* Escola do Souzinha: responsivo e sem alterar estilos gerais do portal */
+.sz-school-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 18px}
+.sz-school-head h3{font-size:21px;color:var(--lima);margin-bottom:5px}
+.sz-school-head p{font-size:13px;color:var(--tx2);max-width:760px}
+.sz-school-grid{display:grid;grid-template-columns:minmax(300px,0.95fr) minmax(320px,1.05fr);gap:16px;align-items:start}
+.sz-school-grid .panel{padding:18px;border:1px solid var(--linha2);border-radius:16px}
+.sz-school-grid h3{font-size:16px;margin-bottom:7px}
+.sz-school-form label{display:block;margin:13px 0 6px;font-size:12px;color:var(--tx2);font-weight:600}
+.sz-school-form .inp,.sz-school-form select{display:block;width:100%;background:var(--n950);border:1px solid var(--linha2);border-radius:9px;padding:11px;color:var(--tx);font-size:13px}
+.sz-school-form .inp:focus,.sz-school-form select:focus{outline:2px solid var(--lima2)}
+.sz-school-form .sz-check{display:flex;align-items:center;gap:9px;margin:14px 0}
+.sz-school-form .sz-check input{accent-color:#b2e04a}
+.sz-school-form .hint{font-size:11px;color:var(--tx2)}
+.sz-school-form .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.sz-school-form #szStatus{min-height:16px;font-size:12px;margin:9px 0}
+.sz-school-list-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.sz-school-list-head span{color:var(--tx2);font-size:12px}
+.sz-school-item{border:1px solid var(--linha2);border-radius:12px;padding:13px;margin:0 0 10px;background:#102c0d}
+.sz-school-item-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.sz-school-item-top b{font-size:13px;line-height:1.4}
+.sz-school-item small{display:block;margin:4px 0 8px;font-size:11px;color:var(--lima)}
+.sz-school-item p{font-size:12px;line-height:1.55;color:var(--tx2);white-space:pre-wrap;max-height:130px;overflow:auto;margin-bottom:9px}
+.sz-school-item .row{display:flex;gap:6px;flex-wrap:wrap}
+.sz-school-item button{font-size:11px;padding:7px 9px}
+.sz-school-pill{padding:3px 8px;font-size:10px;border-radius:99px;background:#244e16;color:#b2e04a;white-space:nowrap}
+.sz-school-pill.off{background:#493c20;color:#ffc77a}
+/* Cards de produtos validados no chat */
+#souzinha-widget .sz-products{display:flex;flex-direction:column;align-self:stretch;gap:8px;background:#102e0f;border:1px solid #31532b;border-radius:14px;padding:10px}
+#souzinha-widget .sz-products-title{font-size:12px;font-weight:700;color:#d5efbd}
+#souzinha-widget .sz-products-list{display:flex;flex-direction:column;gap:8px}
+#souzinha-widget .sz-product-card{display:flex;align-items:flex-start;gap:10px;border-radius:11px;background:#1a3816;border:1px solid #315328;padding:9px}
+#souzinha-widget .sz-product-card[hidden]{display:none!important}
+#souzinha-widget .sz-product-img{width:63px;height:66px;border-radius:7px;object-fit:contain;background:#fff;flex:none}
+#souzinha-widget .sz-product-details{min-width:0;flex:1}
+#souzinha-widget .sz-product-name{font-size:11px;font-weight:700;line-height:1.4;color:#f4fce9}
+#souzinha-widget .sz-product-details small{display:block;font-size:10px;color:#b0c9a5;margin:3px 0}
+#souzinha-widget .sz-product-price{display:block;font-size:13px;color:#d0ec79;margin:5px 0}
+#souzinha-widget .sz-product-actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+#souzinha-widget .sz-product-actions button{padding:6px 8px;font-size:10px;font-weight:650;border-radius:7px;cursor:pointer}
+#souzinha-widget .sz-product-buy{background:#b2e04a;color:#132d08;border:0}
+#souzinha-widget .sz-product-save,#souzinha-widget .sz-product-view{background:#244b1c;border:1px solid #5e8b43;color:#e2f2d7}
+#souzinha-widget .sz-products-all{border:0;border-radius:10px;background:#b2e04a;color:#12310a;padding:11px;font-size:11px;font-weight:750;cursor:pointer}
+#souzinha-widget .sz-products-expand{border:1px solid #66884b;border-radius:9px;background:#1b4118;color:#dff2cf;padding:9px;font-size:11px;cursor:pointer}
+@media(max-width:850px){.sz-school-grid{grid-template-columns:1fr}.sz-school-head{flex-wrap:wrap}}
+@media(max-width:700px){
+ .sz-school-grid .panel{padding:14px}
+ .sz-school-head h3{font-size:18px}
+ #souzinha-widget .sz-product-img{width:56px;height:60px}
+ #souzinha-widget .sz-product-card{padding:8px;gap:8px}
+}
