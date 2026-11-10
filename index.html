@@ -1192,15 +1192,16 @@ function drawUser(){ saud(); const tc=document.getElementById('tbContaT'); if(tc
   if($('uName'))$('uName').onclick=()=>$('tbConta').click(); }
 let afterLogin=null;
 let LT='cli';
-function setLT(m){LT=m;$('lgCli').hidden=m!=='cli';$('lgAdmT').hidden=m!=='adm';$('lgAdm').hidden=m!=='cli';$('lgEsqL').hidden=m!=='cli';$('lgVolta').hidden=m==='cli';$('lgEsq').hidden=m!=='esq';$('lgS').hidden=m==='esq';$('lgS').previousElementSibling.hidden=m==='esq';$('lgOk').textContent=m==='esq'?'Enviar senha nova':'Entrar';$('lgAdmT').innerHTML=m==='esq'?'<h3 style="margin:8px 0 2px">Recuperar senha</h3>':'<h3 style="margin:8px 0 2px">Acesso do administrador</h3>';if(m==='esq')$('lgAdmT').hidden=false;$('lgVolta').textContent='← Voltar para o login';$('lgL').textContent=m==='adm'?'Usuário':'CNPJ';$('lgC').placeholder=m==='adm'?'Usuário':'Apenas números do CNPJ';$('lgC').inputMode=m==='adm'?'text':'numeric';$('lgE').textContent=''}
+function setLT(m){LT=m;$('lgCli').hidden=m!=='cli';$('lgAdmT').hidden=m!=='adm';$('lgAdm').hidden=m!=='cli';$('lgEsqL').hidden=m!=='cli';$('lgVolta').hidden=m==='cli';$('lgEsq').hidden=m!=='esq';$('lgS').hidden=m==='esq';$('lgS').previousElementSibling.hidden=m==='esq';$('lgOk').textContent=m==='esq'?'Enviar senha nova':'Entrar';$('lgAdmT').innerHTML=m==='esq'?'<h3 style="margin:8px 0 2px">Recuperar senha</h3>':'<h3 style="margin:8px 0 2px">Acesso do administrador</h3>';if(m==='esq')$('lgAdmT').hidden=false;$('lgVolta').textContent='← Voltar para o login';$('lgL').textContent=m==='adm'?'Usuário':'CNPJ';$('lgC').placeholder=m==='adm'?'Usuário':'00.000.000/0000-00 (pode colar)';$('lgC').inputMode=m==='adm'?'text':'numeric';$('lgE').textContent=''}
 $('lgAdm').onclick=()=>setLT('adm');
 $('lgEsqL').onclick=()=>setLT('esq'); $('lgVolta').onclick=()=>setLT('cli'); $('lgCad').onclick=()=>{$('mLogin').classList.remove('open');openCad()};
 function openLogin(next,modo){setLT(modo||'cli');afterLogin=next||null;$('lgE').textContent='';$('mLogin').classList.add('open');setTimeout(()=>$('lgC').focus(),50)}
-const need=fn=>CLI?fn():openLogin(fn);
+$('lgC').addEventListener('input',()=>{if(LT==='adm')return;const dig=onlyD($('lgC').value).slice(0,14);$('lgC').value=dig.length===14?dig.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5'):dig});
+ const need=fn=>CLI?fn():openLogin(fn);
 $('lgX').onclick=()=>$('mLogin').classList.remove('open');
 $('lgS').onkeydown=e=>{if(e.key==='Enter')$('lgOk').click()};
 $('lgOk').onclick=async()=>{
-  if(LT==='esq'){ const c=onlyD($('lgC').value), em=$('lgEm').value.trim(); if(c.length!==14||!em){$('lgE').textContent='Informe o CNPJ (só números) e o e-mail do cadastro.';return}
+  if(LT==='esq'){ const c=onlyD($('lgC').value), em=$('lgEm').value.trim(); if(c.length!==14||!em){$('lgE').textContent='Informe o CNPJ (com ou sem pontuação) e o e-mail do cadastro.';return}
     $('lgOk').disabled=true; $('lgE').textContent='';
     try{ const r=await fetch(SB.url+'/functions/v1/portal-esqueci-senha',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB.key,Authorization:'Bearer '+SB.key},body:JSON.stringify({cnpj:c,email:em})}); const j=await r.json().catch(()=>({}));
       if(!r.ok) $('lgE').textContent=j.erro||'Não foi possível enviar agora.'; else { $('lgEsqM').innerHTML='<b style="color:#8fd14f">✓ '+esc(j.mensagem)+'</b>'; }
@@ -1793,8 +1794,8 @@ const origens=()=>[...CFG.vendedores.map(v=>'Vendedor: '+v),'Instagram','Google'
 function cliForm(d={},admin=false){ return `
   <div class="csec">Empresa</div>
   <label>CNPJ <span class="req">*</span></label>
-  <div class="cnpjrow"><input class="inp" id="kCnpj" inputmode="numeric" maxlength="14" placeholder="Apenas números (14 dígitos)" value="${esc(d.cnpj||'')}" ${admin&&d.cnpj?'readonly':''}><button class="btn sec" id="kBusca" type="button">Buscar dados</button></div>
-  <div class="okmsg" id="kCnpjM">${d.cnpj?'':'Digite só os números do CNPJ, sem pontos, barra ou hífen. Os dados da empresa são preenchidos automaticamente.'}</div>
+  <div class="cnpjrow"><input class="inp" id="kCnpj" inputmode="numeric" maxlength="18" placeholder="00.000.000/0000-00" value="${esc(fmtCNPJ(d.cnpj||''))}" ${admin&&d.cnpj?'readonly':''}><button class="btn sec" id="kBusca" type="button">Buscar dados</button></div>
+  <div class="okmsg" id="kCnpjM">${d.cnpj?'':'Digite ou cole o CNPJ com ou sem pontuação. Os dados da empresa serão preenchidos automaticamente.'}</div>
   <div class="fgrid"><div class="full"><label>Razão social <span class="req">*</span></label><input class="inp" id="kRaz" value="${esc(d.nome||d.razao_social||'')}"></div>
    <div class="full"><label>Nome fantasia</label><input class="inp" id="kFan" value="${esc(d.fantasia||'')}"></div>
    <div class="full"><label>Inscrição estadual <span class="req">*</span></label>
@@ -1818,7 +1819,7 @@ function cliForm(d={},admin=false){ return `
   :`<div class="csec">Acesso</div><div class="fgrid"><div><label>Crie uma senha <span class="req">*</span></label><input class="inp" id="kSen" type="password" placeholder="Mínimo 6 caracteres"></div>
    <div><label>Repita a senha <span class="req">*</span></label><input class="inp" id="kSen2" type="password"></div></div>`}`; }
 function bindCliForm(){ bindCep('k');
-  const mk=()=>{const i=$('kCnpj'),c=i.value.replace(/\D/g,'').slice(0,14); i.value=c; return c};
+  const mk=()=>{const i=$('kCnpj'),c=i.value.replace(/\D/g,'').slice(0,14); i.value=fmtCNPJ(c); return c};
   $('kCnpj').addEventListener('input',()=>{const c=mk(); if(c.length===14&&!$('kCnpj').readOnly)$('kBusca').click()});
   $('kIsento').onchange=()=>{ $('kIE').disabled=$('kIsento').checked; if($('kIsento').checked){$('kIE').value='';$('kIEM').textContent=''} };
   $('kIE').addEventListener('input',e=>e.target.value=e.target.value.replace(/[^0-9A-Za-z]/g,'').slice(0,20));
