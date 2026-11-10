@@ -686,7 +686,7 @@ buscaTopo.addEventListener('input', () => {
       window.scrollTo({ top: destino, behavior: movimentoReduzido ? 'auto' : 'smooth' });
     }
     buscaRolagemFeita = true;
-  }, 400);
+  }, 120);
 });
 
 document.getElementById('edt').onclick=e=>{ if(!ADM)return;document.body.classList.toggle('edit');e.target.classList.toggle('on');render();updSem()};
