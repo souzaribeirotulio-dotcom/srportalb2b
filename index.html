@@ -158,7 +158,7 @@ body.admin .hb.adm-only,body.admin .tool.adm-only,body.admin .tabbar .adm-only{d
 .eitem div{flex:1}.eitem b{display:block;font-size:13px}.eitem small{color:var(--tx2)}.eitem button{height:30px;border-radius:8px;border:1px solid rgba(255,107,107,.35);background:transparent;color:var(--red);cursor:pointer;padding:0 10px;font-size:12px}
 .crow2{display:grid;grid-template-columns:1fr 150px 130px 110px 170px;gap:14px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--linha)}
 .crow2.h{background:rgba(0,0,0,.2);font-size:10.5px;font-weight:600;text-transform:uppercase;color:var(--tx3);letter-spacing:1px}
-.crow2 .nm b{display:block;font-size:13.5px}.crow2 .nm small{display:block;color:var(--tx3);font-size:11.5px;font-family:var(--mono)}.mk:empty{display:none}.crow2 .sm{font-size:12px;color:var(--tx2)}
+.crow2 .nm b{display:block;font-size:13.5px}.crow2 .nm small{display:block;color:var(--tx3);font-size:11.5px;font-family:var(--mono)}.mk:empty{display:none}.som{display:none}.crow2 .sm{font-size:12px;color:var(--tx2)}
 .stt{display:inline-block;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:6px}
 .stt.pendente{background:rgba(255,196,0,.14);color:#ffd45c}.stt.aprovado{background:rgba(143,209,79,.14);color:#8fd14f}.stt.reprovado,.stt.bloqueado{background:rgba(255,107,107,.14);color:#ff8a8a}
 .crow2 .ab2{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}.crow2 .ab2 button{height:32px;padding:0 10px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--linha2);background:rgba(255,255,255,.04);color:var(--tx)}
@@ -425,7 +425,7 @@ textarea{resize:vertical}
  .tabbar button{position:relative}.tabbar .bdg{position:absolute;top:0;left:calc(50% + 6px);right:auto}
  .afil select{flex:1}
  .lockp{height:auto;min-height:38px;padding:7px 8px;font-size:11.5px;line-height:1.25}.lockp .ic{width:15px;height:15px}
- .crow2{grid-template-columns:1fr auto;grid-template-areas:"nm st" "sm sm" "ab ab";row-gap:8px;padding:12px}.crow2.h{display:none}.crow2 .nm{grid-area:nm}.crow2 .stw{grid-area:st}.crow2 .sm{grid-area:sm}.crow2 .sm2{display:none}.crow2 .ab2{grid-area:ab;justify-content:flex-start}.chks{grid-template-columns:1fr}
+ .crow2{grid-template-columns:1fr auto;grid-template-areas:"nm st" "sm sm" "ab ab";row-gap:8px;padding:12px}.crow2.h{display:none}.crow2 .nm{grid-area:nm}.crow2 .stw{grid-area:st}.crow2 .sm{grid-area:sm}.crow2 .sm2{display:none}.som{display:inline}.crow2 .ab2{grid-area:ab;justify-content:flex-start}.chks{grid-template-columns:1fr}
  body.clipsmode .search{display:none}body.clipsmode header nav{display:none}
  .cwrap{padding:0}.clips{width:100%;border-radius:0}.cnav{display:none}
  .fxpv{height:220px}.fx .act{bottom:calc(-20px - env(safe-area-inset-bottom));margin:14px -16px calc(-20px - env(safe-area-inset-bottom));padding:12px 16px calc(12px + env(safe-area-inset-bottom))}.fxt{width:64px;height:64px}.drop{padding:14px!important}
@@ -1444,7 +1444,7 @@ async function drawCli(refetch=true){ if(USA_SB()&&refetch){ $('clPanel').innerH
     .sort((a,b)=>(a.status==='pendente'?0:1)-(b.status==='pendente'?0:1)||(b.criado_em||'').localeCompare(a.criado_em||''));
   $('clPanel').innerHTML=`<div class="crow2 h"><div>Cliente (${L.length})</div><div>Cód. G360</div><div>Cidade</div><div>Situação</div><div></div></div>`+(L.length?L.map(c=>`<div class="crow2" data-c="${c.cnpj}">
     <div class="nm"><b>${esc(c.fantasia||c.nome)}</b><small>${fmtCNPJ(c.cnpj)} · ${esc(c.nome||'')}</small><small>${esc(c.origem||'')}${c.whats?' · '+fmtTel(c.whats):''}</small></div>
-    <div class="sm sm2">${c.codigo?esc(c.codigo):'<span style="color:var(--tx3)">—</span>'}</div><div class="sm">${esc(c.cidade||'')}${c.uf?'/'+c.uf:''}${c.codigo?' · cód. '+esc(c.codigo):''}</div>
+    <div class="sm sm2">${c.codigo?esc(c.codigo):'<span style="color:var(--tx3)">—</span>'}</div><div class="sm">${esc(c.cidade||'')}${c.uf?'/'+c.uf:''}${c.codigo?'<span class="som"> · cód. '+esc(c.codigo)+'</span>':''}</div>
     <div class="stw"><span class="stt ${c.status}">${{pendente:'Aguardando',aprovado:'Aprovado',reprovado:'Reprovado',bloqueado:'Bloqueado'}[c.status]||c.status}</span></div>
     <div class="ab2">${c.status==='pendente'?'<button class="ap" data-ap>Aprovar</button><button class="rp" data-rp>Reprovar</button>':''}<button data-ed>Editar</button></div></div>`).join(''):'<div class="empty2">Nenhum cliente encontrado.</div>'); }
 $('clPanel').addEventListener('click',async e=>{const r=e.target.closest('.crow2[data-c]');if(!r)return;const cn=r.dataset.c;
