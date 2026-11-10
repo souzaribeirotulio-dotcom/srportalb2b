@@ -1082,10 +1082,10 @@ $('pPanel').addEventListener('click',e=>{const n=e.target.dataset.rep;if(!n)retu
 
 /* =================== ADMINISTRADOR =================== */
 let ADM = LSG('sr_b2b_admin',false);
-const ORIG = Object.fromEntries(P.map(p=>[p.cod,{t:p.t,m:p.m,c:p.c,u:p.u,p:p.p,d:p.d,alt:ALT[p.cod]?JSON.parse(JSON.stringify(ALT[p.cod])):null}]));
+const ORIG = Object.fromEntries(P.map(p=>[p.cod,{t:p.t,m:p.m,c:p.c,u:p.u,p:p.p,d:p.d,ncm:p.ncm||'',alt:ALT[p.cod]?JSON.parse(JSON.stringify(ALT[p.cod])):null}]));
 let PADM = LSG('sr_b2b_admin_prod',{});
 function aplicaOv(cod){ const p=byCod[cod], o=ORIG[cod], v=PADM[cod]||{};
-  ['t','m','c','u','p','d'].forEach(k=>p[k]=v[k]??o[k]); p.off=!!v.off;
+  ['t','m','c','u','p','d','ncm'].forEach(k=>p[k]=v[k]??o[k]); p.off=!!v.off;
   const alt=v.alt!==undefined?v.alt:o.alt; if(alt&&alt.length)ALT[cod]=alt; else delete ALT[cod];
   p.f=p.f.map(([k,x])=>[k, k==='Marca'?p.m : k==='Vendido por'?p.u : k==='Categoria'?p.c : x]); }
 Object.keys(PADM).forEach(c=>byCod[c]&&aplicaOv(c));
@@ -1137,6 +1137,7 @@ function openAdmEd(cod){ const p=byCod[cod]; AE={cod,alt:JSON.parse(JSON.stringi
     <div><label>Marca</label><input class="inp" id="eM" value="${esc(p.m||'')}"></div>
     <div><label>Categoria</label><select class="inp" id="eC">${Object.keys(cats).sort().map(c=>`<option ${c===p.c?'selected':''}>${c}</option>`).join('')}</select></div>
     <div><label>Unidade padrão</label><input class="inp" id="eU" value="${esc(p.u)}"></div>
+    <div><label>NCM (8 dígitos)</label><input class="inp" id="eNcm" inputmode="numeric" maxlength="10" placeholder="0000.00.00" value="${esc(p.ncm||'')}"><small>Conforme cadastro fiscal do produto.</small></div>
     <div><label>Preço (R$)</label><input class="inp" id="eP" type="number" step="0.01" value="${p.p.toFixed(2)}"><div class="uprev" id="ePm"></div></div>
     <div class="full"><label>Descrição</label><textarea id="eD" rows="4">${esc(p.d||'')}</textarea></div></div>
    <label>Unidades alternativas</label>
@@ -1155,8 +1156,8 @@ function openAdmEd(cod){ const p=byCod[cod]; AE={cod,alt:JSON.parse(JSON.stringi
   $('eX').onclick=()=>$('mAdm').classList.remove('open');
   $('eFoto').onclick=()=>{$('mAdm').classList.remove('open');openMod(p)};
   $('eRst').onclick=()=>{delete PADM[cod];salvaAdm(cod);$('mAdm').classList.remove('open');drawAdm();toast('Produto restaurado')};
-  $('eOk').onclick=()=>{ const alt=AE.alt.filter(u=>u.nome&&+u.fator>0).map(u=>({id:(u.id||u.nome.slice(0,2)).toUpperCase(),nome:u.nome,fator:+u.fator,...(+u.preco>0?{preco:+(+u.preco).toFixed(2)}:{})}));
-    PADM[cod]={...(PADM[cod]||{}),t:$('eT').value.trim()||p.t,m:$('eM').value.trim(),c:$('eC').value,u:$('eU').value.trim()||p.u,p:+(+$('eP').value).toFixed(2)||p.p,d:$('eD').value.trim(),alt,off:!$('eOff').checked};
+  $('eOk').onclick=()=>{ const ncm=$('eNcm').value.replace(/\D/g,'');if(ncm.length&&ncm.length!==8){toast('Informe um NCM válido com 8 dígitos.');$('eNcm').focus();return;}const alt=AE.alt.filter(u=>u.nome&&+u.fator>0).map(u=>({id:(u.id||u.nome.slice(0,2)).toUpperCase(),nome:u.nome,fator:+u.fator,...(+u.preco>0?{preco:+(+u.preco).toFixed(2)}:{})}));
+    PADM[cod]={...(PADM[cod]||{}),t:$('eT').value.trim()||p.t,m:$('eM').value.trim(),c:$('eC').value,u:$('eU').value.trim()||p.u,p:+(+$('eP').value).toFixed(2)||p.p,d:$('eD').value.trim(),ncm,alt,off:!$('eOff').checked};
     salvaAdm(cod); $('mAdm').classList.remove('open'); drawAdm(); toast('Produto salvo ✓'); };
 }
 function prevMg(){const p=byCod[AE.cod],v=+$('eP').value,m=margem(v,p.k);$('ePm').innerHTML=m==null?'':`Margem bruta: <b class="mg ${mgCls(m)}" style="font-size:12px">${m.toFixed(1)}%</b>`;drawAltPrev()}
@@ -1368,7 +1369,7 @@ function drawDet(){ const p=DP, G=gal(p).length?gal(p):[ph(p)], naLista=CLI&&CLI
         <button class="dfav ${naLista?'on':''}" id="dFav" title="Minha Lista">${naLista?'★':'☆'}</button></div>`:`${stkHtml(p).replace('class="stk','style="margin-top:8px" class="stk')}<button class="lockp" data-lock id="dLock"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Faça login para ver os preços</button>`}
       ${clipsDe(p.cod).length?`<button class="dclip" id="dClip">▶ Ver clip deste produto</button>`:''}
       ${p.d?`<div class="dsec"><h4>Descrição</h4><p>${esc(p.d)}</p></div>`:''}
-      <div class="dsec"><h4>Características</h4><table class="ftab">${p.f.map(([k,v])=>`<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</table></div>
+      <div class="dsec"><h4>Características</h4><table class="ftab">${p.f.map(([k,v])=>`<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}<tr><td>NCM</td><td>${p.ncm?esc(p.ncm.replace(/^(\d{4})(\d{2})(\d{2})$/,'$1.$2.$3')):'Não informado'}</td></tr></table></div>
     </div>`;
 }
 $('mDet').addEventListener('click',e=>{
