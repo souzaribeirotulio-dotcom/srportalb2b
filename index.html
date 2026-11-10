@@ -638,14 +638,29 @@ const marcas = [...new Set(P.map(p=>p.m).filter(Boolean))].sort((a,b)=>a.localeC
 document.getElementById('marca').innerHTML += marcas.map(m=>`<option>${esc(m)}</option>`).join('');
 document.getElementById('tot').textContent = P.length; document.getElementById('nMarcas').textContent = new Set(P.map(p=>p.m).filter(Boolean)).size;
 
+/* Intenção de compra: termos conhecidos do cliente, não só a descrição fiscal.
+   Metadados iniciais: altere os termos de cada item no editor do administrador.
+   A Movimento deverá persistir as palavras-chave para todos os usuários via API. */
+const BUSCA_PADRAO = {"101430":"acai açai copo para acai copo liso para acai sobremesa sorveteria milkshake","000864":"acai açai copo para acai copo liso para acai sobremesa sorveteria milkshake","001897":"acai açai copo para acai copo liso para acai sobremesa sorveteria milkshake"};
+const BUSCA_STOP = new Set(['a','o','as','os','de','da','do','das','dos','para','pra','por','com','sem','um','uma','e','em','no','na']);
+const termosBusca = valor => norm(valor||'').split(/[^a-z0-9]+/).filter(Boolean)
+  .filter(w=>!BUSCA_STOP.has(w))
+  .map(w=>w.length>3 && w.endsWith('s') ? w.slice(0,-1) : w);
+const textoBusca = p => norm([p.t,p.m,p.cod,p.c,p.d,p.ncm||'',BUSCA_PADRAO[p.cod]||'',p.tagsBusca||''].join(' '));
+const pontosBusca = (p,termos) => {
+  const nome=norm(p.t), marca=norm(p.m||''), tags=norm((BUSCA_PADRAO[p.cod]||'')+' '+(p.tagsBusca||''));
+  return termos.reduce((s,t)=>s+(nome.includes(t)?5:0)+(tags.includes(t)?3:0)+(marca.includes(t)?1:0),0);
+};
+
 function render(){
   const q = norm(document.getElementById('q').value.trim());
+  const termos = termosBusca(q);
   const m = document.getElementById('marca').value, o = document.getElementById('ord').value;
   const so=document.getElementById('soSem').checked && document.body.classList.contains('edit');
   let L = P.filter(p => (ADM || visivel(p)) && (!cat||p.c===cat) && (!m||p.m===m) && (!so || precisa(p)) &&
-    (!q || q.split(/\s+/).every(w => norm(p.t+' '+p.m+' '+p.cod).includes(w))));
+    (!termos.length || termos.every(w => textoBusca(p).includes(w))));
   if(o==='menor') L.sort((a,b)=>base(a)-base(b)); else if(o==='maior') L.sort((a,b)=>base(b)-base(a));
-  else L.sort((a,b)=>a.t.localeCompare(b.t,'pt'));
+  else L.sort((a,b)=>(termos.length?pontosBusca(b,termos)-pontosBusca(a,termos):0)||a.t.localeCompare(b.t,'pt'));
   document.getElementById('cnt').innerHTML = `<b>${L.length}</b> produto${L.length!==1?'s':''}`;
   document.getElementById('grid').innerHTML = L.length ? L.map(p=>`
     <article class="card ${precisa(p)?'noimg':''}" data-i="${P.indexOf(p)}">
@@ -1082,10 +1097,10 @@ $('pPanel').addEventListener('click',e=>{const n=e.target.dataset.rep;if(!n)retu
 
 /* =================== ADMINISTRADOR =================== */
 let ADM = LSG('sr_b2b_admin',false);
-const ORIG = Object.fromEntries(P.map(p=>[p.cod,{t:p.t,m:p.m,c:p.c,u:p.u,p:p.p,d:p.d,ncm:p.ncm||'',alt:ALT[p.cod]?JSON.parse(JSON.stringify(ALT[p.cod])):null}]));
+const ORIG = Object.fromEntries(P.map(p=>[p.cod,{t:p.t,m:p.m,c:p.c,u:p.u,p:p.p,d:p.d,ncm:p.ncm||'',tagsBusca:p.tagsBusca||'',alt:ALT[p.cod]?JSON.parse(JSON.stringify(ALT[p.cod])):null}]));
 let PADM = LSG('sr_b2b_admin_prod',{});
 function aplicaOv(cod){ const p=byCod[cod], o=ORIG[cod], v=PADM[cod]||{};
-  ['t','m','c','u','p','d','ncm'].forEach(k=>p[k]=v[k]??o[k]); p.off=!!v.off;
+  ['t','m','c','u','p','d','ncm','tagsBusca'].forEach(k=>p[k]=v[k]??o[k]); p.off=!!v.off;
   const alt=v.alt!==undefined?v.alt:o.alt; if(alt&&alt.length)ALT[cod]=alt; else delete ALT[cod];
   p.f=p.f.map(([k,x])=>[k, k==='Marca'?p.m : k==='Vendido por'?p.u : k==='Categoria'?p.c : x]); }
 Object.keys(PADM).forEach(c=>byCod[c]&&aplicaOv(c));
@@ -1139,7 +1154,8 @@ function openAdmEd(cod){ const p=byCod[cod]; AE={cod,alt:JSON.parse(JSON.stringi
     <div><label>Unidade padrão</label><input class="inp" id="eU" value="${esc(p.u)}"></div>
     <div><label>NCM (8 dígitos)</label><input class="inp" id="eNcm" inputmode="numeric" maxlength="10" placeholder="0000.00.00" value="${esc(p.ncm||'')}"><small>Conforme cadastro fiscal do produto.</small></div>
     <div><label>Preço (R$)</label><input class="inp" id="eP" type="number" step="0.01" value="${p.p.toFixed(2)}"><div class="uprev" id="ePm"></div></div>
-    <div class="full"><label>Descrição</label><textarea id="eD" rows="4">${esc(p.d||'')}</textarea></div></div>
+    <div class="full"><label>Descrição</label><textarea id="eD" rows="4">${esc(p.d||'')}</textarea></div>
+    <div class="full"><label>Palavras-chave para busca</label><input class="inp" id="eBusca" placeholder="Ex.: açaí, copo para sobremesa, milkshake" value="${esc(p.tagsBusca||'')}"><small>Termos pelos quais o cliente procura o produto, separados por vírgula. Não alteram o nome nem a descrição.</small></div></div>
    <label>Unidades alternativas</label>
    <div class="uhd"><span>Nome</span><span>Sigla</span><span>Fator</span><span>Preço (opcional)</span><span></span></div>
    <div id="eAlt"></div><button class="addu" id="eAddU">+ Adicionar unidade (ex.: Caixa)</button>
@@ -1157,7 +1173,7 @@ function openAdmEd(cod){ const p=byCod[cod]; AE={cod,alt:JSON.parse(JSON.stringi
   $('eFoto').onclick=()=>{$('mAdm').classList.remove('open');openMod(p)};
   $('eRst').onclick=()=>{delete PADM[cod];salvaAdm(cod);$('mAdm').classList.remove('open');drawAdm();toast('Produto restaurado')};
   $('eOk').onclick=()=>{ const ncm=$('eNcm').value.replace(/\D/g,'');if(ncm.length&&ncm.length!==8){toast('Informe um NCM válido com 8 dígitos.');$('eNcm').focus();return;}const alt=AE.alt.filter(u=>u.nome&&+u.fator>0).map(u=>({id:(u.id||u.nome.slice(0,2)).toUpperCase(),nome:u.nome,fator:+u.fator,...(+u.preco>0?{preco:+(+u.preco).toFixed(2)}:{})}));
-    PADM[cod]={...(PADM[cod]||{}),t:$('eT').value.trim()||p.t,m:$('eM').value.trim(),c:$('eC').value,u:$('eU').value.trim()||p.u,p:+(+$('eP').value).toFixed(2)||p.p,d:$('eD').value.trim(),ncm,alt,off:!$('eOff').checked};
+    PADM[cod]={...(PADM[cod]||{}),t:$('eT').value.trim()||p.t,m:$('eM').value.trim(),c:$('eC').value,u:$('eU').value.trim()||p.u,p:+(+$('eP').value).toFixed(2)||p.p,d:$('eD').value.trim(),ncm,tagsBusca:$('eBusca').value.trim(),alt,off:!$('eOff').checked};
     salvaAdm(cod); $('mAdm').classList.remove('open'); drawAdm(); toast('Produto salvo ✓'); };
 }
 function prevMg(){const p=byCod[AE.cod],v=+$('eP').value,m=margem(v,p.k);$('ePm').innerHTML=m==null?'':`Margem bruta: <b class="mg ${mgCls(m)}" style="font-size:12px">${m.toFixed(1)}%</b>`;drawAltPrev()}
