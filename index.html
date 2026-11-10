@@ -517,6 +517,7 @@ textarea{resize:vertical}
   <label style="font-size:13px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="soSem"> Só para conferir (<span id="nSem">0</span>)</label>
   <button class="tool" id="exp">⬇️ Exportar imagens</button>
   <button class="tool" id="imp">⬆️ Importar</button>
+  <button class="tool" id="pubLocal" hidden>☁ Publicar fotos deste navegador</button>
   <input type="file" id="impF" accept=".json" hidden>
 </div>
 
@@ -647,8 +648,75 @@ function ph(p){
 }
 const IMG0 = {"22": ["https://http2.mlstatic.com/D_Q_NP_2X_882759-MLB116985685831_082026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_788483-MLA99343325306_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_636848-MLB117960069305_092026-E.webp"], "245": ["https://http2.mlstatic.com/D_Q_NP_2X_657385-MLB91835055722_092025-E.webp"], "353": ["https://http2.mlstatic.com/D_Q_NP_2X_739203-MLA99607333096_122025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_913948-MLB87696784792_072025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_695253-MLB110553359737_042026-E.webp"], "490": ["https://http2.mlstatic.com/D_Q_NP_2X_776414-MLB106900001126_022026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_930619-MLA110800559774_052026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_663375-MLU69791365529_062023-E.webp"], "769": ["https://http2.mlstatic.com/D_Q_NP_2X_724359-MLA99446854412_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_750733-MLB117661771695_092026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_959038-MLB116427098535_082026-E.webp"], "775": ["https://http2.mlstatic.com/D_Q_NP_2X_915048-MLB80309401559_102024-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_875759-MLB119216859079_102026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_721731-MLA99505398512_112025-E.webp"], "1107": ["https://http2.mlstatic.com/D_Q_NP_2X_624169-MLB46952337582_082021-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_857437-MLA108910552812_032026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_942211-MLB120957396647_112026-E.webp"], "2553": ["https://http2.mlstatic.com/D_Q_NP_2X_706202-MLB116648778856_092026-E.webp"], "2651": ["https://http2.mlstatic.com/D_Q_NP_2X_663375-MLU69791365529_062023-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_802058-MLA99972611399_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_798712-MLB72336713003_102023-E.webp"], "4315": ["https://http2.mlstatic.com/D_Q_NP_2X_934142-MLB86352508600_062025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_636667-MLB74367759949_022024-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_635977-MLB84240558587_042025-E.webp"], "4357": ["https://http2.mlstatic.com/D_Q_NP_2X_642915-MLA96879242851_102025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_720474-MLB52067734375_102022-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_702364-MLB98918243440_112025-E.webp"], "4857": ["https://http2.mlstatic.com/D_Q_NP_2X_801582-MLA99906619295_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_714052-MLB90745832298_082025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_657617-MLB98071117844_112025-E.webp"], "6969": ["https://http2.mlstatic.com/D_Q_NP_2X_650264-MLU74117443484_012024-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_811846-MLB116659839126_092026-E.webp"], "7004": ["https://http2.mlstatic.com/D_Q_NP_2X_731381-MLB117610290010_102026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_814988-MLB118333350043_092026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_810320-MLA82348020650_022025-E.webp"], "7201": ["https://http2.mlstatic.com/D_Q_NP_2X_784766-MLB116499622773_082026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_795105-MLB115045247542_082026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_683329-MLA95200463160_102025-E.webp"], "8471": ["https://http2.mlstatic.com/D_Q_NP_2X_862972-MLA94469351834_102025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_973342-MLB97115670768_112025-E.webp"], "8565": ["https://http2.mlstatic.com/D_Q_NP_2X_948452-MLB118476669111_092026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_960738-MLB113385859222_072026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_608934-MLB91525970594_092025-E.webp"], "10032": ["https://http2.mlstatic.com/D_Q_NP_2X_756669-MLB86534698572_062025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_614119-MLB91439082723_092025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_752706-MLB116551466319_082026-E.webp"], "13613": ["https://http2.mlstatic.com/D_Q_NP_2X_757302-MLB118642476776_102026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_984221-MLB108188192845_032026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_965307-MLB112216444670_062026-E.webp"], "16423": ["https://http2.mlstatic.com/D_Q_NP_2X_877655-MLA99385376066_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_761026-MLB118646826640_102026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_764990-MLB105668451026_012026-E.webp"], "16536": ["https://http2.mlstatic.com/D_Q_NP_2X_760913-MLB92518861077_092025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_795439-MLA100082611279_122025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_917447-MLB119816730427_102026-E.webp"], "17849": ["https://http2.mlstatic.com/D_Q_NP_2X_753256-MLA114013700797_072026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_831216-MLA99420915036_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_823387-MLA99884698305_112025-E.webp"], "19781": ["https://http2.mlstatic.com/D_Q_NP_2X_937373-MLB89227851940_082025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_845541-MLB119287936155_102026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_852280-MLB92335767923_092025-E.webp"], "22760": ["https://http2.mlstatic.com/D_Q_NP_2X_797367-MLB117153195092_102026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_705457-MLB100265941099_122025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_629682-MLB108016801689_032026-E.webp"], "22837": ["https://http2.mlstatic.com/D_Q_NP_2X_864882-MLB120296829047_102026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_715405-MLA89231519851_082025-E.webp"], "24096": ["https://http2.mlstatic.com/D_Q_NP_2X_919195-MLB118018336637_092026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_875668-MLB89645672003_082025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_725276-MLB114253939261_072026-E.webp"], "26202": ["https://http2.mlstatic.com/D_Q_NP_2X_816069-MLA113989526768_072026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_989712-MLB79137980250_092024-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_953827-MLB92390560623_092025-E.webp"], "26784": ["https://http2.mlstatic.com/D_Q_NP_2X_668801-MLB81822274300_012025-E.webp"], "26947": ["https://http2.mlstatic.com/D_Q_NP_2X_970965-MLA99388241440_112025-E.webp"], "29592": ["https://http2.mlstatic.com/D_Q_NP_2X_625177-MLB96998814814_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_862813-MLA99933131815_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_774686-MLB118326587471_092026-E.webp"], "29594": ["https://http2.mlstatic.com/D_Q_NP_2X_703287-MLA99340233864_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_897806-MLB76963566747_062024-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_931146-MLB97248734691_112025-E.webp"], "32355": ["https://http2.mlstatic.com/D_Q_NP_2X_752706-MLB116551466319_082026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_933280-MLA116797894335_082026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_758985-MLB82037116765_012025-E.webp"], "45254": ["https://http2.mlstatic.com/D_Q_NP_2X_621528-MLB99498262355_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_715424-MLB111707244147_052026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_857318-MLB99018164976_112025-E.webp"], "53235": ["https://http2.mlstatic.com/D_Q_NP_2X_903736-MLB116769117198_092026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_769634-MLA115397643598_082026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_696638-MLB118247333335_092026-E.webp"], "55544": ["https://http2.mlstatic.com/D_Q_NP_2X_660496-MLB78926304343_092024-E.webp"], "58991": ["https://http2.mlstatic.com/D_Q_NP_2X_601423-MLB74882307499_032024-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_972698-MLB74307563751_012024-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_961782-MLB48938770507_012022-E.webp"], "78983": ["https://http2.mlstatic.com/D_Q_NP_2X_678461-MLA100978128011_122025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_730869-MLB97512590312_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_773876-MLB118312915651_092026-E.webp"], "100154": ["https://http2.mlstatic.com/D_Q_NP_2X_963259-MLA95133074652_102025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_997362-MLA105021668316_012026-E.webp"], "100293": ["https://http2.mlstatic.com/D_Q_NP_2X_906746-MLU77777119416_072024-E.webp"], "100562": ["https://http2.mlstatic.com/D_Q_NP_2X_915048-MLB80309401559_102024-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_919848-MLB51458318262_092022-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_731849-MLB91727782169_092025-E.webp"], "100830": ["https://http2.mlstatic.com/D_Q_NP_2X_996645-MLB111135728379_052026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_629370-MLB111230712754_052026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_709530-MLB120314567163_102026-E.webp"], "100875": ["https://http2.mlstatic.com/D_Q_NP_2X_656983-MLB111656583291_052026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_652203-MLB89583561007_082025-E.webp"], "100880": ["https://http2.mlstatic.com/D_Q_NP_2X_877655-MLA99385376066_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_764990-MLB105668451026_012026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_878549-MLB106273648997_012026-E.webp"], "101011": ["https://http2.mlstatic.com/D_Q_NP_2X_997398-MLA93755810451_092025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_930472-MLB91047038936_092025-E.webp"], "101272": ["https://http2.mlstatic.com/D_Q_NP_2X_879784-MLB96782951090_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_625945-MLB96782758434_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_994979-MLB118196007307_092026-E.webp"], "101430": ["https://http2.mlstatic.com/D_Q_NP_2X_948658-MLB115155949355_072026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_979294-MLA100007992149_122025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_823800-MLB110999519475_042026-E.webp"], "103289": ["https://http2.mlstatic.com/D_Q_NP_2X_717985-MLB104766396807_012026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_824726-MLB87556378095_072025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_899149-MLA104713676102_012026-E.webp"], "103290": ["https://http2.mlstatic.com/D_Q_NP_2X_899149-MLA104713676102_012026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_805052-MLB116616695296_092026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_954478-MLA106898740536_022026-E.webp"], "202154": ["https://http2.mlstatic.com/D_Q_NP_2X_670350-MLB92807228153_092025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_710302-MLB92808349863_092025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_882744-MLB76156909723_052024-E.webp"], "203255": ["https://http2.mlstatic.com/D_Q_NP_2X_949741-MLA96895289202_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_648680-MLA98545147299_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_674003-MLB117803055539_092026-E.webp"], "400801": ["https://http2.mlstatic.com/D_Q_NP_2X_652594-MLB49579977468_042022-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_765594-MLA112624768161_062026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_737166-MLB45512668109_042021-E.webp"], "400803": ["https://http2.mlstatic.com/D_Q_NP_2X_737166-MLB45512668109_042021-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_723237-MLB51720163652_092022-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_953431-MLA99929435829_112025-E.webp"], "401026": ["https://http2.mlstatic.com/D_Q_NP_2X_876883-MLB119445830577_102026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_753386-MLA111478780192_052026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_836979-MLA97120380519_112025-E.webp"], "401027": ["https://http2.mlstatic.com/D_Q_NP_2X_962263-MLB119970840469_102026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_876883-MLB119445830577_102026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_836979-MLA97120380519_112025-E.webp"], "787870": ["https://http2.mlstatic.com/D_Q_NP_2X_797001-MLB76756945708_062024-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_662405-MLB113942589954_072026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_892949-MLB118650159957_102026-E.webp"], "973888": ["https://http2.mlstatic.com/D_Q_NP_2X_807118-MLA120023423603_102026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_727729-MLB120021078475_102026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_763841-MLA118373848658_102026-E.webp"], "30177836": ["https://http2.mlstatic.com/D_Q_NP_2X_837885-MLA99373080860_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_992231-MLB120300558567_102026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_816069-MLA113989526768_072026-E.webp"], "30243056": ["https://http2.mlstatic.com/D_Q_NP_2X_699433-MLA99887634751_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_606712-MLB70506555669_072023-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_998674-MLA99451162942_112025-E.webp"], "061413": ["https://http2.mlstatic.com/D_Q_NP_2X_880308-MLB77319632863_062024-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_982367-MLA99380048246_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_797613-MLU71758408113_092023-E.webp"], "002561": ["https://http2.mlstatic.com/D_Q_NP_2X_655519-MLB104920213660_012026-E.webp"], "002310": ["https://http2.mlstatic.com/D_Q_NP_2X_840164-MLB112569992599_062026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_842276-MLB114902985166_082026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_988891-MLB115365566514_082026-E.webp"], "002316": ["https://http2.mlstatic.com/D_Q_NP_2X_711181-MLB117475476715_092026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_805269-MLB115999170190_092026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_965915-MLB117474905843_092026-E.webp"], "002555": ["https://http2.mlstatic.com/D_Q_NP_2X_980136-MLB115337352843_072026-E.webp"], "000864": ["https://http2.mlstatic.com/D_Q_NP_2X_836845-MLB112391284389_052026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_875199-MLB104142896084_012026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_659616-MLB104142805866_012026-E.webp"], "001897": ["https://http2.mlstatic.com/D_Q_NP_2X_672997-MLB115156890475_072026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_866170-MLB109583614150_042026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_765306-MLB112392446779_052026-E.webp"], "001994": ["https://http2.mlstatic.com/D_Q_NP_2X_917364-MLB98259213019_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_710674-MLB117780144295_092026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_955054-MLB103238114908_012026-E.webp"], "001681": ["https://http2.mlstatic.com/D_Q_NP_2X_770231-MLA99823163577_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_919239-MLA99439298518_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_995659-MLB120487845187_102026-E.webp"], "001482": ["https://http2.mlstatic.com/D_Q_NP_2X_941769-MLA99925691215_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_641283-MLA99906716235_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_673882-MLA99852955977_112025-E.webp"], "002044": ["https://http2.mlstatic.com/D_Q_NP_2X_909406-MLB115653984612_092026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_712087-MLA99355328418_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_983563-MLB104775872320_012026-E.webp"], "TBFFRB-50F": ["https://http2.mlstatic.com/D_Q_NP_2X_686531-MLB99498265347_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_814758-MLB118242451823_092026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_906348-MLB99498272891_112025-E.webp"], "01146": ["https://http2.mlstatic.com/D_Q_NP_2X_777865-MLA91710576250_092025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_651480-MLB73760487535_012024-E.webp"], "000357": ["https://http2.mlstatic.com/D_Q_NP_2X_756669-MLB86534698572_062025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_752706-MLB116551466319_082026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_933280-MLA116797894335_082026-E.webp"], "12036ST": ["https://http2.mlstatic.com/D_Q_NP_2X_879816-MLA115710116503_082026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_807893-MLB118158710602_102026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_876550-MLB116702448902_092026-E.webp"], "000382": ["https://http2.mlstatic.com/D_Q_NP_2X_926862-MLB116268823148_092026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_751969-MLA99812589849_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_797169-MLA109694874697_032026-E.webp"], "001135": ["https://http2.mlstatic.com/D_Q_NP_2X_824388-MLB77032670140_062024-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_948362-MLB91820420794_092025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_679306-MLA99927551763_112025-E.webp"], "000313": ["https://http2.mlstatic.com/D_Q_NP_2X_829401-MLA99416220982_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_605844-MLB115065441688_082026-E.webp"], "000844": ["https://http2.mlstatic.com/D_Q_NP_2X_707081-MLB109988792412_042026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_831216-MLA99420915036_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_947144-MLA99882988239_112025-E.webp"], "000314": ["https://http2.mlstatic.com/D_Q_NP_2X_877655-MLA99385376066_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_764990-MLB105668451026_012026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_878549-MLB106273648997_012026-E.webp"], "000867": ["https://http2.mlstatic.com/D_Q_NP_2X_639071-MLB92576456927_092025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_967274-MLB113580670268_072026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_677319-MLB117759806891_092026-E.webp"], "002202": ["https://http2.mlstatic.com/D_Q_NP_2X_760255-MLA99953502559_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_889280-MLB116663594288_092026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_729396-MLU78816804490_092024-E.webp"], "021100": ["https://http2.mlstatic.com/D_Q_NP_2X_980339-MLB81695829766_012025-E.webp"], "001749": ["https://http2.mlstatic.com/D_Q_NP_2X_945715-MLB84615641356_052025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_817891-MLB91646108509_092025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_605090-MLA100079657303_122025-E.webp"], "002409": ["https://http2.mlstatic.com/D_Q_NP_2X_690880-MLA99344270360_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_946900-MLB90836731409_082025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_624074-MLB116446262899_082026-E.webp"], "046898": ["https://http2.mlstatic.com/D_Q_NP_2X_920678-MLB117806486813_092026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_894819-MLB107240854929_022026-E.webp"], "000048": ["https://http2.mlstatic.com/D_Q_NP_2X_745356-MLB120169902913_102026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_967969-MLB54690807728_032023-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_881157-MLB94340419619_102025-E.webp"], "000758": ["https://http2.mlstatic.com/D_Q_NP_2X_702017-MLB90234783691_082025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_957623-MLB114390380666_082026-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_862918-MLB75960740744_052024-E.webp"], "000859": ["https://http2.mlstatic.com/D_Q_NP_2X_861491-MLU69354376064_052023-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_724025-MLA99840550515_112025-E.webp", "https://http2.mlstatic.com/D_Q_NP_2X_680748-MLB50594335688_072022-E.webp"]};
 const LS='sr_b2b_imagens';
-let OV={}; try{OV=JSON.parse(localStorage.getItem(LS)||'{}')}catch(e){}
-const saveOV=()=>{try{localStorage.setItem(LS,JSON.stringify(OV));return true}catch(e){toast('Sem espaço no navegador — use um link em vez de arquivo');return false}};
+/* Back-up legado: imagens editadas antes da sincronização continuam neste navegador.
+   Nunca são aplicadas automaticamente aos demais clientes nem substituem a fonte remota. */
+let FOTOS_LOCAIS={};
+try{FOTOS_LOCAIS=JSON.parse(localStorage.getItem(LS)||'{}')||{}}catch(e){}
+let OV={},FOTOS_REV=0,FOTOS_CARREGADAS=false;
+function contaFotosLocais(){
+  return Object.keys(FOTOS_LOCAIS).filter(c=>byCod[c]&&FOTOS_LOCAIS[c]&&
+    (Array.isArray(FOTOS_LOCAIS[c])?FOTOS_LOCAIS[c].length>0:!!FOTOS_LOCAIS[c])).length;
+}
+function atualizarBotaoFotosLocais(){
+  const b=document.getElementById('pubLocal');if(!b)return;
+  const n=contaFotosLocais();
+  b.hidden=!n;
+  b.textContent='☁ Publicar fotos deste navegador'+(n?' ('+n+')':'');
+}
+function fotoHttpsValida(texto){
+  if(typeof texto!=='string'||texto.length>2048||/[\s"'<>\\]/.test(texto))return false;
+  try{const u=new URL(texto);return u.protocol==='https:'&&!!u.hostname;}catch(e){return false}
+}
+async function subirFotoParaStorage(cod,imagem){
+  const token=tokGet('sr_b2b_tokadm');
+  if(!token)throw new Error('Sessão de administrador expirada. Entre novamente.');
+  const resp=await fetch(SB.url+'/functions/v1/portal-upload-imagem',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','apikey':SB.key,'Authorization':'Bearer '+SB.key},
+    body:JSON.stringify({token,cod,imagem})
+  });
+  const d=await resp.json().catch(()=>null);
+  if(!resp.ok||!d||!fotoHttpsValida(d.url)){
+    throw new Error(d&&(d.erro||d.message)||'Falha ao enviar imagem ao servidor');
+  }
+  return d.url;
+}
+async function publicarFotosProduto(cod,fotos){
+  if(!USA_SB())throw new Error('Banco de imagens compartilhadas indisponível neste modo.');
+  const token=tokGet('sr_b2b_tokadm');
+  if(!token)throw new Error('Faça login como administrador para publicar fotos.');
+  if(!byCod[cod]||!Array.isArray(fotos)||fotos.length>8)throw new Error('Selecione até 8 fotos válidas para o produto.');
+  const urls=[];
+  for(const foto of fotos){
+    if(/^data:image\/(jpeg|png|webp);base64,/i.test(foto)){
+      urls.push(await subirFotoParaStorage(cod,foto));
+    }else if(fotoHttpsValida(foto)){
+      urls.push(foto);
+    }else throw new Error('Use foto JPEG/PNG/WebP ou link HTTPS válido.');
+  }
+  const salvas=await rpc('portal_admin_salvar_imagens',{p_token:token,p_cod:cod,p_fotos:urls});
+  if(!Array.isArray(salvas))throw new Error('O servidor não confirmou as imagens.');
+  FOTOS_REV++;
+  if(salvas.length)OV[cod]=salvas;else delete OV[cod];
+  delete FOTOS_LOCAIS[cod];
+  try{localStorage.setItem(LS,JSON.stringify(FOTOS_LOCAIS))}catch(e){}
+  atualizarBotaoFotosLocais();
+  return salvas;
+}
+async function carregarFotosCompartilhadas(){
+  if(!USA_SB())return;
+  const revisao=FOTOS_REV;
+  const fotos=await rpc('portal_imagens_catalogo',{});
+  if(revisao!==FOTOS_REV)return;
+  if(!fotos||Array.isArray(fotos)||typeof fotos!=='object')throw new Error('Resposta inválida do catálogo de fotos.');
+  OV=Object.fromEntries(Object.entries(fotos).filter(([cod,lista])=>
+    byCod[cod]&&Array.isArray(lista)&&lista.length<=8&&lista.every(fotoHttpsValida)));
+  FOTOS_CARREGADAS=true;
+  render();updSem();
+  if(typeof VIEW!=='undefined'&&VIEW==='lista'&&CLI)drawLista();
+  if(typeof VIEW!=='undefined'&&VIEW==='adm'&&AT==='prod')drawAProd();
+  atualizarBotaoFotosLocais();
+}
 const cosmos = p => p.e ? `https://cdn-cosmos.bluesoft.com.br/products/${p.e}` : '';
 // ordem: imagem que você definiu → imagem do catálogo → foto pelo código de barras → figura padrão
 const ovArr = c => { const v=OV[c]; return Array.isArray(v)?v:(v?[v]:null); };
@@ -857,17 +925,82 @@ dz.addEventListener('drop',e=>lerArquivos(e.dataTransfer.files));
 const closeMod=()=>$('mod').classList.remove('open');
 $('mCan').onclick=closeMod; $('mCan2').onclick=closeMod; $('mod').onclick=e=>{if(e.target.id==='mod')closeMod()};
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMod()});
-$('mOk').onclick=()=>{ const old=OV[cur.cod]; OV[cur.cod]=[...FX];
-  if(!saveOV()){ if(old!==undefined)OV[cur.cod]=old; else delete OV[cur.cod]; return }
-  SEM.delete(cur.cod); closeMod(); render(); updSem(); if(VIEW==='adm')drawAdm(); toast(FX.length?`${FX.length} foto(s) salva(s) ✓`:'Fotos removidas') };
-$('mDel').onclick=()=>{ delete OV[cur.cod]; saveOV(); SEM.delete(cur.cod); closeMod(); render(); updSem(); if(VIEW==='adm')drawAdm(); toast('Fotos originais restauradas') };
+$('mOk').onclick=async()=>{
+  const botao=$('mOk'),codigo=cur.cod,imagens=[...FX];
+  botao.disabled=true;botao.textContent='Publicando…';
+  try{
+    const salvas=await publicarFotosProduto(codigo,imagens);
+    FX=[...salvas]; SEM.delete(codigo);closeMod();render();updSem();
+    if(VIEW==='adm')drawAdm();
+    toast(salvas.length?'Fotos publicadas para todos os clientes ✓':'Fotos originais restauradas para todos ✓');
+  }catch(e){toast('Não foi possível publicar: '+e.message)}
+  finally{botao.disabled=false;botao.textContent='Salvar fotos'}
+};
+$('mDel').onclick=async()=>{
+  const botao=$('mDel'),codigo=cur.cod;
+  botao.disabled=true;
+  try{
+    await publicarFotosProduto(codigo,[]);
+    SEM.delete(codigo);closeMod();render();updSem();if(VIEW==='adm')drawAdm();
+    toast('Fotos originais restauradas para todos ✓');
+  }catch(e){toast('Não foi possível restaurar: '+e.message)}
+  finally{botao.disabled=false}
+};
 // exportar / importar
 $('exp').onclick=()=>{const all={...IMG0,...OV}; const b=new Blob([JSON.stringify(all,null,1)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='sr_portal_b2b_imagens.json'; a.click(); toast(Object.keys(all).length+' imagens exportadas')};
 $('imp').onclick=()=>$('impF').click();
-$('impF').onchange=()=>{const f=$('impF').files[0]; if(!f)return; f.text().then(s=>{try{const o=JSON.parse(s); let n=0;
-  for(const k in o) if(P.some(p=>p.cod===k)&&(typeof o[k]==='string'||Array.isArray(o[k]))){OV[k]=o[k];n++}
-  if(saveOV()){SEM.clear(); render(); updSem(); toast(n+' imagens importadas')}}catch(e){toast('Arquivo inválido')}}); $('impF').value=''};
+async function importarFotosCompartilhadas(itens){
+  const linhas=Object.entries(itens).filter(([cod,v])=>byCod[cod]&&(typeof v==='string'||Array.isArray(v)));
+  let publicadas=0,erros=0;
+  for(const [cod,valor] of linhas){
+    const lista=typeof valor==='string'?[valor]:valor;
+    try{
+      if(!lista.length||lista.length>8)continue;
+      await publicarFotosProduto(cod,lista);
+      publicadas++;
+    }catch(e){erros++;}
+  }
+  render();updSem();
+  if(VIEW==='adm')drawAdm();
+  toast(publicadas+' produto(s) com fotos publicadas'+(erros?' · '+erros+' falha(s)':'')+'.');
+}
+$('impF').onchange=async()=>{
+  const f=$('impF').files[0];if(!f)return;
+  $('impF').value='';
+  try{
+    const data=JSON.parse(await f.text());
+    if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('Arquivo inválido.');
+    if(!window.confirm('Publicar as fotos do arquivo para todos os clientes?'))return;
+    await importarFotosCompartilhadas(data);
+  }catch(e){toast('Erro na importação: '+e.message)}
+};
+$('pubLocal').onclick=async()=>{
+  const pendentes=Object.entries(FOTOS_LOCAIS).filter(([cod,v])=>byCod[cod]&&!OV[cod]&&
+    (typeof v==='string'||Array.isArray(v)));
+  const ignoradas=Object.keys(FOTOS_LOCAIS).filter(c=>!!OV[c]).length;
+  if(!pendentes.length){
+    toast(ignoradas?'As fotos destes produtos já estão publicadas. Nada foi substituído.':'Sem fotos locais pendentes.');
+    return;
+  }
+  if(!window.confirm('Publicar '+pendentes.length+' produto(s) deste navegador para todos? Produtos já publicados por outros administradores serão preservados.'))return;
+  const b=$('pubLocal'),original=b.textContent;
+  b.disabled=true;
+  let sucesso=0,falhas=0;
+  for(let i=0;i<pendentes.length;i++){
+    const [cod,v]=pendentes[i],fotos=typeof v==='string'?[v]:v;
+    b.textContent='Publicando '+(i+1)+'/'+pendentes.length+'…';
+    try{
+      if(!fotos.length)continue;
+      await publicarFotosProduto(cod,fotos);
+      sucesso++;
+    }catch(e){falhas++;}
+  }
+  b.disabled=false;b.textContent=original;
+  render();updSem();if(VIEW==='adm')drawAdm();
+  toast(sucesso+' produtos publicados'+(falhas?' · '+falhas+' falharam':'')+'.');
+};
+
 
 /* =================== CLIENTES (demonstração) ===================
    Na versão integrada, estes dados vêm do Movimento G360 (via Supabase):
@@ -1825,6 +1958,10 @@ window.SouzinhaPortal={
 
 
 drawCats(); render(); updSem();
+carregarFotosCompartilhadas().catch(e=>console.warn('Fotos compartilhadas:',e.message));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)carregarFotosCompartilhadas().catch(()=>{});});
+setInterval(()=>{if(!document.hidden)carregarFotosCompartilhadas().catch(()=>{});},60000);
+atualizarBotaoFotosLocais();
 </script>
 <script defer src="/souzinha-escola.js"></script>
 <script defer src="/souzinha.js"></script>
