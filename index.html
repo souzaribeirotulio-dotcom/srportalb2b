@@ -1207,7 +1207,7 @@ $('lgOk').onclick=async()=>{
       if(!r.ok) $('lgE').textContent=j.erro||'Não foi possível enviar agora.'; else { $('lgEsqM').innerHTML='<b style="color:#8fd14f">✓ '+esc(j.mensagem)+'</b>'; }
     }catch(e){ $('lgE').textContent='Sem conexão. Tente novamente.' } $('lgOk').disabled=false; return; }
   if(LT==='adm'){ try{ await API.loginAdmin($('lgC').value.trim(),$('lgS').value) }catch(e){ $('lgE').textContent=e.message; return }
-    setAdm(true); $('mLogin').classList.remove('open'); $('lgS').value=''; if(USA_SB())carregaClientesAdm().catch(()=>{}); toast('Modo administrador ativado'); const f=afterLogin; afterLogin=null; render(); if(f)f(); else go('adm'); return; }
+    setAdm(true); $('mLogin').classList.remove('open'); $('lgS').value=''; if(USA_SB()){carregaClientesAdm().catch(()=>{});window.SRPersistencia?.refreshConfig().catch(e=>console.warn('Configurações admin:',e.message));window.SRPersistencia?.showControls()} toast('Modo administrador ativado'); const f=afterLogin; afterLogin=null; render(); if(f)f(); else go('adm'); return; }
   const c=onlyD($('lgC').value), s=$('lgS').value; let cl;
   try{ cl=await API.login(c,s) }catch(e){ $('lgE').textContent=e.message; return }
   LSS('sr_b2b_sessao',c); LSS('sr_b2b_cli',cl); await loadCli(c,cl); $('mLogin').classList.remove('open'); render(); toast('Bem-vindo, '+cl.fantasia+'!');
@@ -1433,7 +1433,7 @@ const margem=(preco,custo)=>preco>0&&custo>0?(preco-custo)/preco*100:null;
 const mgCls=m=>m==null?'':m<CFG.margemMin?'bad':m<CFG.margemMin+10?'mid':'ok';
 if(CFG.margemMin==null)CFG.margemMin=25;
 function setAdm(on){ ADM=on; LSS('sr_b2b_admin',on); document.body.classList.toggle('admin',on);
-  if(!on){ document.body.classList.remove('edit'); $('edt').classList.remove('on'); $('mod').classList.remove('open'); $('mAdm').classList.remove('open'); render(); } drawUser(); }
+  if(!on){ document.body.classList.remove('edit'); $('edt').classList.remove('on'); $('mod').classList.remove('open'); $('mAdm').classList.remove('open'); render(); } drawUser(); window.SRPersistencia?.showControls() }
 function alertasMargem(){ const L=[], lim=CFG.margemMin;
   P.forEach(p=>{ if(!(p.k>0))return;
     const m=margem(p.p,p.k); L.push({p,src:'Preço de tabela',tipo:'tab',preco:p.p,custo:p.k,m});
@@ -1549,7 +1549,7 @@ $('cgPanel').addEventListener('change',async e=>{
   await alterarCongelado(cn,r.dataset.c,+v.toFixed(2));
 });
 /* margens */
-$('mgLim').oninput=()=>{CFG.margemMin=+$('mgLim').value||0;salvaCfg();drawMrg();updMrgBadge()}; $('mgTipo').onchange=drawMrg;
+$('mgLim').oninput=()=>{CFG.margemMin=+$('mgLim').value||0;drawMrg();updMrgBadge()}; $('mgLim').onchange=()=>salvaCfg(); $('mgTipo').onchange=drawMrg;
 function drawMrg(){ $('mgLim').value=CFG.margemMin; const A=alertasMargem(), tp=$('mgTipo').value, L=A.baixo.filter(x=>!tp||x.tipo===tp);
   const sem=P.filter(p=>!(p.k>0));
   $('mgPanel').innerHTML=`<div style="padding:16px 18px 0" class="mgsum"><div class="stat bad"><b>${A.baixo.length}</b><span>Abaixo de ${CFG.margemMin}%</span></div><div class="stat"><b>${A.todos.length}</b><span>Preços verificados</span></div><div class="stat"><b>${sem.length}</b><span>Sem custo</span></div></div>`+
@@ -1589,7 +1589,7 @@ function drawCfg(){ $('cfgPanel').innerHTML=[['soEstoque','Mostrar somente produ
   if(USA_SB()){ $('cfgPanel').insertAdjacentHTML('afterbegin',`<div class="ci2" style="display:block"><b>Administradores do portal</b><small>Quem pode entrar no painel do administrador. Cada um entra com o próprio usuário e senha.</small><div id="cfAdm" style="margin-top:10px">Carregando…</div>
      <div class="fgrid" style="margin-top:8px"><div><label>Usuário</label><input class="inp" id="cfAU" placeholder="ex.: carlos"></div><div><label>Nome</label><input class="inp" id="cfAN" placeholder="Nome da pessoa"></div>
      <div class="full"><label>Senha (mín. 6 caracteres)</label><div class="fxurl"><input class="inp" id="cfAS" type="text" placeholder="Para usuário existente, digite só se quiser trocar"><button class="btn sec" id="cfAA">Salvar usuário</button></div></div></div><div class="err" id="cfAE"></div></div>`); drawAdmins(); }
-  $('cfBuscaSalvar').onclick=()=>{CFG.buscaSinonimos=$('cfBuscaSinonimos').value.trim();salvaCfg();render();toast('Sinônimos salvos ✓')};
+  $('cfBuscaSalvar').onclick=async()=>{CFG.buscaSinonimos=$('cfBuscaSinonimos').value.trim();const ok=await salvaCfg();render();if(ok)toast('Sinônimos publicados para todos ✓')};
   $('cfMg').onchange=()=>{CFG.margemMin=+$('cfMg').value||0;salvaCfg();updMrgBadge()};
   $('cfFA').onclick=()=>{const n=$('cfFN').value.trim(); if(!n)return; CFG.formas.push({id:'f'+Date.now().toString(36),nome:n,obs:$('cfFO').value.trim()}); salvaCfg(); drawCfg()};
   $('cfVA').onclick=()=>{const n=$('cfVN').value.trim(); if(!n||CFG.vendedores.includes(n))return; CFG.vendedores.push(n); salvaCfg(); drawCfg()};
