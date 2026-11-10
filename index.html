@@ -535,7 +535,7 @@ textarea{resize:vertical}
 <div class="view wrap" id="vAdm" hidden>
   <div class="ph"><div><h2>Painel do <em>administrador</em></h2><p>Edite nomes, descrições, preços, unidades alternativas e fotos. As alterações aparecem na hora no catálogo.</p></div>
     <div class="row"><button class="tool" id="aExp">⬇ Exportar</button><button class="tool" id="aImp">⬆ Importar</button><input type="file" id="aImpF" accept=".json" hidden><button class="tool" id="aSair">Sair do admin</button></div></div>
-  <div class="ltabs atabs"><button data-at="cli">Clientes <span class="mk" id="cliN" style="background:rgba(255,196,0,.18)"></span></button><button class="on" data-at="prod">Produtos</button><button data-at="cong">Preços congelados</button><button data-at="mrg">Margens <span class="mk" id="mrgN" style="background:rgba(255,107,107,.16);color:#ff8a8a"></span></button><button data-at="intel">Inteligência</button><button data-at="cfg">Configurações</button></div>
+  <div class="ltabs atabs"><button data-at="cli">Clientes <span class="mk" id="cliN" style="background:rgba(255,196,0,.18)"></span></button><button class="on" data-at="prod">Produtos</button><button data-at="cong">Preços congelados</button><button data-at="mrg">Margens <span class="mk" id="mrgN" style="background:rgba(255,107,107,.16);color:#ff8a8a"></span></button><button data-at="intel">Inteligência</button><button data-at="souzinha">🎓 Escola do Souzinha</button><button data-at="cfg">Configurações</button></div>
   <div id="atProd">
   <div class="afil"><div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="aQ" type="search" placeholder="Buscar produto, marca ou código…"></div>
     <select id="aCat"><option value="">Todas as categorias</option></select>
@@ -568,7 +568,8 @@ textarea{resize:vertical}
     </div>
     <div id="intelPanel" aria-live="polite"></div>
   </div>
-  <div id="atCfg" hidden><div class="panel cfgp" id="cfgPanel"></div></div>
+  <div id="atSouzinha" hidden><div id="souzinhaEscola"></div></div>
+   <div id="atCfg" hidden><div class="panel cfgp" id="cfgPanel"></div></div>
 </div>
 
 <div class="view wrap" id="vPed" hidden>
@@ -1291,8 +1292,8 @@ function alertasMargem(){ const L=[], lim=CFG.margemMin;
 function updMrgBadge(){ const pend=Object.values(CLIENTES).filter(c=>c.status==='pendente').length, n=alertasMargem().baixo.length+pend; $('mrgN').textContent=alertasMargem().baixo.length||''; $('cliN').textContent=pend||''; document.querySelectorAll('[data-v=adm]').forEach(b=>{let s=b.querySelector('.bdg2'); if(!s){s=document.createElement('b');s.className='bdg bdg2';b.style.position='relative';b.appendChild(s)} s.textContent=n||''}); }
 let AT='prod';
 function drawAdm(){ document.querySelectorAll('[data-at]').forEach(b=>b.classList.toggle('on',b.dataset.at===AT));
-  $('atCli').hidden=AT!=='cli'; $('atProd').hidden=AT!=='prod'; $('atCong').hidden=AT!=='cong'; $('atMrg').hidden=AT!=='mrg'; $('atIntel').hidden=AT!=='intel'; $('atCfg').hidden=AT!=='cfg';
-  if(AT==='cli')drawCli(); if(AT==='prod')drawAProd(); if(AT==='cong')sincronizaCongeladosAdmin($('cgCli').value); if(AT==='mrg')drawMrg(); if(AT==='intel')drawIntel(); if(AT==='cfg')drawCfg(); updMrgBadge(); }
+  $('atCli').hidden=AT!=='cli'; $('atProd').hidden=AT!=='prod'; $('atCong').hidden=AT!=='cong'; $('atMrg').hidden=AT!=='mrg'; $('atIntel').hidden=AT!=='intel'; $('atSouzinha').hidden=AT!=='souzinha'; $('atCfg').hidden=AT!=='cfg';
+  if(AT==='cli')drawCli(); if(AT==='prod')drawAProd(); if(AT==='cong')sincronizaCongeladosAdmin($('cgCli').value); if(AT==='mrg')drawMrg(); if(AT==='intel')drawIntel(); if(AT==='souzinha')window.SouzinhaEscola?.load(); if(AT==='cfg')drawCfg(); updMrgBadge(); }
 document.querySelectorAll('[data-at]').forEach(b=>b.onclick=()=>{AT=b.dataset.at;drawAdm()});
 $('aCat').innerHTML+=Object.keys(cats).sort().map(c=>`<option>${c}</option>`).join('');
 ['aQ','aCat','aSt'].forEach(id=>$(id).addEventListener('input',drawAProd));
@@ -1790,6 +1791,7 @@ window.SouzinhaPortal={
 
 drawCats(); render(); updSem();
 </script>
+<script defer src="/souzinha-escola.js"></script>
 <script defer src="/souzinha.js"></script>
 </body>
 </html>
