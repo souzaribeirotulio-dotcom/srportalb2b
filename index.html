@@ -758,7 +758,7 @@ const saveClientes=()=>{try{localStorage.setItem('sr_b2b_clientes',JSON.stringif
      POST /pedidos               {cliente_cnpj, itens:[{cod, qtd, unidade, fator, qtd_base, preco}], pagamento_id, observacao, origem} → {numero, status}
        unidade = 'PADRAO' ou código da unidade alternativa (ex.: 'CX'); qtd_base = qtd × fator na unidade padrão
      GET  /produtos inclui unidades_alternativas:[{id, nome, fator, preco?}] e estoque_disponivel (sempre atualizado)
-     POST /clientes/cadastro {cnpj, razao_social, fantasia, responsavel, whats, email, cep, logradouro, numero, complemento, bairro, cidade, uf, origem, senha} → {status:'pendente'}
+     POST /clientes/cadastro {cnpj, razao_social, fantasia, responsavel, whats, telefone, email, cep, logradouro, numero, complemento, bairro, cidade, uf, origem, senha} → {status:'pendente'}
      GET  /clientes/{cnpj} → dados do cadastro + enderecos:[...]   · PUT /clientes/{cnpj}/enderecos [{apelido, cep, logradouro, numero, complemento, bairro, cidade, uf}]
      ADMIN: GET /admin/clientes · PUT /admin/clientes/{cnpj} {codigo (= código no G360), status (pendente|aprovado|reprovado|bloqueado), pagamentos:[ids], vendedor, ...}
      POST /pedidos inclui endereco_entrega {...} e previsao_entrega (ISO)
@@ -1348,14 +1348,14 @@ async function buscaCEP(c){ try{ const r=await fetch('https://brasilapi.com.br/a
 const endTxt=e=>`${e.logradouro||''}${e.numero?', '+e.numero:''}${e.complemento?' – '+e.complemento:''} · ${e.bairro||''} · ${e.cidade||''}/${e.uf||''} · CEP ${fmtCEP(e.cep)}`;
 /* campos de endereço reutilizáveis (prefixo k) */
 const addrFields=(k,d={})=>`<div class="fgrid">
-  <div><label>CEP <span class="req">*</span></label><input class="inp" id="${k}Cep" inputmode="numeric" value="${esc(fmtCEP(d.cep))}" placeholder="00000-000"><div class="okmsg" id="${k}CepM"></div></div>
+  <div><label>CEP <span class="req">*</span></label><input class="inp" id="${k}Cep" inputmode="numeric" maxlength="8" value="${esc((d.cep||'').replace(/\D/g,''))}" placeholder="Apenas números"><div class="okmsg" id="${k}CepM"></div></div>
   <div><label>Número <span class="req">*</span></label><input class="inp" id="${k}Num" value="${esc(d.numero||'')}"></div>
   <div class="full"><label>Rua / Avenida <span class="req">*</span></label><input class="inp" id="${k}Log" value="${esc(d.logradouro||'')}"></div>
   <div><label>Complemento</label><input class="inp" id="${k}Com" value="${esc(d.complemento||'')}"></div>
   <div><label>Bairro <span class="req">*</span></label><input class="inp" id="${k}Bai" value="${esc(d.bairro||'')}"></div>
   <div><label>Cidade <span class="req">*</span></label><input class="inp" id="${k}Cid" value="${esc(d.cidade||'')}"></div>
   <div><label>UF <span class="req">*</span></label><input class="inp" id="${k}Uf" maxlength="2" value="${esc(d.uf||'')}" style="text-transform:uppercase"></div></div>`;
-function bindCep(k){ $(k+'Cep').addEventListener('input',async e=>{const c=e.target.value.replace(/\D/g,''); e.target.value=fmtCEP(c)||c; if(c.length!==8)return;
+function bindCep(k){ $(k+'Cep').addEventListener('input',async e=>{const c=e.target.value.replace(/\D/g,'').slice(0,8); e.target.value=c; if(c.length!==8)return;
   $(k+'CepM').className='okmsg'; $(k+'CepM').textContent='Buscando CEP…';
   try{const r=await buscaCEP(c); if(r.logradouro)$(k+'Log').value=r.logradouro; if(r.bairro)$(k+'Bai').value=r.bairro; $(k+'Cid').value=r.cidade; $(k+'Uf').value=r.uf; $(k+'CepM').textContent='✓ Endereço encontrado'; $(k+'Num').focus();}
   catch(err){$(k+'CepM').className='okmsg bad';$(k+'CepM').textContent=err.message||'Não foi possível buscar o CEP.'}}); }
@@ -1366,15 +1366,16 @@ const origens=()=>[...CFG.vendedores.map(v=>'Vendedor: '+v),'Instagram','Google'
 function cliForm(d={},admin=false){ return `
   <div class="csec">Empresa</div>
   <label>CNPJ <span class="req">*</span></label>
-  <div class="cnpjrow"><input class="inp" id="kCnpj" inputmode="numeric" placeholder="00.000.000/0000-00" value="${esc(fmtCNPJ(d.cnpj))}" ${admin&&d.cnpj?'readonly':''}><button class="btn sec" id="kBusca" type="button">Buscar dados</button></div>
-  <div class="okmsg" id="kCnpjM">${d.cnpj?'':'Digite o CNPJ e os dados da empresa são preenchidos automaticamente.'}</div>
+  <div class="cnpjrow"><input class="inp" id="kCnpj" inputmode="numeric" maxlength="14" placeholder="Apenas números (14 dígitos)" value="${esc(d.cnpj||'')}" ${admin&&d.cnpj?'readonly':''}><button class="btn sec" id="kBusca" type="button">Buscar dados</button></div>
+  <div class="okmsg" id="kCnpjM">${d.cnpj?'':'Digite só os números do CNPJ, sem pontos, barra ou hífen. Os dados da empresa são preenchidos automaticamente.'}</div>
   <div class="fgrid"><div class="full"><label>Razão social <span class="req">*</span></label><input class="inp" id="kRaz" value="${esc(d.nome||d.razao_social||'')}"></div>
    <div class="full"><label>Nome fantasia</label><input class="inp" id="kFan" value="${esc(d.fantasia||'')}"></div></div>
   <div class="csec">Endereço da empresa (também usado para entrega)</div>${addrFields('k',d)}
   <div class="csec">Contato</div>
   <div class="fgrid"><div class="full"><label>Nome do responsável pelas compras <span class="req">*</span></label><input class="inp" id="kResp" value="${esc(d.responsavel||'')}"></div>
-   <div><label>WhatsApp <span class="req">*</span></label><input class="inp" id="kWa" inputmode="tel" placeholder="(34) 99999-9999" value="${esc(fmtTel(d.whats))}"></div>
-   <div><label>E-mail</label><input class="inp" id="kEm" type="email" value="${esc(d.email||'')}"></div>
+   <div><label>WhatsApp <span class="req">*</span></label><input class="inp" id="kWa" inputmode="numeric" maxlength="11" placeholder="DDD + número, só números" value="${esc((d.whats||'').replace(/\D/g,''))}"></div>
+   <div><label>Telefone da empresa</label><input class="inp" id="kTel" inputmode="numeric" maxlength="11" placeholder="Só números" value="${esc((d.telefone||'').replace(/\D/g,''))}"></div>
+   <div class="full"><label>E-mail</label><input class="inp" id="kEm" type="email" value="${esc(d.email||'')}"></div>
    <div class="full"><label>Como conheceu a Souza Ribeiro? <span class="req">*</span></label><select class="inp" id="kOri"><option value="">Selecione…</option>${origens().map(o=>`<option ${o===d.origem?'selected':''}>${esc(o)}</option>`).join('')}</select></div></div>
   ${admin?`<div class="csec">Liberação (admin)</div>
   <div class="fgrid"><div><label>Código do cliente no G360</label><input class="inp" id="kCod" value="${esc(d.codigo||'')}" placeholder="Ex.: 1045"></div>
@@ -1386,26 +1387,27 @@ function cliForm(d={},admin=false){ return `
   :`<div class="csec">Acesso</div><div class="fgrid"><div><label>Crie uma senha <span class="req">*</span></label><input class="inp" id="kSen" type="password" placeholder="Mínimo 6 caracteres"></div>
    <div><label>Repita a senha <span class="req">*</span></label><input class="inp" id="kSen2" type="password"></div></div>`}`; }
 function bindCliForm(){ bindCep('k');
-  const mk=()=>{const i=$('kCnpj'),c=i.value.replace(/\D/g,'').slice(0,14); i.value=c.length===14?fmtCNPJ(c):c; return c};
+  const mk=()=>{const i=$('kCnpj'),c=i.value.replace(/\D/g,'').slice(0,14); i.value=c; return c};
   $('kCnpj').addEventListener('input',()=>{const c=mk(); if(c.length===14&&!$('kCnpj').readOnly)$('kBusca').click()});
-  $('kWa').addEventListener('blur',e=>e.target.value=fmtTel(e.target.value));
+  ['kWa','kTel'].forEach(id=>$(id).addEventListener('input',e=>e.target.value=e.target.value.replace(/\D/g,'').slice(0,11)));
   $('kBusca').onclick=async()=>{ const c=$('kCnpj').value.replace(/\D/g,''), m=$('kCnpjM');
     if(!cnpjOk(c)){m.className='okmsg bad';m.textContent='CNPJ inválido. Confira os números.';return}
     m.className='okmsg';m.textContent='Buscando dados na Receita Federal…';
     try{ const j=await buscaCNPJ(c); $('kRaz').value=j.razao_social||''; $('kFan').value=j.nome_fantasia||'';
-      $('kCep').value=fmtCEP(j.cep); $('kLog').value=[j.descricao_tipo_de_logradouro,j.logradouro].filter(Boolean).join(' '); $('kNum').value=j.numero||''; $('kCom').value=j.complemento||''; $('kBai').value=j.bairro||''; $('kCid').value=j.municipio?j.municipio.toLowerCase().replace(/(^|\s|-)\S/g,s=>s.toUpperCase()):''; $('kUf').value=j.uf||'';
-      if(j.ddd_telefone_1&&!$('kWa').value)$('kWa').value=fmtTel(j.ddd_telefone_1); if(j.email&&!$('kEm').value)$('kEm').value=j.email.toLowerCase();
+      $('kCep').value=(j.cep||'').replace(/\D/g,''); $('kLog').value=[j.descricao_tipo_de_logradouro,j.logradouro].filter(Boolean).join(' '); $('kNum').value=j.numero||''; $('kCom').value=j.complemento||''; $('kBai').value=j.bairro||''; $('kCid').value=j.municipio?j.municipio.toLowerCase().replace(/(^|\s|-)\S/g,s=>s.toUpperCase()):''; $('kUf').value=j.uf||'';
+      if(j.ddd_telefone_1)$('kTel').value=String(j.ddd_telefone_1).replace(/\D/g,'');
+      if($('kCep').value.length===8){const num=$('kNum').value,com=$('kCom').value; $('kCep').dispatchEvent(new Event('input')); setTimeout(()=>{if(num)$('kNum').value=num; if(com)$('kCom').value=com},1500);} if(j.email&&!$('kEm').value)$('kEm').value=j.email.toLowerCase();
       m.textContent=`✓ ${j.descricao_situacao_cadastral?'Situação na Receita: '+j.descricao_situacao_cadastral:'Dados encontrados'} — confira e complete.`;
       if(j.descricao_situacao_cadastral&&j.descricao_situacao_cadastral!=='ATIVA'){m.className='okmsg bad'}
     }catch(err){m.className='okmsg bad';m.textContent=err.message||'Não foi possível consultar. Preencha manualmente.'} };
 }
 function lerCliForm(admin){ const a=readAddr('k'), c=$('kCnpj').value.replace(/\D/g,'');
-  const d={cnpj:c,razao_social:$('kRaz').value.trim(),fantasia:$('kFan').value.trim()||$('kRaz').value.trim(),...a,responsavel:$('kResp').value.trim(),whats:$('kWa').value.replace(/\D/g,''),email:$('kEm').value.trim(),origem:$('kOri').value};
-  const falta=[]; if(!cnpjOk(c))falta.push('CNPJ válido'); if(!d.razao_social)falta.push('razão social'); if(!addrOk(a))falta.push('endereço completo'); if(!d.responsavel)falta.push('responsável'); if(d.whats.length<10)falta.push('WhatsApp'); if(!d.origem)falta.push('como nos conheceu');
+  const d={cnpj:c,razao_social:$('kRaz').value.trim(),fantasia:$('kFan').value.trim()||$('kRaz').value.trim(),...a,responsavel:$('kResp').value.trim(),whats:$('kWa').value.replace(/\D/g,''),telefone:$('kTel').value.replace(/\D/g,''),email:$('kEm').value.trim(),origem:$('kOri').value};
+  const falta=[]; if(!cnpjOk(c))falta.push('CNPJ válido'); if(!d.razao_social)falta.push('razão social'); if(!addrOk(a))falta.push('endereço completo'); if(!d.responsavel)falta.push('responsável'); if(d.whats.length<10)falta.push('WhatsApp com DDD'); if(!d.origem)falta.push('como nos conheceu');
   if(!admin){const s=$('kSen').value; if(s.length<6)falta.push('senha com 6+ caracteres'); else if(s!==$('kSen2').value)falta.push('senhas iguais'); d.senha=s;}
   return {d,falta}; }
 /* cadastro público */
-function openCad(){ $('cadBox').innerHTML=`<div class="fxh"><div><h3>Criar cadastro</h3><div class="sub">Preencha os dados da sua empresa. Após a aprovação você recebe a liberação pelo WhatsApp e já pode comprar.</div></div><button class="fxx" id="kX">×</button></div>
+function openCad(){ $('admBox').innerHTML=''; $('mAdm').classList.remove('open'); $('cadBox').innerHTML=`<div class="fxh"><div><h3>Criar cadastro</h3><div class="sub">Preencha os dados da sua empresa. Após a aprovação você recebe a liberação pelo WhatsApp e já pode comprar.</div></div><button class="fxx" id="kX">×</button></div>
   ${cliForm({},false)}<div class="err" id="kE"></div>
   <div class="act"><button class="btn sec" id="kV">Já tenho cadastro</button><button class="btn pri" id="kOk">Enviar cadastro</button></div>`;
   bindCliForm(); $('mCad').classList.add('open'); setTimeout(()=>$('kCnpj').focus(),60);
@@ -1432,7 +1434,7 @@ $('clPanel').addEventListener('click',async e=>{const r=e.target.closest('.crow2
   if(e.target.matches('[data-rp]')){await API.salvarClienteAdmin(cn,{status:'reprovado'});drawCli();updMrgBadge();toast('Cadastro reprovado');return}
   if(e.target.matches('[data-ed]'))openCliAdm(cn);});
 $('clNovo').onclick=()=>openCliAdm(null);
-function openCliAdm(cn){ const d=cn?{cnpj:cn,...CLIENTES[cn]}:{status:'aprovado'};
+function openCliAdm(cn){ $('cadBox').innerHTML=''; $('mCad').classList.remove('open'); const d=cn?{cnpj:cn,...CLIENTES[cn]}:{status:'aprovado'};
   $('admBox').innerHTML=`<div class="fxh"><div><h3>${cn?'Editar cliente':'Novo cliente'}</h3><div class="sub">${cn?'Cadastrado em '+(d.criado_em||'').split('-').reverse().join('/'):'Cadastro feito pelo admin já entra aprovado.'}</div></div><button class="fxx" id="kX">×</button></div>
    ${cliForm(d,true)}<div class="err" id="kE"></div><div class="act"><button class="btn sec" id="kC">Cancelar</button><button class="btn pri" id="kOk">Salvar cliente</button></div>`;
   bindCliForm(); $('mAdm').classList.add('open'); const cl=()=>$('mAdm').classList.remove('open'); $('kX').onclick=cl; $('kC').onclick=cl;
