@@ -12,6 +12,6 @@ Portal de compras B2B da Souza Ribeiro (front end). O backend será feito pela M
 ## Publicação
 Hospedado na Vercel, com deploy automático a cada push na branch `main`.
 
-## Demonstração
+## Acessos de demonstração (não aparecem mais no site)
 - Clientes: CNPJ 12.345.678/0001-90 ou 98.765.432/0001-10 · senha 1234
-- Administrador: usuário admin · senha 1234
+- Administrador: link "Acesso do administrador" na tela de login · usuário admin · senha 1234

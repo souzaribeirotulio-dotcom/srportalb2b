@@ -141,6 +141,31 @@ footer{text-align:center;color:var(--tx3);font-size:12px;padding:10px 20px 34px}
 .mgsum{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}.mgsum .stat b{font-size:22px}.mgsum .stat.bad b{color:var(--red)}
 .adm-only{display:none!important}
 body.admin .hb.adm-only,body.admin .tool.adm-only,body.admin .tabbar .adm-only{display:flex!important}
+.lgfoot{margin-top:16px;text-align:center;font-size:12px}.lgfoot a{color:var(--tx3);cursor:pointer;text-decoration:underline}
+.lockp{width:100%;margin-top:10px;height:40px;border-radius:10px;border:1px dashed rgba(178,224,74,.45);background:var(--limas);color:var(--lima);font-weight:700;font-size:12.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+.lockp:hover{background:rgba(178,224,74,.2)}
+.csec{font-size:11.5px;font-weight:700;color:var(--lima);text-transform:uppercase;letter-spacing:1px;margin:18px 0 2px;padding-top:12px;border-top:1px solid var(--linha)}.csec:first-of-type{border:none;padding-top:0}
+.cnpjrow{display:flex;gap:8px}.cnpjrow input{flex:1}.cnpjrow .btn{height:42px}
+.okmsg{font-size:12px;color:#8fd14f;margin-top:5px}.okmsg.bad{color:var(--red)}
+.req{color:var(--red)}
+.addr{display:flex!important;gap:10px;align-items:flex-start;border:1.5px solid var(--linha2);border-radius:12px;padding:12px 14px!important;cursor:pointer;margin:0 0 8px!important;text-transform:none!important;letter-spacing:0!important;font-size:13px!important;font-weight:500!important;color:var(--tx)!important;background:rgba(0,0,0,.15)}
+.addr b{display:block;font-size:13.5px}.addr small{color:var(--tx2);font-size:12px;display:block;line-height:1.4}
+.addr input{accent-color:var(--lima);width:17px;height:17px;margin-top:2px}.addr:has(input:checked){border-color:var(--lima);background:var(--limas)}
+.prev{display:flex;gap:12px;align-items:center;background:rgba(143,209,79,.1);border:1px solid rgba(143,209,79,.35);border-radius:12px;padding:12px 14px;margin:4px 0 12px}
+.prev .ic{width:26px;height:26px;color:#8fd14f}.prev b{display:block;font-size:14px}.prev small{color:var(--tx2);font-size:12px}
+.prev.out{background:rgba(255,196,0,.08);border-color:rgba(255,196,0,.3)}.prev.out .ic{color:#ffd45c}
+.elist{display:grid;gap:8px;margin:8px 0}.eitem{display:flex;gap:10px;align-items:flex-start;background:rgba(0,0,0,.18);border:1px solid var(--linha);border-radius:11px;padding:10px 12px;font-size:12.5px;text-align:left}
+.eitem div{flex:1}.eitem b{display:block;font-size:13px}.eitem small{color:var(--tx2)}.eitem button{height:30px;border-radius:8px;border:1px solid rgba(255,107,107,.35);background:transparent;color:var(--red);cursor:pointer;padding:0 10px;font-size:12px}
+.crow2{display:grid;grid-template-columns:1fr 150px 130px 110px 170px;gap:14px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--linha)}
+.crow2.h{background:rgba(0,0,0,.2);font-size:10.5px;font-weight:600;text-transform:uppercase;color:var(--tx3);letter-spacing:1px}
+.crow2 .nm b{display:block;font-size:13.5px}.crow2 .nm small{display:block;color:var(--tx3);font-size:11.5px;font-family:var(--mono)}.mk:empty{display:none}.crow2 .sm{font-size:12px;color:var(--tx2)}
+.stt{display:inline-block;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:6px}
+.stt.pendente{background:rgba(255,196,0,.14);color:#ffd45c}.stt.aprovado{background:rgba(143,209,79,.14);color:#8fd14f}.stt.reprovado,.stt.bloqueado{background:rgba(255,107,107,.14);color:#ff8a8a}
+.crow2 .ab2{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}.crow2 .ab2 button{height:32px;padding:0 10px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--linha2);background:rgba(255,255,255,.04);color:var(--tx)}
+.crow2 .ab2 .ap{background:var(--lima);color:#0b2207;border-color:var(--lima)}.crow2 .ab2 .rp{color:var(--red);border-color:rgba(255,107,107,.35)}
+.chks{display:grid;grid-template-columns:1fr 1fr;gap:6px}.chks label{display:flex!important;align-items:center;gap:8px;margin:0!important;text-transform:none!important;letter-spacing:0!important;font-size:13px!important;color:var(--tx)!important;font-weight:500!important;background:rgba(0,0,0,.15);border:1px solid var(--linha);border-radius:9px;padding:9px 10px!important;cursor:pointer}
+.chks input{accent-color:var(--lima);width:16px;height:16px}
+.tagl{display:inline-flex;align-items:center;gap:6px;background:rgba(0,0,0,.2);border:1px solid var(--linha2);border-radius:8px;padding:5px 8px;font-size:12.5px;margin:0 6px 6px 0}.tagl button{background:none;border:none;color:var(--red);cursor:pointer;font-size:14px}
 .ltabs{display:flex;gap:4px;background:var(--n950);border:1px solid var(--linha2);border-radius:11px;padding:3px;margin:6px 0 4px}
 .ltabs button{flex:1;height:34px;border:none;border-radius:8px;background:transparent;color:var(--tx3);font-weight:600;font-size:13px;cursor:pointer}
 .ltabs button.on{background:var(--limas);color:var(--lima)}
@@ -399,6 +424,8 @@ textarea{resize:vertical}
  body.admin .hnav .hb.adm-only{display:none!important}
  .tabbar button{position:relative}.tabbar .bdg{position:absolute;top:0;left:calc(50% + 6px);right:auto}
  .afil select{flex:1}
+ .lockp{height:auto;min-height:38px;padding:7px 8px;font-size:11.5px;line-height:1.25}.lockp .ic{width:15px;height:15px}
+ .crow2{grid-template-columns:1fr auto;grid-template-areas:"nm st" "sm sm" "ab ab";row-gap:8px;padding:12px}.crow2.h{display:none}.crow2 .nm{grid-area:nm}.crow2 .stw{grid-area:st}.crow2 .sm{grid-area:sm}.crow2 .sm2{display:none}.crow2 .ab2{grid-area:ab;justify-content:flex-start}.chks{grid-template-columns:1fr}
  body.clipsmode .search{display:none}body.clipsmode header nav{display:none}
  .cwrap{padding:0}.clips{width:100%;border-radius:0}.cnav{display:none}
  .fxpv{height:220px}.fx .act{bottom:calc(-20px - env(safe-area-inset-bottom));margin:14px -16px calc(-20px - env(safe-area-inset-bottom));padding:12px 16px calc(12px + env(safe-area-inset-bottom))}.fxt{width:64px;height:64px}.drop{padding:14px!important}
@@ -447,7 +474,7 @@ textarea{resize:vertical}
   <select id="marca"><option value="">Todas as marcas</option></select>
   <select id="ord">
     <option value="nome">Ordenar: Nome A–Z</option>
-    <option value="menor">Menor preço</option>
+    <option value="menor" class="po">Menor preço</option>
     <option value="maior">Maior preço</option>
   </select>
   <button class="tool adm-only" id="edt">✏️ Editar imagens</button>
@@ -475,12 +502,18 @@ textarea{resize:vertical}
 <div class="view wrap" id="vAdm" hidden>
   <div class="ph"><div><h2>Painel do <em>administrador</em></h2><p>Edite nomes, descrições, preços, unidades alternativas e fotos. As alterações aparecem na hora no catálogo.</p></div>
     <div class="row"><button class="tool" id="aExp">⬇ Exportar</button><button class="tool" id="aImp">⬆ Importar</button><input type="file" id="aImpF" accept=".json" hidden><button class="tool" id="aSair">Sair do admin</button></div></div>
-  <div class="ltabs atabs"><button class="on" data-at="prod">Produtos</button><button data-at="cong">Preços congelados</button><button data-at="mrg">Margens <span class="mk" id="mrgN" style="background:rgba(255,107,107,.16);color:#ff8a8a"></span></button><button data-at="cfg">Configurações</button></div>
+  <div class="ltabs atabs"><button data-at="cli">Clientes <span class="mk" id="cliN" style="background:rgba(255,196,0,.18)"></span></button><button class="on" data-at="prod">Produtos</button><button data-at="cong">Preços congelados</button><button data-at="mrg">Margens <span class="mk" id="mrgN" style="background:rgba(255,107,107,.16);color:#ff8a8a"></span></button><button data-at="cfg">Configurações</button></div>
   <div id="atProd">
   <div class="afil"><div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="aQ" type="search" placeholder="Buscar produto, marca ou código…"></div>
     <select id="aCat"><option value="">Todas as categorias</option></select>
     <select id="aSt"><option value="">Todos os produtos</option><option value="alt">Com unidade alternativa</option><option value="mod">Alterados por mim</option><option value="off">Ocultos no catálogo</option></select></div>
   <div class="panel" id="aPanel"></div>
+  </div>
+  <div id="atCli" hidden>
+    <div class="afil"><div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="clQ" type="search" placeholder="Buscar por nome, CNPJ, código ou cidade…"></div>
+      <select id="clSt"><option value="">Todos</option><option value="pendente">Aguardando aprovação</option><option value="aprovado">Aprovados</option><option value="reprovado">Reprovados</option><option value="bloqueado">Bloqueados</option></select>
+      <button class="btn pri" id="clNovo" style="height:36px">+ Novo cliente</button></div>
+    <div class="panel" id="clPanel"></div>
   </div>
   <div id="atCong" hidden>
     <div class="afil"><select id="cgCli"></select></div>
@@ -510,14 +543,20 @@ textarea{resize:vertical}
 </aside>
 
 <div class="mod" id="mLogin"><div class="box login">
-  <div class="lhead"><div class="s"><img src="data:image/png;base64,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" alt=""></div><div><h3 style="margin:0">Portal B2B</h3><div class="sub" style="margin:0">Souza Ribeiro</div></div></div><div class="ltabs"><button class="on" data-lt="cli">Sou cliente</button><button data-lt="adm">Administrador</button></div>
+  <div class="lhead"><div class="s"><img src="data:image/png;base64,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" alt=""></div><div><h3 style="margin:0">Portal B2B</h3><div class="sub" style="margin:0">Souza Ribeiro</div></div></div>
+  <div id="lgCli">
+    <div class="ltabs"><button class="on">Entrar</button><button id="lgCad">Criar cadastro</button></div>
+    <p class="hint" style="margin:6px 0 2px">Acesso exclusivo para empresas clientes. Entre para ver preços e fazer pedidos.</p>
+  </div>
+  <div id="lgAdmT" hidden><h3 style="margin:8px 0 2px">Acesso do administrador</h3></div>
   <label id="lgL">CNPJ</label><input id="lgC" placeholder="00.000.000/0000-00" inputmode="numeric" autocomplete="username">
-  <label>Senha</label><input id="lgS" type="password" placeholder="••••" autocomplete="current-password">
+  <label>Senha</label><input id="lgS" type="password" placeholder="Sua senha" autocomplete="current-password">
   <div class="err" id="lgE"></div>
   <div class="act"><button class="btn sec" id="lgX">Cancelar</button><button class="btn pri" id="lgOk">Entrar</button></div>
-  <div class="demo"><b>Clientes de demonstração</b><br>Restaurante Sabor Mineiro — CNPJ <b>12.345.678/0001-90</b> · senha <b>1234</b><br>Clínica Vida &amp; Saúde — CNPJ <b>98.765.432/0001-10</b> · senha <b>1234</b><br>Administrador — usuário <b>admin</b> · senha <b>1234</b></div>
+  <div class="lgfoot"><a id="lgAdm">Acesso do administrador</a><a id="lgVolta" hidden>← Voltar para o login de cliente</a></div>
 </div></div>
 
+<div class="mod" id="mCad"><div class="box lg" id="cadBox"></div></div>
 <div class="mod" id="mAdm"><div class="box lg" id="admBox"></div></div>
 <div class="mod" id="mConta"><div class="box login" id="contaBox"></div></div>
 <div class="mod" id="mDet"><div class="box det" id="detBox"></div></div>
@@ -617,11 +656,11 @@ function render(){
         <div class="brand">${esc(p.m)}${ALT[p.cod]&&ALT[p.cod].some(u=>u.preco)?'<span class="tagcx">Caixa com desconto</span>':''}</div>
         <div class="name" title="${esc(p.t)}">${esc(p.t)}</div>
         <div class="meta">Cód. ${esc(p.cod)} · ${p.u}</div>
-        <div class="price"><b>${brl(base(p))}</b><small>/ ${p.u.toLowerCase()}</small>${congOf(p)!=null?'<span class="tagcg">Seu preço</span>':''}</div>
+        ${vePreco()?`<div class="price"><b>${brl(base(p))}</b><small>/ ${p.u.toLowerCase()}</small>${congOf(p)!=null?'<span class="tagcg">Seu preço</span>':''}</div>
         ${stkHtml(p)}
         <div class="ueq"></div>
         ${unselHtml(p,'')}
-        <div class="buy"><div class="qty"><button data-d="-1">−</button><input type="number" min="1" value="1"><button data-d="1">+</button></div><button class="add"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button></div>
+        <div class="buy"><div class="qty"><button data-d="-1">−</button><input type="number" min="1" value="1"><button data-d="1">+</button></div><button class="add"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button></div>`:`${stkHtml(p)}<button class="lockp" data-lock><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Faça login para ver os preços</button>`}
       </div>
     </article>`).join('') : '<div class="empty">Nenhum produto encontrado.</div>';
 }
@@ -689,17 +728,24 @@ $('impF').onchange=()=>{const f=$('impF').files[0]; if(!f)return; f.text().then(
    Na versão integrada, estes dados vêm do Movimento G360 (via Supabase):
    - lista: produtos que o cliente já comprou (histórico de vendas)
    - pagamentos: condições liberadas no cadastro do cliente */
-const CLIENTES = {
-  "12345678000190": { nome:"Restaurante Sabor Mineiro LTDA", fantasia:"Sabor Mineiro", senha:"1234", vendedor:"Carlos",
-    pagamentos:[{id:"pix",nome:"PIX",obs:"Pagamento à vista na entrega"},{id:"b28",nome:"Boleto 28 dias",obs:"Vencimento 28 dias após faturamento"}],
+const CLIENTES_SEED = {
+  "12345678000190": { nome:"Restaurante Sabor Mineiro LTDA", fantasia:"Sabor Mineiro", senha:"1234", vendedor:"Carlos", codigo:"1045", status:"aprovado", responsavel:"Marcos", whats:"34999990001", email:"compras@sabormineiro.com.br",
+    cep:"38400100", logradouro:"Av. Afonso Pena", numero:"1200", complemento:"", bairro:"Centro", cidade:"Uberlândia", uf:"MG", origem:"Vendedor: Carlos", criado_em:"2026-10-01",
+    enderecos:[{id:"e1",apelido:"Filial Santa Mônica",cep:"38408100",logradouro:"Av. Segismundo Pereira",numero:"500",complemento:"",bairro:"Santa Mônica",cidade:"Uberlândia",uf:"MG"}],
+    pagamentos:["pix","b28"],
     lista:[["401026",12,"2026-10-28",10],["31315",12,"2026-10-28",10],["400801",20,"2026-10-28",18],["400803",20,"2026-10-28",18],["4200",40,"2026-10-28",35],["000864",15,"2026-10-14",15],
       ["101272",15,"2026-10-14",15],["TBFFRB-50F",30,"2026-10-28",30],["45254",30,"2026-10-28",30],["002525",10,"2026-10-28",8],["001482",6,"2026-10-14",6],["2KP100",5,"2026-10-28",5],
       ["3KP200",4,"2026-10-14",4],["124514",20,"2026-10-28",20],["7004",2,"2026-09-30",2],["002561",4,"2026-10-28",4]] },
-  "98765432000110": { nome:"Clínica Vida & Saúde S/S", fantasia:"Clínica Vida & Saúde", senha:"1234", vendedor:"Ana",
-    pagamentos:[{id:"b28",nome:"Boleto 28 dias",obs:"Vencimento 28 dias após faturamento"},{id:"b2856",nome:"Boleto 28/56 dias",obs:"2 parcelas"}],
+  "98765432000110": { nome:"Clínica Vida & Saúde S/S", fantasia:"Clínica Vida & Saúde", senha:"1234", vendedor:"Ana", codigo:"2210", status:"aprovado", responsavel:"Dra. Paula", whats:"34999990002", email:"adm@clinicavida.com.br",
+    cep:"38440000", logradouro:"Rua Principal", numero:"45", complemento:"Sala 3", bairro:"Centro", cidade:"Araguari", uf:"MG", origem:"Instagram", criado_em:"2026-10-05",
+    enderecos:[], pagamentos:["b28","b2856"],
     lista:[["124514",40,"2026-10-30",40],["000308",6,"2026-10-30",6],["22",4,"2026-10-30",4],["111150",4,"2026-10-16",3],["1145",10,"2026-10-30",8],["6K100BI",6,"2026-10-30",5],
       ["12036ST",20,"2026-10-30",20],["100119",24,"2026-10-16",20],["06050",6,"2026-10-30",6],["001681",24,"2026-10-30",24],["1107",6,"2026-10-30",6],["55544",20,"2026-10-30",20]] }
 };
+/* Base de clientes (demonstração: fica neste navegador). Em produção: tabela de clientes do G360/Supabase. */
+let CLIENTES = (()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_clientes'))||null}catch(e){return null}})() || JSON.parse(JSON.stringify(CLIENTES_SEED));
+const saveClientes=()=>{try{localStorage.setItem('sr_b2b_clientes',JSON.stringify(CLIENTES))}catch(e){}};
+
 /* ======================================================================
    CAMADA DE INTEGRAÇÃO (esboço) — Portal B2B ⇄ Movimento G360
    Todo acesso a dados passa por aqui. Em modo 'demo' usa dados locais;
@@ -712,6 +758,10 @@ const CLIENTES = {
      POST /pedidos               {cliente_cnpj, itens:[{cod, qtd, unidade, fator, qtd_base, preco}], pagamento_id, observacao, origem} → {numero, status}
        unidade = 'PADRAO' ou código da unidade alternativa (ex.: 'CX'); qtd_base = qtd × fator na unidade padrão
      GET  /produtos inclui unidades_alternativas:[{id, nome, fator, preco?}] e estoque_disponivel (sempre atualizado)
+     POST /clientes/cadastro {cnpj, razao_social, fantasia, responsavel, whats, email, cep, logradouro, numero, complemento, bairro, cidade, uf, origem, senha} → {status:'pendente'}
+     GET  /clientes/{cnpj} → dados do cadastro + enderecos:[...]   · PUT /clientes/{cnpj}/enderecos [{apelido, cep, logradouro, numero, complemento, bairro, cidade, uf}]
+     ADMIN: GET /admin/clientes · PUT /admin/clientes/{cnpj} {codigo (= código no G360), status (pendente|aprovado|reprovado|bloqueado), pagamentos:[ids], vendedor, ...}
+     POST /pedidos inclui endereco_entrega {...} e previsao_entrega (ISO)
      GET  /clientes/{cnpj}/precos-congelados → [{cod, preco}]   (preço congelado tem prioridade sobre o preço do G360)
      GET  /clips → [{id, cod, titulo, video_url}]   (vídeos verticais MP4 hospedados em nuvem)
      ADMIN: PUT /admin/produtos/{cod}/clips [{id, titulo, video_url}] · upload do vídeo para o armazenamento
@@ -729,16 +779,24 @@ const API = {
   async login(cnpj, senha){
     if(CONFIG.modo==='api'){ const r=await http('POST','/auth/login',{cnpj,senha}); TOKEN=r.token; return r.cliente; }
     const c=CLIENTES[cnpj]; if(!c||c.senha!==senha) throw new Error('CNPJ ou senha incorretos.');
+    if(c.status==='pendente') throw new Error('Seu cadastro está em análise. Avisaremos pelo WhatsApp assim que for liberado.');
+    if(c.status!=='aprovado') throw new Error('Cadastro não liberado. Fale com a Souza Ribeiro.');
     return {cnpj, razao_social:c.nome, fantasia:c.fantasia, vendedor:c.vendedor};
   },
   async lista(cnpj){
     if(CONFIG.modo==='api') return http('GET',`/clientes/${cnpj}/lista`);
-    return CLIENTES[cnpj].lista.map(([cod,q,d,m])=>({cod, ultima_qtd:q, ultima_data:d, media_qtd:m}));
+    return (CLIENTES[cnpj].lista||[]).map(([cod,q,d,m])=>({cod, ultima_qtd:q, ultima_data:d, media_qtd:m}));
   },
   async pagamentos(cnpj){
     if(CONFIG.modo==='api') return http('GET',`/clientes/${cnpj}/pagamentos`);
-    return CLIENTES[cnpj].pagamentos.map(f=>({id:f.id, descricao:f.nome, observacao:f.obs}));
+    return (CLIENTES[cnpj].pagamentos||[]).map(id=>CFG.formas.find(f=>f.id===id)).filter(Boolean).map(f=>({id:f.id, descricao:f.nome, observacao:f.obs}));
   },
+  async cliente(cnpj){ if(CONFIG.modo==='api') return http('GET',`/clientes/${cnpj}`); const c=CLIENTES[cnpj]; return {...c, cnpj}; },
+  async cadastrar(d){ if(CONFIG.modo==='api') return http('POST','/clientes/cadastro',d);
+    if(CLIENTES[d.cnpj]) throw new Error('Este CNPJ já possui cadastro. Faça login ou fale com a Souza Ribeiro.');
+    CLIENTES[d.cnpj]={...d, nome:d.razao_social, status:'pendente', codigo:'', pagamentos:[...CFG.pagPadrao], enderecos:[], lista:[], criado_em:new Date().toISOString().slice(0,10)}; saveClientes(); return {status:'pendente'}; },
+  async salvarEnderecos(cnpj,lista){ if(CONFIG.modo==='api') return http('PUT',`/clientes/${cnpj}/enderecos`,lista); CLIENTES[cnpj].enderecos=lista; saveClientes(); return true; },
+  async salvarClienteAdmin(cnpj,dados){ if(CONFIG.modo==='api') return http('PUT',`/admin/clientes/${cnpj}`,dados); CLIENTES[cnpj]={...(CLIENTES[cnpj]||{lista:[]}),...dados}; saveClientes(); return true; },
   async criarPedido(ped){
     if(CONFIG.modo==='api') return http('POST','/pedidos',ped);
     await new Promise(r=>setTimeout(r,400)); const seq=(LSG('sr_b2b_seq',0)||0)+1; LSS('sr_b2b_seq',seq);
@@ -765,13 +823,18 @@ const unidades = p => [{id:'',nome:p.u,fator:1}, ...(ALT[p.cod]||[])];
 const unOf = (p,id) => unidades(p).find(u=>u.id===(id||'')) || unidades(p)[0];
 const kOf = (cod,id) => id ? cod+'@'+id : cod;
 /* CONFIGURAÇÕES e PREÇOS CONGELADOS (admin) — em produção vêm do backend */
-const CFG = Object.assign({soEstoque:true, bloquear:true}, (()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_cfg'))||{}}catch(e){return {}}})());
+const FERIADOS_PADRAO=[["2026-01-01","Confraternização Universal"],["2026-04-03","Sexta-feira Santa"],["2026-04-21","Tiradentes"],["2026-05-01","Dia do Trabalho"],["2026-06-04","Corpus Christi (Uberlândia)"],["2026-08-15","N. Sra. da Abadia (Uberlândia)"],["2026-08-31","Aniversário de Uberlândia"],["2026-09-07","Independência"],["2026-10-12","N. Sra. Aparecida"],["2026-11-02","Finados"],["2026-11-15","Proclamação da República"],["2026-11-20","Consciência Negra"],["2026-12-25","Natal"],
+ ["2027-01-01","Confraternização Universal"],["2027-03-26","Sexta-feira Santa"],["2027-04-21","Tiradentes"],["2027-05-01","Dia do Trabalho"],["2027-05-27","Corpus Christi (Uberlândia)"],["2027-08-15","N. Sra. da Abadia (Uberlândia)"],["2027-08-31","Aniversário de Uberlândia"],["2027-09-07","Independência"],["2027-10-12","N. Sra. Aparecida"],["2027-11-02","Finados"],["2027-11-15","Proclamação da República"],["2027-11-20","Consciência Negra"],["2027-12-25","Natal"]];
+const CFG = Object.assign({soEstoque:true, bloquear:true,
+  formas:[{id:"pix",nome:"PIX",obs:"Pagamento à vista"},{id:"din",nome:"Dinheiro na entrega",obs:"Pagamento ao receber"},{id:"b14",nome:"Boleto 14 dias",obs:"Vencimento 14 dias após faturamento"},{id:"b28",nome:"Boleto 28 dias",obs:"Vencimento 28 dias após faturamento"},{id:"b2856",nome:"Boleto 28/56 dias",obs:"2 parcelas"}],
+  vendedores:["Carlos","Ana"], feriados:FERIADOS_PADRAO, pagPadrao:["pix"]}, (()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_cfg'))||{}}catch(e){return {}}})());
 let CONG = (()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_cong'))||null}catch(e){return null}})() || {"12345678000190":{"4200":4.49,"400801":22.90,"001482":27.50}}; // exemplo de preços congelados
 const congOf = p => (typeof CNPJ!=='undefined'&&CNPJ&&CONG[CNPJ]&&CONG[CNPJ][p.cod]!=null) ? CONG[CNPJ][p.cod] : null;
 const base = p => congOf(p) ?? p.p;
 const pu = (p,un) => { const c=congOf(p); if(!un.id) return base(p); return c!=null ? +(c*un.fator).toFixed(2) : (un.preco ?? +(p.p*un.fator).toFixed(2)); };
 const fmtQ = n => (+n).toLocaleString('pt-BR',{maximumFractionDigits:2});
 const stkHtml = p => p.s<=0 ? '<div class="stk no">Sem estoque</div>' : p.s<10 ? `<div class="stk low">Últimas ${fmtQ(p.s)} ${p.u.toLowerCase()}${p.s>1?'s':''}</div>` : '<div class="stk ok">Em estoque</div>';
+const vePreco = () => !!(typeof CLI!=='undefined'&&CLI) || (typeof ADM!=='undefined'&&ADM);
 const visivel = p => !p.off && (!CFG.soEstoque || p.s>0);
 const econ = (p,un) => { if(!un.id) return ''; const cheio=base(p)*un.fator, v=pu(p,un); return v<cheio-0.004
   ? `Sai ${brl(v/un.fator)} ${p.u.toLowerCase()==='unidade'?'a unidade':'o '+p.u.toLowerCase()} · economize <b>${brl(cheio-v)}</b>` : ''; };
@@ -790,22 +853,22 @@ const onlyD=s=>s.replace(/\D/g,'');
 
 async function loadCli(c, info){
   CNPJ=c; info=info||LSG('sr_b2b_cli',null);
-  const [lista,pags]=await Promise.all([API.lista(c),API.pagamentos(c)]);
+  const [lista,pags,rec]=await Promise.all([API.lista(c),API.pagamentos(c),API.cliente(c)]);
   const extra=LSG('sr_b2b_lista_'+c,null);
-  CLI={nome:info.razao_social, fantasia:info.fantasia, vendedor:info.vendedor,
+  CLI={nome:info.razao_social, fantasia:info.fantasia, vendedor:info.vendedor, rec,
     pagamentos:pags.map(f=>({id:f.id,nome:f.descricao,obs:f.observacao||''})),
     lista:(extra||lista.map(l=>({cod:l.cod,ult:l.ultima_qtd,dt:l.ultima_data,med:l.media_qtd}))).filter(l=>byCod[l.cod])};
   CART=LSG('sr_b2b_cart_'+c,{}); document.body.classList.add('logged'); drawUser(); updCart();
 }
 const saveLista=()=>LSS('sr_b2b_lista_'+CNPJ,CLI.lista);
 const saveCart=()=>{LSS('sr_b2b_cart_'+CNPJ,CART);updCart()};
-function drawUser(){ saud(); const tc=document.getElementById('tbContaT'); if(tc) tc.textContent=CLI?CLI.fantasia.split(' ')[0]:(ADM?'Admin':'Entrar'); $('user').innerHTML=CLI?`<b>${CLI.fantasia}</b><a id="sair">Sair</a>`:`<a id="entrar">Entrar</a>`;
+function drawUser(){ saud(); const tc=document.getElementById('tbContaT'); if(tc) tc.textContent=CLI?CLI.fantasia.split(' ')[0]:(ADM?'Admin':'Entrar'); $('user').innerHTML=CLI?`<b id="uName" style="cursor:pointer" title="Minha conta">${CLI.fantasia}</b><a id="sair">Sair</a>`:`<a id="entrar">Entrar</a>`;
   if(CLI)$('sair').onclick=()=>{LSS('sr_b2b_sessao',null);CLI=null;CNPJ=null;CART={};render();document.body.classList.remove('logged');drawUser();updCart();go('cat')};
-  else $('entrar').onclick=()=>openLogin(); }
+  else $('entrar').onclick=()=>openLogin(); if($('uName'))$('uName').onclick=()=>$('tbConta').click(); }
 let afterLogin=null;
 let LT='cli';
-function setLT(m){LT=m;document.querySelectorAll('[data-lt]').forEach(b=>b.classList.toggle('on',b.dataset.lt===m));$('lgL').textContent=m==='adm'?'Usuário':'CNPJ';$('lgC').placeholder=m==='adm'?'admin':'00.000.000/0000-00';$('lgC').inputMode=m==='adm'?'text':'numeric';$('lgE').textContent=''}
-document.querySelectorAll('[data-lt]').forEach(b=>b.onclick=()=>setLT(b.dataset.lt));
+function setLT(m){LT=m;$('lgCli').hidden=m==='adm';$('lgAdmT').hidden=m!=='adm';$('lgAdm').hidden=m==='adm';$('lgVolta').hidden=m!=='adm';$('lgL').textContent=m==='adm'?'Usuário':'CNPJ';$('lgC').placeholder=m==='adm'?'admin':'00.000.000/0000-00';$('lgC').inputMode=m==='adm'?'text':'numeric';$('lgE').textContent=''}
+$('lgAdm').onclick=()=>setLT('adm'); $('lgVolta').onclick=()=>setLT('cli'); $('lgCad').onclick=()=>{$('mLogin').classList.remove('open');openCad()};
 function openLogin(next,modo){setLT(modo||'cli');afterLogin=next||null;$('lgE').textContent='';$('mLogin').classList.add('open');setTimeout(()=>$('lgC').focus(),50)}
 const need=fn=>CLI?fn():openLogin(fn);
 $('lgX').onclick=()=>$('mLogin').classList.remove('open');
@@ -831,6 +894,7 @@ document.querySelectorAll('.hb[data-v],.tabbar [data-v]').forEach(b=>b.onclick=(
 /* ---------- catálogo: quantidade / adicionar / lista ---------- */
 function cardClick(e){
   const card=e.target.closest('.card'); if(!card)return; const p=P[card.dataset.i];
+  if(e.target.closest('[data-lock]')){openLogin();return}
   if(e.target.closest('.eye')||((e.target.closest('.img')||e.target.closest('.name'))&&!e.target.closest('.fav'))){openDet(p);return}
   if(e.target.dataset.un!==undefined){ const un=unOf(p,e.target.dataset.un); card.dataset.un=un.id;
     card.querySelectorAll('.unsel button').forEach(b=>b.classList.toggle('on',b===e.target));
@@ -912,26 +976,41 @@ function checkout(itens,origem){ if(!itens.length)return;
   $('chkBox').innerHTML=`<h3>Confirmar pedido</h3><div class="sub">${esc(CLI.nome)} · CNPJ ${CNPJ.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5')}</div>
    <div class="rv">${itens.map(i=>`<div><span>${i.q} ${esc(plur(i.un.id?i.un.nome:i.p.u,i.q).toLowerCase())}${i.un.id?' c/ '+i.un.fator:''} · ${esc(i.p.t)}</span><b>${brl(lineTot(i))}</b></div>`).join('')}</div>
    <div style="display:flex;justify-content:space-between;font-size:15px;margin-bottom:8px"><span>${itens.length} itens</span><span>Total <b style="font-size:20px;color:var(--navy)">${brl(tot)}</b></span></div>
+   <label>Endereço de entrega</label><div id="cEnd"></div>
+   <div id="cPrev"></div>
    <label>Forma de pagamento</label>
-   <div class="pay">${CLI.pagamentos.map((f,k)=>`<label><input type="radio" name="pg" value="${f.id}" ${CLI.pagamentos.length===1?'checked':''}><span>${f.nome}<small>${f.obs}</small></span></label>`).join('')}</div>
+   <div class="pay">${!CLI.pagamentos.length?'<div class="err">Nenhuma forma de pagamento liberada para sua empresa. Fale com seu vendedor.</div>':''}${CLI.pagamentos.map((f,k)=>`<label><input type="radio" name="pg" value="${f.id}" ${CLI.pagamentos.length===1?'checked':''}><span>${f.nome}<small>${f.obs}</small></span></label>`).join('')}</div>
    <label>Observação (opcional)</label><textarea id="cObs" rows="2" placeholder="Ex.: entregar pela manhã, falar com João"></textarea>
    <div class="err" id="cErr"></div>
    <div class="act"><button class="btn sec" id="cX">Voltar</button><button class="btn pri" id="cOk">Confirmar pedido</button></div>`;
-  $('mChk').classList.add('open');
+  drawChkEnd('cad'); $('mChk').classList.add('open');
   $('cX').onclick=()=>$('mChk').classList.remove('open');
   $('cOk').onclick=confirmar;
   document.querySelectorAll('input[name=pg]').forEach(r=>r.onchange=()=>$('cErr').textContent='');
 }
+const ends=()=>[{id:'cad',apelido:'Endereço do cadastro',...CLI.rec},...(CLI.rec.enderecos||[])];
+function drawChkEnd(sel,form){ const E=ends();
+  $('cEnd').innerHTML=E.map(x=>`<label class="addr"><input type="radio" name="en" value="${x.id}" ${x.id===sel?'checked':''}><span><b>${esc(x.apelido||'Endereço')}</b><small>${esc(endTxt(x))}</small></span></label>`).join('')+
+   (form?`<div class="panel" style="padding:12px 14px;margin-bottom:8px"><label style="margin-top:0">Nome do endereço</label><input class="inp" id="qAp" placeholder="Ex.: Filial Centro">${addrFields('q')}<div class="err" id="qE"></div><div class="act" style="margin-top:10px"><button class="btn sec" id="qC">Cancelar</button><button class="btn pri" id="qOk">Salvar e usar</button></div></div>`
+     :'<button class="addu" id="qAdd" style="margin-bottom:6px">+ Entregar em outro endereço</button>');
+  const upd=()=>{const id=(document.querySelector('input[name=en]:checked')||{}).value, x=E.find(y=>y.id===id)||E[0], pv=previsao(x.cidade);
+    $('cPrev').innerHTML=`<div class="prev ${pv.data?'':'out'}"><svg class="ic" viewBox="0 0 24 24"><path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg><div><b>${pv.data?'Previsão de entrega: ':''}${esc(pv.txt)}</b><small>${esc(pv.sub)}</small></div></div>`;};
+  document.querySelectorAll('input[name=en]').forEach(r=>r.onchange=upd); upd();
+  if($('qAdd'))$('qAdd').onclick=()=>drawChkEnd((document.querySelector('input[name=en]:checked')||{}).value||'cad',true);
+  if(form){bindCep('q'); $('qC').onclick=()=>drawChkEnd(sel); $('qOk').onclick=()=>salvarNovoEnd('q',$('qAp').value,id=>drawChkEnd(id));}
+}
 async function confirmar(){
   const pg=document.querySelector('input[name=pg]:checked'); if(!pg){$('cErr').textContent='Selecione a forma de pagamento.';return}
   const f=CLI.pagamentos.find(x=>x.id===pg.value), itens=CHK.itens;
+  const enId=(document.querySelector('input[name=en]:checked')||{}).value; if(!enId){$('cErr').textContent='Selecione o endereço de entrega.';return}
+  const enX=ends().find(x=>x.id===enId), end={apelido:enX.apelido,cep:enX.cep,logradouro:enX.logradouro,numero:enX.numero,complemento:enX.complemento,bairro:enX.bairro,cidade:enX.cidade,uf:enX.uf}, pv=previsao(end.cidade);
   const ped={ numero:'', criado_em:new Date().toISOString(), origem:'portal_b2b_'+CHK.origem,
     cliente:{cnpj:CNPJ,razao_social:CLI.nome}, vendedor:CLI.vendedor,
-    pagamento:{id:f.id,descricao:f.nome}, observacao:$('cObs').value.trim(),
+    pagamento:{id:f.id,descricao:f.nome}, observacao:$('cObs').value.trim(), endereco:end, previsao:pv.data?pv.txt:'A confirmar pelo vendedor',
     itens:itens.map(i=>({cod:i.p.cod,descricao:i.p.t,un_id:i.un.id,unidade:unTxt(i.p,i.un),fator:i.un.fator,q:i.q,qtd_base:i.q*i.un.fator,preco:pu(i.p,i.un),total:+lineTot(i).toFixed(2)})),
     total:+itens.reduce((s,i)=>s+lineTot(i),0).toFixed(2), status:'' };
   $('cOk').disabled=true; $('cOk').textContent='Enviando…';
-  try{ const r=await API.criarPedido({cliente_cnpj:CNPJ, itens:ped.itens.map(i=>({cod:i.cod,qtd:i.q,unidade:i.un_id||'PADRAO',fator:i.fator,qtd_base:i.qtd_base,preco:i.preco})), pagamento_id:f.id, observacao:ped.observacao, origem:ped.origem});
+  try{ const r=await API.criarPedido({cliente_cnpj:CNPJ, itens:ped.itens.map(i=>({cod:i.cod,qtd:i.q,unidade:i.un_id||'PADRAO',fator:i.fator,qtd_base:i.qtd_base,preco:i.preco})), pagamento_id:f.id, observacao:ped.observacao, origem:ped.origem, cliente_codigo:CLI.rec.codigo||'', endereco_entrega:end, previsao_entrega:pv.data});
     ped.numero=r.numero; ped.status=r.status; }
   catch(e){ $('cErr').textContent='Não foi possível enviar: '+e.message; $('cOk').disabled=false; $('cOk').textContent='Confirmar pedido'; return }
   const peds=LSG('sr_b2b_pedidos_'+CNPJ,[]); peds.unshift(ped); LSS('sr_b2b_pedidos_'+CNPJ,peds);
@@ -939,7 +1018,7 @@ async function confirmar(){
   itens.forEach(i=>{let l=CLI.lista.find(x=>x.cod===i.p.cod); if(!l){l={cod:i.p.cod,ult:0,dt:'',med:0};CLI.lista.push(l)} const qb=i.q*i.un.fator; l.med=l.ult?Math.round((l.med+qb)/2):qb; l.ult=qb; l.dt=ped.criado_em.slice(0,10)}); saveLista();
   if(CHK.origem==='carrinho'){CART={};saveCart()} else LQ={};
   $('chkBox').innerHTML=`<div class="ok"><div class="ic2">✓</div><h3>Pedido ${ped.numero} recebido!</h3>
-    <p>Total de <b>${brl(ped.total)}</b> · ${esc(f.nome)}<br>Seu pedido foi registrado e segue para processamento no sistema da Souza Ribeiro.</p></div>
+    <p>Total de <b>${brl(ped.total)}</b> · ${esc(f.nome)}<br>Entrega: <b>${esc(ped.previsao)}</b> · ${esc(end.apelido)}<br>Seu pedido foi registrado e segue para processamento no sistema da Souza Ribeiro.</p></div>
     <div class="act" style="justify-content:center"><button class="btn sec" id="okP">Ver meus pedidos</button><button class="btn pri" id="okC">Continuar comprando</button></div>`;
   $('okP').onclick=()=>{$('mChk').classList.remove('open');go('ped')}; $('okC').onclick=()=>{$('mChk').classList.remove('open');go('cat')};
   if(!$('vLista').hidden)drawLista();
@@ -952,7 +1031,7 @@ async function drawPed(){const peds=await API.pedidos(CNPJ);
     <div class="m">${new Date(p.criado_em).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})} · ${p.itens.length} itens · ${esc(p.pagamento.descricao)}</div></div>
     <div class="v">${brl(p.total)}</div>
     <details><summary>Ver itens</summary><div class="rv">${p.itens.map(i=>`<div><span>${i.q} ${esc((i.unidade||'').toLowerCase())} · ${esc(i.descricao)}</span><b>${brl(i.total)}</b></div>`).join('')}</div>
-    ${p.observacao?`<div class="m">Obs.: ${esc(p.observacao)}</div>`:''}<button class="tool" data-rep="${p.numero}" style="margin-top:8px">↻ Comprar de novo</button></details></div>`).join('')
+    ${p.endereco?`<div class="m">Entrega: ${esc(p.endereco.apelido||'')} · ${esc(endTxt(p.endereco))}${p.previsao?' · '+esc(p.previsao):''}</div>`:''}${p.observacao?`<div class="m">Obs.: ${esc(p.observacao)}</div>`:''}<button class="tool" data-rep="${p.numero}" style="margin-top:8px">↻ Comprar de novo</button></details></div>`).join('')
     :'<div class="empty2">Você ainda não fez pedidos pelo portal.</div>';}
 $('pPanel').addEventListener('click',e=>{const n=e.target.dataset.rep;if(!n)return;const p=LSG('sr_b2b_pedidos_'+CNPJ,[]).find(x=>x.numero===n);
   LQ={};p.itens.forEach(i=>{LU[i.cod]=i.un_id||'';LQ[kOf(i.cod,i.un_id)]=i.q});go('lista');toast('Itens do pedido '+n+' preenchidos na Minha Lista')});
@@ -981,11 +1060,11 @@ function alertasMargem(){ const L=[], lim=CFG.margemMin;
     Object.entries(CONG).forEach(([cn,o])=>{ if(o[p.cod]!=null){const cl=CLIENTES[cn]; L.push({p,src:'Congelado · '+(cl?cl.fantasia:cn),tipo:'cg',preco:o[p.cod],custo:p.k,m:margem(o[p.cod],p.k)})} });
   });
   return {todos:L, baixo:L.filter(x=>x.m!=null&&x.m<lim).sort((a,b)=>a.m-b.m)}; }
-function updMrgBadge(){ const n=alertasMargem().baixo.length; $('mrgN').textContent=n||''; document.querySelectorAll('[data-v=adm]').forEach(b=>{let s=b.querySelector('.bdg2'); if(!s){s=document.createElement('b');s.className='bdg bdg2';b.style.position='relative';b.appendChild(s)} s.textContent=n||''}); }
+function updMrgBadge(){ const pend=Object.values(CLIENTES).filter(c=>c.status==='pendente').length, n=alertasMargem().baixo.length+pend; $('mrgN').textContent=alertasMargem().baixo.length||''; $('cliN').textContent=pend||''; document.querySelectorAll('[data-v=adm]').forEach(b=>{let s=b.querySelector('.bdg2'); if(!s){s=document.createElement('b');s.className='bdg bdg2';b.style.position='relative';b.appendChild(s)} s.textContent=n||''}); }
 let AT='prod';
 function drawAdm(){ document.querySelectorAll('[data-at]').forEach(b=>b.classList.toggle('on',b.dataset.at===AT));
-  $('atProd').hidden=AT!=='prod'; $('atCong').hidden=AT!=='cong'; $('atMrg').hidden=AT!=='mrg'; $('atCfg').hidden=AT!=='cfg';
-  if(AT==='prod')drawAProd(); if(AT==='cong')drawCong(); if(AT==='mrg')drawMrg(); if(AT==='cfg')drawCfg(); updMrgBadge(); }
+  $('atCli').hidden=AT!=='cli'; $('atProd').hidden=AT!=='prod'; $('atCong').hidden=AT!=='cong'; $('atMrg').hidden=AT!=='mrg'; $('atCfg').hidden=AT!=='cfg';
+  if(AT==='cli')drawCli(); if(AT==='prod')drawAProd(); if(AT==='cong')drawCong(); if(AT==='mrg')drawMrg(); if(AT==='cfg')drawCfg(); updMrgBadge(); }
 document.querySelectorAll('[data-at]').forEach(b=>b.onclick=()=>{AT=b.dataset.at;drawAdm()});
 $('aCat').innerHTML+=Object.keys(cats).sort().map(c=>`<option>${c}</option>`).join('');
 ['aQ','aCat','aSt'].forEach(id=>$(id).addEventListener('input',drawAProd));
@@ -1045,10 +1124,11 @@ function drawAltPrev(){ if(!AE)return; const p=byCod[AE.cod], bp=+$('eP').value|
     const cheio=bp*f, pr=+u.preco>0?+u.preco:cheio, m=margem(pr,p.k*f);
     el.innerHTML=`1 ${esc(u.nome||'unidade')} = ${f} ${esc(un.toLowerCase())}(s) · ${brl(pr)}${pr<cheio?` (desconto de ${brl(cheio-pr)} · sai ${brl(pr/f)} cada)`:''}${m!=null?` · margem <b class="mg ${mgCls(m)}" style="font-size:12px">${m.toFixed(1)}%</b>`:''}`;}); }
 /* preços congelados */
-$('cgCli').innerHTML=Object.entries(CLIENTES).map(([c,x])=>`<option value="${c}">${esc(x.fantasia)} — ${c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5')}</option>`).join('');
+const fillCgCli=()=>$('cgCli').innerHTML=Object.entries(CLIENTES).filter(([c,x])=>x.status==='aprovado').map(([c,x])=>`<option value="${c}">${esc(x.fantasia)} — ${c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5')}</option>`).join('');
+fillCgCli();
 $('cgList').innerHTML=P.map(p=>`<option value="${esc(p.cod)} · ${esc(p.t)}">`).join('');
 $('cgCli').onchange=drawCong;
-function drawCong(){ const cn=$('cgCli').value, o=CONG[cn]||{}, L=Object.keys(o).map(c=>byCod[c]).filter(Boolean);
+function drawCong(){ if(!$('cgCli').options.length)fillCgCli(); const cn=$('cgCli').value, o=CONG[cn]||{}, L=Object.keys(o).map(c=>byCod[c]).filter(Boolean);
   $('cgPanel').innerHTML=L.length?L.map(p=>{const v=o[p.cod],m=margem(v,p.k),d=v-p.p;return `<div class="crow" data-c="${p.cod}"><img src="${imgUrl(p)}" referrerpolicy="no-referrer" onerror="this.src=ph(byCod['${p.cod}'])">
     <div class="nm">${esc(p.t)}<small>Cód. ${esc(p.cod)} · ${esc(p.u)}</small></div>
     <div class="g">Preço atual<b>${brl(p.p)}</b></div>
@@ -1081,7 +1161,28 @@ function drawCfg(){ $('cfgPanel').innerHTML=[['soEstoque','Mostrar somente produ
   ['bloquear','Bloquear pedido acima do estoque','Ligado: o cliente não consegue fechar o pedido com quantidade maior que o disponível. Desligado: o portal só avisa.']]
   .map(([k,a,b])=>`<div class="ci2"><div><b>${a}</b><small>${b}</small></div><button class="tg ${CFG[k]?'on':''}" data-k="${k}"></button></div>`).join('')+
   `<div class="ci2"><div><b>Margem bruta mínima</b><small>Preços abaixo deste valor aparecem na aba Margens.</small></div><div class="pin" style="width:110px"><input type="number" value="${CFG.margemMin}" id="cfMg" style="text-align:right"><span>%</span></div></div>`; 
-  $('cfMg').onchange=()=>{CFG.margemMin=+$('cfMg').value||0;salvaCfg();updMrgBadge()}; }
+  $('cfgPanel').innerHTML+=`
+   <div class="ci2" style="display:block"><b>Formas de pagamento</b><small>Lista geral. Você libera quais cada cliente pode usar em Admin → Clientes → Editar.</small>
+     <div style="margin-top:10px">${CFG.formas.map(f=>`<span class="tagl">${esc(f.nome)} <button data-rmf="${f.id}" title="Remover">×</button></span>`).join('')}</div>
+     <div class="fxurl" style="margin-top:6px"><input id="cfFN" placeholder="Nova forma (ex.: Boleto 21 dias)"><input id="cfFO" placeholder="Observação (opcional)"><button class="btn sec" id="cfFA">Adicionar</button></div>
+     <div style="margin-top:12px;font-size:12px;color:var(--tx2)">Liberadas automaticamente para cadastros novos:</div>
+     <div class="chks" style="margin-top:6px">${CFG.formas.map(f=>`<label><input type="checkbox" data-pp="${f.id}" ${CFG.pagPadrao.includes(f.id)?'checked':''}>${esc(f.nome)}</label>`).join('')}</div></div>
+   <div class="ci2" style="display:block"><b>Vendedores</b><small>Aparecem no cadastro em "Como conheceu a Souza Ribeiro?" e no cadastro do cliente.</small>
+     <div style="margin-top:10px">${CFG.vendedores.map(v=>`<span class="tagl">${esc(v)} <button data-rmv="${esc(v)}">×</button></span>`).join('')}</div>
+     <div class="fxurl" style="margin-top:6px"><input id="cfVN" placeholder="Nome do vendedor"><button class="btn sec" id="cfVA">Adicionar</button></div></div>
+   <div class="ci2" style="display:block"><b>Entrega em Uberlândia</b><small>Pedido em dia útil até 10h → entrega no mesmo dia até 18h. Depois das 10h → próximo dia útil até 18h. Fim de semana ou feriado → próximo dia útil até 18h. Outras cidades: regras a definir.</small>
+     <div style="margin-top:10px;font-size:12px;color:var(--tx2)">Feriados considerados (não são dias úteis):</div>
+     <div style="margin-top:6px;max-height:170px;overflow:auto">${[...CFG.feriados].sort().map(([d,n])=>`<span class="tagl">${d.split('-').reverse().join('/')} · ${esc(n)} <button data-rmh="${d}">×</button></span>`).join('')}</div>
+     <div class="fxurl" style="margin-top:6px"><input id="cfHD" type="date"><input id="cfHN" placeholder="Nome do feriado"><button class="btn sec" id="cfHA">Adicionar</button></div></div>`;
+  $('cfMg').onchange=()=>{CFG.margemMin=+$('cfMg').value||0;salvaCfg();updMrgBadge()};
+  $('cfFA').onclick=()=>{const n=$('cfFN').value.trim(); if(!n)return; CFG.formas.push({id:'f'+Date.now().toString(36),nome:n,obs:$('cfFO').value.trim()}); salvaCfg(); drawCfg()};
+  $('cfVA').onclick=()=>{const n=$('cfVN').value.trim(); if(!n||CFG.vendedores.includes(n))return; CFG.vendedores.push(n); salvaCfg(); drawCfg()};
+  $('cfHA').onclick=()=>{const d=$('cfHD').value,n=$('cfHN').value.trim()||'Feriado'; if(!d)return; CFG.feriados=CFG.feriados.filter(x=>x[0]!==d).concat([[d,n]]); salvaCfg(); drawCfg()}; }
+$('cfgPanel').addEventListener('click',e=>{const d=e.target.dataset;
+  if(d.rmf){CFG.formas=CFG.formas.filter(f=>f.id!==d.rmf);CFG.pagPadrao=CFG.pagPadrao.filter(x=>x!==d.rmf);salvaCfg();drawCfg()}
+  if(d.rmv){CFG.vendedores=CFG.vendedores.filter(v=>v!==d.rmv);salvaCfg();drawCfg()}
+  if(d.rmh){CFG.feriados=CFG.feriados.filter(x=>x[0]!==d.rmh);salvaCfg();drawCfg()}});
+$('cfgPanel').addEventListener('change',e=>{const id=e.target.dataset.pp; if(!id)return; CFG.pagPadrao=e.target.checked?[...new Set([...CFG.pagPadrao,id])]:CFG.pagPadrao.filter(x=>x!==id); salvaCfg();});
 $('cfgPanel').addEventListener('click',e=>{const k=e.target.dataset.k;if(!k)return;CFG[k]=!CFG[k];salvaCfg();API.salvarConfig(CFG);drawCfg();render()});
 /* exportar / importar / sair */
 $('aExp').onclick=()=>{const b=new Blob([JSON.stringify({produtos:PADM,imagens:OV,congelados:CONG,config:CFG},null,1)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='sr_portal_b2b_admin.json';a.click();toast('Alterações exportadas')};
@@ -1136,9 +1237,9 @@ function drawClips(startId){ sizeClips(); const L=feedItens(), f=$('clipsFeed');
       <div><button class="cbtn" data-a="ver">👁</button><small>Detalhes</small></div></div>
     ${c.titulo?`<div class="cttl">${esc(c.titulo)}</div>`:''}
     <div class="ccard"><img src="${imgUrl(p)}" referrerpolicy="no-referrer" onerror="this.src=ph(byCod['${p.cod}'])" data-a="ver">
-      <div><div class="cn" data-a="ver">${esc(p.t)}</div><div class="cp"><b>${brl(base(p))}</b><small>/ ${p.u.toLowerCase()}</small></div>${stkHtml(p)}</div>
-      <div class="cb"><div class="qty"><button data-d="-1">−</button><input type="number" min="1" value="1"><button data-d="1">+</button></div>
-        <button class="add" data-a="add"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button></div></div>
+      <div><div class="cn" data-a="ver">${esc(p.t)}</div>${vePreco()?`<div class="cp"><b>${brl(base(p))}</b><small>/ ${p.u.toLowerCase()}</small></div>`:''}${stkHtml(p)}</div>
+      ${vePreco()?`<div class="cb"><div class="qty"><button data-d="-1">−</button><input type="number" min="1" value="1"><button data-d="1">+</button></div>
+        <button class="add" data-a="add"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button></div>`:`<div class="cb"><button class="lockp" style="margin:0" data-lock><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Faça login para ver os preços</button></div>`}</div>
   </section>`}).join('');
   CIO=new IntersectionObserver(es=>es.forEach(async en=>{const s=en.target,v=s.querySelector('video');
     if(s.dataset.id.startsWith('p:')){ if(en.isIntersecting)startFoto(s); else stopFoto(s); return; }
@@ -1151,7 +1252,7 @@ function drawClips(startId){ sizeClips(); const L=feedItens(), f=$('clipsFeed');
     v.ontimeupdate=()=>{bar.style.width=(v.currentTime/(v.duration||1)*100)+'%'}; v.onpause=()=>s.classList.add('paused'); v.onplay=()=>s.classList.remove('paused');});
   const alvo=startId&&f.querySelector(`.clip[data-id="${startId}"]`); f.scrollTop=alvo?alvo.offsetTop:0;
 }
-$('clipsFeed').addEventListener('click',e=>{const s=e.target.closest('.clip');if(!s)return;const p=byCod[s.dataset.c],v=s.querySelector('video'),a=e.target.closest('[data-a]')?.dataset.a;
+$('clipsFeed').addEventListener('click',e=>{const s=e.target.closest('.clip');if(!s)return; if(e.target.closest('[data-lock]')){openLogin(()=>drawClips(s.dataset.id));return}const p=byCod[s.dataset.c],v=s.querySelector('video'),a=e.target.closest('[data-a]')?.dataset.a;
   if(e.target.dataset.d){const i=s.querySelector('.qty input');i.value=Math.max(1,(+i.value||1)+(+e.target.dataset.d));return}
   if(e.target.closest('.qty'))return;
   if(a==='mute'){MUTED=!MUTED;document.querySelectorAll('#clipsFeed video').forEach(x=>x.muted=MUTED);document.querySelectorAll('[data-a=mute]').forEach(b=>b.textContent=MUTED?'🔇':'🔊');return}
@@ -1203,13 +1304,13 @@ function drawDet(){ const p=DP, G=gal(p).length?gal(p):[ph(p)], naLista=CLI&&CLI
       <div class="brand">${esc(p.m||'')}</div>
       <h2>${esc(p.t)}</h2>
       <div class="meta">Cód. ${esc(p.cod)}${p.e?' · EAN '+p.e:''}</div>
-      <div class="dprice"><b>${brl(pu(p,unOf(p,DU)))}</b><small>/ ${unTxt(p,unOf(p,DU)).toLowerCase()}</small></div>
+      ${vePreco()?`<div class="dprice"><b>${brl(pu(p,unOf(p,DU)))}</b><small>/ ${unTxt(p,unOf(p,DU)).toLowerCase()}</small></div>
       ${stkHtml(p).replace('class="stk','style="margin-top:8px" class="stk')}
       <div class="ueq" style="margin-top:6px">${econ(p,unOf(p,DU))}</div>
       ${unselHtml(p,DU,'lg')}
       <div class="dbuy"><div class="qty"><button data-d="-1">−</button><input id="dQ" type="number" min="1" value="1"><button data-d="1">+</button></div>
         <button class="add" id="dAdd"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Adicionar ao carrinho</button>
-        <button class="dfav ${naLista?'on':''}" id="dFav" title="Minha Lista">${naLista?'★':'☆'}</button></div>
+        <button class="dfav ${naLista?'on':''}" id="dFav" title="Minha Lista">${naLista?'★':'☆'}</button></div>`:`${stkHtml(p).replace('class="stk','style="margin-top:8px" class="stk')}<button class="lockp" data-lock id="dLock"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Faça login para ver os preços</button>`}
       ${clipsDe(p.cod).length?`<button class="dclip" id="dClip">▶ Ver clip deste produto</button>`:''}
       ${p.d?`<div class="dsec"><h4>Descrição</h4><p>${esc(p.d)}</p></div>`:''}
       <div class="dsec"><h4>Características</h4><table class="ftab">${p.f.map(([k,v])=>`<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</table></div>
@@ -1223,6 +1324,7 @@ $('mDet').addEventListener('click',e=>{
   if(k!==undefined){DI=+k;drawDet();return}
   if(d){const i=$('dQ');i.value=Math.max(1,(+i.value||1)+(+d));return}
   if(e.target.closest('#dAdd')){need(()=>{addCart(DP.cod,Math.max(1,+$('dQ').value||1),DU);if(qtdBase(CART,DP.cod)<=DP.s)$('mDet').classList.remove('open')});return}
+  if(e.target.closest('#dLock')){$('mDet').classList.remove('open');openLogin(()=>openDet(DP));return}
   if(e.target.closest('#dClip')){$('mDet').classList.remove('open');go('clips',clipsDe(DP.cod)[0].id);return}
   if(e.target.closest('#dFav')){need(()=>{toggleLista(DP.cod);drawDet();render()});return}
 });
@@ -1234,12 +1336,143 @@ document.addEventListener('keydown',e=>{if(!$('mDet').classList.contains('open')
 function saud(){const h=new Date().getHours(), s=h<12?'Bom dia':h<18?'Boa tarde':'Boa noite';
   $('hi').innerHTML=`${s}${CLI?', '+esc(CLI.fantasia):''}.<em>Seus suprimentos</em>num só lugar.`;}
 
-$('tbConta').onclick=()=>{ if(!CLI&&!ADM){openLogin();return}
-  $('contaBox').innerHTML=`<div class="conta"><div class="av">${CLI?esc(CLI.fantasia[0]):'A'}</div><h3>${CLI?esc(CLI.fantasia):'Administrador'}</h3><div class="sub">${CLI?esc(CLI.nome)+'<br>Vendedor: '+esc(CLI.vendedor||'—'):'Modo administrador ativo'}</div></div>
+/* =================== CADASTRO, CONTA, ENDEREÇOS, ENTREGA =================== */
+const fmtCNPJ=c=>(c||'').replace(/\D/g,'').replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5');
+const fmtCEP=c=>(c||'').replace(/\D/g,'').replace(/^(\d{5})(\d{3})$/,'$1-$2');
+const fmtTel=c=>{c=(c||'').replace(/\D/g,'');return c.length===11?c.replace(/^(\d{2})(\d{5})(\d{4})$/,'($1) $2-$3'):c.length===10?c.replace(/^(\d{2})(\d{4})(\d{4})$/,'($1) $2-$3'):c};
+function cnpjOk(c){c=(c||'').replace(/\D/g,''); if(c.length!==14||/^(\d)\1+$/.test(c))return false;
+  const dv=n=>{let s=0,p=n-7;for(let i=0;i<n;i++){s+=+c[i]*p--;if(p<2)p=9}const r=s%11;return r<2?0:11-r}; return dv(12)===+c[12]&&dv(13)===+c[13];}
+async function buscaCNPJ(c){ const r=await fetch('https://brasilapi.com.br/api/cnpj/v1/'+c); if(!r.ok) throw new Error(r.status===404?'CNPJ não encontrado na Receita.':'Consulta indisponível agora — preencha manualmente.'); return r.json(); }
+async function buscaCEP(c){ try{ const r=await fetch('https://brasilapi.com.br/api/cep/v1/'+c); if(r.ok){const j=await r.json(); return {logradouro:j.street||'',bairro:j.neighborhood||'',cidade:j.city||'',uf:j.state||''}} }catch(e){}
+  const r=await fetch('https://viacep.com.br/ws/'+c+'/json/'); const j=await r.json(); if(j.erro) throw new Error('CEP não encontrado.'); return {logradouro:j.logradouro,bairro:j.bairro,cidade:j.localidade,uf:j.uf}; }
+const endTxt=e=>`${e.logradouro||''}${e.numero?', '+e.numero:''}${e.complemento?' – '+e.complemento:''} · ${e.bairro||''} · ${e.cidade||''}/${e.uf||''} · CEP ${fmtCEP(e.cep)}`;
+/* campos de endereço reutilizáveis (prefixo k) */
+const addrFields=(k,d={})=>`<div class="fgrid">
+  <div><label>CEP <span class="req">*</span></label><input class="inp" id="${k}Cep" inputmode="numeric" value="${esc(fmtCEP(d.cep))}" placeholder="00000-000"><div class="okmsg" id="${k}CepM"></div></div>
+  <div><label>Número <span class="req">*</span></label><input class="inp" id="${k}Num" value="${esc(d.numero||'')}"></div>
+  <div class="full"><label>Rua / Avenida <span class="req">*</span></label><input class="inp" id="${k}Log" value="${esc(d.logradouro||'')}"></div>
+  <div><label>Complemento</label><input class="inp" id="${k}Com" value="${esc(d.complemento||'')}"></div>
+  <div><label>Bairro <span class="req">*</span></label><input class="inp" id="${k}Bai" value="${esc(d.bairro||'')}"></div>
+  <div><label>Cidade <span class="req">*</span></label><input class="inp" id="${k}Cid" value="${esc(d.cidade||'')}"></div>
+  <div><label>UF <span class="req">*</span></label><input class="inp" id="${k}Uf" maxlength="2" value="${esc(d.uf||'')}" style="text-transform:uppercase"></div></div>`;
+function bindCep(k){ $(k+'Cep').addEventListener('input',async e=>{const c=e.target.value.replace(/\D/g,''); e.target.value=fmtCEP(c)||c; if(c.length!==8)return;
+  $(k+'CepM').className='okmsg'; $(k+'CepM').textContent='Buscando CEP…';
+  try{const r=await buscaCEP(c); if(r.logradouro)$(k+'Log').value=r.logradouro; if(r.bairro)$(k+'Bai').value=r.bairro; $(k+'Cid').value=r.cidade; $(k+'Uf').value=r.uf; $(k+'CepM').textContent='✓ Endereço encontrado'; $(k+'Num').focus();}
+  catch(err){$(k+'CepM').className='okmsg bad';$(k+'CepM').textContent=err.message||'Não foi possível buscar o CEP.'}}); }
+const readAddr=k=>({cep:$(k+'Cep').value.replace(/\D/g,''),numero:$(k+'Num').value.trim(),logradouro:$(k+'Log').value.trim(),complemento:$(k+'Com').value.trim(),bairro:$(k+'Bai').value.trim(),cidade:$(k+'Cid').value.trim(),uf:$(k+'Uf').value.trim().toUpperCase()});
+const addrOk=a=>a.cep.length===8&&a.numero&&a.logradouro&&a.bairro&&a.cidade&&a.uf.length===2;
+const origens=()=>[...CFG.vendedores.map(v=>'Vendedor: '+v),'Instagram','Google','Indicação de outro cliente','Outro'];
+/* formulário de cliente — cadastro público ou admin */
+function cliForm(d={},admin=false){ return `
+  <div class="csec">Empresa</div>
+  <label>CNPJ <span class="req">*</span></label>
+  <div class="cnpjrow"><input class="inp" id="kCnpj" inputmode="numeric" placeholder="00.000.000/0000-00" value="${esc(fmtCNPJ(d.cnpj))}" ${admin&&d.cnpj?'readonly':''}><button class="btn sec" id="kBusca" type="button">Buscar dados</button></div>
+  <div class="okmsg" id="kCnpjM">${d.cnpj?'':'Digite o CNPJ e os dados da empresa são preenchidos automaticamente.'}</div>
+  <div class="fgrid"><div class="full"><label>Razão social <span class="req">*</span></label><input class="inp" id="kRaz" value="${esc(d.nome||d.razao_social||'')}"></div>
+   <div class="full"><label>Nome fantasia</label><input class="inp" id="kFan" value="${esc(d.fantasia||'')}"></div></div>
+  <div class="csec">Endereço da empresa (também usado para entrega)</div>${addrFields('k',d)}
+  <div class="csec">Contato</div>
+  <div class="fgrid"><div class="full"><label>Nome do responsável pelas compras <span class="req">*</span></label><input class="inp" id="kResp" value="${esc(d.responsavel||'')}"></div>
+   <div><label>WhatsApp <span class="req">*</span></label><input class="inp" id="kWa" inputmode="tel" placeholder="(34) 99999-9999" value="${esc(fmtTel(d.whats))}"></div>
+   <div><label>E-mail</label><input class="inp" id="kEm" type="email" value="${esc(d.email||'')}"></div>
+   <div class="full"><label>Como conheceu a Souza Ribeiro? <span class="req">*</span></label><select class="inp" id="kOri"><option value="">Selecione…</option>${origens().map(o=>`<option ${o===d.origem?'selected':''}>${esc(o)}</option>`).join('')}</select></div></div>
+  ${admin?`<div class="csec">Liberação (admin)</div>
+  <div class="fgrid"><div><label>Código do cliente no G360</label><input class="inp" id="kCod" value="${esc(d.codigo||'')}" placeholder="Ex.: 1045"></div>
+   <div><label>Situação</label><select class="inp" id="kSt">${['pendente','aprovado','reprovado','bloqueado'].map(s=>`<option value="${s}" ${s===(d.status||'aprovado')?'selected':''}>${{pendente:'Aguardando aprovação',aprovado:'Aprovado',reprovado:'Reprovado',bloqueado:'Bloqueado'}[s]}</option>`).join('')}</select></div>
+   <div class="full"><label>Vendedor responsável</label><select class="inp" id="kVend"><option value="">—</option>${CFG.vendedores.map(v=>`<option ${v===d.vendedor?'selected':''}>${esc(v)}</option>`).join('')}</select></div></div>
+  <label>Formas de pagamento liberadas</label><div class="chks">${CFG.formas.map(f=>`<label><input type="checkbox" data-fp="${f.id}" ${(d.pagamentos||CFG.pagPadrao).includes(f.id)?'checked':''}>${esc(f.nome)}</label>`).join('')}</div>
+  ${(d.enderecos||[]).length?`<label>Outros endereços de entrega</label><div class="elist">${d.enderecos.map(x=>`<div class="eitem"><div><b>${esc(x.apelido||'Endereço')}</b><small>${esc(endTxt(x))}</small></div></div>`).join('')}</div>`:''}
+  <div class="csec">Acesso</div><div class="fgrid"><div class="full"><label>${d.senha?'Nova senha (deixe em branco para manter)':'Senha de acesso'}</label><input class="inp" id="kSen" type="text" placeholder="${d.senha?'••••':'Defina uma senha'}"></div></div>`
+  :`<div class="csec">Acesso</div><div class="fgrid"><div><label>Crie uma senha <span class="req">*</span></label><input class="inp" id="kSen" type="password" placeholder="Mínimo 6 caracteres"></div>
+   <div><label>Repita a senha <span class="req">*</span></label><input class="inp" id="kSen2" type="password"></div></div>`}`; }
+function bindCliForm(){ bindCep('k');
+  const mk=()=>{const i=$('kCnpj'),c=i.value.replace(/\D/g,'').slice(0,14); i.value=c.length===14?fmtCNPJ(c):c; return c};
+  $('kCnpj').addEventListener('input',()=>{const c=mk(); if(c.length===14&&!$('kCnpj').readOnly)$('kBusca').click()});
+  $('kWa').addEventListener('blur',e=>e.target.value=fmtTel(e.target.value));
+  $('kBusca').onclick=async()=>{ const c=$('kCnpj').value.replace(/\D/g,''), m=$('kCnpjM');
+    if(!cnpjOk(c)){m.className='okmsg bad';m.textContent='CNPJ inválido. Confira os números.';return}
+    m.className='okmsg';m.textContent='Buscando dados na Receita Federal…';
+    try{ const j=await buscaCNPJ(c); $('kRaz').value=j.razao_social||''; $('kFan').value=j.nome_fantasia||'';
+      $('kCep').value=fmtCEP(j.cep); $('kLog').value=[j.descricao_tipo_de_logradouro,j.logradouro].filter(Boolean).join(' '); $('kNum').value=j.numero||''; $('kCom').value=j.complemento||''; $('kBai').value=j.bairro||''; $('kCid').value=j.municipio?j.municipio.toLowerCase().replace(/(^|\s|-)\S/g,s=>s.toUpperCase()):''; $('kUf').value=j.uf||'';
+      if(j.ddd_telefone_1&&!$('kWa').value)$('kWa').value=fmtTel(j.ddd_telefone_1); if(j.email&&!$('kEm').value)$('kEm').value=j.email.toLowerCase();
+      m.textContent=`✓ ${j.descricao_situacao_cadastral?'Situação na Receita: '+j.descricao_situacao_cadastral:'Dados encontrados'} — confira e complete.`;
+      if(j.descricao_situacao_cadastral&&j.descricao_situacao_cadastral!=='ATIVA'){m.className='okmsg bad'}
+    }catch(err){m.className='okmsg bad';m.textContent=err.message||'Não foi possível consultar. Preencha manualmente.'} };
+}
+function lerCliForm(admin){ const a=readAddr('k'), c=$('kCnpj').value.replace(/\D/g,'');
+  const d={cnpj:c,razao_social:$('kRaz').value.trim(),fantasia:$('kFan').value.trim()||$('kRaz').value.trim(),...a,responsavel:$('kResp').value.trim(),whats:$('kWa').value.replace(/\D/g,''),email:$('kEm').value.trim(),origem:$('kOri').value};
+  const falta=[]; if(!cnpjOk(c))falta.push('CNPJ válido'); if(!d.razao_social)falta.push('razão social'); if(!addrOk(a))falta.push('endereço completo'); if(!d.responsavel)falta.push('responsável'); if(d.whats.length<10)falta.push('WhatsApp'); if(!d.origem)falta.push('como nos conheceu');
+  if(!admin){const s=$('kSen').value; if(s.length<6)falta.push('senha com 6+ caracteres'); else if(s!==$('kSen2').value)falta.push('senhas iguais'); d.senha=s;}
+  return {d,falta}; }
+/* cadastro público */
+function openCad(){ $('cadBox').innerHTML=`<div class="fxh"><div><h3>Criar cadastro</h3><div class="sub">Preencha os dados da sua empresa. Após a aprovação você recebe a liberação pelo WhatsApp e já pode comprar.</div></div><button class="fxx" id="kX">×</button></div>
+  ${cliForm({},false)}<div class="err" id="kE"></div>
+  <div class="act"><button class="btn sec" id="kV">Já tenho cadastro</button><button class="btn pri" id="kOk">Enviar cadastro</button></div>`;
+  bindCliForm(); $('mCad').classList.add('open'); setTimeout(()=>$('kCnpj').focus(),60);
+  $('kX').onclick=()=>$('mCad').classList.remove('open'); $('kV').onclick=()=>{$('mCad').classList.remove('open');openLogin()};
+  $('kOk').onclick=async()=>{ const {d,falta}=lerCliForm(false); if(falta.length){$('kE').textContent='Falta preencher: '+falta.join(', ')+'.';return}
+    $('kOk').disabled=true; $('kOk').textContent='Enviando…';
+    try{ await API.cadastrar(d); }catch(e){ $('kE').textContent=e.message; $('kOk').disabled=false; $('kOk').textContent='Enviar cadastro'; return }
+    $('cadBox').innerHTML=`<div class="ok"><div class="ic2">✓</div><h3>Cadastro enviado!</h3><p>Recebemos os dados da <b>${esc(d.fantasia)}</b>. Nossa equipe vai analisar e você recebe a liberação pelo WhatsApp <b>${esc(fmtTel(d.whats))}</b>.</p></div><div class="act" style="justify-content:center"><button class="btn pri" id="kF">Voltar ao catálogo</button></div>`;
+    $('kF').onclick=()=>$('mCad').classList.remove('open'); if(ADM)updMrgBadge(); };
+}
+$('mCad').onclick=e=>{if(e.target.id==='mCad')$('mCad').classList.remove('open')};
+/* admin: clientes */
+['clQ','clSt'].forEach(id=>$(id).addEventListener('input',drawCli));
+function drawCli(){ const q=norm($('clQ').value.trim()), st=$('clSt').value;
+  const L=Object.entries(CLIENTES).map(([cnpj,c])=>({cnpj,...c})).filter(c=>(!st||c.status===st)&&(!q||norm([c.nome,c.fantasia,c.cnpj,c.codigo,c.cidade].join(' ')).includes(q)))
+    .sort((a,b)=>(a.status==='pendente'?0:1)-(b.status==='pendente'?0:1)||(b.criado_em||'').localeCompare(a.criado_em||''));
+  $('clPanel').innerHTML=`<div class="crow2 h"><div>Cliente (${L.length})</div><div>Cód. G360</div><div>Cidade</div><div>Situação</div><div></div></div>`+(L.length?L.map(c=>`<div class="crow2" data-c="${c.cnpj}">
+    <div class="nm"><b>${esc(c.fantasia||c.nome)}</b><small>${fmtCNPJ(c.cnpj)} · ${esc(c.nome||'')}</small><small>${esc(c.origem||'')}${c.whats?' · '+fmtTel(c.whats):''}</small></div>
+    <div class="sm sm2">${c.codigo?esc(c.codigo):'<span style="color:var(--tx3)">—</span>'}</div><div class="sm">${esc(c.cidade||'')}${c.uf?'/'+c.uf:''}${c.codigo?' · cód. '+esc(c.codigo):''}</div>
+    <div class="stw"><span class="stt ${c.status}">${{pendente:'Aguardando',aprovado:'Aprovado',reprovado:'Reprovado',bloqueado:'Bloqueado'}[c.status]||c.status}</span></div>
+    <div class="ab2">${c.status==='pendente'?'<button class="ap" data-ap>Aprovar</button><button class="rp" data-rp>Reprovar</button>':''}<button data-ed>Editar</button></div></div>`).join(''):'<div class="empty2">Nenhum cliente encontrado.</div>'); }
+$('clPanel').addEventListener('click',async e=>{const r=e.target.closest('.crow2[data-c]');if(!r)return;const cn=r.dataset.c;
+  if(e.target.matches('[data-ap]')){await API.salvarClienteAdmin(cn,{status:'aprovado'});drawCli();updMrgBadge();toast('Cliente aprovado ✓ — avise pelo WhatsApp '+fmtTel(CLIENTES[cn].whats));return}
+  if(e.target.matches('[data-rp]')){await API.salvarClienteAdmin(cn,{status:'reprovado'});drawCli();updMrgBadge();toast('Cadastro reprovado');return}
+  if(e.target.matches('[data-ed]'))openCliAdm(cn);});
+$('clNovo').onclick=()=>openCliAdm(null);
+function openCliAdm(cn){ const d=cn?{cnpj:cn,...CLIENTES[cn]}:{status:'aprovado'};
+  $('admBox').innerHTML=`<div class="fxh"><div><h3>${cn?'Editar cliente':'Novo cliente'}</h3><div class="sub">${cn?'Cadastrado em '+(d.criado_em||'').split('-').reverse().join('/'):'Cadastro feito pelo admin já entra aprovado.'}</div></div><button class="fxx" id="kX">×</button></div>
+   ${cliForm(d,true)}<div class="err" id="kE"></div><div class="act"><button class="btn sec" id="kC">Cancelar</button><button class="btn pri" id="kOk">Salvar cliente</button></div>`;
+  bindCliForm(); $('mAdm').classList.add('open'); const cl=()=>$('mAdm').classList.remove('open'); $('kX').onclick=cl; $('kC').onclick=cl;
+  $('kOk').onclick=async()=>{ const {d:n,falta}=lerCliForm(true); if(falta.length){$('kE').textContent='Falta preencher: '+falta.join(', ')+'.';return}
+    if(!cn&&CLIENTES[n.cnpj]){$('kE').textContent='Já existe um cliente com este CNPJ.';return}
+    const pags=[...document.querySelectorAll('[data-fp]:checked')].map(x=>x.dataset.fp);
+    const dados={...n,nome:n.razao_social,codigo:$('kCod').value.trim(),status:$('kSt').value,vendedor:$('kVend').value,pagamentos:pags};
+    if($('kSen').value)dados.senha=$('kSen').value; else if(!cn){$('kE').textContent='Defina uma senha de acesso para o cliente.';return}
+    if(!cn){dados.criado_em=new Date().toISOString().slice(0,10);dados.enderecos=[];dados.lista=[]}
+    delete dados.razao_social; await API.salvarClienteAdmin(n.cnpj,dados); cl(); drawCli(); updMrgBadge(); fillCgCli(); toast('Cliente salvo ✓');
+    if(CNPJ===n.cnpj){await loadCli(CNPJ,LSG('sr_b2b_cli',null));} };
+}
+/* previsão de entrega */
+const isoD=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+function previsao(cidade,now=new Date()){ if(!norm(cidade||'').includes('uberlandia')) return {data:null,txt:`Entrega em ${cidade||'sua cidade'}`,sub:'O prazo será confirmado pelo vendedor após o pedido.'};
+  const FER=new Set(CFG.feriados.map(x=>x[0])), util=d=>d.getDay()!==0&&d.getDay()!==6&&!FER.has(isoD(d));
+  let d=new Date(now);
+  if(!(util(now)&&now.getHours()<10)){ do{ d.setDate(d.getDate()+1) }while(!util(d)); }
+  const hj=isoD(now), am=isoD(new Date(now.getTime()+864e5)), wd=d.toLocaleDateString('pt-BR',{weekday:'long'});
+  const quando=isoD(d)===hj?'Hoje':isoD(d)===am?'Amanhã':wd[0].toUpperCase()+wd.slice(1);
+  return {data:isoD(d),txt:`${quando}, ${d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}, até as 18h`,
+    sub:util(now)&&now.getHours()<10?'Pedido feito até 10h em dia útil é entregue no mesmo dia.':'Pedidos após 10h, fim de semana ou feriado são entregues no próximo dia útil.'}; }
+/* conta do cliente */
+$('tbConta').onclick=()=>{ if(!CLI&&!ADM){openLogin();return} drawConta(); $('mConta').classList.add('open'); };
+function drawConta(addForm){ const cl=()=>$('mConta').classList.remove('open'), r=CLI?CLI.rec:null;
+  $('contaBox').innerHTML=`<div class="conta"><div class="av">${CLI?esc(CLI.fantasia[0]):'A'}</div><h3>${CLI?esc(CLI.fantasia):'Administrador'}</h3><div class="sub">${CLI?esc(CLI.nome)+'<br>CNPJ '+fmtCNPJ(CNPJ)+(CLI.vendedor?' · Vendedor: '+esc(CLI.vendedor):''):'Modo administrador ativo'}</div></div>
+   ${CLI?`<label>Endereços de entrega</label><div class="elist"><div class="eitem"><div><b>Endereço do cadastro</b><small>${esc(endTxt(r))}</small></div></div>
+     ${(r.enderecos||[]).map(x=>`<div class="eitem"><div><b>${esc(x.apelido||'Endereço')}</b><small>${esc(endTxt(x))}</small></div><button data-rme="${x.id}">Remover</button></div>`).join('')}</div>
+     ${addForm?`<div class="panel" style="padding:12px 14px;margin-bottom:8px"><label style="margin-top:0">Nome do endereço</label><input class="inp" id="nAp" placeholder="Ex.: Filial Centro, Depósito">${addrFields('n')}<div class="err" id="nE"></div><div class="act" style="margin-top:10px"><button class="btn sec" id="nC">Cancelar</button><button class="btn pri" id="nOk">Salvar endereço</button></div></div>`:'<button class="addu" id="nAdd">+ Cadastrar outro endereço de entrega</button>'}`:''}
    <div class="act" style="flex-direction:column">${CLI?'<button class="btn sec" id="cnP">Meus pedidos</button>':''}${ADM?'<button class="btn sec" id="cnA">Painel admin</button><button class="btn sec" id="cnSA">Sair do admin</button>':''}${CLI?'<button class="btn del" id="cnS" style="margin:0">Sair da conta</button>':'<button class="btn pri" id="cnL">Entrar como cliente</button>'}<button class="btn sec" id="cnX">Fechar</button></div>`;
-  $('mConta').classList.add('open'); const cl=()=>$('mConta').classList.remove('open');
   $('cnX').onclick=cl; if($('cnP'))$('cnP').onclick=()=>{cl();go('ped')}; if($('cnA'))$('cnA').onclick=()=>{cl();go('adm')};
-  if($('cnSA'))$('cnSA').onclick=()=>{cl();setAdm(false);go('cat')}; if($('cnS'))$('cnS').onclick=()=>{cl();$('sair').click()}; if($('cnL'))$('cnL').onclick=()=>{cl();openLogin()}; };
+  if($('cnSA'))$('cnSA').onclick=()=>{cl();setAdm(false);go('cat')}; if($('cnS'))$('cnS').onclick=()=>{cl();$('sair').click()}; if($('cnL'))$('cnL').onclick=()=>{cl();openLogin()};
+  if($('nAdd'))$('nAdd').onclick=()=>drawConta(true);
+  if($('nC'))$('nC').onclick=()=>drawConta(false);
+  if(addForm){bindCep('n'); $('nOk').onclick=()=>salvarNovoEnd('n',$('nAp').value,()=>drawConta(false))}
+}
+async function salvarNovoEnd(k,apelido,depois){ const a=readAddr(k); if(!addrOk(a)){$(k+'E').textContent='Preencha o endereço completo.';return}
+  const lista=[...(CLI.rec.enderecos||[]),{id:'e'+Date.now().toString(36),apelido:(apelido||'').trim()||'Entrega '+((CLI.rec.enderecos||[]).length+2),...a}];
+  await API.salvarEnderecos(CNPJ,lista); CLI.rec.enderecos=lista; toast('Endereço salvo ✓'); depois&&depois(lista[lista.length-1].id); }
+$('contaBox').addEventListener('click',async e=>{const id=e.target.dataset.rme; if(!id)return; const lista=CLI.rec.enderecos.filter(x=>x.id!==id); await API.salvarEnderecos(CNPJ,lista); CLI.rec.enderecos=lista; drawConta(false); toast('Endereço removido')});
 $('mConta').onclick=e=>{if(e.target.id==='mConta')$('mConta').classList.remove('open')};
 document.body.classList.toggle('admin',ADM);
 /* ---------- início ---------- */
