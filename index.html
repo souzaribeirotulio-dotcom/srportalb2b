@@ -1581,9 +1581,21 @@ $('cfgPanel').addEventListener('click',e=>{const k=e.target.dataset.k;if(!k)retu
 /* exportar / importar / sair */
 $('aExp').onclick=()=>{const b=new Blob([JSON.stringify({produtos:PADM,imagens:OV,congelados:CONG,config:CFG},null,1)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='sr_portal_b2b_admin.json';a.click();toast('Alterações exportadas')};
 $('aImp').onclick=()=>$('aImpF').click();
-$('aImpF').onchange=()=>{const f=$('aImpF').files[0];if(!f)return;f.text().then(s=>{try{const o=JSON.parse(s);
-  if(o.produtos){PADM=o.produtos;salvaPADM();P.forEach(p=>aplicaOv(p.cod))} if(o.imagens){Object.assign(OV,o.imagens);saveOV()} if(o.congelados){CONG=o.congelados;salvaCong()} if(o.config){Object.assign(CFG,o.config);salvaCfg()}
-  render();drawAdm();toast('Alterações importadas ✓')}catch(e){toast('Arquivo inválido')}});$('aImpF').value=''};
+$('aImpF').onchange=async()=>{
+  const f=$('aImpF').files[0];if(!f)return;$('aImpF').value='';
+  try{
+    const o=JSON.parse(await f.text());
+    if(!o||typeof o!=='object'||Array.isArray(o))throw new Error('Arquivo inválido');
+    if(o.imagens&&typeof o.imagens==='object'){
+      if(!window.confirm('Publicar as imagens importadas para todos os clientes?'))return;
+      await importarFotosCompartilhadas(o.imagens);
+    }
+    if(o.produtos){PADM=o.produtos;salvaPADM();P.forEach(p=>aplicaOv(p.cod))}
+    if(o.congelados){CONG=o.congelados;salvaCong()}
+    if(o.config){Object.assign(CFG,o.config);salvaCfg()}
+    render();drawAdm();toast('Importação do administrador concluída ✓');
+  }catch(e){toast('Falha ao importar: '+e.message)}
+};
 $('aSair').onclick=sairConta;
 
 /* =================== CLIPS =================== */
