@@ -914,7 +914,7 @@ $('fxAct').onclick=e=>{const a=e.target.dataset.a; if(!a)return; const sw=(i,j)=
   if(a==='main'){FX.unshift(FX.splice(FI,1)[0]);FI=0} if(a==='left'&&FI>0){sw(FI,FI-1);FI--} if(a==='right'&&FI<FX.length-1){sw(FI,FI+1);FI++}
   if(a==='rm'){FX.splice(FI,1);FI=Math.max(0,FI-1)} drawFx()};
 $('opts').onclick=e=>{const u=e.target.dataset.sug;if(!u)return;FX.push(u);FI=FX.length-1;drawFx()};
-function addUrl(){const v=$('mUrl').value.trim(); if(!/^https?:\/\//i.test(v)){toast('Cole um link que comece com https://');return} if(!FX.includes(v))FX.push(v); FI=FX.indexOf(v); $('mUrl').value=''; drawFx()}
+function addUrl(){const v=$('mUrl').value.trim(); if(!/^https:\/\//i.test(v)){toast('Use link HTTPS do vídeo (.mp4 ou .webm)');return} if(!FX.includes(v))FX.push(v); FI=FX.indexOf(v); $('mUrl').value=''; drawFx()}
 $('fxAddUrl').onclick=addUrl; $('mUrl').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();addUrl()}};
 function lerArquivos(files){ [...files].filter(f=>f.type.startsWith('image/')).forEach(f=>{const r=new FileReader();
   r.onload=()=>{const im=new Image(); im.onload=()=>{const s=Math.min(1,700/Math.max(im.width,im.height)),cv=document.createElement('canvas');
@@ -1738,15 +1738,29 @@ $('mAdm').addEventListener('click',async e=>{const el=e.target.closest('.eclip')
   if(e.target.matches('[data-rm]')){ const i=CLIPS_U.findIndex(c=>c.id===id);
     if(i>=0){const c=CLIPS_U[i]; CLIPS_U.splice(i,1)} else DEMO_OFF.push(id);
     try{await salvaClips(AE.cod);drawEClips();toast('Clip removido para todos ✓')}catch(err){toast('Falha ao remover: '+err.message);window.SRPersistencia?.refreshClips().catch(()=>{})} }});
-async function addClipFiles(files){ for(const f of [...files].filter(f=>f.type.startsWith('video/'))){
-    if(f.size>150*1024*1024){toast('Vídeo muito grande (máx. 150 MB)');continue}
-    const id='c'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-    try{ await IDB.put(id,f); CLIPS_U.unshift({id,cod:AE.cod,titulo:'',src:'idb:'+id}); }catch(err){ toast('Não foi possível salvar o vídeo neste navegador'); }
-  } salvaClips(); API.salvarClips(AE.cod,todosClips().filter(c=>c.cod===AE.cod)); drawEClips(); toast('Clip adicionado ✓'); }
+async function addClipFiles(files){
+ if(!AE?.cod)return;
+ const cod=AE.cod;let added=0;
+ for(const file of [...files]){
+  if(!['video/mp4','video/webm'].includes(file.type)||file.size>41943040||file.size<100){toast('Use MP4 ou WebM até 40 MB.');continue}
+  try{
+   toast('Enviando vídeo para a nuvem…');
+   const src=USA_SB()?await window.SRPersistencia.uploadClip(file,cod):null;
+   const id='c'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+   if(src)CLIPS_U.unshift({id,cod,titulo:'',src});
+   else{await IDB.put(id,file);CLIPS_U.unshift({id,cod,titulo:'',src:'idb:'+id})}
+   added++;
+  }catch(err){toast('Falha ao enviar vídeo: '+err.message)}
+ }
+ if(!added)return;
+ try{await salvaClips(cod);drawEClips();toast(added+' vídeo(s) publicados ✓')}
+ catch(err){toast('Falha ao salvar clips: '+err.message);window.SRPersistencia?.refreshClips().catch(()=>{})}
+}
 $('mAdm').addEventListener('change',e=>{if(e.target.id==='cFile'){addClipFiles(e.target.files);e.target.value=''}});
-$('mAdm').addEventListener('click',e=>{if(e.target.id!=='cAddUrl')return;const v=$('cUrl').value.trim();
+$('mAdm').addEventListener('click',async e=>{if(e.target.id!=='cAddUrl')return;const v=$('cUrl').value.trim();
   if(!/^https?:\/\//i.test(v)){toast('Cole um link que comece com https://');return}
-  CLIPS_U.unshift({id:'c'+Date.now().toString(36),cod:AE.cod,titulo:'',src:v}); salvaClips(); API.salvarClips(AE.cod,todosClips().filter(c=>c.cod===AE.cod)); $('cUrl').value=''; drawEClips(); toast('Clip adicionado ✓')});
+  CLIPS_U.unshift({id:'c'+Date.now().toString(36),cod:AE.cod,titulo:'',src:v});try{await salvaClips(AE.cod);$('cUrl').value='';drawEClips();toast('Link do clip publicado ✓')}catch(err){toast('Clip não salvo: '+err.message);window.SRPersistencia?.refreshClips().catch(()=>{})}});
+$('mAdm').addEventListener('click',async e=>{if(e.target.id!=='pubClipsLocais')return;try{await window.SRPersistencia.publishLegacyClips(AE.cod)}catch(err){toast('Clips antigos: '+err.message)}});
 ['dragenter','dragover'].forEach(ev=>$('mAdm').addEventListener(ev,e=>{const d=e.target.closest('#cDrop');if(d){e.preventDefault();d.classList.add('over')}}));
 ['dragleave','drop'].forEach(ev=>$('mAdm').addEventListener(ev,e=>{const d=e.target.closest('#cDrop');if(d){e.preventDefault();d.classList.remove('over');if(ev==='drop')addClipFiles(e.dataTransfer.files)}}));
 
