@@ -42,3 +42,24 @@
  body:has(#vLista:not([hidden]) .sticky) #souzinha-widget:not(.sz-open) .sz-fab{bottom:calc(196px + env(safe-area-inset-bottom,0px))}
 }
 @media(prefers-reduced-motion:reduce){#souzinha-widget .sz-fab{transition:none}}
+
+/* Conversa: sugestões explícitas, carregamento e leitura confortável no celular */
+#souzinha-widget .sz-messages{scrollbar-width:none;scroll-behavior:smooth}
+#souzinha-widget .sz-messages::-webkit-scrollbar{display:none}
+#souzinha-widget .sz-actions{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;flex:none}
+#souzinha-widget .sz-actions::-webkit-scrollbar{display:none}
+#souzinha-widget .sz-chip{white-space:nowrap;flex:none}
+#souzinha-widget .sz-suggestion{align-self:flex-start;display:inline-block;max-width:92%;text-align:left;background:#213c19;border:1px solid #97c44e;color:#e9f8dc;border-radius:12px;padding:9px 12px;font:inherit;font-size:11.5px;cursor:pointer}
+#souzinha-widget .sz-suggestion:hover{background:#2b4e20}
+#souzinha-widget .sz-msg.sz-error{border-color:#945d30;color:#ffe5b0}
+#souzinha-widget .sz-msg.sz-typing{opacity:.72}
+#souzinha-widget .sz-send:disabled{opacity:.55;cursor:wait}
+#souzinha-widget .sz-online{background:#8cca4a}
+@media(max-width:700px){
+ #souzinha-widget .sz-messages{flex:1;min-height:0;overflow-y:auto}
+ #souzinha-widget .sz-actions{padding:10px 12px}
+ #souzinha-widget .sz-footnote{padding-bottom:max(7px,env(safe-area-inset-bottom,0px))}
+ #souzinha-widget .sz-panel{height:100dvh;max-height:100dvh}
+ #souzinha-widget .sz-form{padding-bottom:10px}
+ #souzinha-widget .sz-fab{bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+}
