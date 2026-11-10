@@ -667,6 +667,27 @@ function render(){
     </article>`).join('') : '<div class="empty">Nenhum produto encontrado.</div>';
 }
 ['q','marca','ord','soSem'].forEach(id=>document.getElementById(id).addEventListener('input',render));
+/* Quando o cliente inicia uma busca no catálogo, apresenta os resultados sem
+   roubar o foco do campo de pesquisa. Executa apenas uma vez até limpar a busca. */
+const buscaTopo = document.getElementById('q');
+let buscaRolagemFeita = false, buscaRolagemTimer = null;
+buscaTopo.addEventListener('input', () => {
+  clearTimeout(buscaRolagemTimer);
+  if (!buscaTopo.value.trim()) { buscaRolagemFeita = false; return; }
+  if (buscaRolagemFeita) return;
+  buscaRolagemTimer = setTimeout(() => {
+    if (buscaRolagemFeita || !buscaTopo.value.trim() || document.getElementById('vCat').hidden) return;
+    const gridResultados = document.getElementById('grid');
+    const headerVisivel = document.querySelector('header');
+    const distanciaTopo = (headerVisivel ? headerVisivel.getBoundingClientRect().height : 0) + 12;
+    const destino = Math.max(0, window.scrollY + gridResultados.getBoundingClientRect().top - distanciaTopo);
+    if (destino > window.scrollY + 40) {
+      const movimentoReduzido = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      window.scrollTo({ top: destino, behavior: movimentoReduzido ? 'auto' : 'smooth' });
+    }
+    buscaRolagemFeita = true;
+  }, 400);
+});
 
 document.getElementById('edt').onclick=e=>{ if(!ADM)return;document.body.classList.toggle('edit');e.target.classList.toggle('on');render();updSem()};
 // modal de edição
