@@ -39,6 +39,6 @@
  #souzinha-widget .sz-messages{padding:16px 13px}
  #souzinha-widget .sz-actions{gap:7px}
  body.sz-chat-open{overflow:hidden}
- body:has(#vLista:not([style*="display: none"]) .sticky) #souzinha-widget:not(.sz-open) .sz-fab{bottom:calc(196px + env(safe-area-inset-bottom,0px))}
+ body:has(#vLista:not([hidden]) .sticky) #souzinha-widget:not(.sz-open) .sz-fab{bottom:calc(196px + env(safe-area-inset-bottom,0px))}
 }
 @media(prefers-reduced-motion:reduce){#souzinha-widget .sz-fab{transition:none}}
