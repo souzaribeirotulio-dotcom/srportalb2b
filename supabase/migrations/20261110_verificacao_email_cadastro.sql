@@ -49,7 +49,7 @@ begin
   end if;
   if p_hash !~ '^[0-9a-f]{64}$' then raise exception 'Token invalido.'; end if;
   select * into c from public.portal_clientes
-  where cnpj = regexp_replace(p_cnpj,'\\D','','g') for update;
+  where cnpj = regexp_replace(p_cnpj,'\D','','g') for update;
   if c.cnpj is null or c.status <> 'email_pendente'
      or lower(c.email) <> lower(trim(p_email)) then
     raise exception 'Cadastro nao encontrado ou ja confirmado.';
