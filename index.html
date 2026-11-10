@@ -1387,7 +1387,7 @@ function aplicaOv(cod){ const p=byCod[cod], o=ORIG[cod], v=PADM[cod]||{};
   p.f=p.f.map(([k,x])=>[k, k==='Marca'?p.m : k==='Vendido por'?p.u : k==='Categoria'?p.c : x]); }
 Object.keys(PADM).forEach(c=>byCod[c]&&aplicaOv(c));
 const salvaPADM=()=>LSS('sr_b2b_admin_prod',PADM);
-const salvaCfg=()=>{LSS('sr_b2b_cfg',CFG);return (USA_SB()&&window.SRPersistencia?API.salvarConfig(CFG):Promise.resolve(true)).catch(e=>{toast('Configuração não salva no servidor: '+e.message);return false})};
+const salvaCfg=()=>{LSS('sr_b2b_cfg',CFG);return (USA_SB()?(window.SRPersistencia?API.salvarConfig(CFG):Promise.reject(new Error('Módulo de sincronização indisponível'))):Promise.resolve(true)).catch(e=>{toast('Configuração não salva no servidor: '+e.message);return false})};
 const salvaCong=()=>{if(!USA_SB())LSS('sr_b2b_cong',CONG)};
 async function sincronizaCongeladosCliente(){
   if(!USA_SB()||!CNPJ||!CLI)return;
@@ -1620,10 +1620,26 @@ $('aImpF').onchange=async()=>{
       if(!window.confirm('Publicar as imagens importadas para todos os clientes?'))return;
       await importarFotosCompartilhadas(o.imagens);
     }
-    if(o.produtos){PADM=o.produtos;salvaPADM();P.forEach(p=>aplicaOv(p.cod))}
-    if(o.congelados){CONG=o.congelados;salvaCong()}
-    if(o.config){Object.assign(CFG,o.config);salvaCfg()}
-    render();drawAdm();toast('Importação do administrador concluída ✓');
+    if(o.produtos){
+ if(!o.produtos||typeof o.produtos!=='object'||Array.isArray(o.produtos))throw new Error('Produtos importados inválidos');
+ const entries=Object.entries(o.produtos).filter(([cod])=>!!byCod[cod]);
+ if(USA_SB()){
+  if(!confirm('Publicar '+entries.length+' edições de produtos do arquivo no Supabase? Elas poderão substituir edições atuais desses itens.'))return;
+  for(const [cod,v] of entries)await API.salvarProduto(cod,v);
+ }
+ PADM=Object.fromEntries(entries);salvaPADM();P.forEach(p=>aplicaOv(p.cod));
+}
+    if(o.congelados){
+ if(!o.congelados||typeof o.congelados!=='object'||Array.isArray(o.congelados))throw new Error('Preços importados inválidos');
+ if(USA_SB()){
+  const list=Object.entries(o.congelados).flatMap(([cn,precos])=>CLIENTES[cn]&&precos&&typeof precos==='object'?Object.entries(precos).map(([cod,preco])=>({cn,cod,preco})):[]);
+  if(list.length&&!confirm('Aplicar '+list.length+' preços personalizados do arquivo aos clientes cadastrados? Isso altera preços reais do portal.'))return;
+  for(const item of list){if(!byCod[item.cod]||!(Number(item.preco)>0))continue;await API.salvarPrecoCongelado(item.cn,item.cod,Number(item.preco))}
+  for(const cn of Object.keys(o.congelados))if(CLIENTES[cn])CONG[cn]=await API.buscarCongeladosAdmin(cn);
+ }else{CONG=o.congelados;salvaCong()}
+}
+    if(o.config){Object.assign(CFG,o.config);if(!await salvaCfg())throw new Error('Configurações importadas não foram confirmadas pelo servidor')}
+    render();drawAdm();toast('Importação publicada ✓ — confira o resultado em outro navegador');
   }catch(e){toast('Falha ao importar: '+e.message)}
 };
 $('aSair').onclick=sairConta;
