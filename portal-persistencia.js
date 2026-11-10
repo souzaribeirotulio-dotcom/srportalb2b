@@ -59,7 +59,9 @@ async function refreshConfig(){
  catch(e){if(!isAuthed)throw e;result=await rpc('portal_config_publica',{})}
  if(!own(result))throw new Error('Configurações não retornaram dados válidos');
  const previous=localJson('sr_b2b_cfg',null);
- if(own(previous)&&Object.keys(previous).length&&JSON.stringify(previous)!==JSON.stringify(result)){
+ const prevPublic=own(previous)?{...previous}:null;if(prevPublic)delete prevPublic.margemMin;
+ const publicCurrent=own(result)?{...result}:null;if(publicCurrent)delete publicCurrent.margemMin;
+ if(own(previous)&&Object.keys(previous).length&&JSON.stringify(prevPublic)!==JSON.stringify(publicCurrent)){
   // As configurações locais anteriores são preservadas para migração autorizada.
   if(!state.legacyCfg){state.legacyCfg=previous;savePending('sr_b2b_cfg_pendente_nuvem',previous)}
  }
@@ -74,7 +76,7 @@ async function refreshClips(){
  const data=await rpc('portal_clips_catalogo',{});
  if(!data||!Array.isArray(data.clips)||!Array.isArray(data.demo_off)||!own(data.demo_tt))throw new Error('Clips inválidos recebidos do servidor');
  const oldDemo=state.legacyDemo||{off:localJson('sr_b2b_clips_demo_off',[]),tt:localJson('sr_b2b_clips_demo_tt',{})};
- if(!state.legacyDemo&&(JSON.stringify(oldDemo.off)!==JSON.stringify(data.demo_off)||JSON.stringify(oldDemo.tt)!==JSON.stringify(data.demo_tt))){state.legacyDemo=oldDemo;savePending('sr_b2b_clips_demo_pendente_nuvem',oldDemo)}
+ if(!state.legacyDemo&&(oldDemo.off.length||Object.keys(oldDemo.tt||{}).length)&&(JSON.stringify(oldDemo.off)!==JSON.stringify(data.demo_off)||JSON.stringify(oldDemo.tt)!==JSON.stringify(data.demo_tt))){state.legacyDemo=oldDemo;savePending('sr_b2b_clips_demo_pendente_nuvem',oldDemo)}
  const prev=state.legacyClips||localJson('sr_b2b_clips',[]);
  const pending=(Array.isArray(prev)?prev:[]).filter(c=>c&&c.id&&!data.clips.some(r=>r.id===c.id));
  if(pending.length){state.legacyClips=pending;savePending('sr_b2b_clips_pendente_nuvem',pending)}
