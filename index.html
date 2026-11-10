@@ -472,6 +472,7 @@ textarea{resize:vertical}
 }
 </style>
 <link rel="stylesheet" href="/souzinha.css">
+<link rel="stylesheet" href="/portal-negociacao.css">
 </head>
 <body>
 <div class="fundo"><div class="grade"></div><div class="b1"></div><div class="b2"></div></div>
@@ -535,7 +536,7 @@ textarea{resize:vertical}
 <div class="view wrap" id="vAdm" hidden>
   <div class="ph"><div><h2>Painel do <em>administrador</em></h2><p>Edite nomes, descrições, preços, unidades alternativas e fotos. As alterações aparecem na hora no catálogo.</p></div>
     <div class="row"><button class="tool" id="aExp">⬇ Exportar</button><button class="tool" id="aImp">⬆ Importar</button><button class="tool" id="pubLocal" type="button">☁ Fotos antigas (verificando…)</button><button class="tool" id="pubImportFotos" type="button">⬆ Importar fotos</button><input type="file" id="aImpF" accept=".json" hidden><button class="tool" id="aSair">Sair do admin</button></div></div>
-  <div class="ltabs atabs"><button data-at="cli">Clientes <span class="mk" id="cliN" style="background:rgba(255,196,0,.18)"></span></button><button class="on" data-at="prod">Produtos</button><button data-at="cong">Preços congelados</button><button data-at="mrg">Margens <span class="mk" id="mrgN" style="background:rgba(255,107,107,.16);color:#ff8a8a"></span></button><button data-at="intel">Inteligência</button><button data-at="souzinha">🎓 Escola do Souzinha</button><button data-at="cfg">Configurações</button></div>
+  <div class="ltabs atabs"><button data-at="cli">Clientes <span class="mk" id="cliN" style="background:rgba(255,196,0,.18)"></span></button><button class="on" data-at="prod">Produtos</button><button data-at="cong">Preços congelados</button><button data-at="mrg">Margens <span class="mk" id="mrgN" style="background:rgba(255,107,107,.16);color:#ff8a8a"></span></button><button data-at="intel">Inteligência</button><button data-at="neg">Negociações</button><button data-at="souzinha">🎓 Escola do Souzinha</button><button data-at="cfg">Configurações</button></div>
   <div id="atProd">
   <div class="afil"><div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="aQ" type="search" placeholder="Buscar produto, marca ou código…"></div>
     <select id="aCat"><option value="">Todas as categorias</option></select>
@@ -568,13 +569,14 @@ textarea{resize:vertical}
     </div>
     <div id="intelPanel" aria-live="polite"></div>
   </div>
-  <div id="atSouzinha" hidden><div id="souzinhaEscola"></div></div>
+  <div id="atNeg" hidden><div id="negAdminView"></div></div>
+   <div id="atSouzinha" hidden><div id="souzinhaEscola"></div></div>
    <div id="atCfg" hidden><div class="panel cfgp" id="cfgPanel"></div></div>
 </div>
 
 <div class="view wrap" id="vPed" hidden>
   <div class="ph"><div><h2>Meus <em>Pedidos</em></h2><p>Acompanhe os pedidos feitos pelo portal.</p></div></div>
-  <div class="panel" id="pPanel"></div>
+  <div class="panel" id="pPanel"></div><div id="negClientView"></div>
 </div>
 
 <div class="shade" id="shade"></div>
@@ -582,7 +584,7 @@ textarea{resize:vertical}
   <div class="dh"><b>Seu carrinho</b><button id="dClose">×</button></div>
   <div class="db" id="dBody"></div>
   <div class="df"><div class="t"><span>Total</span><b id="dTot">R$ 0,00</b></div>
-    <button class="btn pri" style="width:100%" id="dGo">Finalizar pedido</button></div>
+    <button class="btn out" style="width:100%;margin-bottom:9px" id="dNeg">🤝 Solicitar negociação</button><button class="btn pri" style="width:100%" id="dGo">Finalizar pedido</button></div>
 </aside>
 
 <div class="mod" id="mLogin"><div class="box login">
@@ -1205,7 +1207,7 @@ function go(v,arg){ if(v==='adm'&&!ADM){openLogin(()=>go(v),'adm');return}
   VIEW=v; document.querySelectorAll('.hb[data-v],.tabbar [data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   const map={cat:'vCat',lista:'vLista',ped:'vPed',adm:'vAdm',clips:'vClips'}; document.body.classList.toggle('clipsmode',v==='clips'); if(v!=='clips')pauseClips(); document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==map[v]);
   document.querySelector('header nav').style.display=v==='cat'?'':'none';
-  if(v==='lista')drawLista(); if(v==='ped')drawPed(); if(v==='adm')drawAdm(); window.scrollTo(0,0); if(v==='clips')drawClips(arg); if(v==='lista'&&USA_SB()&&CLI)sincronizaCongeladosCliente().catch(e=>toast('Preços: '+e.message)); }
+  if(v==='lista')drawLista(); if(v==='ped'){drawPed();window.SRNegociacao?.renderClient();} if(v==='adm')drawAdm(); window.scrollTo(0,0); if(v==='clips')drawClips(arg); if(v==='lista'&&USA_SB()&&CLI)sincronizaCongeladosCliente().catch(e=>toast('Preços: '+e.message)); }
 document.querySelectorAll('.hb[data-v],.tabbar [data-v]').forEach(b=>b.onclick=()=>go(b.dataset.v));
 
 /* ---------- catálogo: quantidade / adicionar / lista ---------- */
@@ -1240,7 +1242,8 @@ function drawCart(){const it=cartItems();
     ${avisoEst(p,qtdBase(CART,p.cod))}
     <div class="r">${brl(pu(p,un)*q)}<br><button class="x">Remover</button></div></div>`).join(''):'<div class="empty2">Seu carrinho está vazio.</div>';
   $('dTot').textContent=brl(cartTot()); $('dGo').disabled=!it.length||(CFG.bloquear&&excede(CART).length>0);
-  $('dGo').textContent=CFG.bloquear&&excede(CART).length?'Ajuste as quantidades ao estoque':'Finalizar pedido';}
+  $('dGo').textContent=CFG.bloquear&&excede(CART).length?'Ajuste as quantidades ao estoque':'Finalizar pedido';
+  $('dNeg').disabled=!it.length;}
 $('dBody').addEventListener('click',e=>{const r=e.target.closest('.ci');if(!r)return;const c=r.dataset.c;
   if(e.target.dataset.d){CART[c]=Math.max(0,(CART[c]||0)+(+e.target.dataset.d));if(!CART[c])delete CART[c];saveCart()}
   if(e.target.classList.contains('x')){delete CART[c];saveCart()}});
@@ -1249,6 +1252,7 @@ const openCart=()=>need(()=>{drawCart();$('drawer').classList.add('open');$('sha
 const closeCart=()=>{$('drawer').classList.remove('open');$('shade').classList.remove('open')};
 $('cartBtn').onclick=openCart; $('dClose').onclick=closeCart; $('shade').onclick=closeCart;
 $('dGo').onclick=()=>{closeCart();checkout(cartItems(),'carrinho')};
+ $('dNeg').onclick=()=>{closeCart();window.SRNegociacao?.openFrom('carrinho')};
 
 /* ---------- Minha Lista ---------- */
 let LQ={}, LU={}; // quantidades e unidade escolhida na lista
@@ -1259,20 +1263,21 @@ function drawLista(){
   $('lPanel').innerHTML=`<div class="lrow h"><div></div><div>Produto</div><div>Histórico</div><div>Preço</div><div>Quantidade</div><div style="text-align:right">Subtotal</div></div>`+
    L.map(x=>{const un=unOf(x.p,LU[x.cod]), q=LQ[kOf(x.cod,un.id)]||0;return `<div class="lrow ${q?'sel':''}" data-c="${x.cod}"><img src="${imgUrl(x.p)}" referrerpolicy="no-referrer" onerror="this.src=ph(byCod['${x.cod}'])">
      <div class="nm">${esc(x.p.t)}<small>Cód. ${esc(x.cod)} · ${esc(x.p.m||'')}</small>${stkHtml(x.p)}${unselHtml(x.p,un.id,'sm')}<div class="lw">${avisoEst(x.p,qtdBase(LQ,x.cod))}</div></div>
-     <div class="hist">${x.dt?`Última compra: <b>${x.ult}</b> em ${fmtD(x.dt)}<br>Média: ${x.med} ${x.p.u.toLowerCase()}${x.med>1?'s':''}/pedido`:'Adicionado por você'}</div>
+     <div class="hist">${x.dt?`Última compra: <b>${x.ult}</b> em ${fmtD(x.dt)}<br>Média: ${x.med} ${x.p.u.toLowerCase()}${x.med>1?'s':''}/pedido`:'Adicionado por você'}${x.sug?'<br>Quantidade sugerida: <b>'+x.sug+'</b>':''}</div>
      <div class="pr">${brl(pu(x.p,un))}<small>/ ${unTxt(x.p,un).toLowerCase()}</small>${econ(x.p,un)?`<div class="ueq">${econ(x.p,un).replace(' · ','<br>')}</div>`:''}</div>
      <div class="qty"><button data-d="-1">−</button><input type="number" min="0" value="${q||''}" placeholder="0"><button data-d="1">+</button></div>
      <div class="sub2">${q?brl(q*pu(x.p,un)):'—'}</div></div>`}).join('')+
    `<div class="sticky"><div class="tt"><span id="lN"></span> Total:<b id="lT"></b></div>
-     <button class="btn out" id="lClr">Limpar</button><button class="btn out" id="lAdd">Adicionar ao carrinho</button><button class="btn pri" id="lBuy">Fechar pedido agora</button></div>`;
+     <button class="btn out" id="lClr">Limpar</button><button class="btn out" id="lAdd">Adicionar ao carrinho</button><button class="btn out" id="lNeg">🤝 Negociar valores</button><button class="btn pri" id="lBuy">Fechar pedido agora</button></div>`;
   updLista();
   $('lClr').onclick=()=>{LQ={};drawLista()};
   $('lAdd').onclick=()=>{const it=listaItems(); it.forEach(i=>CART[i.k]=(CART[i.k]||0)+i.q); saveCart(); LQ={}; drawLista(); toast(it.length+' produtos adicionados ao carrinho'); openCart()};
   $('lBuy').onclick=()=>checkout(listaItems(),'lista');
+   $('lNeg').onclick=()=>window.SRNegociacao?.openFrom('lista');
 }
 const listaItems=()=>itemsOf(LQ);
 function updLista(){const it=listaItems(),tot=it.reduce((s,i)=>s+lineTot(i),0);
-  $('lN').textContent=it.length?it.length+' itens ·':'Nenhum item ·'; $('lT').textContent=brl(tot); $('lAdd').disabled=$('lBuy').disabled=!it.length||(CFG.bloquear&&excede(LQ).length>0);}
+  $('lN').textContent=it.length?it.length+' itens ·':'Nenhum item ·'; $('lT').textContent=brl(tot); $('lAdd').disabled=$('lBuy').disabled=!it.length||(CFG.bloquear&&excede(LQ).length>0); $('lNeg').disabled=!it.length;}
 const rowK=row=>{const c=row.dataset.c;return kOf(c,unOf(byCod[c],LU[c]).id)};
 function setLQ(row,v){const c=row.dataset.c,un=unOf(byCod[c],LU[c]),k=kOf(c,un.id);v=Math.max(0,v|0);if(v)LQ[k]=v;else delete LQ[k];
   row.querySelector('.qty input').value=v||'';row.querySelector('.lw').innerHTML=avisoEst(byCod[c],qtdBase(LQ,c));row.querySelector('.sub2').textContent=v?brl(v*pu(byCod[c],un)):'—';row.classList.toggle('sel',!!v);updLista()}
@@ -1426,8 +1431,8 @@ function alertasMargem(){ const L=[], lim=CFG.margemMin;
 function updMrgBadge(){ const pend=Object.values(CLIENTES).filter(c=>c.status==='pendente').length, n=alertasMargem().baixo.length+pend; $('mrgN').textContent=alertasMargem().baixo.length||''; $('cliN').textContent=pend||''; document.querySelectorAll('[data-v=adm]').forEach(b=>{let s=b.querySelector('.bdg2'); if(!s){s=document.createElement('b');s.className='bdg bdg2';b.style.position='relative';b.appendChild(s)} s.textContent=n||''}); }
 let AT='prod';
 function drawAdm(){ document.querySelectorAll('[data-at]').forEach(b=>b.classList.toggle('on',b.dataset.at===AT));
-  $('atCli').hidden=AT!=='cli'; $('atProd').hidden=AT!=='prod'; $('atCong').hidden=AT!=='cong'; $('atMrg').hidden=AT!=='mrg'; $('atIntel').hidden=AT!=='intel'; $('atSouzinha').hidden=AT!=='souzinha'; $('atCfg').hidden=AT!=='cfg';
-  if(AT==='cli')drawCli(); if(AT==='prod')drawAProd(); if(AT==='cong')sincronizaCongeladosAdmin($('cgCli').value); if(AT==='mrg')drawMrg(); if(AT==='intel')drawIntel(); if(AT==='souzinha')window.SouzinhaEscola?.load(); if(AT==='cfg')drawCfg(); updMrgBadge(); }
+  $('atCli').hidden=AT!=='cli'; $('atProd').hidden=AT!=='prod'; $('atCong').hidden=AT!=='cong'; $('atMrg').hidden=AT!=='mrg'; $('atIntel').hidden=AT!=='intel'; $('atNeg').hidden=AT!=='neg'; $('atSouzinha').hidden=AT!=='souzinha'; $('atCfg').hidden=AT!=='cfg';
+  if(AT==='cli')drawCli(); if(AT==='prod')drawAProd(); if(AT==='cong')sincronizaCongeladosAdmin($('cgCli').value); if(AT==='mrg')drawMrg(); if(AT==='intel')drawIntel(); if(AT==='neg')window.SRNegociacao?.renderAdmin(); if(AT==='souzinha')window.SouzinhaEscola?.load(); if(AT==='cfg')drawCfg(); updMrgBadge(); }
 document.querySelectorAll('[data-at]').forEach(b=>b.onclick=()=>{AT=b.dataset.at;drawAdm()});
 $('aCat').innerHTML+=Object.keys(cats).sort().map(c=>`<option>${c}</option>`).join('');
 ['aQ','aCat','aSt'].forEach(id=>$(id).addEventListener('input',drawAProd));
@@ -1851,10 +1856,11 @@ async function drawCli(refetch=true){ if(USA_SB()&&refetch){ $('clPanel').innerH
     <div class="nm"><b>${esc(c.fantasia||c.nome)}</b><small>${fmtCNPJ(c.cnpj)} · ${esc(c.nome||'')}</small><small>IE: ${esc(c.inscricao_estadual||'não informada')}${c.email?' · '+esc(c.email):''}</small><small>${esc(c.origem||'')}${c.whats?' · '+fmtTel(c.whats):''}</small></div>
     <div class="sm sm2">${c.codigo?esc(c.codigo):'<span style="color:var(--tx3)">—</span>'}</div><div class="sm">${esc(c.cidade||'')}${c.uf?'/'+c.uf:''}${c.codigo?'<span class="som"> · cód. '+esc(c.codigo)+'</span>':''}</div>
     <div class="stw"><span class="stt ${c.status}">${{pendente:'Aguardando',aprovado:'Aprovado',reprovado:'Reprovado',bloqueado:'Bloqueado'}[c.status]||c.status}</span></div>
-    <div class="ab2">${c.status==='pendente'?'<button class="ap" data-ap>Aprovar</button><button class="rp" data-rp>Reprovar</button>':''}<button data-ed>Editar</button></div></div>`).join(''):'<div class="empty2">Nenhum cliente encontrado.</div>'); }
+    <div class="ab2">${c.status==='pendente'?'<button class="ap" data-ap>Aprovar</button><button class="rp" data-rp>Reprovar</button>':''}<button data-lista>⭐ Minha Lista</button><button data-ed>Editar</button></div></div>`).join(''):'<div class="empty2">Nenhum cliente encontrado.</div>'); }
 $('clPanel').addEventListener('click',async e=>{const r=e.target.closest('.crow2[data-c]');if(!r)return;const cn=r.dataset.c;
   if(e.target.matches('[data-ap]')){await API.salvarClienteAdmin(cn,{status:'aprovado'});drawCli();updMrgBadge();toast('Cliente aprovado ✓ — avise pelo WhatsApp '+fmtTel(CLIENTES[cn].whats));return}
   if(e.target.matches('[data-rp]')){await API.salvarClienteAdmin(cn,{status:'reprovado'});drawCli();updMrgBadge();toast('Cadastro reprovado');return}
+  if(e.target.matches('[data-lista]')){window.SRListaAdmin?.open(cn);return}
   if(e.target.matches('[data-ed]'))openCliAdm(cn);});
 $('clNovo').onclick=()=>openCliAdm(null);
 function openCliAdm(cn){ $('cadBox').innerHTML=''; $('mCad').classList.remove('open'); const d=cn?{cnpj:cn,...CLIENTES[cn]}:{status:'aprovado'};
@@ -1976,6 +1982,8 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)carregarFo
 setInterval(()=>{if(!document.hidden)carregarFotosCompartilhadas().catch(()=>{});},60000);
 atualizarBotaoFotosLocais();
 </script>
+<script defer src="/portal-listas-admin.js"></script>
+<script defer src="/portal-negociacao.js"></script>
 <script defer src="/souzinha-escola.js"></script>
 <script defer src="/souzinha.js"></script>
 </body>
