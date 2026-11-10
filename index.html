@@ -643,24 +643,88 @@ document.getElementById('tot').textContent = P.length; document.getElementById('
    A Movimento deverá persistir as palavras-chave para todos os usuários via API. */
 const BUSCA_PADRAO = {"101430":"acai açai copo para acai copo liso para acai sobremesa sorveteria milkshake","000864":"acai açai copo para acai copo liso para acai sobremesa sorveteria milkshake","001897":"acai açai copo para acai copo liso para acai sobremesa sorveteria milkshake"};
 const BUSCA_STOP = new Set(['a','o','as','os','de','da','do','das','dos','para','pra','por','com','sem','um','uma','e','em','no','na']);
-const termosBusca = valor => norm(valor||'').split(/[^a-z0-9]+/).filter(Boolean)
-  .filter(w=>!BUSCA_STOP.has(w))
-  .map(w=>w.length>3 && w.endsWith('s') ? w.slice(0,-1) : w);
-const textoBusca = p => norm([p.t,p.m,p.cod,p.c,p.d,p.ncm||'',BUSCA_PADRAO[p.cod]||'',p.tagsBusca||''].join(' '));
-const pontosBusca = (p,termos) => {
-  const nome=norm(p.t), marca=norm(p.m||''), tags=norm((BUSCA_PADRAO[p.cod]||'')+' '+(p.tagsBusca||''));
-  return termos.reduce((s,t)=>s+(nome.includes(t)?5:0)+(tags.includes(t)?3:0)+(marca.includes(t)?1:0),0);
+/* Sinônimos: palavras equivalentes; situações específicas ficam em tags do produto. */
+const SINONIMOS_PADRAO = 'marmita, marmitex, quentinha, marmitinha\nisopor, eps\nsacola, sacolinha\ninterfolha, interfolhado';
+const formaTermo = w => {
+  w=norm(String(w)).replace(/[\u0300-\u036f]/g,'');
+  if(w.length>5 && w.endsWith('gens')) return w.replace(/gens$/,'gem');
+  if(w.length>5 && w.endsWith('oes')) return w.replace(/oes$/,'ao');
+  return w.length>3&&w.endsWith('s')?w.slice(0,-1):w;
 };
-
+const termosBusca = valor => norm(String(valor||'')).replace(/[\u0300-\u036f]/g,'')
+  .split(/[^a-z0-9]+/).filter(Boolean).filter(w=>!BUSCA_STOP.has(w)).map(formaTermo);
+let cacheSinonimos={texto:null,termos:new Map()};
+function mapaSinonimos(){
+  const texto=String(CFG.buscaSinonimos??SINONIMOS_PADRAO);
+  if(cacheSinonimos.texto===texto)return cacheSinonimos.termos;
+  const mapa=new Map();
+  for(const linha of texto.split(/\r?\n/).slice(0,150)){
+    const grupo=linha.split(/[,;]/).map(x=>termosBusca(x)).filter(a=>a.length===1).map(a=>a[0]).slice(0,20);
+    if(grupo.length<2)continue;
+    for(const termo of grupo)mapa.set(termo,grupo[0]);
+  }
+  cacheSinonimos={texto,termos:mapa};return mapa;
+}
+const buscaCanonica=(termo,mapa)=>mapa.get(termo)||termo;
+const textoProdutoBusca=p=>[p.t,p.m,p.cod,p.c,p.d,p.ncm||'',BUSCA_PADRAO[p.cod]||'',p.tagsBusca||''].join(' ');
+const cacheBuscaProdutos=new Map();
+function indiceBusca(p,mapa){
+  const texto=textoProdutoBusca(p),versao=cacheSinonimos.texto;
+  const c=cacheBuscaProdutos.get(p.cod);
+  if(c&&c.texto===texto&&c.versao===versao)return c;
+  const palavras=termosBusca(texto),canonicas=palavras.map(w=>buscaCanonica(w,mapa));
+  const idx={texto,versao,palavras,canonicas};cacheBuscaProdutos.set(p.cod,idx);return idx;
+}
+function buscaExata(p,termos,mapa){
+  const idx=indiceBusca(p,mapa);
+  return termos.every(t=>idx.canonicas.some(w=>w.includes(buscaCanonica(t,mapa))));
+}
+/* Corrige no máximo uma letra ou transposição, só se não houve resultado exato.
+   A tolerância é aplicada ao termo real, nunca ao sinônimo expandido. */
+function erroUm(a,b){
+  if(a===b)return true;
+  if(Math.abs(a.length-b.length)>1)return false;
+  if(a.length===b.length){
+    const dif=[];for(let i=0;i<a.length;i++)if(a[i]!==b[i])dif.push(i);
+    return dif.length===1||(dif.length===2&&dif[1]===dif[0]+1&&a[dif[0]]===b[dif[1]]&&a[dif[1]]===b[dif[0]]);
+  }
+  const menor=a.length<b.length?a:b,maior=a.length<b.length?b:a;
+  let i=0,j=0,erros=0;
+  while(i<menor.length&&j<maior.length){
+    if(menor[i]===maior[j]){i++;j++;}else{erros++;j++;if(erros>1)return false;}
+  }
+  return true;
+}
+function buscaComErro(p,termos,mapa){
+  const idx=indiceBusca(p,mapa);
+  let erros=0;
+  for(const t of termos){
+    if(idx.canonicas.some(w=>w.includes(buscaCanonica(t,mapa))))continue;
+    if(t.length<5||!/^[a-z]+$/.test(t)||!idx.palavras.some(w=>w.length>=5&&erroUm(t,w)))return false;
+    if(++erros>1)return false;
+  }
+  return erros===1;
+}
+const pontosBusca=(p,termos,mapa)=>{
+  const nome=termosBusca(p.t),tags=termosBusca((BUSCA_PADRAO[p.cod]||'')+' '+(p.tagsBusca||'')),descricao=termosBusca(p.d||'');
+  return termos.reduce((s,t)=>{
+    const c=buscaCanonica(t,mapa);
+    return s+(nome.includes(t)?12:nome.some(w=>buscaCanonica(w,mapa)===c)?8:0)
+      +(tags.some(w=>buscaCanonica(w,mapa)===c)?4:0)
+      +(descricao.some(w=>buscaCanonica(w,mapa)===c)?1:0);
+  },0);
+};
 function render(){
   const q = norm(document.getElementById('q').value.trim());
   const termos = termosBusca(q);
+  const mapa=mapaSinonimos();
   const m = document.getElementById('marca').value, o = document.getElementById('ord').value;
   const so=document.getElementById('soSem').checked && document.body.classList.contains('edit');
-  let L = P.filter(p => (ADM || visivel(p)) && (!cat||p.c===cat) && (!m||p.m===m) && (!so || precisa(p)) &&
-    (!termos.length || termos.every(w => textoBusca(p).includes(w))));
+  const elegiveis=P.filter(p=>(ADM||visivel(p))&&(!cat||p.c===cat)&&(!m||p.m===m)&&(!so||precisa(p)));
+  let L=termos.length?elegiveis.filter(p=>buscaExata(p,termos,mapa)):elegiveis;
+  if(!L.length&&termos.length)L=elegiveis.filter(p=>buscaComErro(p,termos,mapa));
   if(o==='menor') L.sort((a,b)=>base(a)-base(b)); else if(o==='maior') L.sort((a,b)=>base(b)-base(a));
-  else L.sort((a,b)=>(termos.length?pontosBusca(b,termos)-pontosBusca(a,termos):0)||a.t.localeCompare(b.t,'pt'));
+  else L.sort((a,b)=>(termos.length?pontosBusca(b,termos,mapa)-pontosBusca(a,termos,mapa):0)||a.t.localeCompare(b.t,'pt'));
   document.getElementById('cnt').innerHTML = `<b>${L.length}</b> produto${L.length!==1?'s':''}`;
   document.getElementById('grid').innerHTML = L.length ? L.map(p=>`
     <article class="card ${precisa(p)?'noimg':''}" data-i="${P.indexOf(p)}">
@@ -876,7 +940,7 @@ const FERIADOS_PADRAO=[["2026-01-01","Confraternização Universal"],["2026-04-0
  ["2027-01-01","Confraternização Universal"],["2027-03-26","Sexta-feira Santa"],["2027-04-21","Tiradentes"],["2027-05-01","Dia do Trabalho"],["2027-05-27","Corpus Christi (Uberlândia)"],["2027-08-15","N. Sra. da Abadia (Uberlândia)"],["2027-08-31","Aniversário de Uberlândia"],["2027-09-07","Independência"],["2027-10-12","N. Sra. Aparecida"],["2027-11-02","Finados"],["2027-11-15","Proclamação da República"],["2027-11-20","Consciência Negra"],["2027-12-25","Natal"]];
 const CFG = Object.assign({soEstoque:true, bloquear:true,
   formas:[{id:"pix",nome:"PIX",obs:"Pagamento à vista"},{id:"din",nome:"Dinheiro na entrega",obs:"Pagamento ao receber"},{id:"b14",nome:"Boleto 14 dias",obs:"Vencimento 14 dias após faturamento"},{id:"b28",nome:"Boleto 28 dias",obs:"Vencimento 28 dias após faturamento"},{id:"b2856",nome:"Boleto 28/56 dias",obs:"2 parcelas"}],
-  vendedores:["Carlos","Ana"], feriados:FERIADOS_PADRAO, pagPadrao:["pix"]}, (()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_cfg'))||{}}catch(e){return {}}})());
+  vendedores:["Carlos","Ana"], feriados:FERIADOS_PADRAO, pagPadrao:["pix"], buscaSinonimos:SINONIMOS_PADRAO}, (()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_cfg'))||{}}catch(e){return {}}})());
 let CONG = (()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_cong'))||null}catch(e){return null}})() || {"12345678000190":{"4200":4.49,"400801":22.90,"001482":27.50}}; // exemplo de preços congelados
 const congOf = p => (typeof CNPJ!=='undefined'&&CNPJ&&CONG[CNPJ]&&CONG[CNPJ][p.cod]!=null) ? CONG[CNPJ][p.cod] : null;
 const base = p => congOf(p) ?? p.p;
@@ -1228,6 +1292,11 @@ function drawCfg(){ $('cfgPanel').innerHTML=[['soEstoque','Mostrar somente produ
      <div class="fxurl" style="margin-top:6px"><input id="cfFN" placeholder="Nova forma (ex.: Boleto 21 dias)"><input id="cfFO" placeholder="Observação (opcional)"><button class="btn sec" id="cfFA">Adicionar</button></div>
      <div style="margin-top:12px;font-size:12px;color:var(--tx2)">Liberadas automaticamente para cadastros novos:</div>
      <div class="chks" style="margin-top:6px">${CFG.formas.map(f=>`<label><input type="checkbox" data-pp="${f.id}" ${CFG.pagPadrao.includes(f.id)?'checked':''}>${esc(f.nome)}</label>`).join('')}</div></div>
+   <div class="ci2" style="display:block"><b>Sinônimos do motor de busca</b>
+     <small>Uma linha por grupo de palavras equivalentes, separadas por vírgula. Ex.: marmita, marmitex, quentinha. Para aplicações específicas, use as palavras-chave na edição de cada produto.</small>
+     <textarea class="inp" id="cfBuscaSinonimos" rows="5" style="width:100%;margin-top:10px" spellcheck="false">${esc(CFG.buscaSinonimos??SINONIMOS_PADRAO)}</textarea>
+     <div class="row" style="margin-top:8px"><button class="btn sec" id="cfBuscaSalvar">Salvar sinônimos</button></div>
+     <small style="margin-top:8px">Por enquanto, alterações manuais ficam neste navegador até a integração com a Movimento.</small></div>
    <div class="ci2" style="display:block"><b>Vendedores</b><small>Aparecem no cadastro em "Como conheceu a Souza Ribeiro?" e no cadastro do cliente.</small>
      <div style="margin-top:10px">${CFG.vendedores.map(v=>`<span class="tagl">${esc(v)} <button data-rmv="${esc(v)}">×</button></span>`).join('')}</div>
      <div class="fxurl" style="margin-top:6px"><input id="cfVN" placeholder="Nome do vendedor"><button class="btn sec" id="cfVA">Adicionar</button></div></div>
@@ -1238,6 +1307,7 @@ function drawCfg(){ $('cfgPanel').innerHTML=[['soEstoque','Mostrar somente produ
   if(USA_SB()){ $('cfgPanel').insertAdjacentHTML('afterbegin',`<div class="ci2" style="display:block"><b>Administradores do portal</b><small>Quem pode entrar no painel do administrador. Cada um entra com o próprio usuário e senha.</small><div id="cfAdm" style="margin-top:10px">Carregando…</div>
      <div class="fgrid" style="margin-top:8px"><div><label>Usuário</label><input class="inp" id="cfAU" placeholder="ex.: carlos"></div><div><label>Nome</label><input class="inp" id="cfAN" placeholder="Nome da pessoa"></div>
      <div class="full"><label>Senha (mín. 6 caracteres)</label><div class="fxurl"><input class="inp" id="cfAS" type="text" placeholder="Para usuário existente, digite só se quiser trocar"><button class="btn sec" id="cfAA">Salvar usuário</button></div></div></div><div class="err" id="cfAE"></div></div>`); drawAdmins(); }
+  $('cfBuscaSalvar').onclick=()=>{CFG.buscaSinonimos=$('cfBuscaSinonimos').value.trim();salvaCfg();render();toast('Sinônimos atualizados neste navegador ✓')};
   $('cfMg').onchange=()=>{CFG.margemMin=+$('cfMg').value||0;salvaCfg();updMrgBadge()};
   $('cfFA').onclick=()=>{const n=$('cfFN').value.trim(); if(!n)return; CFG.formas.push({id:'f'+Date.now().toString(36),nome:n,obs:$('cfFO').value.trim()}); salvaCfg(); drawCfg()};
   $('cfVA').onclick=()=>{const n=$('cfVN').value.trim(); if(!n||CFG.vendedores.includes(n))return; CFG.vendedores.push(n); salvaCfg(); drawCfg()};
