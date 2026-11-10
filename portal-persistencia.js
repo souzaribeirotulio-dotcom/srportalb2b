@@ -8,6 +8,7 @@ const BKT='portal-clips';
 const localJson=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}};
 const safeCopy=o=>JSON.parse(JSON.stringify(o));
 const own=(obj)=>obj&&typeof obj==='object'&&!Array.isArray(obj);
+const cloudCachePreviouslyInitialized=localStorage.getItem('sr_b2b_persistencia_sincronizada_v1')==='1';
 const state={
  ready:{prod:false,cfg:false,clips:false},
  legacyProd:localJson('sr_b2b_admin_prod_pendente_nuvem',null),
@@ -36,7 +37,7 @@ function showControls(){
 async function refreshCatalog(){
  const d=await rpc('portal_catalogo_personalizacoes',{});
  if(!own(d))throw new Error('Catálogo não retornou dados válidos');
- const old=state.legacyProd||localJson('sr_b2b_admin_prod',{});
+ const old=state.legacyProd||(!cloudCachePreviouslyInitialized?localJson('sr_b2b_admin_prod',{}):{});
  const pending={};
  if(own(old))for(const [cod,v] of Object.entries(old))if(byCod[cod]&&JSON.stringify(v)!==JSON.stringify(d[cod]))pending[cod]=v;
  if(Object.keys(pending).length){
@@ -58,7 +59,7 @@ async function refreshConfig(){
  try{result=await rpc(isAuthed?'portal_admin_config':'portal_config_publica',isAuthed?{p_token:tokGet('sr_b2b_tokadm')}:{})}
  catch(e){if(!isAuthed)throw e;result=await rpc('portal_config_publica',{})}
  if(!own(result))throw new Error('Configurações não retornaram dados válidos');
- const previous=localJson('sr_b2b_cfg',null);
+ const previous=cloudCachePreviouslyInitialized?null:localJson('sr_b2b_cfg',null);
  const prevPublic=own(previous)?{...previous}:null;if(prevPublic)delete prevPublic.margemMin;
  const publicCurrent=own(result)?{...result}:null;if(publicCurrent)delete publicCurrent.margemMin;
  if(own(previous)&&Object.keys(previous).length&&JSON.stringify(prevPublic)!==JSON.stringify(publicCurrent)){
@@ -75,9 +76,9 @@ function salvaCfgLocal(){try{localStorage.setItem('sr_b2b_cfg',JSON.stringify(CF
 async function refreshClips(){
  const data=await rpc('portal_clips_catalogo',{});
  if(!data||!Array.isArray(data.clips)||!Array.isArray(data.demo_off)||!own(data.demo_tt))throw new Error('Clips inválidos recebidos do servidor');
- const oldDemo=state.legacyDemo||{off:localJson('sr_b2b_clips_demo_off',[]),tt:localJson('sr_b2b_clips_demo_tt',{})};
+ const oldDemo=state.legacyDemo||{off:cloudCachePreviouslyInitialized?[]:localJson('sr_b2b_clips_demo_off',[]),tt:cloudCachePreviouslyInitialized?{}:localJson('sr_b2b_clips_demo_tt',{})};
  if(!state.legacyDemo&&(oldDemo.off.length||Object.keys(oldDemo.tt||{}).length)&&(JSON.stringify(oldDemo.off)!==JSON.stringify(data.demo_off)||JSON.stringify(oldDemo.tt)!==JSON.stringify(data.demo_tt))){state.legacyDemo=oldDemo;savePending('sr_b2b_clips_demo_pendente_nuvem',oldDemo)}
- const prev=state.legacyClips||localJson('sr_b2b_clips',[]);
+ const prev=state.legacyClips||(!cloudCachePreviouslyInitialized?localJson('sr_b2b_clips',[]):[]);
  const pending=(Array.isArray(prev)?prev:[]).filter(c=>c&&c.id&&!data.clips.some(r=>r.id===c.id));
  if(pending.length){state.legacyClips=pending;savePending('sr_b2b_clips_pendente_nuvem',pending)}
  state.remoteClips=safeCopy(data.clips);
@@ -198,6 +199,7 @@ async function init(){
  const labels=['produtos','configurações','clips'];
  for(let i=0;i<results.length;i++)if(results[i].status==='rejected')
   console.warn('Falha ao carregar '+labels[i]+' do Supabase:',results[i].reason?.message);
+ if(results.every(x=>x.status==='fulfilled')){try{localStorage.setItem('sr_b2b_persistencia_sincronizada_v1','1')}catch{}}
  showControls();
 }
 window.SRPersistencia={init,refreshCatalog,refreshConfig,refreshClips,saveProduct,saveConfig,saveClips,uploadClip,
