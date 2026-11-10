@@ -536,7 +536,7 @@ textarea{resize:vertical}
 <div class="view wrap" id="vAdm" hidden>
   <div class="ph"><div><h2>Painel do <em>administrador</em></h2><p>Edite nomes, descrições, preços, unidades alternativas e fotos. As alterações aparecem na hora no catálogo.</p></div>
     <div class="row"><button class="tool" id="aExp">⬇ Exportar</button><button class="tool" id="aImp">⬆ Importar</button><button class="tool" id="pubLocal" type="button">☁ Fotos antigas (verificando…)</button><button class="tool" id="pubImportFotos" type="button">⬆ Importar fotos</button><input type="file" id="aImpF" accept=".json" hidden><button class="tool" id="aSair">Sair do admin</button></div></div>
-  <div class="ltabs atabs"><button data-at="cli">Clientes <span class="mk" id="cliN" style="background:rgba(255,196,0,.18)"></span></button><button class="on" data-at="prod">Produtos</button><button data-at="cong">Preços congelados</button><button data-at="mrg">Margens <span class="mk" id="mrgN" style="background:rgba(255,107,107,.16);color:#ff8a8a"></span></button><button data-at="intel">Inteligência</button><button data-at="neg">Negociações</button><button data-at="souzinha">🎓 Escola do Souzinha</button><button data-at="cfg">Configurações</button></div>
+  <div class="ltabs atabs"><button data-at="cli">Clientes <span class="mk" id="cliN" style="background:rgba(255,196,0,.18)"></span></button><button class="on" data-at="prod">Produtos</button><button data-at="cong">Preços congelados</button><button data-at="mrg">Margens <span class="mk" id="mrgN" style="background:rgba(255,107,107,.16);color:#ff8a8a"></span></button><button data-at="intel">Inteligência</button><button data-at="neg">Negociações <span class="mk" id="negN" style="background:rgba(255,196,0,.18)"></span></button><button data-at="souzinha">🎓 Escola do Souzinha</button><button data-at="cfg">Configurações</button></div>
   <div id="atProd">
   <div class="afil"><div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="aQ" type="search" placeholder="Buscar produto, marca ou código…"></div>
     <select id="aCat"><option value="">Todas as categorias</option></select>
@@ -1140,7 +1140,9 @@ const CFG = Object.assign({soEstoque:true, bloquear:true,
 let CONG = USA_SB()?{}:((()=>{try{return JSON.parse(localStorage.getItem('sr_b2b_cong'))||null}catch(e){return null}})() || {"12345678000190":{"4200":4.49,"400801":22.90,"001482":27.50}}); // Supabase: somente preços lidos do servidor
 const congOf = p => (typeof CNPJ!=='undefined'&&CNPJ&&CONG[CNPJ]&&CONG[CNPJ][p.cod]!=null) ? CONG[CNPJ][p.cod] : null;
 const base = p => congOf(p) ?? p.p;
-const pu = (p,un) => { const c=congOf(p); if(!un.id) return base(p); return c!=null ? +(c*un.fator).toFixed(2) : (un.preco ?? +(p.p*un.fator).toFixed(2)); };
+let NEGP = {}; // preços de negociações aceitas e válidas: {'cod' ou 'cod@un': {preco,id,validade}}
+const negOf = (p,un) => NEGP[kOf(p.cod,(un&&un.id)||'')] || null;
+const pu = (p,un) => { const n=negOf(p,un); if(n) return n.preco; const c=congOf(p); if(!un.id) return base(p); return c!=null ? +(c*un.fator).toFixed(2) : (un.preco ?? +(p.p*un.fator).toFixed(2)); };
 const fmtQ = n => (+n).toLocaleString('pt-BR',{maximumFractionDigits:2});
 const stkHtml = p => p.s<=0 ? '<div class="stk no">Sem estoque</div>' : p.s<10 ? `<div class="stk low">Últimas ${fmtQ(p.s)} ${p.u.toLowerCase()}${p.s>1?'s':''}</div>` : '<div class="stk ok">Em estoque</div>';
 const vePreco = () => !!(typeof CLI!=='undefined'&&CLI) || (typeof ADM!=='undefined'&&ADM);
@@ -1170,6 +1172,7 @@ async function loadCli(c, info){
     lista:fonte.map(l=>({cod:l.cod,ult:l.ult??l.ultima_qtd??0,dt:l.dt??l.ultima_data??'',med:l.med??l.media_qtd??0,sug:l.sug??l.qtd_sugerida??0})).filter(l=>byCod[l.cod])};
   CART=LSG('sr_b2b_cart_'+c,{}); if(USA_SB()){LQ={};CLI.lista.forEach(l=>{if(l.sug>0)LQ[kOf(l.cod,'')]=l.sug});} document.body.classList.add('logged'); drawUser(); updCart();
   if(USA_SB())await sincronizaCongeladosCliente();
+  window.SRNegociacao?.onLogin?.();
 }
 let srListaSync=Promise.resolve();
  const saveLista=()=>{
@@ -1250,7 +1253,7 @@ const cartTot=()=>cartItems().reduce((s,i)=>s+lineTot(i),0);
 function updCart(){const n=cartItems().length;$('cartN').textContent=n||'';drawCart()}
 function drawCart(){const it=cartItems();
   $('dBody').innerHTML=it.length?it.map(({p,q,un,k})=>`<div class="ci" data-c="${k}"><img src="${imgUrl(p)}" referrerpolicy="no-referrer" onerror="this.src=ph(byCod['${p.cod}'])">
-    <div class="n">${esc(p.t)}<small>${brl(pu(p,un))} / ${unTxt(p,un).toLowerCase()}</small>
+    <div class="n">${esc(p.t)}<small>${brl(pu(p,un))} / ${unTxt(p,un).toLowerCase()}${negOf(p,un)?` <span class="neg-tag" title="Preço da negociação ${esc(negOf(p,un).id)}">🤝 negociado até ${fmtD(negOf(p,un).validade)}</span>`:''}</small>
     <div class="qty" style="margin-top:6px;width:max-content"><button data-d="-1">−</button><input type="number" min="0" value="${q}"><button data-d="1">+</button></div></div>
     ${avisoEst(p,qtdBase(CART,p.cod))}
     <div class="r">${brl(pu(p,un)*q)}<br><button class="x">Remover</button></div></div>`).join(''):'<div class="empty2">Seu carrinho está vazio.</div>';
@@ -1433,7 +1436,7 @@ const margem=(preco,custo)=>preco>0&&custo>0?(preco-custo)/preco*100:null;
 const mgCls=m=>m==null?'':m<CFG.margemMin?'bad':m<CFG.margemMin+10?'mid':'ok';
 if(CFG.margemMin==null)CFG.margemMin=25;
 function setAdm(on){ ADM=on; LSS('sr_b2b_admin',on); document.body.classList.toggle('admin',on);
-  if(!on){ document.body.classList.remove('edit'); $('edt').classList.remove('on'); $('mod').classList.remove('open'); $('mAdm').classList.remove('open'); render(); } drawUser(); window.SRPersistencia?.showControls() }
+  if(!on){ document.body.classList.remove('edit'); $('edt').classList.remove('on'); $('mod').classList.remove('open'); $('mAdm').classList.remove('open'); render(); } drawUser(); window.SRPersistencia?.showControls(); if(on)setTimeout(()=>window.SRNegociacao?.carregaAdmin?.(),300) }
 function alertasMargem(){ const L=[], lim=CFG.margemMin;
   P.forEach(p=>{ if(!(p.k>0))return;
     const m=margem(p.p,p.k); L.push({p,src:'Preço de tabela',tipo:'tab',preco:p.p,custo:p.k,m});
@@ -2075,9 +2078,20 @@ window.SRListaAdminBridge={
  }
 };
 window.SRNegociacaoBridge={
- customer:()=>CLI?{cnpj:CNPJ,nome:CLI.nome,vendedor:CLI.vendedor}:null,
+ online:()=>USA_SB(),
+ rpc:(fn,args)=>rpc(fn,args),
+ tokCli:()=>tokGet('sr_b2b_tok'),
+ tokAdm:()=>tokGet('sr_b2b_tokadm'),
+ produto:cod=>{const p=byCod[cod];return p?{cod:p.cod,nome:p.t,preco:p.p,custo:p.k,unidade:p.u,estoque:p.s}:null},
+ margemMin:()=>Number(CFG.margemMin)||25,
+ setPrecos:obj=>{NEGP=obj||{};if(CLI){updCart();if($('drawer').classList.contains('open'))drawCart();if(VIEW==='lista')drawLista();}},
+ addCart:itens=>{itens.forEach(i=>{if(byCod[i.cod]){const k=kOf(i.cod,i.un_id||'');CART[k]=(CART[k]||0)+Number(i.q)}});saveCart();openCart()},
+ refreshCong:()=>USA_SB()&&CLI?sincronizaCongeladosCliente():null,
+ toast:m=>toast(m),
+ irPedidos:()=>go('ped'),
+ customer:()=>CLI?{cnpj:CNPJ,nome:CLI.fantasia||CLI.nome,vendedor:CLI.vendedor}:null,
  isAdmin:()=>!!ADM&&(!USA_SB()||!!tokGet('sr_b2b_tokadm')),
- items:source=>(source==='lista'?listaItems():cartItems()).map(i=>({cod:i.p.cod,nome:i.p.t,q:i.q,preco:pu(i.p,i.un),unidade:unTxt(i.p,i.un),un_id:i.un.id})),
+ items:source=>(source==='lista'?listaItems():cartItems()).map(i=>({cod:i.p.cod,nome:i.p.t,q:i.q,preco:pu(i.p,i.un),unidade:unTxt(i.p,i.un),un_id:i.un.id||'',fator:i.un.id?i.un.fator:1})),
  sample:()=>['124514','22','001482'].map(cod=>{const p=byCod[cod];return p?{cod:p.cod,nome:p.t,q:5,preco:p.p,unidade:p.u,un_id:'',ultima_qtd:0,media_qtd:0}:null}).filter(Boolean)
 };
 

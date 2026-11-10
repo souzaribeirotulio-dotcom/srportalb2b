@@ -1,0 +1,7 @@
+-- Negociações B2B (aplicada no projeto cvhcgihumdvytjvbkxvt via migration "portal_negociacoes").
+-- Tabela portal_negociacoes (RLS sem políticas; acesso só por funções SECURITY DEFINER com token de sessão):
+--   cliente: portal_negociacao_criar, portal_minhas_negociacoes, portal_negociacao_aceitar, portal_negociacao_cancelar
+--   admin:   portal_admin_negociacoes, portal_admin_responder_negociacao(acao: analise|proposta|recusada)
+-- Status: solicitada → analise → proposta (validade) → aceita | recusada | cancelada (expirada = proposta vencida)
+-- Ao aceitar com congelar=true, os preços oferecidos viram preço congelado do cliente (portal_precos_congelados).
+-- Integração G360: pedido criado com preço negociado traz o preço do item já aplicado; a negociação pode ser lida por id.

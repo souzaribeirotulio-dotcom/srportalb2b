@@ -104,3 +104,25 @@
  .srla-item-controls{gap:10px}
  .srla-item-controls .srla-check{min-width:100%;padding-bottom:0}
 }
+/* === Negociação integrada (Supabase) === */
+.neg-stage.s-cancelada,.neg-stage.s-expirada{background:#3a3f37;color:#c6cfc0}
+.neg-stage.s-analise{background:#2a4a5b;color:#a8dcf5}
+.neg-quote.hot{border-color:#b2e04a;box-shadow:0 0 0 1px #b2e04a33}
+.neg-quick{display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap;margin:0 0 14px}
+.neg-quick label{flex:1;min-width:170px}
+.neg-pct{display:flex;align-items:center;gap:6px}.neg-pct input{max-width:110px}.neg-pct b{color:#b2e04a}
+.neg-sum2{margin-top:12px;margin-bottom:0}.neg-sum2 small{display:block;font-size:11px;color:#d5eeaa;font-weight:500;text-align:right}
+.neg-item-values em{display:block;font-style:normal;font-size:10px;margin-top:2px}
+.neg-bad{color:#ff9d93!important}.neg-ok{color:#b2e04a!important}
+.neg-mg{display:block;font-style:normal;min-height:14px}
+.neg-b{color:#b2e04a}
+.neg-wa{color:#132c09;background:#b2e04a;border-radius:8px;padding:6px 10px;font-weight:700;text-decoration:none;font-size:11px}
+.neg-filtros{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 6px}
+.neg-filtros button{cursor:pointer;background:#16330f;border:1px solid #3d5e33;color:#cfe5c2;border-radius:99px;padding:7px 13px;font-size:12px;font-family:inherit}
+.neg-filtros button.on{background:#b2e04a;border-color:#b2e04a;color:#132c09;font-weight:700}
+.neg-fields2{grid-template-columns:1fr 1fr;align-items:end}
+.neg-chk{display:flex!important;gap:8px;align-items:center;font-weight:500!important;padding-bottom:10px}
+.neg-chk input{width:18px!important;height:18px;flex:none;accent-color:#b2e04a}
+.neg-btn:disabled{opacity:.55;cursor:wait}
+.neg-tag{display:inline-block;background:#b2e04a22;color:#b2e04a;border-radius:6px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:4px}
+@media(max-width:620px){.neg-fields2{grid-template-columns:1fr}.neg-dialog{padding:16px;border-radius:16px}.neg-layer{padding:8px}.neg-footer .neg-btn{flex:1}}
