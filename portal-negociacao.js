@@ -2,8 +2,8 @@
    Cliente solicita pelo carrinho ou pela Minha Lista → cai na aba Negociações do admin (Supabase).
    Admin analisa, envia contraproposta (com validade) ou recusa → cliente vê em Pedidos › Minhas negociações
    e aceita: os preços valem no carrinho até a validade (ou viram preço congelado, se o admin marcar).
-   RPCs: portal_negociacao_criar, portal_minhas_negociacoes, portal_negociacao_aceitar, portal_negociacao_cancelar,
-         portal_admin_negociacoes, portal_admin_responder_negociacao.
+   Operações (camada de serviços): negociacaoCriar, minhasNegociacoes, negociacaoAceitar, negociacaoCancelar,
+         adminNegociacoes, adminResponderNegociacao. Os preços negociados são aplicados pelo serviço no catálogo.
 */
 (function(){
 'use strict';
@@ -37,12 +37,11 @@ function show(markup){
 function close(){modal.hidden=true;document.body.classList.remove('neg-dialog-open');draft=null;if(focusBack?.isConnected)focusBack.focus({preventScroll:true})}
 function header(t,sub){return '<header class="neg-head"><div><span class="neg-eyebrow">SOUZA RIBEIRO · NEGOCIAÇÃO B2B</span><h2>'+esc(t)+'</h2><p>'+esc(sub)+'</p></div><button type="button" data-neg="close" class="neg-x" aria-label="Fechar">×</button></header>'}
 function badge(st){return '<span class="neg-stage s-'+esc(st)+'">'+esc(LABELS[st]||st)+'</span>'}
-const online=()=>!!B()?.online?.();
+const S=()=>B().api();
 
 /* ---------- Cliente: solicitar ---------- */
 function openFrom(origin){
  const b=B(),c=b?.customer?.();if(!c)return;
- if(!online()){b?.toast?.('Negociação disponível apenas com o portal conectado.');return}
  const items=(b.items(origin)||[]).filter(x=>Number(x.q)>0&&Number(x.preco)>=0).slice(0,100);
  if(!items.length){b.toast('Coloque produtos e quantidades antes de solicitar negociação.');return}
  draft={origem:origin,itens:items.map(i=>({cod:String(i.cod),nome:String(i.nome),unidade:String(i.unidade),un_id:String(i.un_id||''),fator:Number(i.fator)||1,q:Number(i.q),preco:Number(i.preco)}))};
@@ -77,7 +76,7 @@ async function submit(){
  if(!draft.itens.some(i=>i.desejado)&&!obs){err('Informe o preço desejado em algum item ou explique sua necessidade.');return}
  busy(true);err('');
  try{
-  const q=await B().rpc('portal_negociacao_criar',{p_token:B().tokCli(),p_origem:draft.origem,p_itens:draft.itens,p_motivo:body.querySelector('#negMotivo').value,p_obs:obs});
+  const q=await S().negociacaoCriar({origem:draft.origem,itens:draft.itens,motivo:body.querySelector('#negMotivo').value,observacao:obs});
   MINE.unshift(q);renderClient();
   show(header('Solicitação enviada','Nossa equipe comercial já recebeu seu pedido de negociação.')+
   '<div class="neg-success"><span class="neg-success-icon">✓</span><h3>Negociação '+esc(q.id)+'</h3>'+
@@ -87,18 +86,12 @@ async function submit(){
 }
 
 /* ---------- Cliente: acompanhar ---------- */
-function aplicaPrecos(){
- const h=hoje(),o={};
- MINE.filter(q=>q.status==='aceita'&&!q.congelar&&q.validade&&q.validade>=h).slice().reverse()
-  .forEach(q=>q.itens.forEach(i=>{if(Number(i.oferta)>0)o[i.un_id?i.cod+'@'+i.un_id:i.cod]={preco:Number(i.oferta),id:q.id,validade:q.validade}}));
- B()?.setPrecos?.(o);
-}
 async function carregaCliente(avisar){
- const b=B();if(!b?.customer?.()||!online()||!b.tokCli())return;
+ const b=B();if(!b?.customer?.())return;
  try{
   const antes=new Set(MINE.filter(q=>q.status==='proposta').map(q=>q.id));
-  MINE=await b.rpc('portal_minhas_negociacoes',{p_token:b.tokCli()})||[];
-  aplicaPrecos();renderClient();
+  MINE=await S().minhasNegociacoes()||[];
+  renderClient();
   const novas=MINE.filter(q=>q.status==='proposta'&&!antes.has(q.id));
   if(novas.length&&(avisar||antes.size||MINE.length))b.toast(novas.length===1?'🤝 Você recebeu uma proposta de negociação ('+novas[0].id+')':'🤝 Você tem '+novas.length+' propostas de negociação');
  }catch(e){console.warn('Negociações:',e.message)}
@@ -144,9 +137,9 @@ async function acaoCliente(acao){
  if(acao==='cancel'&&!body.dataset.conf){body.dataset.conf='1';err('Clique de novo para confirmar.');return}
  busy(true);err('');
  try{
-  const r=await b.rpc(acao==='accept'?'portal_negociacao_aceitar':'portal_negociacao_cancelar',{p_token:b.tokCli(),p_id:q.id});
-  Object.assign(q,r);aplicaPrecos();renderClient();delete body.dataset.conf;
-  if(acao==='accept'){if(q.congelar)await b.refreshCong?.();b.addCart(q.itens);close();b.toast('Proposta aceita ✓ preços negociados aplicados no carrinho')}
+  const r=await (acao==='accept'?S().negociacaoAceitar(q.id):S().negociacaoCancelar(q.id));
+  Object.assign(q,r);renderClient();delete body.dataset.conf;
+  if(acao==='accept'){await b.atualizarPrecos();b.addCart(q.itens);close();b.toast('Proposta aceita ✓ preços negociados aplicados no carrinho')}
   else{close();b.toast('Negociação cancelada')}
  }catch(e){busy(false);err(e.message);delete body.dataset.conf}
 }
@@ -155,14 +148,13 @@ async function acaoCliente(acao){
 const abertas=q=>q.status==='solicitada'||q.status==='analise';
 function badgeAdmin(){const el=document.getElementById('negN');if(el){const n=ALL.filter(abertas).length;el.textContent=n||''}}
 async function carregaAdmin(){
- const b=B();if(!b?.isAdmin?.()||!online()||!b.tokAdm())return;
- try{ALL=await b.rpc('portal_admin_negociacoes',{p_token:b.tokAdm()})||[];badgeAdmin();renderAdminList()}
+ const b=B();if(!b?.isAdmin?.())return;
+ try{ALL=await S().adminNegociacoes()||[];badgeAdmin();renderAdminList()}
  catch(e){const el=document.getElementById('negAdminView');if(el&&!ALL.length)el.innerHTML='<p class="neg-empty">'+esc(e.message)+'</p>'}
 }
 function renderAdmin(){renderAdminList();carregaAdmin()}
 function renderAdminList(){
  const el=document.getElementById('negAdminView');if(!el||!B()?.isAdmin?.())return;
- if(!online()){el.innerHTML='<p class="neg-empty">As negociações precisam do portal conectado ao Supabase.</p>';return}
  const F={abertas:ALL.filter(abertas),proposta:ALL.filter(q=>q.status==='proposta'),aceita:ALL.filter(q=>q.status==='aceita'),todas:ALL};
  const L=F[FILTRO]||ALL;
  el.innerHTML='<div class="neg-admin-head"><div><h3>Central de negociações</h3><p>Solicitações dos clientes pelo carrinho e pela Minha Lista. Nada muda no preço até o cliente aceitar sua proposta.</p></div>'+btn('↻ Atualizar','reload','outline')+'</div>'+
@@ -218,8 +210,8 @@ async function responder(acao){
   if(baixos.length&&!body.dataset.conf){body.dataset.conf='1';err(baixos.length+' item(ns) ficam abaixo de '+min+'% de margem. Clique de novo em “Enviar proposta” para confirmar.');return}}
  busy(true);err('');
  try{
-  const r=await b.rpc('portal_admin_responder_negociacao',{p_token:b.tokAdm(),p_id:q.id,p_acao:acao,p_ofertas:ofertas,p_resposta:body.querySelector('#negResposta')?.value||'',
-   p_validade_dias:Number(body.querySelector('#negVal')?.value||7),p_congelar:!!body.querySelector('#negCong')?.checked});
+  const r=await S().adminResponderNegociacao({id:q.id,acao,ofertas,resposta:body.querySelector('#negResposta')?.value||'',
+   validade_dias:Number(body.querySelector('#negVal')?.value||7),congelar:!!body.querySelector('#negCong')?.checked});
   Object.assign(q,r);delete body.dataset.conf;badgeAdmin();renderAdminList();close();
   b.toast(acao==='proposta'?'Proposta enviada ao cliente ✓':acao==='recusada'?'Negociação não aprovada':'Marcada em análise');
  }catch(e){busy(false);delete body.dataset.conf;err(e.message)}
@@ -248,7 +240,7 @@ document.getElementById('negAdminView')?.addEventListener('click',e=>{
 });
 document.getElementById('negClientView')?.addEventListener('click',e=>{const t=e.target.closest('[data-neg="view"]');const r=t?.closest('[data-ref]');if(r)viewClient(r.dataset.ref)});
 
-function onLogin(){MINE=[];B()?.setPrecos?.({});carregaCliente(true)}
+function onLogin(){MINE=[];carregaCliente(true)}
 function tick(){if(document.hidden)return;if(B()?.isAdmin?.())carregaAdmin();if(B()?.customer?.())carregaCliente(false)}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)tick()});
 timer=setInterval(tick,90000);

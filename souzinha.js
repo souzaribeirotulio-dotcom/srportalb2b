@@ -157,16 +157,12 @@ async function chat(text){
   const candidates=window.SouzinhaPortal?.candidates?.(context+' '+message)||[];
   const ctrl=new AbortController();
   const timer=setTimeout(()=>ctrl.abort(),19000);
-  let response;
-  try{
-   response=await fetch('/api/souzinha',{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({message,history:oldHistory,candidates}),
-    signal:ctrl.signal
-   });
-  }finally{clearTimeout(timer)}
+  // Assistente pela camada de serviços (na demonstração, resposta simulada sem IA externa).
   let data={};
-  try{data=await response.json()}catch(e){}
+  try{data=await window.Servicos.assistentePerguntar({message,history:oldHistory,candidates})||{}}
+  catch(e){data={error:e.message}}
+  finally{clearTimeout(timer)}
+  const response={ok:!!data.reply};
   typing.classList.remove('sz-typing');
   if(!response.ok||!data.reply){
    typing.textContent=data.error||'Não consegui responder agora. Tente novamente em instantes.';

@@ -11,7 +11,7 @@
  const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
  let rows=[],editing=null,busy=false,ready=false;
  const $=id=>document.getElementById(id);
- const token=()=>tokGet('sr_b2b_tokadm');
+ const api=()=>window.Servicos;
  function mount(){
   root.innerHTML=[
    '<div class="sz-school-head"><div><h3>🎓 Escola do Souzinha</h3><p>Ensine o Souzinha a atender, sugerir produtos e montar listas por segmento. Cada orientação ativa será usada nas próximas conversas.</p></div><button class="tool" id="szReload">↻ Atualizar</button></div>',
@@ -43,7 +43,7 @@
    }
    if(b.dataset.school==='toggle')await store(x,!x.ativo);
    if(b.dataset.school==='remove'&&confirm('Excluir este ensinamento?')){
-    try{await rpc('portal_souzinha_admin_apagar',{p_token:token(),p_id:x.id});await load()}catch(err){status(err.message,true)}
+    try{await api().escolaApagar(x.id);await load()}catch(err){status(err.message,true)}
    }
   };
  }
@@ -57,7 +57,7 @@
  async function store(x,active){
   if(busy)return;busy=true;$('szSalvar').disabled=true;
   try{
-   await rpc('portal_souzinha_admin_salvar',{p_token:token(),p_id:x.id||null,p_categoria:x.categoria,p_titulo:x.titulo,p_conteudo:x.conteudo,p_ativo:active});
+   await api().escolaSalvar({id:x.id||null,categoria:x.categoria,titulo:x.titulo,conteudo:x.conteudo,ativo:active});
    await load();clear();status('✓ Salvo! O Souzinha usará a orientação nas próximas conversas.');
   }catch(e){status(e.message,true)}
   finally{busy=false;$('szSalvar').disabled=false}
@@ -76,7 +76,7 @@
   if(!ready){mount();ready=true}
   if(!document.body.classList.contains('admin'))return;
   $('szSchoolList').textContent='Carregando…';
-  try{const r=await rpc('portal_souzinha_admin_listar',{p_token:token()});rows=Array.isArray(r)?r:[];render()}
+  try{const r=await api().escolaListar();rows=Array.isArray(r)?r:[];render()}
   catch(err){$('szSchoolList').textContent='Erro ao carregar: '+err.message}
  }
  window.SouzinhaEscola={load};

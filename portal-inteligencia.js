@@ -2,24 +2,21 @@
    Eventos não bloqueiam o uso do portal. Toda leitura do painel exige token admin. */
 let intelBuscaTimer=null, intelUltimaBusca='',intelUltimaBuscaEm=0;
 let intelCartTimer=null, intelFilaCarrinho=Promise.resolve(), intelSequenciaPainel=0;
-const intelAtivo=()=>typeof CLI!=='undefined'&&!!CLI&&!!CNPJ&&!(typeof ADM!=='undefined'&&ADM)&&USA_SB()&&!!tokGet('sr_b2b_tok');
+const intelAtivo=()=>typeof CLI!=='undefined'&&!!CLI&&!!CNPJ&&!(typeof ADM!=='undefined'&&ADM);
 const intelNumero=n=>Number(n||0).toLocaleString('pt-BR');
 const intelSeguroTexto=s=>esc(String(s||''));
 function intelEvento(evento,cod=null,termo=null,resultados=null){
   if(!intelAtivo())return;
-  rpc('portal_intel_registrar_evento',{
-    p_token:tokGet('sr_b2b_tok'),p_evento:evento,p_cod:cod,p_termo:termo,p_resultados:resultados
-  }).catch(()=>{}); // Analytics nunca pode impedir a compra.
+  Promise.resolve().then(()=>API.registrarEvento(evento,cod,termo,resultados)).catch(()=>{}); // Analytics nunca pode impedir a compra.
 }
 function intelAtualizarCarrinho(itens,origem='carrinho',checkout=false){
   if(!intelAtivo())return;
-  const p_token=tokGet('sr_b2b_tok');
   const p_itens=(itens||[]).filter(i=>i&&i.p&&i.p.cod&&i.q>0)
     .slice(0,80).map(i=>({cod:i.p.cod,q:Math.min(9999,Math.round(i.q))}));
-  const args={p_token,p_itens,p_origem:origem==='lista'?'lista':'carrinho',p_checkout:!!checkout};
+  const origemOk=origem==='lista'?'lista':'carrinho';
   // Preserva a ordem das atualizações do mesmo navegador.
   intelFilaCarrinho=intelFilaCarrinho.catch(()=>{}).then(()=>
-    rpc('portal_intel_atualizar_carrinho',args)).catch(()=>{});
+    API.atualizarCarrinhoMonitorado(p_itens,origemOk,!!checkout)).catch(()=>{});
 }
 function intelProgramarCarrinho(){
   clearTimeout(intelCartTimer);
