@@ -68,3 +68,34 @@ body.g360 > *:not(.fundo):not(#g360Entrada) { display: none !important; }
 .g360-btn:disabled { opacity: .45; cursor: not-allowed; }
 .g360-btn:focus-visible { outline: 3px solid var(--lima); outline-offset: 2px; }
 .g360-etapa { margin: 14px 0 0; font-size: 11px; color: var(--tx3); }
+/* Etapa 4: formulários de acesso */
+.g360-sub { font-size: 18px; font-weight: 800; margin: 4px 0 8px; outline: none; }
+.g360-esquerda { text-align: left; }
+.g360-form { display: grid; gap: 6px; text-align: left; margin-top: 12px; }
+.g360-form label { font-size: 14px; font-weight: 600; color: var(--tx); margin-top: 6px; }
+.g360-form input[type="text"], .g360-form input[type="password"] {
+  min-height: 44px; border-radius: 12px; border: 1px solid var(--linha2);
+  background: rgba(0, 0, 0, .25); color: var(--tx); font-size: 16px; padding: 0 14px; width: 100%; box-sizing: border-box;
+}
+.g360-form input:focus-visible { outline: 3px solid var(--lima); outline-offset: 1px; }
+.g360-form input[aria-invalid="true"] { border-color: #ffe08a; }
+.g360-form .g360-btn { margin-top: 10px; }
+.g360-ajuda { color: var(--tx3); font-size: 12px; }
+.g360-erro-campo { color: #ffe08a; font-size: 13px; min-height: 0; }
+.g360-erro-campo:empty { display: none; }
+.g360-check { display: flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 500 !important; cursor: pointer; }
+.g360-check input { width: 20px; height: 20px; accent-color: var(--lima); }
+.g360-link {
+  min-height: 44px; background: none; border: none; color: var(--lima); font-weight: 600; font-size: 14px;
+  cursor: pointer; text-decoration: underline; text-underline-offset: 3px; padding: 0 8px;
+}
+.g360-link:focus-visible { outline: 3px solid var(--lima); outline-offset: 2px; border-radius: 8px; }
+.g360-ok {
+  text-align: left; border-radius: 12px; padding: 12px 14px; margin: 0 0 12px;
+  background: rgba(178, 224, 74, .1); border: 1px solid rgba(178, 224, 74, .45);
+  display: grid; gap: 4px;
+}
+.g360-ok strong { color: var(--lima); font-size: 13px; }
+.g360-ok p { margin: 0; font-size: 14px; color: var(--tx); }
+#g360Resultado:not(:empty) { margin-top: 12px; }
+.g360-avisos { text-align: left; color: var(--tx2); font-size: 13px; margin: 14px 0 0; padding-left: 18px; display: grid; gap: 4px; }

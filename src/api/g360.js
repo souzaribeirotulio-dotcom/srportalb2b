@@ -182,3 +182,9 @@ export async function consultarComprador(token) {
   const r = await requisitar('GET', 'me', { token });
   return r.dados;
 }
+
+/** POST acessos/senha — gravarSenhaPorLink (público). 204 sem corpo; depois, entrar por POST sessoes.
+ *  Erros possíveis: LINK_INVALIDO, SENHA_NOVA_INVALIDA, TROCA_DE_SENHA_DESLIGADA, 429, 503. */
+export async function gravarSenhaPorLink(token, senhaNova) {
+  await requisitar('POST', 'acessos/senha', { corpo: { token, senha_nova: senhaNova } });
+}

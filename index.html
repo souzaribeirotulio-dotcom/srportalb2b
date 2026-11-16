@@ -2,6 +2,18 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<script>
+/* Etapa 4 (integração G360): o link de "definir senha" traz o token depois do #.
+   Este é o PRIMEIRO script da página: lê o fragmento, apaga-o do endereço e deixa
+   o token só em memória para src/main.js, que o retira daqui na hora.
+   Qualquer script de análise que vier a existir tem de carregar depois deste. */
+(function () {
+  if (location.pathname.replace(/\/+$/, '') !== '/definir-senha' || !location.hash) return;
+  var token = new URLSearchParams(location.hash.slice(1)).get('token') || '';
+  history.replaceState(null, '', location.pathname);
+  Object.defineProperty(window, '__srTokenSenha', { value: token, configurable: true, writable: true });
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Souza Ribeiro | Portal B2B</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
