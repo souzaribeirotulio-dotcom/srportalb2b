@@ -169,7 +169,9 @@ export function telaCarrinho({ conteudo, ir, eAtual }) {
       ${credito}
       ${htmlPendencias(rev.pendencias)}
       ${bloqueado ? '<p class="cp-sem">Seu cadastro está com compras bloqueadas: não é possível enviar o pedido.</p>' : ''}
-      ${!rev.pode_enviar && !bloqueado ? '<p class="cp-sem">Resolva as pendências acima e revise de novo para poder enviar.</p>' : ''}
+      ${!rev.pode_enviar && !bloqueado ? `<p class="cp-sem">${(rev.pendencias || []).length && rev.pendencias.every((p) => p.responsavel === 'fornecedor')
+        ? 'Essa pendência depende da Souza Ribeiro. Escolha outra opção (por exemplo, Retirada) e revise de novo, ou fale com o seu vendedor.'
+        : 'Resolva as pendências acima e revise de novo para poder enviar.'}</p>` : ''}
       <button type="button" class="g360-btn pri" id="g360Enviar" ${rev.pode_enviar && !bloqueado ? '' : 'disabled'}>Enviar pedido</button>
     </section>`;
   }
