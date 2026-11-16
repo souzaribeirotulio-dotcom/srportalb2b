@@ -16,14 +16,14 @@ export function ligarCartoes(raiz, produtos, { aoMudarLista } = {}) {
       const fazer = () => {
         const q = normalizarQuantidade(campo.value);
         if (!q) {
-          retorno.className = 'cp-retorno erro';
+          retorno.className = 'cp-retorno ret-erro';
           retorno.textContent = 'Quantidade inválida: use um número maior que zero, com até 4 casas depois da vírgula.';
           campo.setAttribute('aria-invalid', 'true'); campo.focus();
           return;
         }
         campo.removeAttribute('aria-invalid');
         const r = adicionar(linhaDoCartao(cartao, p, q));
-        retorno.className = r === 'limite' ? 'cp-retorno erro' : 'cp-retorno ok';
+        retorno.className = r === 'limite' ? 'cp-retorno ret-erro' : 'cp-retorno ret-ok';
         retorno.textContent = r === 'limite' ? 'O carrinho aceita até 100 linhas. Envie este pedido ou remova itens.'
           : r === 'somado' ? 'Quantidade somada ao item que já estava no carrinho.' : 'Adicionado ao carrinho.';
       };
@@ -40,11 +40,11 @@ export function ligarCartoes(raiz, produtos, { aoMudarLista } = {}) {
           const agora = !naLista;
           lista.setAttribute('aria-pressed', String(agora));
           lista.textContent = agora ? '♥ Na Minha Lista' : '♡ Salvar na Minha Lista';
-          retorno.className = 'cp-retorno ok';
+          retorno.className = 'cp-retorno ret-ok';
           retorno.textContent = agora ? 'Salvo na Minha Lista.' : 'Removido da Minha Lista.';
           if (aoMudarLista) aoMudarLista(p.id, agora);
         } catch (e) {
-          retorno.className = 'cp-retorno erro';
+          retorno.className = 'cp-retorno ret-erro';
           retorno.textContent = e.message;
         } finally {
           lista.disabled = false;

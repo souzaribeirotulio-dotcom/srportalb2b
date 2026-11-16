@@ -6,9 +6,9 @@ import { dinheiro } from './formato.js';
 import { htmlFoto } from './fotos.js';
 
 const DISP = {
-  disponivel: ['ok', 'Disponível'],
-  sob_consulta: ['consulta', 'Sob consulta'],
-  indisponivel: ['fora', 'Indisponível'],
+  disponivel: ['disp-ok', 'Disponível'],
+  sob_consulta: ['disp-consulta', 'Sob consulta'],
+  indisponivel: ['disp-fora', 'Indisponível'],
 };
 
 /** Opções de unidade: base (null) + unidades[] liberadas. */
@@ -37,7 +37,7 @@ export function htmlPreco(op) {
  */
 export function htmlCartao(p, extras = {}) {
   const ops = opcoesUnidade(p);
-  const [cls, nomeDisp] = DISP[p.disponibilidade] || ['fora', 'Indisponível'];
+  const [cls, nomeDisp] = DISP[p.disponibilidade] || ['disp-fora', 'Indisponível'];
   const comprar = podeComprar(p);
   const faixa = p.faixa_disponibilidade === 'ultimas_unidades' && p.disponibilidade === 'disponivel' ? ' · Últimas unidades' : '';
   const idU = `u${p.id}`;
