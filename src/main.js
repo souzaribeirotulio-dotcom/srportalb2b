@@ -1,7 +1,12 @@
 /* Portal B2B — integração com a API do G360 (homologação por etapas).
-   Etapa 1: página de entrada com o nome da loja (GET loja). */
+   Etapa 1: página de entrada com o nome da loja (GET loja).
+   Etapa 2: tratamento de erros central + quadro de mensagem reutilizável. */
 import './entrada.css';
-import { apresentarLoja, ErroApi, MENSAGEM_REDE } from './api/g360.js';
+import { apresentarLoja, consultarComprador } from './api/g360.js';
+import { mostrarMensagemErro } from './ui/mensagem.js';
+
+// Botão provisório da Etapa 2: só aparece com ?testar-erro no endereço. Sai antes da produção.
+const TESTE_ERRO = new URLSearchParams(location.search).has('testar-erro');
 
 const ATIVO = window.SR_ADAPTADOR !== 'mock';
 
@@ -49,15 +54,26 @@ function mostrarLoja(loja) {
 
 function mostrarErro(erro) {
   document.getElementById('g360Titulo').textContent = 'Portal B2B';
-  const e = erro instanceof ErroApi ? erro : new ErroApi({ mensagem: MENSAGEM_REDE, tipo: 'rede' });
-  const suporte = [e.codigo, e.requestId].filter(Boolean).join(' · ');
-  document.getElementById('g360Estado').innerHTML = `
-    <div class="g360-erro" role="alert">
-      <p>${esc(e.message)}</p>
-      ${suporte ? `<small>Código para o suporte: ${esc(suporte)}</small>` : ''}
-      <button type="button" class="g360-btn sec" id="g360Tentar">Tentar de novo</button>
-    </div>`;
-  document.getElementById('g360Tentar').onclick = carregar;
+  mostrarMensagemErro(document.getElementById('g360Estado'), erro, { aoTentarDeNovo: carregar });
+}
+
+function montarTesteErro(cartao) {
+  const bloco = document.createElement('div');
+  bloco.className = 'g360-teste';
+  bloco.innerHTML = `<button type="button" class="g360-btn sec" id="g360TestarErro">Testar erro</button>
+    <p class="g360-mini">Provisório (Etapa 2): pede os dados do comprador sem estar logado.</p>
+    <div id="g360TesteSaida" aria-live="polite"></div>`;
+  cartao.appendChild(bloco);
+  document.getElementById('g360TestarErro').onclick = async () => {
+    const saida = document.getElementById('g360TesteSaida');
+    saida.innerHTML = '<p class="g360-mini">Consultando…</p>';
+    try {
+      await consultarComprador(null);
+      saida.innerHTML = '<p class="g360-mini">A API respondeu sem erro (inesperado).</p>';
+    } catch (e) {
+      mostrarMensagemErro(saida, e);
+    }
+  };
 }
 
 async function carregar() {
@@ -70,6 +86,7 @@ async function carregar() {
 }
 
 if (ATIVO) {
-  montarEntrada();
+  const entrada = montarEntrada();
+  if (TESTE_ERRO) montarTesteErro(entrada.querySelector('.g360-cartao'));
   carregar();
 }

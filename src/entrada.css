@@ -30,16 +30,29 @@ body.g360 > *:not(.fundo):not(#g360Entrada) { display: none !important; }
 .g360-estado { min-height: 48px; }
 .g360-info { color: var(--tx2); font-size: 14px; margin: 0 0 6px; }
 .g360-mini { color: var(--tx3); font-size: 12px; margin: 0; }
-.g360-erro {
+/* Quadro de mensagem (src/ui/mensagem.js) */
+.g360-msg {
   text-align: left;
-  background: rgba(255, 107, 107, .1);
-  border: 1px solid rgba(255, 107, 107, .4);
   border-radius: 12px;
   padding: 12px 14px;
-  display: flex; flex-direction: column; gap: 8px;
+  display: flex; flex-direction: column; gap: 6px;
+  border: 1px solid;
 }
-.g360-erro p { margin: 0; color: #ffd0ca; font-size: 14px; }
-.g360-erro small { color: var(--tx3); font-size: 11px; font-family: var(--mono); overflow-wrap: anywhere; }
+.g360-msg p { margin: 0; font-size: 14px; }
+.g360-msg-rotulo { font-size: 12px; font-weight: 700; }
+.g360-msg-campos { margin: 0; padding-left: 18px; font-size: 13px; }
+.g360-msg-suporte { color: var(--tx3); font-size: 11px; font-family: var(--mono); overflow-wrap: anywhere; }
+.g360-msg .g360-btn { margin-top: 4px; }
+.g360-msg-corrigir { background: rgba(255, 196, 0, .08); border-color: rgba(255, 196, 0, .4); }
+.g360-msg-corrigir .g360-msg-rotulo, .g360-msg-corrigir p { color: #ffe08a; }
+.g360-msg-fornecedor { background: rgba(120, 170, 255, .08); border-color: rgba(120, 170, 255, .4); }
+.g360-msg-fornecedor .g360-msg-rotulo, .g360-msg-fornecedor p { color: #cfe0ff; }
+.g360-msg-tentar, .g360-msg-rede { background: rgba(178, 224, 74, .07); border-color: rgba(178, 224, 74, .35); }
+.g360-msg-tentar .g360-msg-rotulo, .g360-msg-rede .g360-msg-rotulo { color: var(--lima); }
+.g360-msg-tentar p, .g360-msg-rede p { color: var(--tx); }
+.g360-msg-integracao { background: rgba(255, 107, 107, .1); border-color: rgba(255, 107, 107, .4); }
+.g360-msg-integracao .g360-msg-rotulo, .g360-msg-integracao p { color: #ffd0ca; }
+.g360-teste { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--linha2); display: grid; gap: 8px; }
 .g360-acoes { display: grid; gap: 10px; margin-top: 18px; }
 .g360-btn {
   min-height: 44px;
