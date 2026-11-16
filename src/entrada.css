@@ -1,6 +1,9 @@
 /* Página de entrada da integração G360 — mesma identidade visual do portal.
    Enquanto o comprador não entra, só o fundo do portal e esta página aparecem. */
 body.g360 > *:not(.fundo):not(#g360Entrada) { display: none !important; }
+.g360-aviso-topo { margin-bottom: 12px; }
+.g360-link.discreto { color: var(--tx3); font-size: 12px; font-weight: 500; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .g360-entrada {
   position: fixed;

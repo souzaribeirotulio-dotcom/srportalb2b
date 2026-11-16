@@ -30,10 +30,11 @@ export class ErroApi extends Error {
   }
 }
 
-/* ---------------- Ganchos para as próximas etapas ----------------
-   aoSessaoEncerrada: chamado num 401 (SESSAO_INVALIDA) — a Etapa 5 encerra a sessão.
-   aoErroFornecedor: chamado quando responsavel = fornecedor — a Etapa 11 registra a ocorrência. */
-const ganchos = { aoSessaoEncerrada: null, aoErroFornecedor: null };
+/* ---------------- Ganchos ----------------
+   aoSessaoEncerrada(escopo, erro): 401 numa chamada com token. escopo = comprador | operador.
+   aoAtividade(escopo): a API aceitou uma chamada autenticada (conta a inatividade a partir daqui).
+   aoErroFornecedor(erro): responsavel = fornecedor numa chamada do comprador (Etapa 11 registra). */
+const ganchos = { aoSessaoEncerrada: null, aoErroFornecedor: null, aoAtividade: null };
 export function definirGancho(nome, funcao) { if (nome in ganchos) ganchos[nome] = funcao; }
 
 /** Confere se as variáveis públicas estão preenchidas no formato do contrato. */
@@ -72,8 +73,12 @@ function montarConsulta(consulta) {
  * Falha → lança ErroApi (envelope de erro, falha de rede ou tempo esgotado).
  * Não registra token, senha nem corpo em log.
  */
-export async function requisitar(metodo, modelo, { parametros, consulta, token = null, corpo, cabecalhos = {}, binario = false } = {}) {
+export async function requisitar(metodo, modelo, { parametros, consulta, token = null, corpo, cabecalhos = {}, binario = false, semGanchos = false } = {}) {
   const operacao = `${metodo} ${modelo}`;
+  const escopo = !token ? 'publico' : (modelo.startsWith('operadores/') ? 'operador' : 'comprador');
+  const avisarAtividade = () => {
+    if (escopo !== 'publico' && ganchos.aoAtividade) { try { ganchos.aoAtividade(escopo); } catch { /* nada */ } }
+  };
   const faltando = configuracaoValida();
   if (faltando.length) {
     throw new ErroApi({ mensagem: MENSAGEM_INTEGRACAO, codigo: 'CONFIGURACAO_AUSENTE', responsavel: 'integracao', tipo: 'configuracao', campos: { variaveis: faltando }, operacao });
@@ -103,12 +108,12 @@ export async function requisitar(metodo, modelo, { parametros, consulta, token =
     clearTimeout(relogio);
   }
 
-  if (resp.status === 204) return null;
-  if (resp.ok && binario) return resp.blob();
+  if (resp.status === 204) { avisarAtividade(); return null; }
+  if (resp.ok && binario) { avisarAtividade(); return resp.blob(); }
 
   let json = null;
   try { json = await resp.json(); } catch { json = null; }
-  if (resp.ok && json && 'dados' in json) return json;
+  if (resp.ok && json && 'dados' in json) { avisarAtividade(); json.status = resp.status; return json; }
 
   const env = json && json.erro;
   const erro = env && typeof env.mensagem === 'string'
@@ -124,10 +129,11 @@ export async function requisitar(metodo, modelo, { parametros, consulta, token =
     // Resposta fora do envelope: tratada como defeito de integração.
     : new ErroApi({ mensagem: MENSAGEM_INTEGRACAO, responsavel: 'integracao', status: resp.status, requestId: (json && json.request_id) || null, operacao });
 
-  if (erro.codigo === 'SESSAO_INVALIDA' && ganchos.aoSessaoEncerrada) {
-    try { ganchos.aoSessaoEncerrada(erro); } catch { /* a tela segue com a mensagem */ }
+  // Um 401 em operação autenticada encerra aquela sessão (comprador ou operador).
+  if (resp.status === 401 && escopo !== 'publico' && ganchos.aoSessaoEncerrada) {
+    try { ganchos.aoSessaoEncerrada(escopo, erro); } catch { /* a tela segue com a mensagem */ }
   }
-  if (erro.responsavel === 'fornecedor' && ganchos.aoErroFornecedor) {
+  if (!semGanchos && escopo === 'comprador' && erro.responsavel === 'fornecedor' && ganchos.aoErroFornecedor) {
     try { ganchos.aoErroFornecedor(erro); } catch { /* registro de ocorrência não bloqueia a tela */ }
   }
   throw erro;
@@ -187,4 +193,203 @@ export async function consultarComprador(token) {
  *  Erros possíveis: LINK_INVALIDO, SENHA_NOVA_INVALIDA, TROCA_DE_SENHA_DESLIGADA, 429, 503. */
 export async function gravarSenhaPorLink(token, senhaNova) {
   await requisitar('POST', 'acessos/senha', { corpo: { token, senha_nova: senhaNova } });
+}
+
+/* ---------------- Sessão do comprador (Etapa 5) ---------------- */
+
+/** POST sessoes — criarSessao. 201: { token, tipo, expira_em, comprador, loja }. */
+export async function entrar(usuario, senha) {
+  const r = await requisitar('POST', 'sessoes', { corpo: { usuario, senha } });
+  return r.dados;
+}
+
+/** DELETE sessao — encerrarSessao. */
+export async function sair(token) {
+  await requisitar('DELETE', 'sessao', { token });
+}
+
+/** PUT senha — trocarSenha. 200: { token, tipo, expira_em, comprador } (token substituto). */
+export async function trocarSenha(token, senhaAtual, senhaNova) {
+  const r = await requisitar('PUT', 'senha', { token, corpo: { senha_atual: senhaAtual, senha_nova: senhaNova } });
+  return r.dados;
+}
+
+/* ---------------- Catálogo (Etapa 6) ---------------- */
+
+/**
+ * GET produtos — listarProdutos. filtros: { q, grupo, marca, codigos[], ids[], termos[], pagina, limite }.
+ * codigos e ids vão separados por vírgula; termos[] repete o parâmetro (contrato).
+ * Devolve { dados, paginacao }.
+ */
+export async function listarProdutos(token, filtros = {}) {
+  const consulta = {
+    q: filtros.q,
+    grupo: filtros.grupo,
+    marca: filtros.marca,
+    codigos: filtros.codigos?.length ? filtros.codigos.join(',') : undefined,
+    ids: filtros.ids?.length ? filtros.ids.join(',') : undefined,
+    'termos[]': filtros.termos?.length ? filtros.termos : undefined,
+    pagina: filtros.pagina,
+    limite: filtros.limite,
+  };
+  const r = await requisitar('GET', 'produtos', { token, consulta });
+  return { dados: r.dados, paginacao: r.paginacao };
+}
+
+/** POST produtos/busca — buscarProdutos (listas longas de ids ou códigos). */
+export async function buscarProdutos(token, filtros = {}) {
+  const corpo = {};
+  for (const k of ['q', 'grupo', 'marca', 'codigos', 'ids', 'termos', 'pagina', 'limite']) {
+    if (filtros[k] !== undefined && filtros[k] !== null && filtros[k] !== '') corpo[k] = filtros[k];
+  }
+  const r = await requisitar('POST', 'produtos/busca', { token, corpo });
+  return { dados: r.dados, paginacao: r.paginacao };
+}
+
+/**
+ * Todos os produtos de uma lista de ids, percorrendo todas as páginas (limite 50)
+ * e em blocos de até 500 ids. Usado pela Minha Lista e pela recompra.
+ */
+export async function produtosPorIds(token, ids) {
+  const unicos = [...new Set(ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+  const achados = new Map();
+  for (let i = 0; i < unicos.length; i += 500) {
+    const bloco = unicos.slice(i, i + 500);
+    let pagina = 1;
+    let paginas = 1;
+    do {
+      const { dados, paginacao } = await buscarProdutos(token, { ids: bloco, pagina, limite: 50 });
+      for (const p of dados || []) achados.set(p.id, p);
+      paginas = Math.max(1, Math.ceil((paginacao?.total || 0) / 50));
+      pagina += 1;
+    } while (pagina <= paginas);
+  }
+  return achados;
+}
+
+/** GET grupos / GET marcas — filtros do catálogo: [{ codigo, nome, quantidade }]. */
+export async function listarGrupos(token) { return (await requisitar('GET', 'grupos', { token })).dados; }
+export async function listarMarcas(token) { return (await requisitar('GET', 'marcas', { token })).dados; }
+
+/** GET produtos/{id}/fotos/{item} — obterFotoProduto: Blob da imagem (exige o Bearer). */
+export async function obterFotoProduto(token, id, item) {
+  return requisitar('GET', 'produtos/{id}/fotos/{item}', { token, parametros: { id, item }, binario: true, semGanchos: true });
+}
+
+/* ---------------- Carrinho, revisão e pedido (Etapas 7 e 8) ---------------- */
+
+/** GET opcoes — consultarOpcoes: { modalidades, enderecos, pagamento: { exigido, condicoes } }. */
+export async function consultarOpcoes(token) { return (await requisitar('GET', 'opcoes', { token })).dados; }
+
+/** GET enderecos/referencias — cidades (exige uf) ou bairros: [{ id, nome }]. */
+export async function buscarReferenciasEndereco(token, tipo, q, uf) {
+  return (await requisitar('GET', 'enderecos/referencias', { token, consulta: { tipo, q, uf } })).dados;
+}
+
+/** POST enderecos — incluirEndereco. */
+export async function incluirEndereco(token, endereco) {
+  return (await requisitar('POST', 'enderecos', { token, corpo: endereco })).dados;
+}
+
+/** POST revisoes — revisarPedido. Devolve { dados, requestId }. */
+export async function revisarPedido(token, corpo) {
+  const r = await requisitar('POST', 'revisoes', { token, corpo });
+  return { dados: r.dados, requestId: r.request_id };
+}
+
+/**
+ * POST pedidos — enviarPedido, com Idempotency-Key. Devolve { dados, status } (201 novo, 200 repetição).
+ * Sem o gancho de fornecedor: as pendências do envio são registradas pela tela, uma por linha.
+ */
+export async function enviarPedido(token, corpo, chave) {
+  const r = await requisitar('POST', 'pedidos', { token, corpo, cabecalhos: { 'Idempotency-Key': chave }, semGanchos: true });
+  return { dados: r.dados, status: r.status };
+}
+
+/** GET pedidos/por-chave/{chave} — consultarPedidoPorChave. O 404 aqui é esperado (pedido não gravado). */
+export async function consultarPedidoPorChave(token, chave) {
+  return (await requisitar('GET', 'pedidos/por-chave/{chave}', { token, parametros: { chave }, semGanchos: true })).dados;
+}
+
+/* ---------------- Pedidos, histórico (Etapa 9) ---------------- */
+
+/** GET pedidos — listarPedidos: { dados, paginacao }. */
+export async function listarPedidos(token, pagina = 1, limite = 20) {
+  const r = await requisitar('GET', 'pedidos', { token, consulta: { pagina, limite } });
+  return { dados: r.dados, paginacao: r.paginacao };
+}
+
+/** GET pedidos/{id} — consultarPedido. */
+export async function consultarPedido(token, id) {
+  return (await requisitar('GET', 'pedidos/{id}', { token, parametros: { id } })).dados;
+}
+
+/** GET historico-compras — consultarHistoricoCompras: { inicio, fim, produtos[] }. */
+export async function consultarHistoricoCompras(token, meses = 6, produtoIds = null) {
+  const consulta = { meses, produto_ids: produtoIds?.length ? produtoIds.join(',') : undefined };
+  return (await requisitar('GET', 'historico-compras', { token, consulta })).dados;
+}
+
+/* ---------------- Painel do operador (Etapa 10) ---------------- */
+
+/** POST operadores/sessoes — criarSessaoOperador: { token, tipo, expira_em }. */
+export async function entrarOperador(usuario, senha) {
+  return (await requisitar('POST', 'operadores/sessoes', { corpo: { usuario, senha } })).dados;
+}
+export async function sairOperador(token) { await requisitar('DELETE', 'operadores/sessao', { token }); }
+
+/** POST operadores/clientes/consulta — { codigo, nome, acesso_portal, segmento }. */
+export async function consultarClienteOperador(token, cnpj) {
+  return (await requisitar('POST', 'operadores/clientes/consulta', { token, corpo: { cnpj } })).dados;
+}
+
+/** POST operadores/produtos/busca — { dados, paginacao } com preço, custo e margem. */
+export async function buscarProdutosOperador(token, filtros = {}) {
+  const corpo = {};
+  for (const k of ['q', 'grupo', 'marca', 'codigos', 'ids', 'termos', 'pagina', 'limite']) {
+    if (filtros[k] !== undefined && filtros[k] !== null && filtros[k] !== '') corpo[k] = filtros[k];
+  }
+  const r = await requisitar('POST', 'operadores/produtos/busca', { token, corpo });
+  return { dados: r.dados, paginacao: r.paginacao };
+}
+
+/** POST operadores/produtos/precos — preços para um cliente (1 a 50 ids). */
+export async function consultarPrecosOperador(token, cliente, ids) {
+  return (await requisitar('POST', 'operadores/produtos/precos', { token, corpo: { cliente, ids } })).dados;
+}
+
+/** Preço congelado: listar (cursor apos), incluir, alterar, encerrar. */
+export async function listarPrecosCongelados(token, cliente, apos) {
+  return (await requisitar('GET', 'operadores/clientes/{cliente}/precos-congelados', { token, parametros: { cliente }, consulta: { apos } })).dados;
+}
+export async function incluirPrecoCongelado(token, cliente, entrada) {
+  return (await requisitar('POST', 'operadores/clientes/{cliente}/precos-congelados', { token, parametros: { cliente }, corpo: entrada })).dados;
+}
+export async function alterarPrecoCongelado(token, cliente, preco, entrada) {
+  return (await requisitar('PUT', 'operadores/clientes/{cliente}/precos-congelados/{preco}', { token, parametros: { cliente, preco }, corpo: entrada })).dados;
+}
+export async function encerrarPrecoCongelado(token, cliente, preco) {
+  return (await requisitar('DELETE', 'operadores/clientes/{cliente}/precos-congelados/{preco}', { token, parametros: { cliente, preco } })).dados;
+}
+
+/** Galeria de fotos do operador. */
+export async function listarFotosOperador(token, id) {
+  return (await requisitar('GET', 'operadores/produtos/{id}/fotos', { token, parametros: { id } })).dados;
+}
+export async function obterFotoOperador(token, id, item) {
+  return requisitar('GET', 'operadores/produtos/{id}/fotos/{item}', { token, parametros: { id, item }, binario: true });
+}
+export async function incluirFotoOperador(token, id, foto, descricao) {
+  const corpo = { foto };
+  if (descricao) corpo.descricao = descricao;
+  return (await requisitar('POST', 'operadores/produtos/{id}/fotos', { token, parametros: { id }, corpo })).dados;
+}
+export async function definirCapaOperador(token, id, item) {
+  return (await requisitar('PUT', 'operadores/produtos/{id}/fotos/capa', { token, parametros: { id }, corpo: { item } })).dados;
+}
+export async function ordenarFotosOperador(token, id, itens) {
+  return (await requisitar('PUT', 'operadores/produtos/{id}/fotos/ordem', { token, parametros: { id }, corpo: { itens } })).dados;
+}
+export async function removerFotoOperador(token, id, item) {
+  return (await requisitar('DELETE', 'operadores/produtos/{id}/fotos/{item}', { token, parametros: { id, item } })).dados;
 }

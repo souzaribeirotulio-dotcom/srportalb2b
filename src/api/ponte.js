@@ -61,3 +61,14 @@ export async function pedirLink(documento) {
   if (status === 202 && typeof json.mensagem === 'string') return json.mensagem;
   throw new ErroPonte(typeof json.mensagem === 'string' ? json.mensagem : MENSAGEM_PONTE_FALHOU, status);
 }
+
+/**
+ * Depois do login na API: confere o token na ponte e recebe a sessão do Supabase.
+ * 200 → { sessao, api_expira_em, api_inatividade_minutos, api_vinculo_expira_em }.
+ * 401 → a sessão da API é inválida (volta ao login). 503 → tentar de novo; o portal segue sem a Minha Lista.
+ */
+export async function abrirSessaoPonte(token) {
+  const { status, json } = await chamar({ acao: 'abrir_sessao', token });
+  if (status === 200 && json.sessao && typeof json.api_vinculo_expira_em === 'string') return json;
+  throw new ErroPonte(typeof json.mensagem === 'string' ? json.mensagem : MENSAGEM_PONTE_FALHOU, status);
+}

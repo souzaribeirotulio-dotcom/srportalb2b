@@ -15,6 +15,8 @@ Cada item diz o que falta e por quê. Nenhum segredo ou dado de cliente é regis
 | 6 | 16/11/2026 | Data prevista de entrega | A natureza 12 dos pedidos da API não exige data prevista; o portal não calcula previsão por enquanto. Se a Souza Ribeiro mudar isso no G360, o tema volta. | Resolvido em 16/11/2026 |
 | 7 | 16/11/2026 | Tabela de frete na homologação | A tabela de frete da Souza Ribeiro não está carregada na homologação: entrega devolve `FRETE_A_COMBINAR` (responsável `fornecedor`). Usado como cenário da etapa 11. Quando a planilha for carregada, a Movimento prepara outro cenário. | Aguardando planilha de frete |
 | 8 | 16/11/2026 | Login de operador | A Movimento ainda não entrou com operador real nessa base. Se aparecer `LICENCA_OPERADOR_INDISPONIVEL`, mandar o código para o suporte. Gravação de fotos só confere na implantação. | Aguardando teste da etapa 10 |
+| 9 | 16/11/2026 | Fotos enviadas pelo painel | O painel já envia, remove, reordena e define a capa pela API (JPEG até 2 MB, 12 por produto). Pelo aviso de 16/11, a gravação só pode ser conferida na implantação, porque as fotos ficam no servidor da Souza Ribeiro. | Conferir na implantação |
+| 10 | 16/11/2026 | Conferência no ar das etapas 5 a 11 | Portal construído e testado com a API simulada (dados fictícios). Falta a conferência na homologação real com os clientes 1165 e 1919 e os operadores do G360. Diferenças entre a API real e o contrato serão anotadas aqui com operação, horário e request_id. | Em conferência |
 
 ---
 
