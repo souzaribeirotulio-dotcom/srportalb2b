@@ -10,6 +10,7 @@ Cada item diz o que falta e por quê. Nenhum segredo ou dado de cliente é regis
 | 1 | 16/11/2026 | Origem fixa de homologação | Cadastrar a origem `https://sr-portal-b2b-homologacao.vercel.app` na loja de homologação `96da1e99a3f327f0` (CORS). `http://localhost:5173` já está cadastrada. | Resolvido em 16/11/2026 (GET loja respondeu no endereço de homologação) |
 | 2 | 16/11/2026 | Catálogo antes do login | No contrato, `GET produtos`, `GET grupos` e `GET marcas` exigem a sessão do comprador. O protótipo mostrava o catálogo sem preço para visitantes. Por ora o portal mostra só a página de entrada. Se quiserem catálogo público (sem preço), seria uma operação nova. | Informativo — sem bloqueio |
 | 3 | 16/11/2026 | Teste do kit (`ponte_test.ts`) | Com Deno 2.9.8, `deno test` acusa erro de tipo na linha 86 do `ponte_test.ts` (TS2322: `Timeout` não é atribuível a `number`). Os 9 testes passam com `--no-check`. O arquivo do kit não foi alterado; sugerimos ajustar o tipo na próxima versão do kit. | Informativo — sem bloqueio |
+| 4 | 16/11/2026 | Cadastro de cliente novo pelo portal | O contrato não tem operação para criar cliente no G360. O portal antigo tinha o "Quero ser cliente" (pedido de cadastro aprovado pela equipe). Por ora o pedido ficará guardado no Supabase da Souza Ribeiro e a equipe cadastra o cliente no G360; depois o cliente faz o primeiro acesso. Se a Movimento puder oferecer uma operação de pré-cadastro, o portal passa a usá-la. | Informativo — sem bloqueio |
 
 ---
 
