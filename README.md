@@ -1,4 +1,30 @@
-# Souza Ribeiro | Portal B2B — frontend com camada de serviços simulada
+# Souza Ribeiro | Portal B2B
+
+## Integração com a API do G360 (ramo `g360-homologacao`)
+
+Este ramo liga o portal à **API dos sistemas externos** da Movimento Sistemas, etapa por etapa, seguindo o kit da Movimento:
+- `CLAUDE.md` — regras do projeto;
+- `docs/g360/` — contrato OpenAPI, `primeiros-passos.md`, roteiro de prompts e exemplo da pasta `supabase/`.
+
+**Homologação publicada:** https://sr-portal-b2b-homologacao.vercel.app (endereço fixo do ramo `g360-homologacao`).
+
+### Rodar no computador
+```bash
+npm install
+cp .env.exemplo .env.local   # preencha VITE_G360_BASE_URL e VITE_G360_LOJA da homologação
+npm run dev                  # abre em http://localhost:5173 (use "localhost", nunca 127.0.0.1)
+```
+
+### Onde fica cada coisa
+- `src/api/g360.js` — **único** módulo que chama a API (endereço, envelope e tratamento de erro).
+- `src/main.js` — inicialização da integração (Etapa 1: página de entrada com `GET loja`).
+- `public/` — telas do portal (versão anterior, com a camada de serviços); vão sendo ligadas à API nas próximas etapas.
+- `PENDENCIAS_MOVIMENTO.md` — o que depende da Movimento.
+- `testes/etapa1_loja.py` — teste automático da Etapa 1 com a API simulada (dados fictícios).
+
+---
+
+## Versão anterior: frontend com camada de serviços simulada
 
 Portal de compras B2B da Souza Ribeiro (somente frontend, HTML/CSS/JS puro, sem build).
 Nesta versão o portal funciona inteiro com **dados fictícios** e um **adaptador mock**.

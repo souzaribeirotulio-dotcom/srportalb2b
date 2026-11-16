@@ -7,4 +7,4 @@
    Para trocar, altere SOMENTE a linha abaixo (e inclua o script do adaptador
    escolhido em index.html, na lista SR_SCRIPTS_SERVICOS).
    ===================================================================== */
-window.SR_ADAPTADOR = 'mock';
+window.SR_ADAPTADOR = 'movimento';

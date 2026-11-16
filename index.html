@@ -490,8 +490,8 @@ body:has(.mod.open) #souzinha-widget .sz-fab{display:none}
 .rv-falha b{color:#ffb5ac}.rv-falha small{color:var(--tx2)}
 .boot{position:fixed;inset:0;display:grid;place-items:center;z-index:999;color:var(--tx2);font-size:14px;text-align:center;padding:24px}
 </style>
-<link rel="stylesheet" href="./souzinha.css">
-<link rel="stylesheet" href="./portal-negociacao.css">
+<link rel="stylesheet" href="/souzinha.css">
+<link rel="stylesheet" href="/portal-negociacao.css">
 </head>
 <body>
 <div class="fundo"><div class="grade"></div><div class="b1"></div><div class="b2"></div></div>
@@ -658,25 +658,28 @@ body:has(.mod.open) #souzinha-widget .sz-fab{display:none}
 <!-- ===================== CAMADA DE SERVIÇOS =====================
      A escolha do adaptador fica em servicos/configuracao.js (ponto único de troca).
      Os scripts de serviço abaixo são carregados antes das telas. -->
-<script src="./servicos/configuracao.js"></script>
-<script src="./servicos/contrato.js"></script>
-<script src="./servicos/dados-ficticios.js"></script>
-<script src="./servicos/adaptador-mock.js"></script>
-<script src="./servicos/adaptador-movimento.js"></script>
-<script src="./servicos/servicos.js"></script>
+<script src="/servicos/configuracao.js"></script>
+<script src="/servicos/contrato.js"></script>
+<script src="/servicos/dados-ficticios.js"></script>
+<script src="/servicos/adaptador-mock.js"></script>
+<script src="/servicos/adaptador-movimento.js"></script>
+<script src="/servicos/servicos.js"></script>
 <script>
 /* Inicialização: busca catálogo, configuração e sessões no serviço e só então carrega as telas. */
 (async function(){
+  // Com o adaptador da Movimento, quem inicia o portal é src/main.js (integração G360 por etapas).
+  if(window.SR_ADAPTADOR!=='mock')return;
   const S=window.Servicos, boot=document.getElementById('srBoot');
   try{
     const [cat,cfg,cli,adm]=await Promise.all([S.catalogo(),S.configuracao().catch(()=>({})),S.sessaoCliente().catch(()=>null),S.sessaoAdmin().catch(()=>null)]);
     window.__SR_BOOT=cat; window.__SR_CONFIG=cfg||{}; window.__SR_SESSAO_CLIENTE=cli; window.__SR_SESSAO_ADMIN=adm;
   }catch(e){ boot.textContent='Não foi possível carregar o catálogo: '+e.message; return }
-  const telas=['./portal-inteligencia.js','./app.js','./portal-listas-admin.js','./portal-negociacao.js','./souzinha-escola.js','./souzinha.js'];
+  const telas=['/portal-inteligencia.js','/app.js','/portal-listas-admin.js','/portal-negociacao.js','/souzinha-escola.js','/souzinha.js'];
   for(const src of telas){ await new Promise((ok,falha)=>{const el=document.createElement('script');el.src=src;el.onload=ok;el.onerror=()=>falha(new Error(src));document.body.appendChild(el)}).catch(e=>{boot.textContent='Falha ao carregar '+e.message;throw e}); }
   boot.remove();
   if(S.demonstracao){const f=document.createElement('div');f.className='demo-faixa';f.textContent='DEMONSTRAÇÃO · dados fictícios · nenhum pedido real é enviado';document.body.prepend(f)}
 })();
 </script>
+<script type="module" src="/src/main.js"></script>
 </body>
 </html>

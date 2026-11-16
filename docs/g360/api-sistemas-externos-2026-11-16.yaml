@@ -1,0 +1,4031 @@
+openapi: "3.1.0"
+info:
+  title: "API dos sistemas externos"
+  version: "2026.11.16"
+  description: |-
+    Contrato de integração com o G360. As operações usam a URL-base da instalação, seguida de /b2b/v1/lojas/{loja}. As rotas GET também aceitam HEAD. O CORS permite apenas as origens configuradas na loja. O preflight aceita GET, HEAD, POST, PUT, DELETE e OPTIONS, com Authorization, Content-Type e Idempotency-Key. Requisições sem Origin seguem a autenticação da operação. Recusas por método inexistente ou parâmetro de rota fora do padrão seguem o tratamento geral da aplicação.
+
+    Limites: 240 chamadas por minuto por endereço IP e loja localizada pelo slug, somadas entre operações. Slugs desconhecidos compartilham um contador de 60 por minuto por IP. Atrás de um proxy confiável, o limite usa o endereço de origem resolvido pelo servidor. O corpo pode ter até 65.536 bytes. Na inclusão de uma foto pelo operador, o limite é de 2.804.096 bytes. Páginas de 1 a 100.000, com 1 a 50 registros (padrão 20).
+
+    Login: em cada loja, 5 falhas por documento e IP, 40 por IP e 50 por documento em 15 minutos. Sessões têm limite absoluto de 12 horas e limite de inatividade configurável (padrão 8 minutos).
+
+    Operador: o login tem contadores próprios de 5 falhas por apelido e IP, 40 por IP e 50 por apelido, por loja em 15 minutos. O Bearer do operador é vinculado à loja e à sua empresa. A sessão dura até 12 horas com a mesma configuração de inatividade da loja. Com a licença compartilhada ativa, a vaga do tipo Mobile vence após 180 segundos sem atividade e o Bearer revogado exige novo login. O backend reconfere cadastro, credencial, empresa e a permissão de cada operação.
+
+    As respostas que passam pelo middleware da API recebem Cache-Control: no-store, private, Pragma: no-cache, Referrer-Policy: no-referrer, X-Content-Type-Options: nosniff e X-Robots-Tag: noindex, nofollow. Exemplos usam dados fictícios. Tokens e assinaturas de exemplo são ilustrativos.
+servers:
+  - url: "https://loja-exemplo.invalid"
+    description: "Endereço fictício. Use a URL-base autorizada da instalação."
+security:
+  - SessaoComprador: []
+tags:
+  - name: "Acesso e sessão"
+    description: "Apresentação da loja, credenciais e sessão do comprador."
+  - name: "Catálogo"
+    description: "Produtos, grupos, marcas, fotos e histórico por produto."
+  - name: "Endereços e pagamento"
+    description: "Opções do pedido e endereços para entrega."
+  - name: "Revisão e pedidos"
+    description: "Revisão, envio idempotente e acompanhamento de pedidos."
+  - name: "Sistema"
+    description: "Emissão de link de acesso entre servidores."
+  - name: "Operador"
+    description: "Sessão do operador, consultas de cliente e produtos e manutenção da galeria."
+paths:
+  "/b2b/v1/lojas/{loja}/operadores/sessoes":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    post:
+      tags: ["Operador"]
+      operationId: "criarSessaoOperador"
+      summary: "Entrar com usuário do G360"
+      description: "Confere apelido, senha, cadastro e autorização para a empresa da loja. A mesma recusa vale para senha incorreta, cadastro ausente ou inativo, conta de suporte e empresa não autorizada. A licença compartilhada ativa é exigida onde configurada."
+      security: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              additionalProperties: false
+              required: ["usuario", "senha"]
+              properties:
+                usuario: {type: "string", minLength: 1, maxLength: 20}
+                senha: {type: "string", minLength: 1, maxLength: 8, writeOnly: true}
+            example: {usuario: "OPERADOR EXEMPLO", senha: "Exemplo7"}
+      responses:
+        "201":
+          description: "Sessão do operador criada."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/SessaoOperadorCriada"
+              example:
+                dados:
+                  token: "op_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopq"
+                  tipo: "Bearer"
+                  expira_em: "2099-01-15T00:00:00+00:00"
+                request_id: "0011223344556677"
+        "400":
+          "$ref": "#/components/responses/CorpoInvalido"
+        "401":
+          "$ref": "#/components/responses/OperadorLoginInvalido"
+        "403":
+          "$ref": "#/components/responses/OrigemOperadorNaoPermitida"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "409":
+          "$ref": "#/components/responses/AcessoEmAndamento"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          "$ref": "#/components/responses/CampoOperadorNaoPermitido"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteLogin"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/operadores/sessao":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    delete:
+      tags: ["Operador"]
+      operationId: "encerrarSessaoOperador"
+      summary: "Encerrar a sessão do operador"
+      description: "Revoga o Bearer no servidor. A sessão pode cair por inatividade, expiração, alteração da credencial, desativação ou perda do vínculo com a empresa da loja."
+      security:
+        - SessaoOperador: []
+      responses:
+        "204":
+          description: "Sessão encerrada. Corpo vazio."
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          "$ref": "#/components/responses/OrigemOperadorNaoPermitida"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "409":
+          "$ref": "#/components/responses/AcessoEmAndamento"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/operadores/clientes/consulta":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    post:
+      tags: ["Operador"]
+      operationId: "consultarClienteOperador"
+      summary: "Consultar cliente por CNPJ"
+      description: "Requer o acesso 00500. Aplica os recortes de empresa e vendedor conforme a configuração do G360. Cliente inexistente, inativo, prospect ou fora do recorte recebe a mesma resposta. Duplicidade dentro do recorte retorna conflito."
+      security:
+        - SessaoOperador: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              additionalProperties: false
+              required: ["cnpj"]
+              properties:
+                cnpj: {type: "string", minLength: 14, maxLength: 32, description: "CNPJ numérico ou alfanumérico, com ou sem pontuação."}
+            example: {cnpj: "12.ABC.345/01DE-35"}
+      responses:
+        "200":
+          description: "Cliente localizado dentro do recorte."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/ClienteConsultadoOperador"
+              example:
+                dados:
+                  codigo: 42
+                  nome: "Comércio Exemplo"
+                  acesso_portal: true
+                  segmento: {codigo: 0, descricao: "Varejo"}
+                request_id: "0011223344556677"
+        "400":
+          "$ref": "#/components/responses/CorpoInvalido"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          "$ref": "#/components/responses/ConsultaOperadorNegada"
+        "404":
+          "$ref": "#/components/responses/ClienteOperadorNaoLocalizado"
+        "409":
+          "$ref": "#/components/responses/ConsultaOperadorEmConflito"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          "$ref": "#/components/responses/ConsultaOperadorInvalida"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/operadores/produtos/busca":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    post:
+      tags: ["Operador"]
+      operationId: "buscarProdutosOperador"
+      summary: "Buscar produtos para o operador"
+      description: "Requer 01100. Inclui produtos que o comprador não vê por falta de publicação. Os demais recortes do catálogo para empresa, situação, tipo e venda são aplicados. Usa a tabela do cliente padrão da consulta e, sem ela, o cadastro. A consulta informa preço mesmo sem saldo. Custo e margem exigem 01110."
+      security:
+        - SessaoOperador: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/BuscaCatalogoEntrada"
+            example: {q: "conexao", ids: [101], pagina: 1, limite: 20}
+      responses:
+        "200":
+          description: "Produtos com preço para uma unidade e dados permitidos ao operador."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                required: ["paginacao"]
+                properties:
+                  dados:
+                    type: "array"
+                    maxItems: 50
+                    items:
+                      "$ref": "#/components/schemas/ProdutoOperador"
+              example:
+                dados:
+                  - {id: 101, codigo: "PX-101", nome: "Produto exemplo", grupo: {codigo: 2, nome: "Conexões"}, marca: null, unidade: "UN", preco: "36.00", origem_preco: "tabela", custo_visivel: true, custo: 18.5, margem_percentual: 48.61}
+                paginacao: {pagina: 1, limite: 20, total: 1}
+                request_id: "0011223344556677"
+        "400":
+          "$ref": "#/components/responses/CorpoInvalido"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          "$ref": "#/components/responses/AcessoProdutosOperadorNegado"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "409":
+          "$ref": "#/components/responses/AcessoEmAndamento"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          "$ref": "#/components/responses/BuscaProdutosOperadorInvalida"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/operadores/produtos/precos":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    post:
+      tags: ["Operador"]
+      operationId: "consultarPrecosOperador"
+      summary: "Consultar preços para um cliente"
+      description: "Requer 01100 e 00500. Valida cliente ativo no recorte de empresa e vendedor. Calcula o preço atual na tabela e natureza aplicáveis ao cliente e segue a mesma política de estoque do comprador. Aceita de 1 a 50 IDs e retorna os produtos encontrados na ordem da lista, sem duplicar. Custo e margem exigem 01110."
+      security:
+        - SessaoOperador: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/PrecosOperadorEntrada"
+            example: {cliente: 42, ids: [101]}
+      responses:
+        "200":
+          description: "Produtos com preço para uma unidade e dados permitidos ao operador."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    type: "array"
+                    maxItems: 50
+                    items:
+                      "$ref": "#/components/schemas/ProdutoOperador"
+              example:
+                dados:
+                  - {id: 101, codigo: "PX-101", nome: "Produto exemplo", grupo: {codigo: 2, nome: "Conexões"}, marca: null, unidade: "UN", preco: "36.00", origem_preco: "tabela", custo_visivel: true, custo: 18.5, margem_percentual: 48.61}
+                request_id: "0011223344556677"
+        "400":
+          "$ref": "#/components/responses/CorpoInvalido"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          "$ref": "#/components/responses/AcessoProdutosOperadorNegado"
+        "404":
+          "$ref": "#/components/responses/ClienteOperadorNaoLocalizado"
+        "409":
+          "$ref": "#/components/responses/AcessoEmAndamento"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          "$ref": "#/components/responses/PrecosOperadorInvalidos"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/operadores/clientes/{cliente}/precos-congelados":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+      - "$ref": "#/components/parameters/ClientePrecoCongeladoId"
+    get:
+      tags: ["Operador"]
+      operationId: "listarPrecosCongelados"
+      summary: "Listar preços congelados"
+      description: "Requer 500110 e cliente ativo no recorte da loja e do vendedor. Devolve até 100 registros por página, incluindo encerrados. Em base sem a estrutura, devolve disponivel igual a false."
+      security:
+        - SessaoOperador: []
+      parameters:
+        - name: "apos"
+          in: "query"
+          schema: {type: "integer", minimum: 0, maximum: 2147483647}
+          description: "Cursor devolvido em proximo. Omita na primeira página."
+      responses:
+        "200":
+          description: "Condições cadastradas para o cliente."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/ListaPrecosCongelados"
+              example:
+                dados: {itens: [{id: 501, cliente: 42, produto: 101, unidade_id: null, valor: "34.0000000", inicio: "2027-01-01", fim: "2027-03-31", situacao: "ativo"}], proximo: null, disponivel: true}
+                request_id: "0011223344556677"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          "$ref": "#/components/responses/AcessoProdutosOperadorNegado"
+        "404":
+          "$ref": "#/components/responses/PrecoCongeladoNaoLocalizado"
+        "409":
+          "$ref": "#/components/responses/AcessoEmAndamento"
+        "422":
+          "$ref": "#/components/responses/PrecosOperadorInvalidos"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+    post:
+      tags: ["Operador"]
+      operationId: "incluirPrecoCongelado"
+      summary: "Incluir preço congelado"
+      description: "Requer 500110. Grava preço negociado de produto avulso para um cliente e uma unidade num período inclusivo. Envie unidade_id igual a null para a unidade base."
+      security:
+        - SessaoOperador: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/PrecoCongeladoEntrada"
+            example: {produto: 101, unidade_id: null, valor: "34.00", inicio: "2027-01-01", fim: "2027-03-31"}
+      responses:
+        "201":
+          description: "Condição gravada."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/PrecoCongelado"
+              example:
+                dados: {id: 501, cliente: 42, produto: 101, unidade_id: null, valor: "34.0000000", inicio: "2027-01-01", fim: "2027-03-31", situacao: "ativo"}
+                request_id: "0011223344556677"
+        "400":
+          "$ref": "#/components/responses/CorpoInvalido"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          "$ref": "#/components/responses/AcessoProdutosOperadorNegado"
+        "404":
+          "$ref": "#/components/responses/PrecoCongeladoNaoLocalizado"
+        "409":
+          "$ref": "#/components/responses/ConflitoIncluirPrecoCongelado"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          "$ref": "#/components/responses/PrecosOperadorInvalidos"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/operadores/clientes/{cliente}/precos-congelados/{preco}":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+      - "$ref": "#/components/parameters/ClientePrecoCongeladoId"
+      - "$ref": "#/components/parameters/PrecoCongeladoId"
+    put:
+      tags: ["Operador"]
+      operationId: "alterarPrecoCongelado"
+      summary: "Alterar preço congelado"
+      description: "Requer 500110. Substitui o valor e as duas datas, conservando o cliente, produto e unidade do registro."
+      security:
+        - SessaoOperador: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/PrecoCongeladoVigencia"
+            example: {valor: "34.00", inicio: "2027-01-01", fim: "2027-03-31"}
+      responses:
+        "200":
+          description: "Condição gravada."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/PrecoCongelado"
+              example:
+                dados: {id: 501, cliente: 42, produto: 101, unidade_id: null, valor: "34.0000000", inicio: "2027-01-01", fim: "2027-03-31", situacao: "ativo"}
+                request_id: "0011223344556677"
+        "400":
+          "$ref": "#/components/responses/CorpoInvalido"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          "$ref": "#/components/responses/AcessoProdutosOperadorNegado"
+        "404":
+          "$ref": "#/components/responses/PrecoCongeladoNaoLocalizado"
+        "409":
+          "$ref": "#/components/responses/ConflitoAlterarPrecoCongelado"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          "$ref": "#/components/responses/PrecosOperadorInvalidos"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+    delete:
+      tags: ["Operador"]
+      operationId: "encerrarPrecoCongelado"
+      summary: "Encerrar preço congelado"
+      description: "Requer 500110. Encerra a vigência imediatamente e mantém o registro no histórico. Repetir a chamada devolve o registro encerrado."
+      security:
+        - SessaoOperador: []
+      responses:
+        "200":
+          description: "Condição gravada."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/PrecoCongelado"
+              example:
+                dados: {id: 501, cliente: 42, produto: 101, unidade_id: null, valor: "34.0000000", inicio: "2027-01-01", fim: "2027-03-31", situacao: "encerrado"}
+                request_id: "0011223344556677"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          "$ref": "#/components/responses/AcessoProdutosOperadorNegado"
+        "404":
+          "$ref": "#/components/responses/PrecoCongeladoNaoLocalizado"
+        "409":
+          "$ref": "#/components/responses/ConflitoEncerrarPrecoCongelado"
+        "422":
+          "$ref": "#/components/responses/PrecosOperadorInvalidos"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/operadores/produtos/{id}/fotos":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+      - "$ref": "#/components/parameters/ProdutoId"
+    get:
+      tags: ["Operador"]
+      operationId: "listarFotosOperador"
+      summary: "Listar fotos do produto"
+      description: "Requer 01100, 01101 ou 01102. A capa vem primeiro. A lista usa a galeria do G360, inclusive para produto fora do catálogo público."
+      security:
+        - SessaoOperador: []
+      responses:
+        "200":
+          description: "Galeria do produto após a operação."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/GaleriaProduto"
+              example: {dados: {fotos: [{item: 1, descricao: "Embalagem"}], capa: 1, maximo: 12}, request_id: "0011223344556677"}
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          "$ref": "#/components/responses/AcessoGaleriaNegado"
+        "404":
+          "$ref": "#/components/responses/GaleriaNaoEncontrada"
+        "409":
+          "$ref": "#/components/responses/AcessoEmAndamento"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+    post:
+      tags: ["Operador"]
+      operationId: "incluirFotoOperador"
+      summary: "Incluir uma foto do produto"
+      description: "Requer 01101 ou 01102. Aceita um JPEG válido de até 2 MiB, com até 4.096 pixels por lado e 16 milhões de pixels no total."
+      security:
+        - SessaoOperador: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              additionalProperties: false
+              required: ["foto"]
+              properties:
+                foto: {type: "string", maxLength: 2800000, pattern: "^data:image/jpeg;base64,"}
+                descricao: {type: "string", maxLength: 50}
+            example: {foto: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD//gA+Q1JFQVRPUjogZ2QtanBlZyB2MS4wICh1c2luZyBJSkcgSlBFRyB2ODApLCBkZWZhdWx0IHF1YWxpdHkK/9sAQwAIBgYHBgUIBwcHCQkICgwUDQwLCwwZEhMPFB0aHx4dGhwcICQuJyAiLCMcHCg3KSwwMTQ0NB8nOT04MjwuMzQy/9sAQwEJCQkMCwwYDQ0YMiEcITIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIy/8AAEQgAAQABAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/aAAwDAQACEQMRAD8A+f6KKKAP/9k=", descricao: "Embalagem"}
+      responses:
+        "201":
+          description: "Galeria do produto após a operação."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/FotoIncluida"
+              example: {dados: {fotos: [{item: 1, descricao: "Embalagem"}], capa: 1, maximo: 12, item: 1}, request_id: "0011223344556677"}
+        "400":
+          "$ref": "#/components/responses/CorpoInvalido"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          "$ref": "#/components/responses/AcessoGaleriaNegado"
+        "404":
+          "$ref": "#/components/responses/GaleriaNaoEncontrada"
+        "409":
+          "$ref": "#/components/responses/AcessoEmAndamento"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          "$ref": "#/components/responses/InclusaoFotoInvalida"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/operadores/produtos/{id}/fotos/capa":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+      - "$ref": "#/components/parameters/ProdutoId"
+    put:
+      tags: ["Operador"]
+      operationId: "definirCapaOperador"
+      summary: "Definir a foto de capa"
+      description: "Requer 01101. A capa passa a ser a primeira foto exibida."
+      security:
+        - SessaoOperador: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              additionalProperties: false
+              required: ["item"]
+              properties:
+                item: {type: "integer", minimum: 1, maximum: 999999}
+            example: {item: 1}
+      responses:
+        "200":
+          description: "Galeria do produto após a operação."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/GaleriaProduto"
+              example: {dados: {fotos: [{item: 1, descricao: "Embalagem"}], capa: 1, maximo: 12}, request_id: "0011223344556677"}
+        "400":
+          "$ref": "#/components/responses/CorpoInvalido"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          "$ref": "#/components/responses/AcessoGaleriaNegado"
+        "404":
+          "$ref": "#/components/responses/GaleriaNaoEncontrada"
+        "409":
+          "$ref": "#/components/responses/AcessoEmAndamento"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          "$ref": "#/components/responses/AlteracaoGaleriaInvalida"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/operadores/produtos/{id}/fotos/ordem":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+      - "$ref": "#/components/parameters/ProdutoId"
+    put:
+      tags: ["Operador"]
+      operationId: "ordenarFotosOperador"
+      summary: "Reordenar as fotos"
+      description: "Requer 01101. Envie cada item da galeria exatamente uma vez. A capa explícita continua na primeira posição."
+      security:
+        - SessaoOperador: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              additionalProperties: false
+              required: ["itens"]
+              properties:
+                itens: {type: "array", maxItems: 12, uniqueItems: true, items: {type: "integer", minimum: 1, maximum: 999999}}
+            example: {itens: [1]}
+      responses:
+        "200":
+          description: "Galeria do produto após a operação."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/GaleriaProduto"
+              example: {dados: {fotos: [{item: 1, descricao: "Embalagem"}], capa: 1, maximo: 12}, request_id: "0011223344556677"}
+        "400":
+          "$ref": "#/components/responses/CorpoInvalido"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          "$ref": "#/components/responses/AcessoGaleriaNegado"
+        "404":
+          "$ref": "#/components/responses/GaleriaNaoEncontrada"
+        "409":
+          "$ref": "#/components/responses/AcessoEmAndamento"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          "$ref": "#/components/responses/AlteracaoGaleriaInvalida"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/operadores/produtos/{id}/fotos/{item}":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+      - "$ref": "#/components/parameters/ProdutoId"
+      - "$ref": "#/components/parameters/FotoItem"
+    get:
+      tags: ["Operador"]
+      operationId: "obterFotoOperador"
+      summary: "Abrir uma foto do produto"
+      description: "Requer 01100, 01101 ou 01102 e a sessão do operador. Lê o arquivo da galeria do G360 mesmo para produto fora do catálogo do comprador."
+      security:
+        - SessaoOperador: []
+      responses:
+        "200":
+          description: "Bytes brutos da imagem (JPEG, PNG, WebP ou GIF), até 5 MiB. O exemplo mostra os cabeçalhos para um GIF ilustrativo de 43 bytes."
+          headers:
+            Content-Length:
+              description: "Tamanho do corpo em bytes."
+              schema:
+                type: "integer"
+                minimum: 1
+                maximum: 5242880
+            Content-Disposition:
+              schema:
+                const: "inline"
+          content:
+            "image/jpeg":
+              schema:
+                type: "string"
+                format: "binary"
+            "image/png":
+              schema:
+                type: "string"
+                format: "binary"
+            "image/webp":
+              schema:
+                type: "string"
+                format: "binary"
+            "image/gif":
+              schema:
+                type: "string"
+                format: "binary"
+          x-exemplo-resposta: |-
+            HTTP/1.1 200 OK
+            Content-Type: image/gif
+            Content-Disposition: inline
+            Content-Length: 43
+
+            <43 bytes do GIF ilustrativo>
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          "$ref": "#/components/responses/AcessoGaleriaNegado"
+        "404":
+          "$ref": "#/components/responses/GaleriaNaoEncontrada"
+        "409":
+          "$ref": "#/components/responses/AcessoEmAndamento"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+    delete:
+      tags: ["Operador"]
+      operationId: "removerFotoOperador"
+      summary: "Remover uma foto do produto"
+      description: "Requer 01101 ou 01102. Remove o vínculo do G360. Se a capa for removida, a próxima foto na ordem atual vira a capa."
+      security:
+        - SessaoOperador: []
+      responses:
+        "200":
+          description: "Galeria do produto após a operação."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/GaleriaProduto"
+              example: {dados: {fotos: [{item: 1, descricao: "Embalagem"}], capa: 1, maximo: 12}, request_id: "0011223344556677"}
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          "$ref": "#/components/responses/AcessoGaleriaNegado"
+        "404":
+          "$ref": "#/components/responses/GaleriaNaoEncontrada"
+        "409":
+          "$ref": "#/components/responses/AcessoEmAndamento"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/loja":
+    parameters:
+      -
+        "$ref": "#/components/parameters/Loja"
+    get:
+      tags: ["Acesso e sessão"]
+      operationId: "apresentarLoja"
+      summary: "Consultar a apresentação da loja"
+      description: "Mostra o nome da loja, a permissão para troca de senha e o limite de inatividade."
+      security: []
+      x-exemplo-requisicao: |-
+        GET /b2b/v1/lojas/0123456789abcdef/loja
+        Host: loja-exemplo.invalid
+      responses:
+        "200":
+          description: "Apresentação da loja."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/Loja"
+              example:
+                dados:
+                  nome: "Loja Exemplo"
+                  troca_senha: true
+                  sessao_minutos: 8
+                request_id: "0011223344556677"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/sessoes":
+    parameters:
+      -
+        "$ref": "#/components/parameters/Loja"
+    post:
+      tags: ["Acesso e sessão"]
+      operationId: "criarSessao"
+      summary: "Entrar na loja"
+      description: "Confere CPF/CNPJ e senha própria. Senha ausente ou igual ao código do cliente recebe a mesma recusa de credencial inválida. Use o link para definir a senha. Consulte os contadores de login na descrição geral."
+      security: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/EntrarEntrada"
+            example:
+              usuario: "12ABC34501DE35"
+              senha: "Exemplo7"
+      x-exemplo-requisicao: |-
+        POST /b2b/v1/lojas/0123456789abcdef/sessoes
+        Host: loja-exemplo.invalid
+        Content-Type: application/json
+
+        {"usuario": "12ABC34501DE35", "senha": "Exemplo7"}
+      responses:
+        "201":
+          description: "Sessão criada."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/SessaoCriada"
+              example:
+                dados:
+                  token: "exemplo_sem_validade_0000000000000000000000"
+                  tipo: "Bearer"
+                  expira_em: "2099-01-15T00:00:00+00:00"
+                  comprador:
+                    nome: "Comprador Exemplo"
+                    fantasia: "Comércio Fictício"
+                    documento: "••••••••••DE35"
+                    trocar_senha: false
+                    compra_bloqueada: false
+                    codigo: 701
+                    segmento: {codigo: 0, descricao: "Varejo"}
+                  loja:
+                    nome: "Loja Exemplo"
+                    troca_senha: true
+                    sessao_minutos: 8
+                    imagens: "PARCEIRO_EXEMPLO/IMGS_PROD_G360"
+                request_id: "0011223344556677"
+        "400":
+          "$ref": "#/components/responses/CorpoInvalido"
+        "401":
+          description: "Credencial inválida, senha ausente ou padrão, cadastro indisponível ou login ambíguo."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["ACESSO_INVALIDO"]
+              example:
+                erro:
+                  codigo: "ACESSO_INVALIDO"
+                  mensagem: "CNPJ/CPF ou senha inválidos."
+                  responsavel: "usuario"
+                  campos: {}
+                request_id: "0011223344556677"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "409":
+          "$ref": "#/components/responses/AcessoEmAndamento"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          "$ref": "#/components/responses/CampoNaoPermitido"
+        "429":
+          "$ref": "#/components/responses/LimiteLogin"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/acessos/links":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    post:
+      tags: ["Sistema"]
+      operationId: "gerarLinkDeAcesso"
+      summary: "Gerar link de primeiro acesso ou recuperação"
+      description: >-
+        Somente servidor para servidor. A chave é da loja. O token vale 30 minutos e uma nova emissão substitui o link anterior.
+        O servidor parceiro envia o e-mail e deve devolver a mesma resposta ao navegador, sem indicar se o documento existe ou revelar os dados desta resposta.
+        Limites em 15 minutos: 3 pedidos por documento na loja e 60 por chave, incluindo recusas de cadastro.
+      x-somente-servidor: true
+      security:
+        - ChaveSistema: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              required: ["documento"]
+              additionalProperties: false
+              properties:
+                documento:
+                  type: "string"
+                  description: "CPF ou CNPJ com dígitos verificadores válidos. Aceita pontuação."
+            example:
+              documento: "12ABC34501DE35"
+      responses:
+        "201":
+          description: "Token para montar o link. Use exclusivamente o endereço de e-mail retornado, que pode ser o de teste da loja."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    type: "object"
+                    required: ["token", "expira_em", "nome", "email"]
+                    properties:
+                      token:
+                        type: "string"
+                        pattern: "^[A-Za-z0-9_-]{43}$"
+                      expira_em:
+                        type: "string"
+                        format: "date-time"
+                      nome:
+                        type: "string"
+                      email:
+                        type: "string"
+                        format: "email"
+              example:
+                dados:
+                  token: "exemplo_sem_validade_0000000000000000000000"
+                  expira_em: "2099-01-15T00:00:00+00:00"
+                  nome: "Comprador Exemplo"
+                  email: "comprador@example.invalid"
+                request_id: "0011223344556677"
+        "400":
+          "$ref": "#/components/responses/CorpoInvalido"
+        "401":
+          description: "Chave ausente, incorreta ou substituída."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["CHAVE_SISTEMA_INVALIDA"]
+              example:
+                erro:
+                  codigo: "CHAVE_SISTEMA_INVALIDA"
+                  mensagem: "Chave de sistema inválida."
+                  responsavel: "integracao"
+                  campos: {}
+                request_id: "0011223344556677"
+        "403":
+          description: "Troca desabilitada ou cadastro bloqueado."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["TROCA_DE_SENHA_DESLIGADA", "CADASTRO_SEM_ACESSO"]
+              example:
+                erro:
+                  codigo: "TROCA_DE_SENHA_DESLIGADA"
+                  mensagem: "A senha é definida pelo seu fornecedor. Fale com ele para alterar."
+                  responsavel: "fornecedor"
+                  campos: {}
+                request_id: "0011223344556677"
+        "404":
+          description: "Loja indisponível ou documento sem cadastro ativo único."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["LOJA_INDISPONIVEL", "CADASTRO_NAO_LOCALIZADO"]
+              example:
+                erro:
+                  codigo: "LOJA_INDISPONIVEL"
+                  mensagem: "Esta loja não está disponível. Fale com o seu fornecedor."
+                  responsavel: "fornecedor"
+                  campos: {}
+                request_id: "0011223344556677"
+        "409":
+          "$ref": "#/components/responses/AcessoEmAndamento"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          description: "Campo extra ou e-mail cadastral inválido."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["CAMPO_NAO_PERMITIDO", "CADASTRO_SEM_EMAIL"]
+              example:
+                erro:
+                  codigo: "CAMPO_NAO_PERMITIDO"
+                  mensagem: "A solicitação tem campos que a API não aceita."
+                  responsavel: "integracao"
+                  campos: {}
+                request_id: "0011223344556677"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/acessos/senha":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    post:
+      tags: ["Acesso e sessão"]
+      operationId: "gravarSenhaPorLink"
+      summary: "Gravar senha com o link de acesso"
+      description: >-
+        Grava a senha e invalida o link e as sessões abertas do comprador. Depois do 204, entre por POST sessoes.
+        Link inválido, vencido, substituído ou usado recebe LINK_INVALIDO. Limite de 10 pedidos por IP em 15 minutos.
+      security: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              required: ["token", "senha_nova"]
+              additionalProperties: false
+              properties:
+                token:
+                  type: "string"
+                  pattern: "^[A-Za-z0-9_-]{43}$"
+                senha_nova:
+                  type: "string"
+                  pattern: '^[!-~]{6,8}$'
+                  description: "De 6 a 8 caracteres ASCII visíveis. Deve ser diferente do código do cliente."
+            example:
+              token: "exemplo_sem_validade_0000000000000000000000"
+              senha_nova: "Amostra8"
+      responses:
+        "204":
+          description: "Senha gravada. Resposta sem corpo."
+        "400":
+          "$ref": "#/components/responses/CorpoInvalido"
+        "403":
+          description: "A loja desabilitou a troca de senha."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["TROCA_DE_SENHA_DESLIGADA"]
+              example:
+                erro:
+                  codigo: "TROCA_DE_SENHA_DESLIGADA"
+                  mensagem: "A senha é definida pelo seu fornecedor. Fale com ele para alterar."
+                  responsavel: "fornecedor"
+                  campos: {}
+                request_id: "0011223344556677"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "409":
+          "$ref": "#/components/responses/AcessoEmAndamento"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          description: "Link recusado, senha inválida ou campo extra."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["LINK_INVALIDO", "SENHA_NOVA_INVALIDA", "CAMPO_NAO_PERMITIDO"]
+              example:
+                erro:
+                  codigo: "LINK_INVALIDO"
+                  mensagem: "O link é inválido ou expirou. Solicite um novo link."
+                  responsavel: "usuario"
+                  campos: {}
+                request_id: "0011223344556677"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/sessao":
+    parameters:
+      -
+        "$ref": "#/components/parameters/Loja"
+    delete:
+      tags: ["Acesso e sessão"]
+      operationId: "encerrarSessao"
+      summary: "Sair da loja"
+      description: "Encerra a sessão autenticada."
+      x-exemplo-requisicao: |-
+        DELETE /b2b/v1/lojas/0123456789abcdef/sessao
+        Host: loja-exemplo.invalid
+        Authorization: Bearer <token-da-sessao>
+      responses:
+        "204":
+          description: "Sessão encerrada. Exemplo de resposta HTTP 204 com corpo vazio."
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/me":
+    parameters:
+      -
+        "$ref": "#/components/parameters/Loja"
+    get:
+      tags: ["Acesso e sessão"]
+      operationId: "consultarComprador"
+      summary: "Consultar o comprador autenticado"
+      description: "Retorna comprador, loja e expiração absoluta da sessão."
+      x-exemplo-requisicao: |-
+        GET /b2b/v1/lojas/0123456789abcdef/me
+        Host: loja-exemplo.invalid
+        Authorization: Bearer <token-da-sessao>
+      responses:
+        "200":
+          description: "Dados da sessão atual."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/SessaoAtual"
+              example:
+                dados:
+                  comprador:
+                    nome: "Comprador Exemplo"
+                    fantasia: "Comércio Fictício"
+                    documento: "••••••••••DE35"
+                    trocar_senha: false
+                    compra_bloqueada: false
+                    codigo: 701
+                    segmento: {codigo: 0, descricao: "Varejo"}
+                  loja:
+                    nome: "Loja Exemplo"
+                    troca_senha: true
+                    sessao_minutos: 8
+                    imagens: "PARCEIRO_EXEMPLO/IMGS_PROD_G360"
+                  expira_em: "2099-01-15T00:00:00+00:00"
+                request_id: "0011223344556677"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/senha":
+    parameters:
+      -
+        "$ref": "#/components/parameters/Loja"
+    put:
+      tags: ["Acesso e sessão"]
+      operationId: "trocarSenha"
+      summary: "Trocar a senha do comprador"
+      description: "Confere a senha atual, invalida as sessões abertas e os links pendentes e emite um token para a nova sessão."
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/TrocarSenhaEntrada"
+            example:
+              senha_atual: "Exemplo7"
+              senha_nova: "Amostra8"
+      x-exemplo-requisicao: |-
+        PUT /b2b/v1/lojas/0123456789abcdef/senha
+        Host: loja-exemplo.invalid
+        Authorization: Bearer <token-da-sessao>
+        Content-Type: application/json
+
+        {"senha_atual": "Exemplo7", "senha_nova": "Amostra8"}
+      responses:
+        "200":
+          description: "Senha trocada e nova sessão emitida."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/SessaoSubstituta"
+              example:
+                dados:
+                  token: "exemplo_sem_validade_0000000000000000000000"
+                  tipo: "Bearer"
+                  expira_em: "2099-01-15T00:00:00+00:00"
+                  comprador:
+                    nome: "Comprador Exemplo"
+                    fantasia: "Comércio Fictício"
+                    documento: "••••••••••DE35"
+                    trocar_senha: false
+                    compra_bloqueada: false
+                    codigo: 701
+                    segmento: {codigo: 0, descricao: "Varejo"}
+                request_id: "0011223344556677"
+        "400":
+          "$ref": "#/components/responses/CorpoInvalido"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          description: "A loja desabilitou a troca de senha pela API."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["TROCA_DE_SENHA_DESLIGADA"]
+              example:
+                erro:
+                  codigo: "TROCA_DE_SENHA_DESLIGADA"
+                  mensagem: "A senha é definida pelo seu fornecedor. Fale com ele para alterar."
+                  responsavel: "fornecedor"
+                  campos: {}
+                request_id: "0011223344556677"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "409":
+          "$ref": "#/components/responses/AcessoEmAndamento"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          description: "Senha atual incorreta, senha nova inválida ou campo extra."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["SENHA_ATUAL_INCORRETA","SENHA_NOVA_INVALIDA","CAMPO_NAO_PERMITIDO"]
+              example:
+                erro:
+                  codigo: "SENHA_ATUAL_INCORRETA"
+                  mensagem: "A senha atual não confere."
+                  responsavel: "usuario"
+                  campos:
+                    senha_atual: ["A senha atual não confere."]
+                request_id: "0011223344556677"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/produtos":
+    parameters:
+      -
+        "$ref": "#/components/parameters/Loja"
+    get:
+      tags: ["Catálogo"]
+      operationId: "listarProdutos"
+      summary: "Listar produtos do catálogo"
+      description: "Retorna o preço para uma unidade e a faixa de disponibilidade. Cada palavra de um termo precisa aparecer em código, nome, código de barras ou aplicação. A busca ignora maiúsculas e a acentuação do português. Entre os termos alternativos, basta um corresponder. Quando q e termos são enviados juntos, ambos os filtros precisam corresponder. Todos os filtros entram na contagem antes de paginar. Ordena por nome e ID do produto. Para listas grandes, use POST produtos/busca."
+      parameters:
+        -
+          "$ref": "#/components/parameters/Busca"
+        -
+          "$ref": "#/components/parameters/FiltroGrupo"
+        -
+          "$ref": "#/components/parameters/FiltroMarca"
+        -
+          "$ref": "#/components/parameters/FiltroCodigos"
+        -
+          "$ref": "#/components/parameters/FiltroIds"
+        -
+          "$ref": "#/components/parameters/FiltroTermos"
+        -
+          "$ref": "#/components/parameters/Pagina"
+        -
+          "$ref": "#/components/parameters/Limite"
+      x-exemplo-requisicao: |-
+        GET /b2b/v1/lojas/0123456789abcdef/produtos?ids=101,102&pagina=1&limite=20
+        Host: loja-exemplo.invalid
+        Authorization: Bearer <token-da-sessao>
+      responses:
+        "200": &PaginaCatalogo
+          description: "Página do catálogo."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                required: ["paginacao"]
+                properties:
+                  dados:
+                    type: "array"
+                    items:
+                      "$ref": "#/components/schemas/Produto"
+                  paginacao:
+                    "$ref": "#/components/schemas/Paginacao"
+              example:
+                dados:
+                  - id: 101
+                    codigo: "P-101"
+                    nome: "Conexão de exemplo"
+                    marca: "Marca Exemplo"
+                    grupo: { codigo: 2, nome: "Conexões" }
+                    marca_detalhe: { codigo: 3, nome: "Marca Exemplo" }
+                    unidade: "UN"
+                    aplicacao: null
+                    imagem: null
+                    fotos: [1]
+                    preco: "12.50"
+                    compravel: true
+                    disponibilidade: "disponivel"
+                    faixa_disponibilidade: "em_estoque"
+                    aviso: null
+                    unidades: []
+                    kit: null
+                paginacao:
+                  pagina: 1
+                  limite: 20
+                  total: 1
+                request_id: "0011223344556677"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          description: "Busca, filtro ou paginação inválidos."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["BUSCA_INVALIDA","FILTRO_INVALIDO","PAGINACAO_INVALIDA"]
+              example:
+                erro:
+                  codigo: "FILTRO_INVALIDO"
+                  mensagem: "Filtro de catálogo inválido."
+                  responsavel: "integracao"
+                  campos:
+                    codigos: ["Informe de 1 a 500 itens."]
+                request_id: "0011223344556677"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/produtos/busca":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    post:
+      tags: ["Catálogo"]
+      operationId: "buscarProdutos"
+      summary: "Consultar o catálogo com filtros em JSON"
+      description: "Executa a mesma consulta de GET produtos. Use para listas de códigos ou termos cuja URL ultrapassaria o limite do servidor."
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/BuscaCatalogoEntrada"
+            example:
+              ids: [101,102]
+              pagina: 1
+              limite: 20
+      responses:
+        "200": *PaginaCatalogo
+        "400":
+          "$ref": "#/components/responses/CorpoInvalido"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          description: "Busca, filtro, paginação ou campo inválido."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["BUSCA_INVALIDA","FILTRO_INVALIDO","PAGINACAO_INVALIDA","CAMPO_NAO_PERMITIDO"]
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/grupos":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    get:
+      tags: ["Catálogo"]
+      operationId: "listarGrupos"
+      summary: "Listar grupos do catálogo"
+      description: "Lista os grupos principais com produtos visíveis ao comprador, ordenados por nome e código. A contagem segue a visibilidade do catálogo da loja."
+      responses:
+        "200":
+          description: "Grupos do catálogo."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ClassificacoesCatalogo"
+              example:
+                dados: [{ codigo: 2, nome: "Conexões", quantidade: 12 }]
+                request_id: "0011223344556677"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/marcas":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    get:
+      tags: ["Catálogo"]
+      operationId: "listarMarcas"
+      summary: "Listar marcas do catálogo"
+      description: "Lista as marcas com produtos visíveis ao comprador, ordenadas por nome e código. A contagem segue a visibilidade do catálogo da loja."
+      responses:
+        "200":
+          description: "Marcas do catálogo."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ClassificacoesCatalogo"
+              example:
+                dados: [{ codigo: 3, nome: "Marca Exemplo", quantidade: 12 }]
+                request_id: "0011223344556677"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/produtos/{id}/fotos/{item}":
+    parameters:
+      -
+        "$ref": "#/components/parameters/Loja"
+      -
+        "$ref": "#/components/parameters/ProdutoId"
+      -
+        "$ref": "#/components/parameters/FotoItem"
+    get:
+      tags: ["Catálogo"]
+      operationId: "obterFotoProduto"
+      summary: "Consultar uma foto do produto"
+      description: "Lê a foto vinculada a um produto do catálogo da loja. O sucesso é binário e os erros são JSON."
+      x-exemplo-requisicao: |-
+        GET /b2b/v1/lojas/0123456789abcdef/produtos/101/fotos/1
+        Host: loja-exemplo.invalid
+        Authorization: Bearer <token-da-sessao>
+      responses:
+        "200":
+          description: "Bytes brutos da imagem (JPEG, PNG, WebP ou GIF), até 5 MiB. O exemplo mostra os cabeçalhos para um GIF ilustrativo de 43 bytes."
+          headers:
+            Content-Length:
+              description: "Tamanho do corpo em bytes."
+              schema:
+                type: "integer"
+                minimum: 1
+                maximum: 5242880
+            Content-Disposition:
+              schema:
+                const: "inline"
+          content:
+            "image/jpeg":
+              schema:
+                type: "string"
+                format: "binary"
+            "image/png":
+              schema:
+                type: "string"
+                format: "binary"
+            "image/webp":
+              schema:
+                type: "string"
+                format: "binary"
+            "image/gif":
+              schema:
+                type: "string"
+                format: "binary"
+          x-exemplo-resposta: |-
+            HTTP/1.1 200 OK
+            Content-Type: image/gif
+            Content-Disposition: inline
+            Content-Length: 43
+
+            <43 bytes do GIF ilustrativo>
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "404":
+          description: "Loja indisponível, produto fora do catálogo ou foto ausente ou inválida."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["NAO_ENCONTRADO","LOJA_INDISPONIVEL"]
+              example:
+                erro:
+                  codigo: "NAO_ENCONTRADO"
+                  mensagem: "Foto não encontrada."
+                  responsavel: "integracao"
+                  campos: {}
+                request_id: "0011223344556677"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/opcoes":
+    parameters:
+      -
+        "$ref": "#/components/parameters/Loja"
+    get:
+      tags: ["Endereços e pagamento"]
+      operationId: "consultarOpcoes"
+      summary: "Consultar opções do pedido"
+      description: "Lista modalidades, endereços de entrega do próprio comprador (principal primeiro) e condições de pagamento. Considera os vínculos do cliente e da tabela. Quando ambos existem, usa a interseção. Com apenas um vínculo, usa esse vínculo. Sem vínculos, lista as condições ativas liberadas para Web, incluindo Pix quando elegível. Quando o pagamento é nenhum, a lista fica vazia."
+      x-exemplo-requisicao: |-
+        GET /b2b/v1/lojas/0123456789abcdef/opcoes
+        Host: loja-exemplo.invalid
+        Authorization: Bearer <token-da-sessao>
+      responses:
+        "200":
+          description: "Opções para fechar o pedido."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/Opcoes"
+              example:
+                dados:
+                  modalidades: ["entrega","retirada"]
+                  enderecos:
+                    - id: 1
+                      descricao: "Principal"
+                      endereco: "Rua Fictícia"
+                      numero: "100"
+                      complemento: ""
+                      cidade: "Cidade Exemplo"
+                      cep: "00000-000"
+                      principal: true
+                  pagamento:
+                    exigido: "nenhum"
+                    condicoes: []
+                request_id: "0011223344556677"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/enderecos":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    post:
+      tags: ["Endereços e pagamento"]
+      operationId: "incluirEndereco"
+      summary: "Incluir endereço de entrega"
+      description: "Inclui endereço ativo para o próprio comprador e o disponibiliza nas opções do pedido. Os endereços padrão do cadastro são preservados."
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/EnderecoEntrada"
+            example:
+              descricao: "Depósito"
+              endereco: "Rua Fictícia"
+              numero: "100"
+              complemento: "Galpão B"
+              cep: "01234-567"
+              cidade_id: 123
+              bairro_id: 456
+              uf: "MG"
+      responses:
+        "201":
+          description: "Endereço incluído."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/Endereco"
+              example:
+                dados:
+                  id: 2
+                  descricao: "DEPÓSITO"
+                  endereco: "RUA FICTÍCIA"
+                  numero: "100"
+                  complemento: "GALPÃO B"
+                  cidade: "CIDADE EXEMPLO"
+                  cep: "01234567"
+                  principal: false
+                request_id: "0011223344556677"
+        "400":
+          description: "Corpo JSON inválido."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["SOLICITACAO_INVALIDA"]
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "409":
+          description: "Endereço repetido ou limite de 20 endereços ativos atingido."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["ENDERECO_REPETIDO","LIMITE_ENDERECOS"]
+              example:
+                erro:
+                  codigo: "ENDERECO_REPETIDO"
+                  mensagem: "Este endereço já está no seu cadastro."
+                  responsavel: "usuario"
+                  campos: {}
+                request_id: "0011223344556677"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          description: "Campo inválido ou desconhecido, cidade incompatível com a UF ou bairro inexistente."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["DADOS_INVALIDOS","CAMPO_NAO_PERMITIDO"]
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/enderecos/referencias":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    get:
+      tags: ["Endereços e pagamento"]
+      operationId: "buscarReferenciasEndereco"
+      summary: "Buscar cidades ou bairros cadastrados"
+      description: "Retorna até 30 registros para preencher os códigos de POST enderecos. A busca de cidade exige UF. O cadastro de bairro do G360 é geral."
+      parameters:
+        - name: "tipo"
+          in: "query"
+          required: true
+          example: "cidade"
+          schema:
+            type: "string"
+            enum: ["cidade","bairro"]
+        - name: "q"
+          in: "query"
+          required: true
+          example: "exemplo"
+          schema:
+            type: "string"
+            minLength: 2
+            maxLength: 70
+        - name: "uf"
+          in: "query"
+          description: "Obrigatória quando tipo é cidade."
+          example: "MG"
+          schema:
+            type: "string"
+            pattern: '^[A-Za-z]{2}$'
+      responses:
+        "200":
+          description: "Referências do cadastro de cidades ou bairros."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    type: "array"
+                    maxItems: 30
+                    items:
+                      type: "object"
+                      required: ["id","nome"]
+                      properties:
+                        id:
+                          type: "integer"
+                        nome:
+                          type: "string"
+              example:
+                dados:
+                  - id: 123
+                    nome: "CIDADE EXEMPLO"
+                request_id: "0011223344556677"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          description: "Tipo, nome ou UF inválidos."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["DADOS_INVALIDOS"]
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/historico-compras":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    get:
+      tags: ["Catálogo"]
+      operationId: "consultarHistoricoCompras"
+      summary: "Consultar compras anteriores por produto"
+      description: "Agrupa as vendas concluídas do próprio comprador no período, feitas pela API ou com o vendedor. A quantidade soma as linhas do produto por pedido. Kits entram pelos componentes gravados como itens."
+      parameters:
+        - name: "produto_ids"
+          in: "query"
+          style: "form"
+          explode: false
+          description: "Até 500 códigos de produto separados por vírgula. Omitir para consultar todos."
+          schema:
+            type: "array"
+            minItems: 1
+            maxItems: 500
+            items:
+              type: "integer"
+              minimum: 1
+              maximum: 2147483647
+          example: [101, 102]
+        - name: "meses"
+          in: "query"
+          description: "Janela móvel até hoje, incluindo as duas datas."
+          schema:
+            type: "integer"
+            minimum: 1
+            maximum: 24
+            default: 6
+      responses:
+        "200":
+          description: "Período e compras agrupadas por produto."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/HistoricoCompras"
+              example:
+                dados:
+                  inicio: "2099-01-01"
+                  fim: "2099-07-01"
+                  produtos:
+                    - produto_id: 101
+                      pedidos: 2
+                      quantidade_media: "5.5"
+                      ultima_compra:
+                        data: "2099-06-15"
+                        quantidade: "6"
+                        unidade_base: "UN"
+                        unidade_vendida: "CX"
+                request_id: "0011223344556677"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          description: "Período ou lista de produtos inválidos."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["DADOS_INVALIDOS"]
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/revisoes":
+    parameters:
+      -
+        "$ref": "#/components/parameters/Loja"
+    post:
+      tags: ["Revisão e pedidos"]
+      operationId: "revisarPedido"
+      summary: "Revisar o carrinho"
+      description: "Recalcula itens, estoque, entrega, frete e pagamento. Cada par produto e unidade pode aparecer uma vez. Frete a combinar, previsão obrigatória ausente e bloqueios comerciais deixam pode_enviar falso em HTTP 200. Crédito sujeito a aprovação permite o envio. A revisão é somente leitura. A tabela de frete da loja usa o município do endereço de entrega e pode dar frete grátis pelo subtotal dos produtos, sem frete e sem taxa de pagamento."
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/RevisaoEntrada"
+            example:
+              itens:
+                - produto_id: 101
+                  quantidade: "2"
+              modalidade: "retirada"
+      x-exemplo-requisicao: |-
+        POST /b2b/v1/lojas/0123456789abcdef/revisoes
+        Host: loja-exemplo.invalid
+        Authorization: Bearer <token-da-sessao>
+        Content-Type: application/json
+
+        {"itens":[{"produto_id":101, "quantidade": "2"}], "modalidade": "retirada"}
+      responses:
+        "200":
+          description: "Carrinho revisado, com assinatura e eventuais pendências."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/Revisao"
+              example:
+                dados:
+                  itens:
+                    - produto_id: 101
+                      codigo: "P-101"
+                      nome: "Conexão de exemplo"
+                      unidade_id: null
+                      unidade: "UN"
+                      kit: false
+                      quantidade: "2"
+                      preco_unitario: "12.50"
+                      total: "25.00"
+                      aviso: null
+                      pendencia: null
+                  subtotal: "25.00"
+                  frete:
+                    situacao: "nao_aplicavel"
+                    valor: "0.00"
+                  taxa_pagamento: "0.00"
+                  total: "25.00"
+                  total_fechado: true
+                  entrega:
+                    modalidade: "retirada"
+                    endereco_id: null
+                  data_prevista: null
+                  credito:
+                    situacao: "liberado"
+                    mensagem: null
+                  pagamento:
+                    exigido: "nenhum"
+                    condicao_id: null
+                    descricao: null
+                    parcelas_a_definir: false
+                    parcelas: []
+                  pode_enviar: true
+                  pendencias: []
+                  observacao: ""
+                  assinatura: "0000000000000000000000000000000000000000000000000000000000000000"
+                request_id: "0011223344556677"
+        "400":
+          "$ref": "#/components/responses/CorpoInvalido"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          description: "Campos extras, formato inválido do carrinho, endereço indevido ou condição indisponível."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["ITENS_INVALIDOS","CAMPO_NAO_PERMITIDO","OBSERVACAO_INVALIDA","MODALIDADE_INVALIDA","DADOS_INVALIDOS","ENDERECO_INVALIDO","CONDICAO_INVALIDA"]
+              example:
+                erro:
+                  codigo: "ITENS_INVALIDOS"
+                  mensagem: "Item inválido no pedido."
+                  responsavel: "usuario"
+                  campos:
+                    itens.0: ["Informe produto_id (inteiro), quantidade (texto decimal maior que zero) e, se for o caso, unidade."]
+                request_id: "0011223344556677"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/pedidos":
+    parameters:
+      -
+        "$ref": "#/components/parameters/Loja"
+    post:
+      tags: ["Revisão e pedidos"]
+      operationId: "enviarPedido"
+      summary: "Concluir um pedido"
+      description: "Reenvia o carrinho com a assinatura da revisão e uma Idempotency-Key. O primeiro envio conclui e numera a venda ou grava um pedido aguardando aprovação comercial. Uma repetição válida devolve o pedido existente. Em caso de resposta incerta ou pedido antigo sem registro comparável, consulte pela mesma chave."
+      parameters:
+        -
+          "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/PedidoEntrada"
+            example:
+              itens:
+                - produto_id: 101
+                  quantidade: "2"
+              modalidade: "retirada"
+              assinatura: "0000000000000000000000000000000000000000000000000000000000000000"
+      x-exemplo-requisicao: |-
+        POST /b2b/v1/lojas/0123456789abcdef/pedidos
+        Host: loja-exemplo.invalid
+        Authorization: Bearer <token-da-sessao>
+        Idempotency-Key: exemplo-pedido-0001
+        Content-Type: application/json
+
+        {"itens":[{"produto_id":101, "quantidade": "2"}], "modalidade": "retirada", "assinatura": "0000000000000000000000000000000000000000000000000000000000000000"}
+      responses:
+        "200":
+          description: "Pedido já criado anteriormente com a mesma chave."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/Pedido"
+              example:
+                dados:
+                  id: 501
+                  numero: null
+                  data: "2099-01-15"
+                  hora: null
+                  situacao: "recebido"
+                  situacao_nome: "Recebido, aguardando o fornecedor"
+                  faturado: false
+                  separacao_status: null
+                  separacao_atualizada_em: null
+                  total: "25.00"
+                  itens:
+                    - produto_id: 101
+                      codigo: "P-101"
+                      nome: "Conexão de exemplo"
+                      unidade: "UN"
+                      quantidade: "2"
+                      preco_unitario: "12.50"
+                      total: "25.00"
+                      kit_id: null
+                  subtotal: "25.00"
+                  frete:
+                    situacao: "nao_aplicavel"
+                    valor: "0.00"
+                  taxa_pagamento: "0.00"
+                  entrega:
+                    modalidade: "retirada"
+                    endereco: null
+                  data_prevista: null
+                  pagamento:
+                    descricao: null
+                    parcelas: []
+                  observacao: ""
+                request_id: "0011223344556677"
+        "201":
+          description: "Pedido numerado ou aguardando aprovação comercial. No segundo caso, o número e a etapa da separação podem vir nulos e os títulos só aparecem após a liberação."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/Pedido"
+              example:
+                dados:
+                  id: 501
+                  numero: 702
+                  data: "2099-01-15"
+                  hora: null
+                  situacao: "confirmado"
+                  situacao_nome: "Confirmado pelo fornecedor"
+                  faturado: false
+                  separacao_status: 1
+                  separacao_atualizada_em: null
+                  total: "25.00"
+                  itens:
+                    - produto_id: 101
+                      codigo: "P-101"
+                      nome: "Conexão de exemplo"
+                      unidade: "UN"
+                      quantidade: "2"
+                      preco_unitario: "12.50"
+                      total: "25.00"
+                      kit_id: null
+                  subtotal: "25.00"
+                  frete:
+                    situacao: "nao_aplicavel"
+                    valor: "0.00"
+                  taxa_pagamento: "0.00"
+                  entrega:
+                    modalidade: "retirada"
+                    endereco: null
+                  data_prevista: "2099-01-18"
+                  pagamento:
+                    descricao: null
+                    parcelas: []
+                  observacao: ""
+                request_id: "0011223344556677"
+        "400":
+          description: "Corpo inválido ou Idempotency-Key ausente ou inválida."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["CHAVE_INVALIDA","SOLICITACAO_INVALIDA"]
+              example:
+                erro:
+                  codigo: "CHAVE_INVALIDA"
+                  mensagem: "Envio sem identificação. Atualize a página e tente novamente."
+                  responsavel: "integracao"
+                  campos: {}
+                request_id: "0011223344556677"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "404":
+          "$ref": "#/components/responses/PedidoNaoEncontrado"
+        "409":
+          description: >-
+            A revisão mudou (inclusive assinatura ausente ou inválida em pedido novo), a chave foi reutilizada para outro
+            carrinho, há processamento em andamento ou o saldo do pedido está reservado por uma venda do fornecedor em
+            andamento. VENDA_EM_ANDAMENTO aparece quando o saldo de um produto do carrinho só não cobre o pedido porque
+            uma venda do G360 Desktop em andamento reservou essa quantidade (inclusive aguardando Pix ou TEF), ou no
+            instante em que essa venda grava a reserva. Com saldo para os dois, o pedido segue normalmente, mesmo com a
+            venda do Desktop aberta. A quantidade reservada fica protegida mesmo quando a loja vende sem estoque. Nada foi
+            gravado e a chave continua livre. Aguarde ao menos 3 segundos e reenvie o mesmo corpo com a mesma
+            Idempotency-Key. JavaScript em outra origem não lê Retry-After. Quando a venda do Desktop fecha, a quantidade
+            sai do saldo e o reenvio segue as regras de sempre (422 REVISAO_BLOQUEADA se a falta for real); quando ela
+            desiste, a quantidade volta. Se o reenvio encontrar o pedido já confirmado, a resposta é 200 com o mesmo
+            pedido.
+          headers:
+            Retry-After:
+              description: "Enviado em segundos somente para OPERACAO_EM_ANDAMENTO e VENDA_EM_ANDAMENTO."
+              schema:
+                type: "integer"
+                const: 3
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["OPERACAO_EM_ANDAMENTO","VENDA_EM_ANDAMENTO","REVISAO_ALTERADA","CHAVE_REUTILIZADA"]
+              examples:
+                processamento:
+                  value:
+                    erro:
+                      codigo: "OPERACAO_EM_ANDAMENTO"
+                      mensagem: "Seu pedido ainda está sendo processado. Aguarde alguns segundos."
+                      responsavel: "tentar_de_novo"
+                      campos: {}
+                    request_id: "0011223344556677"
+                venda_em_andamento:
+                  value:
+                    erro:
+                      codigo: "VENDA_EM_ANDAMENTO"
+                      mensagem: "Há uma venda em andamento com este cliente ou produto. Aguarde alguns segundos e envie de novo, com a mesma chave de envio."
+                      responsavel: "tentar_de_novo"
+                      campos: {}
+                    request_id: "0011223344556677"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          description: "Formato inválido, endereço ou condição indisponível, revisão com pendências (REVISAO_BLOQUEADA, com campos.pendencias) ou item sem configuração de estoque na empresa da loja (ESTOQUE_SEM_CONFIGURACAO, que o fornecedor resolve no G360)."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["REVISAO_BLOQUEADA","ESTOQUE_SEM_CONFIGURACAO","ITENS_INVALIDOS","CAMPO_NAO_PERMITIDO","OBSERVACAO_INVALIDA","MODALIDADE_INVALIDA","DADOS_INVALIDOS","ENDERECO_INVALIDO","CONDICAO_INVALIDA"]
+              example:
+                erro:
+                  codigo: "REVISAO_BLOQUEADA"
+                  mensagem: "O carrinho tem pendências. Revise antes de enviar."
+                  responsavel: "usuario"
+                  campos:
+                    pendencias:
+                      - codigo: "PRODUTO_INDISPONIVEL"
+                        mensagem: "Um produto do carrinho não está mais disponível. Remova-o para continuar."
+                        responsavel: "usuario"
+                        produto_id: 101
+                request_id: "0011223344556677"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+    get:
+      tags: ["Revisão e pedidos"]
+      operationId: "listarPedidos"
+      summary: "Listar os pedidos do comprador"
+      description: "Lista pedidos originados pela API, do mais recente pelo código interno para o mais antigo. A situação acompanha a separação, o faturamento e o cancelamento no G360."
+      parameters:
+        -
+          "$ref": "#/components/parameters/Pagina"
+        -
+          "$ref": "#/components/parameters/Limite"
+      x-exemplo-requisicao: |-
+        GET /b2b/v1/lojas/0123456789abcdef/pedidos?pagina=1&limite=20
+        Host: loja-exemplo.invalid
+        Authorization: Bearer <token-da-sessao>
+      responses:
+        "200":
+          description: "Página de pedidos do comprador."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                required: ["paginacao"]
+                properties:
+                  dados:
+                    type: "array"
+                    items:
+                      "$ref": "#/components/schemas/PedidoResumo"
+                  paginacao:
+                    "$ref": "#/components/schemas/Paginacao"
+              example:
+                dados:
+                  - id: 501
+                    numero: null
+                    data: "2099-01-15"
+                    hora: null
+                    situacao: "recebido"
+                    situacao_nome: "Recebido, aguardando o fornecedor"
+                    faturado: false
+                    separacao_status: null
+                    separacao_atualizada_em: null
+                    total: "25.00"
+                paginacao:
+                  pagina: 1
+                  limite: 20
+                  total: 1
+                request_id: "0011223344556677"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          "$ref": "#/components/responses/PaginacaoInvalida"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/pedidos/por-chave/{chave}":
+    parameters:
+      -
+        "$ref": "#/components/parameters/Loja"
+      -
+        "$ref": "#/components/parameters/Chave"
+    get:
+      tags: ["Revisão e pedidos"]
+      operationId: "consultarPedidoPorChave"
+      summary: "Localizar o resultado do envio"
+      description: "Retorna o mesmo detalhe da consulta por código para a chave usada pelo próprio comprador no envio."
+      x-exemplo-requisicao: |-
+        GET /b2b/v1/lojas/0123456789abcdef/pedidos/por-chave/exemplo-pedido-0001
+        Host: loja-exemplo.invalid
+        Authorization: Bearer <token-da-sessao>
+      responses:
+        "200":
+          description: "Pedido encontrado pela chave de envio."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/Pedido"
+              example:
+                dados:
+                  id: 501
+                  numero: null
+                  data: "2099-01-15"
+                  hora: null
+                  situacao: "recebido"
+                  situacao_nome: "Recebido, aguardando o fornecedor"
+                  faturado: false
+                  separacao_status: null
+                  separacao_atualizada_em: null
+                  total: "25.00"
+                  itens:
+                    - produto_id: 101
+                      codigo: "P-101"
+                      nome: "Conexão de exemplo"
+                      unidade: "UN"
+                      quantidade: "2"
+                      preco_unitario: "12.50"
+                      total: "25.00"
+                      kit_id: null
+                  subtotal: "25.00"
+                  frete:
+                    situacao: "nao_aplicavel"
+                    valor: "0.00"
+                  taxa_pagamento: "0.00"
+                  entrega:
+                    modalidade: "retirada"
+                    endereco: null
+                  data_prevista: null
+                  pagamento:
+                    descricao: null
+                    parcelas: []
+                  observacao: ""
+                request_id: "0011223344556677"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "404":
+          "$ref": "#/components/responses/PedidoNaoEncontrado"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/pedidos/{id}":
+    parameters:
+      -
+        "$ref": "#/components/parameters/Loja"
+      -
+        "$ref": "#/components/parameters/PedidoId"
+    get:
+      tags: ["Revisão e pedidos"]
+      operationId: "consultarPedido"
+      summary: "Consultar os detalhes de um pedido"
+      description: "Consulta um pedido do próprio comprador originado pela API. Os componentes de kit aparecem como linhas gravadas, com kit_id."
+      x-exemplo-requisicao: |-
+        GET /b2b/v1/lojas/0123456789abcdef/pedidos/501
+        Host: loja-exemplo.invalid
+        Authorization: Bearer <token-da-sessao>
+      responses:
+        "200":
+          description: "Detalhes do pedido."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/Pedido"
+              example:
+                dados:
+                  id: 501
+                  numero: null
+                  data: "2099-01-15"
+                  hora: null
+                  situacao: "recebido"
+                  situacao_nome: "Recebido, aguardando o fornecedor"
+                  faturado: false
+                  separacao_status: null
+                  separacao_atualizada_em: null
+                  total: "25.00"
+                  itens:
+                    - produto_id: 101
+                      codigo: "P-101"
+                      nome: "Conexão de exemplo"
+                      unidade: "UN"
+                      quantidade: "2"
+                      preco_unitario: "12.50"
+                      total: "25.00"
+                      kit_id: null
+                  subtotal: "25.00"
+                  frete:
+                    situacao: "nao_aplicavel"
+                    valor: "0.00"
+                  taxa_pagamento: "0.00"
+                  entrega:
+                    modalidade: "retirada"
+                    endereco: null
+                  data_prevista: null
+                  pagamento:
+                    descricao: null
+                    parcelas: []
+                  observacao: ""
+                request_id: "0011223344556677"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "404":
+          "$ref": "#/components/responses/PedidoNaoEncontrado"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+components:
+  securitySchemes:
+    SessaoOperador:
+      type: "http"
+      scheme: "bearer"
+      bearerFormat: "Token opaco do operador"
+      description: "Bearer exclusivo do operador do G360 para a loja em que entrou."
+    ChaveSistema:
+      type: "apiKey"
+      in: "header"
+      name: "X-Chave-Sistema"
+      description: "Chave da loja, de uso exclusivo do servidor parceiro. Guarde como segredo e envie somente pelo cabeçalho."
+    SessaoComprador:
+      type: "http"
+      scheme: "bearer"
+      description: "Token opaco do comprador enviado em Authorization: Bearer <token>. Sessão vinculada à loja e ao comprador, sem cookie."
+  parameters:
+    Loja:
+      name: "loja"
+      in: "path"
+      required: true
+      schema:
+        type: "string"
+        pattern: "^[a-f0-9]{16}$"
+        description: "Slug público da loja em hexadecimal minúsculo."
+      example: "0123456789abcdef"
+    ClientePrecoCongeladoId:
+      name: "cliente"
+      in: "path"
+      required: true
+      schema: {type: "integer", minimum: 1, maximum: 2147483647}
+      example: 42
+    PrecoCongeladoId:
+      name: "preco"
+      in: "path"
+      required: true
+      schema: {type: "integer", minimum: 1, maximum: 2147483647}
+      example: 501
+    ProdutoId:
+      name: "id"
+      in: "path"
+      required: true
+      schema:
+        type: "string"
+        pattern: "^[0-9]{1,10}$"
+        description: "Até dez dígitos na rota, com zeros à esquerda aceitos. O produto deve existir. Na leitura do comprador, precisa estar no catálogo."
+      example: "101"
+    PedidoId:
+      name: "id"
+      in: "path"
+      required: true
+      schema:
+        type: "string"
+        pattern: "^[0-9]{1,10}$"
+        description: "Até dez dígitos na rota, com zeros à esquerda aceitos. O código precisa ser positivo e até 2147483647 para localizar o pedido."
+      example: "501"
+    FotoItem:
+      name: "item"
+      in: "path"
+      required: true
+      schema:
+        type: "string"
+        pattern: "^[0-9]{1,6}$"
+        description: "Até seis dígitos na rota. O item da foto precisa ser positivo."
+      example: "1"
+    Chave:
+      name: "chave"
+      in: "path"
+      required: true
+      schema:
+        type: "string"
+        pattern: "^[A-Za-z0-9_-]{16,64}$"
+      example: "exemplo-pedido-0001"
+    IdempotencyKey:
+      name: "Idempotency-Key"
+      in: "header"
+      required: true
+      description: "Identificador gerado pelo sistema que chama a API para uma intenção de compra. Preserve a chave nas tentativas do mesmo envio."
+      schema:
+        type: "string"
+        pattern: "^[A-Za-z0-9_-]{16,64}$"
+      example: "exemplo-pedido-0001"
+    Pagina:
+      name: "pagina"
+      in: "query"
+      schema:
+        type: "integer"
+        minimum: 1
+        maximum: 100000
+        default: 1
+      example: 1
+    Limite:
+      name: "limite"
+      in: "query"
+      schema:
+        type: "integer"
+        minimum: 1
+        maximum: 50
+        default: 20
+      example: 20
+    Busca:
+      name: "q"
+      in: "query"
+      schema:
+        type: "string"
+        maxLength: 80
+      example: "conexão"
+    FiltroGrupo:
+      name: "grupo"
+      in: "query"
+      description: "Código do grupo principal, como em GET grupos."
+      schema:
+        type: "integer"
+        minimum: 0
+        maximum: 2147483647
+      example: 2
+    FiltroMarca:
+      name: "marca"
+      in: "query"
+      description: "Código da marca, como em GET marcas."
+      schema:
+        type: "integer"
+        minimum: 0
+        maximum: 2147483647
+      example: 3
+    FiltroCodigos:
+      name: "codigos"
+      in: "query"
+      description: "Lista de códigos comerciais (campo codigo do produto). Use vírgulas como separador ou codigos[]=P-101&codigos[]=P-102, inclusive para códigos que contenham vírgula."
+      style: "form"
+      explode: false
+      schema:
+        type: "array"
+        minItems: 1
+        maxItems: 500
+        items:
+          type: "string"
+          minLength: 1
+          maxLength: 20
+      example: ["P-101","P-102"]
+    FiltroIds:
+      name: "ids"
+      in: "query"
+      description: "Lista de ids de produto (o produto_id do histórico de compras e dos pedidos), para buscar preço, disponibilidade e fotos desses produtos de uma vez. Use vírgulas como separador ou ids[]=101&ids[]=102. Id que não está no catálogo do comprador não volta."
+      style: "form"
+      explode: false
+      schema:
+        type: "array"
+        minItems: 1
+        maxItems: 500
+        items:
+          type: "integer"
+          minimum: 1
+          maximum: 2147483647
+      example: [101,102]
+    FiltroTermos:
+      name: "termos[]"
+      in: "query"
+      description: "Repita termos[] para enviar cada alternativa. Dentro da alternativa, todas as palavras devem aparecer."
+      style: "form"
+      explode: true
+      schema:
+        type: "array"
+        minItems: 1
+        maxItems: 10
+        items:
+          type: "string"
+          minLength: 1
+          maxLength: 80
+      example: ["conexão hidráulica","adaptador"]
+  responses:
+    PrecoCongeladoNaoLocalizado:
+      description: "Cliente fora do alcance ou registro/produto não localizado."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    enum: ["CLIENTE_NAO_LOCALIZADO", "NAO_ENCONTRADO"]
+    ConflitoIncluirPrecoCongelado:
+      description: "Vigência sobreposta, base desatualizada ou outra operação em andamento."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    enum: ["VIGENCIA_SOBREPOSTA", "PRECO_CONGELADO_INDISPONIVEL", "OPERACAO_EM_ANDAMENTO"]
+    ConflitoAlterarPrecoCongelado:
+      description: "Vigência sobreposta, registro encerrado, base desatualizada ou outra operação em andamento."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    enum: ["VIGENCIA_SOBREPOSTA", "PRECO_CONGELADO_ENCERRADO", "PRECO_CONGELADO_INDISPONIVEL", "OPERACAO_EM_ANDAMENTO"]
+    ConflitoEncerrarPrecoCongelado:
+      description: "Base desatualizada ou outra operação em andamento."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    enum: ["PRECO_CONGELADO_INDISPONIVEL", "OPERACAO_EM_ANDAMENTO"]
+    AcessoProdutosOperadorNegado:
+      description: "Origem ou permissão do operador insuficiente."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["ORIGEM_OPERADOR_NAO_PERMITIDA", "OPERADOR_SEM_ACESSO"]
+    BuscaProdutosOperadorInvalida:
+      description: "Busca, filtro, paginação ou campo inválido."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["BUSCA_INVALIDA", "FILTRO_INVALIDO", "PAGINACAO_INVALIDA", "CAMPO_NAO_PERMITIDO"]
+    PrecosOperadorInvalidos:
+      description: "Cliente, lista de produtos ou campo inválido."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["DADOS_INVALIDOS", "CAMPO_NAO_PERMITIDO"]
+    AcessoGaleriaNegado:
+      description: "Origem ou permissão do operador insuficiente."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["ORIGEM_OPERADOR_NAO_PERMITIDA", "OPERADOR_SEM_ACESSO"]
+    GaleriaNaoEncontrada:
+      description: "Loja, produto ou foto não localizada."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["LOJA_INDISPONIVEL", "NAO_ENCONTRADO"]
+    AlteracaoGaleriaInvalida:
+      description: "Campos ou itens da galeria inválidos."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["CAMPO_NAO_PERMITIDO", "DADOS_INVALIDOS"]
+    InclusaoFotoInvalida:
+      description: "Campos inválidos, JPEG inválido ou galeria cheia."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["CAMPO_NAO_PERMITIDO", "DADOS_INVALIDOS", "LIMITE_FOTOS"]
+    OperadorLoginInvalido:
+      description: "Credencial inválida ou operador inelegível para a loja."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["OPERADOR_LOGIN_INVALIDO"]
+    OrigemOperadorNaoPermitida:
+      description: "Origem do navegador fora da lista da loja."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["ORIGEM_OPERADOR_NAO_PERMITIDA"]
+    ConsultaOperadorNegada:
+      description: "Origem recusada ou operador sem o acesso 00500."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["ORIGEM_OPERADOR_NAO_PERMITIDA", "OPERADOR_SEM_ACESSO"]
+    ClienteOperadorNaoLocalizado:
+      description: "Loja indisponível ou CNPJ sem cadastro elegível no recorte."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["LOJA_INDISPONIVEL", "CLIENTE_NAO_LOCALIZADO"]
+    ConsultaOperadorEmConflito:
+      description: "Cadastro ambíguo ou outra operação em andamento. Só a operação em andamento inclui Retry-After."
+      headers:
+        Retry-After:
+          description: "Espera em segundos quando outra operação ainda está em andamento."
+          schema: {type: "integer", const: 3}
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["CLIENTE_AMBIGUO", "OPERACAO_EM_ANDAMENTO"]
+    CampoOperadorNaoPermitido:
+      description: "Campo extra no corpo."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["CAMPO_NAO_PERMITIDO"]
+    ConsultaOperadorInvalida:
+      description: "CNPJ inválido ou campo extra no corpo."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["CNPJ_INVALIDO", "CAMPO_NAO_PERMITIDO"]
+    LicencaOperadorIndisponivel:
+      description: "A licença compartilhada não concedeu acesso à operação."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["LICENCA_OPERADOR_INDISPONIVEL"]
+    LojaIndisponivel:
+      description: "Loja inexistente, desligada ou sem o módulo liberado."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["LOJA_INDISPONIVEL"]
+          example:
+            erro:
+              codigo: "LOJA_INDISPONIVEL"
+              mensagem: "Esta loja não está disponível. Fale com o seu fornecedor."
+              responsavel: "fornecedor"
+              campos: {}
+            request_id: "0011223344556677"
+    CorpoGrande:
+      description: "O corpo ultrapassou 65.536 bytes."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["CORPO_GRANDE"]
+          example:
+            erro:
+              codigo: "CORPO_GRANDE"
+              mensagem: "Solicitação grande demais."
+              responsavel: "integracao"
+              campos: {}
+            request_id: "0011223344556677"
+    LimiteRequisicoes:
+      description: "Limite de requisições excedido."
+      headers:
+        Retry-After:
+          description: "Segundos até liberar o contador."
+          schema:
+            type: "integer"
+            minimum: 1
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["MUITAS_TENTATIVAS"]
+          example:
+            erro:
+              codigo: "MUITAS_TENTATIVAS"
+              mensagem: "Muitas solicitações. Aguarde um instante e tente de novo."
+              responsavel: "tentar_de_novo"
+              campos: {}
+            request_id: "0011223344556677"
+    LimiteLogin:
+      description: "Limite de requisições ou de falhas de login excedido."
+      headers:
+        Retry-After:
+          description: "Segundos até liberar o contador que causou a recusa."
+          schema:
+            type: "integer"
+            minimum: 1
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["MUITAS_TENTATIVAS"]
+          example:
+            erro:
+              codigo: "MUITAS_TENTATIVAS"
+              mensagem: "Muitas solicitações. Aguarde um instante e tente de novo."
+              responsavel: "tentar_de_novo"
+              campos: {}
+            request_id: "0011223344556677"
+    Indisponivel:
+      description: "Falha temporária da API."
+      headers:
+        Retry-After:
+          description: "Espera sugerida em segundos."
+          schema:
+            type: "integer"
+            const: 30
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["INDISPONIVEL"]
+          example:
+            erro:
+              codigo: "INDISPONIVEL"
+              mensagem: "A API está indisponível no momento. Tente novamente em instantes."
+              responsavel: "tentar_de_novo"
+              campos: {}
+            request_id: "0011223344556677"
+    SessaoInvalida:
+      description: "Sessão ausente, inválida, revogada, expirada ou de outra loja."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["SESSAO_INVALIDA"]
+          example:
+            erro:
+              codigo: "SESSAO_INVALIDA"
+              mensagem: "Sua sessão terminou. Entre novamente."
+              responsavel: "usuario"
+              campos: {}
+            request_id: "0011223344556677"
+    AcessoEmAndamento:
+      description: "Outra operação de acesso está em andamento."
+      headers:
+        Retry-After:
+          description: "Espera sugerida em segundos."
+          schema:
+            type: "integer"
+            const: 3
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["OPERACAO_EM_ANDAMENTO"]
+    CorpoInvalido:
+      description: "O corpo não é JSON no formato aceito pela operação."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["SOLICITACAO_INVALIDA"]
+          example:
+            erro:
+              codigo: "SOLICITACAO_INVALIDA"
+              mensagem: "Solicitação inválida."
+              responsavel: "integracao"
+              campos: {}
+            request_id: "0011223344556677"
+    CampoNaoPermitido:
+      description: "O corpo contém campos extras. O servidor lista até dez nomes em erro.campos."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["CAMPO_NAO_PERMITIDO"]
+          example:
+            erro:
+              codigo: "CAMPO_NAO_PERMITIDO"
+              mensagem: "A solicitação tem campos que a API não aceita."
+              responsavel: "integracao"
+              campos:
+                campo_exemplo: ["Campo não permitido."]
+            request_id: "0011223344556677"
+    PaginacaoInvalida:
+      description: "Página ou limite inválido."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["PAGINACAO_INVALIDA"]
+          example:
+            erro:
+              codigo: "PAGINACAO_INVALIDA"
+              mensagem: "Página ou limite inválidos."
+              responsavel: "integracao"
+              campos: {}
+            request_id: "0011223344556677"
+    PedidoNaoEncontrado:
+      description: "Loja indisponível ou pedido não encontrado para este comprador."
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/Erro"
+            properties:
+              erro:
+                properties:
+                  codigo:
+                    type: "string"
+                    enum: ["NAO_ENCONTRADO","LOJA_INDISPONIVEL"]
+          example:
+            erro:
+              codigo: "NAO_ENCONTRADO"
+              mensagem: "Pedido não encontrado."
+              responsavel: "integracao"
+              campos: {}
+            request_id: "0011223344556677"
+  schemas:
+    PrecosOperadorEntrada:
+      type: "object"
+      additionalProperties: false
+      required: ["cliente", "ids"]
+      properties:
+        cliente: {type: "integer", minimum: 1, maximum: 2147483647, description: "Código de cadastro do cliente no G360."}
+        ids:
+          type: "array"
+          minItems: 1
+          maxItems: 50
+          items: {type: "integer", minimum: 1, maximum: 2147483647}
+    PrecoCongeladoVigencia:
+      type: "object"
+      required: ["valor", "inicio", "fim"]
+      additionalProperties: false
+      properties:
+        valor: {type: "string", pattern: '^(?:0|[1-9][0-9]{0,10})(?:\.[0-9]{1,7})?$', description: "Decimal positivo com até sete casas e ponto."}
+        inicio: {type: "string", format: "date"}
+        fim: {type: "string", format: "date", description: "Data final inclusiva, igual ou posterior à inicial."}
+    PrecoCongeladoEntrada:
+      type: "object"
+      required: ["produto", "valor", "inicio", "fim"]
+      additionalProperties: false
+      properties:
+        produto: {type: "integer", minimum: 1, maximum: 2147483647}
+        unidade_id: {type: ["string", "null"], minLength: 1, maxLength: 100, description: "ID da unidade alternativa no catálogo. Nulo ou omitido usa a unidade base."}
+        valor: {type: "string", pattern: '^(?:0|[1-9][0-9]{0,10})(?:\.[0-9]{1,7})?$'}
+        inicio: {type: "string", format: "date"}
+        fim: {type: "string", format: "date"}
+    PrecoCongelado:
+      type: "object"
+      required: ["id", "cliente", "produto", "unidade_id", "valor", "inicio", "fim", "situacao"]
+      properties:
+        id: {type: "integer", minimum: 1}
+        cliente: {type: "integer", minimum: 1}
+        produto: {type: "integer", minimum: 1}
+        unidade_id: {type: ["string", "null"]}
+        valor: {type: "string", pattern: '^[0-9]+\.[0-9]{7}$'}
+        inicio: {type: "string", format: "date"}
+        fim: {type: "string", format: "date"}
+        situacao: {type: "string", enum: ["ativo", "encerrado"], description: "Ativo indica que o registro não foi encerrado. A vigência depende das datas."}
+    ListaPrecosCongelados:
+      type: "object"
+      required: ["itens", "proximo", "disponivel"]
+      properties:
+        itens:
+          type: "array"
+          maxItems: 100
+          items:
+            "$ref": "#/components/schemas/PrecoCongelado"
+        proximo: {type: ["integer", "null"], minimum: 1}
+        disponivel: {type: "boolean"}
+    SeuPreco:
+      description: "Preço efetivo na unidade comprada, quando há congelado vigente. É o menor entre o preço negociado e a tabela aplicável. Nulo para kits, sem congelado ou sem preço de compra. Em pedidos enviados, reflete a condição gravada no envio."
+      anyOf:
+        - "$ref": "#/components/schemas/PrecoUnitario"
+        - type: "null"
+    ProdutoOperador:
+      type: "object"
+      required: ["id", "codigo", "nome", "grupo", "marca", "unidade", "preco", "origem_preco", "custo_visivel", "custo", "margem_percentual"]
+      properties:
+        id: {type: "integer", minimum: 1}
+        codigo: {type: "string"}
+        nome: {type: "string"}
+        grupo:
+          anyOf:
+            - "$ref": "#/components/schemas/ClassificacaoProduto"
+            - type: "null"
+        marca:
+          anyOf:
+            - "$ref": "#/components/schemas/ClassificacaoProduto"
+            - type: "null"
+        unidade: {type: ["string", "null"]}
+        preco:
+          anyOf:
+            - "$ref": "#/components/schemas/PrecoUnitario"
+            - type: "null"
+        preco_congelado:
+          description: "Valor negociado vigente para a unidade base na consulta com cliente. Requer 500110. Nulo na busca geral, para kits ou quando não há valor vigente. O campo preco continua representando a tabela."
+          anyOf:
+            - "$ref": "#/components/schemas/PrecoUnitario"
+            - type: "null"
+        origem_preco: {type: ["string", "null"], enum: ["tabela", "formula", "cadastro", null]}
+        custo_visivel: {type: "boolean", description: "Permissão 01110 para consultar custo e margem."}
+        custo: {type: ["number", "null"], description: "Custo unitário conforme o Painel de Gestão, com até quatro casas decimais. Nulo sem 01110 ou sem cadastro do produto na empresa de custos."}
+        margem_percentual: {type: ["number", "null"], description: "100 vezes (preço de venda menos custo) dividido pelo preço de venda, com até duas casas. Nula sem 01110, sem cadastro do custo ou sem preço."}
+    GaleriaProduto:
+      type: "object"
+      required: ["fotos", "capa", "maximo"]
+      properties:
+        fotos:
+          type: "array"
+          maxItems: 12
+          items:
+            type: "object"
+            required: ["item", "descricao"]
+            properties:
+              item: {type: "integer", minimum: 1}
+              descricao: {type: "string"}
+        capa: {type: ["integer", "null"], minimum: 1, description: "Item da primeira foto ou nulo com galeria vazia."}
+        maximo: {type: "integer", const: 12}
+    FotoIncluida:
+      allOf:
+        - "$ref": "#/components/schemas/GaleriaProduto"
+        - type: "object"
+          required: ["item"]
+          properties:
+            item: {type: "integer", minimum: 1, description: "Item recém-vinculado."}
+    SessaoOperadorCriada:
+      type: "object"
+      additionalProperties: false
+      required: ["token", "tipo", "expira_em"]
+      properties:
+        token: {type: "string", pattern: "^op_[A-Za-z0-9_-]{43}$"}
+        tipo: {const: "Bearer"}
+        expira_em: {type: "string", format: "date-time", description: "Limite absoluto em UTC."}
+    ClienteConsultadoOperador:
+      type: "object"
+      additionalProperties: false
+      required: ["codigo", "nome", "acesso_portal", "segmento"]
+      properties:
+        codigo: {type: "integer"}
+        nome: {type: "string"}
+        acesso_portal:
+          type: "boolean"
+          description: "Indica se o cadastro está liberado para acessar o portal. Em bases sem esse controle, valem as demais regras de acesso do cadastro."
+        segmento:
+          "$ref": "#/components/schemas/Comprador/properties/segmento"
+    RequestId:
+      type: "string"
+      pattern: "^[a-f0-9]{16}$"
+      description: "Identificador gerado pelo servidor para a requisição."
+    Sucesso:
+      type: "object"
+      required: ["dados","request_id"]
+      properties:
+        dados: {}
+        request_id:
+          "$ref": "#/components/schemas/RequestId"
+    Erro:
+      type: "object"
+      required: ["erro","request_id"]
+      properties:
+        erro:
+          type: "object"
+          required: ["codigo","mensagem","responsavel","campos"]
+          properties:
+            codigo:
+              type: "string"
+            mensagem:
+              type: "string"
+            responsavel:
+              "$ref": "#/components/schemas/Responsavel"
+            campos:
+              type: "object"
+              properties:
+                pendencias:
+                  anyOf:
+                    - type: "array"
+                      items:
+                        "$ref": "#/components/schemas/Pendencia"
+                    - type: "array"
+                      items:
+                        type: "string"
+              additionalProperties:
+                type: "array"
+                items:
+                  type: "string"
+              description: "Objeto vazio ou campos com listas de mensagens. REVISAO_BLOQUEADA traz a lista estruturada em campos.pendencias."
+        request_id:
+          "$ref": "#/components/schemas/RequestId"
+    Paginacao:
+      type: "object"
+      required: ["pagina","limite","total"]
+      properties:
+        pagina:
+          type: "integer"
+          minimum: 1
+          maximum: 100000
+        limite:
+          type: "integer"
+          minimum: 1
+          maximum: 50
+        total:
+          type: "integer"
+          minimum: 0
+    Loja:
+      type: "object"
+      required: ["nome","troca_senha","sessao_minutos"]
+      properties:
+        nome:
+          type: "string"
+        troca_senha:
+          type: "boolean"
+        sessao_minutos:
+          type: "integer"
+          minimum: 1
+          maximum: 720
+          default: 8
+    LojaComSessao:
+      type: "object"
+      required: ["nome","troca_senha","sessao_minutos","imagens"]
+      properties:
+        nome:
+          type: "string"
+        troca_senha:
+          type: "boolean"
+        sessao_minutos:
+          type: "integer"
+          minimum: 1
+          maximum: 720
+          default: 8
+        imagens:
+          type: ["string","null"]
+          description: "Pasta das imagens legadas relativa à hospedagem de imagens do parceiro, quando configurada."
+    Comprador:
+      type: "object"
+      required: ["nome","fantasia","documento","trocar_senha","compra_bloqueada","codigo","segmento"]
+      properties:
+        nome:
+          type: "string"
+        fantasia:
+          type: "string"
+        documento:
+          type: "string"
+          description: "CPF/CNPJ mascarado, com os últimos quatro caracteres visíveis."
+        trocar_senha:
+          type: "boolean"
+          description: "Campo mantido para compatibilidade. Sempre falso para uma sessão válida."
+        compra_bloqueada:
+          type: "boolean"
+        codigo:
+          type: "integer"
+          description: "Código do cadastro do cliente na base da loja."
+        segmento:
+          type: ["object", "null"]
+          description: "Segmento principal do cadastro. Nulo quando ausente ou desconhecido."
+          required: ["codigo", "descricao"]
+          properties:
+            codigo:
+              type: "integer"
+              minimum: 0
+              maximum: 6
+            descricao:
+              type: "string"
+    SessaoCriada:
+      type: "object"
+      required: ["token","tipo","expira_em","comprador","loja"]
+      properties:
+        token:
+          type: "string"
+          pattern: "^[A-Za-z0-9_-]{43}$"
+          description: "Token opaco de sessão. Trate como credencial."
+        tipo:
+          const: "Bearer"
+        expira_em:
+          type: "string"
+          format: "date-time"
+          description: "Limite absoluto da sessão em UTC. A sessão pode terminar antes por inatividade ou revogação."
+        comprador:
+          "$ref": "#/components/schemas/Comprador"
+        loja:
+          "$ref": "#/components/schemas/LojaComSessao"
+    SessaoSubstituta:
+      type: "object"
+      required: ["token","tipo","expira_em","comprador"]
+      properties:
+        token:
+          type: "string"
+          pattern: "^[A-Za-z0-9_-]{43}$"
+          description: "Token opaco de sessão. Trate como credencial."
+        tipo:
+          const: "Bearer"
+        expira_em:
+          type: "string"
+          format: "date-time"
+          description: "Limite absoluto da sessão em UTC. A sessão pode terminar antes por inatividade ou revogação."
+        comprador:
+          "$ref": "#/components/schemas/Comprador"
+    SessaoAtual:
+      type: "object"
+      required: ["comprador","loja","expira_em"]
+      properties:
+        comprador:
+          "$ref": "#/components/schemas/Comprador"
+        loja:
+          "$ref": "#/components/schemas/LojaComSessao"
+        expira_em:
+          type: "string"
+          format: "date-time"
+          description: "Limite absoluto da sessão em UTC. A sessão pode terminar antes por inatividade ou revogação."
+    EntrarEntrada:
+      type: "object"
+      required: ["usuario","senha"]
+      properties:
+        usuario:
+          type: "string"
+          description: "CPF ou CNPJ com dígitos verificadores válidos, inclusive CNPJ alfanumérico. Pontuação é removida."
+        senha:
+          type: "string"
+          writeOnly: true
+          minLength: 1
+          description: "Até 64 bytes. A senha gravada pode conter acentos."
+      additionalProperties: false
+    TrocarSenhaEntrada:
+      type: "object"
+      required: ["senha_atual","senha_nova"]
+      properties:
+        senha_atual:
+          type: "string"
+          writeOnly: true
+        senha_nova:
+          type: "string"
+          pattern: "^[\\x21-\\x7E]{6,8}$"
+          description: "ASCII visível, sem espaços, diferente do código do cliente."
+          writeOnly: true
+      additionalProperties: false
+    Dinheiro:
+      type: "string"
+      pattern: "^-?[0-9]+\\.[0-9]{2}$"
+      description: "Texto decimal com ponto e duas casas."
+    PrecoUnitario:
+      type: "string"
+      pattern: "^-?[0-9]+\\.[0-9]{2,6}$"
+      description: "Texto decimal com ponto. O preço unitário usa de duas a seis casas, conforme a configuração e o arredondamento do servidor."
+    Quantidade:
+      type: "string"
+      pattern: "^-?[0-9]+(?:\\.[0-9]{1,4})?$"
+      description: "Texto decimal com até quatro casas e sem zeros finais na fração."
+    IdEntrada:
+      type: "integer"
+      minimum: 1
+      maximum: 2147483647
+      description: "Inteiro JSON positivo. Texto numérico e número com parte fracionária no JSON são recusados pelo servidor."
+    Modalidade:
+      type: "string"
+      enum: ["entrega","retirada"]
+    ClassificacaoProduto:
+      type: "object"
+      required: ["codigo","nome"]
+      properties:
+        codigo:
+          type: "integer"
+        nome:
+          type: "string"
+    ClassificacoesCatalogo:
+      "$ref": "#/components/schemas/Sucesso"
+      properties:
+        dados:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/ClassificacaoProduto"
+            required: ["quantidade"]
+            properties:
+              quantidade:
+                type: "integer"
+                minimum: 1
+                description: "Quantidade de produtos visíveis nesta classificação."
+    BuscaCatalogoEntrada:
+      type: "object"
+      additionalProperties: false
+      properties:
+        q:
+          type: "string"
+          maxLength: 80
+        grupo:
+          type: "integer"
+          minimum: 0
+          maximum: 2147483647
+        marca:
+          type: "integer"
+          minimum: 0
+          maximum: 2147483647
+        codigos:
+          type: "array"
+          minItems: 1
+          maxItems: 500
+          items:
+            type: "string"
+            minLength: 1
+            maxLength: 20
+        ids:
+          type: "array"
+          minItems: 1
+          maxItems: 500
+          items:
+            type: "integer"
+            minimum: 1
+            maximum: 2147483647
+        termos:
+          type: "array"
+          minItems: 1
+          maxItems: 10
+          items:
+            type: "string"
+            minLength: 1
+            maxLength: 80
+        pagina:
+          type: "integer"
+          minimum: 1
+          maximum: 100000
+          default: 1
+        limite:
+          type: "integer"
+          minimum: 1
+          maximum: 50
+          default: 20
+    Produto:
+      type: "object"
+      required: ["id","codigo","nome","marca","grupo","marca_detalhe","unidade","aplicacao","imagem","fotos","preco","compravel","disponibilidade","faixa_disponibilidade","aviso","unidades","kit"]
+      properties:
+        id:
+          type: "integer"
+        codigo:
+          type: "string"
+        nome:
+          type: "string"
+        marca:
+          type: ["string","null"]
+          description: "Nome da marca no formato da v0."
+        grupo:
+          anyOf:
+            - "$ref": "#/components/schemas/ClassificacaoProduto"
+            - type: "null"
+          description: "Grupo principal do produto, quando cadastrado."
+        marca_detalhe:
+          anyOf:
+            - "$ref": "#/components/schemas/ClassificacaoProduto"
+            - type: "null"
+          description: "Código e nome da marca, quando cadastrada."
+        unidade:
+          type: ["string","null"]
+        aplicacao:
+          type: ["string","null"]
+        imagem:
+          type: ["string","null"]
+          description: "Com fotos vinculadas, caminho da capa relativo à rota da loja (por exemplo, produtos/101/fotos/1). Sem fotos anexadas, nome da imagem legada quando cadastrada."
+        fotos:
+          type: "array"
+          maxItems: 12
+          description: "Itens das fotos vinculadas na ordem da galeria, com a capa primeiro. Cada item pode ser usado na leitura binária da foto."
+          items:
+            type: "integer"
+        preco:
+          anyOf:
+            -
+              "$ref": "#/components/schemas/PrecoUnitario"
+            - type: "null"
+        seu_preco:
+          "$ref": "#/components/schemas/SeuPreco"
+        compravel:
+          type: "boolean"
+        disponibilidade:
+          type: "string"
+          enum: ["disponivel","sob_consulta","indisponivel"]
+        faixa_disponibilidade:
+          type: "string"
+          enum: ["em_estoque","ultimas_unidades","indisponivel"]
+          description: "Faixa informativa de estoque na unidade base. Em kits, considera a quantidade de kits completos pelos componentes. A regra de compra é refletida em compravel e disponibilidade."
+        aviso:
+          type: ["string","null"]
+          description: >-
+            Com a loja bloqueando a venda sem estoque, um produto cujo saldo está reservado por uma venda do fornecedor em
+            andamento aparece indisponível com o aviso "Há uma venda em andamento com este produto no fornecedor. Tente de
+            novo em instantes." Ele volta quando a venda fecha ou desiste.
+        unidades:
+          type: "array"
+          items:
+            type: "object"
+            required: ["id","nome","descricao","preco"]
+            properties:
+              id:
+                type: "string"
+              nome:
+                type: "string"
+              descricao:
+                type: "string"
+              preco:
+                "$ref": "#/components/schemas/PrecoUnitario"
+              seu_preco:
+                "$ref": "#/components/schemas/SeuPreco"
+        kit:
+          anyOf:
+            - type: "array"
+              items:
+                type: "object"
+                required: ["codigo","nome","quantidade","unidade"]
+                properties:
+                  codigo:
+                    type: "string"
+                  nome:
+                    type: "string"
+                  quantidade:
+                    "$ref": "#/components/schemas/Quantidade"
+                  unidade:
+                    type: ["string","null"]
+            - type: "null"
+    EnderecoEntrada:
+      type: "object"
+      additionalProperties: false
+      required: ["descricao","endereco","numero","cep","cidade_id","bairro_id","uf"]
+      properties:
+        descricao:
+          type: "string"
+          minLength: 1
+          maxLength: 50
+        endereco:
+          type: "string"
+          minLength: 1
+          maxLength: 90
+        numero:
+          type: "string"
+          minLength: 1
+          maxLength: 10
+        complemento:
+          type: ["string","null"]
+          maxLength: 60
+        cep:
+          type: "string"
+          pattern: '^[0-9]{5}-?[0-9]{3}$'
+        cidade_id:
+          type: "integer"
+          minimum: 1
+          maximum: 2147483647
+        bairro_id:
+          type: "integer"
+          minimum: 1
+          maximum: 2147483647
+        uf:
+          type: "string"
+          pattern: '^[A-Za-z]{2}$'
+    HistoricoCompras:
+      type: "object"
+      required: ["inicio","fim","produtos"]
+      properties:
+        inicio:
+          type: "string"
+          format: "date"
+        fim:
+          type: "string"
+          format: "date"
+        produtos:
+          type: "array"
+          items:
+            type: "object"
+            required: ["produto_id","pedidos","quantidade_media","ultima_compra"]
+            properties:
+              produto_id:
+                type: "integer"
+              pedidos:
+                type: "integer"
+                minimum: 1
+              quantidade_media:
+                "$ref": "#/components/schemas/Quantidade"
+              ultima_compra:
+                type: "object"
+                required: ["data","quantidade","unidade_base","unidade_vendida"]
+                properties:
+                  data:
+                    type: "string"
+                    format: "date"
+                  quantidade:
+                    "$ref": "#/components/schemas/Quantidade"
+                  unidade_base:
+                    type: ["string","null"]
+                  unidade_vendida:
+                    type: ["string","null"]
+                    description: "Unidade em que o produto foi vendido. Fica nula quando o último pedido tem linhas em unidades diferentes."
+    Endereco:
+      type: "object"
+      required: ["id","descricao","endereco","numero","complemento","cidade","cep","principal"]
+      properties:
+        id:
+          type: "integer"
+        descricao:
+          type: "string"
+        endereco:
+          type: "string"
+        numero:
+          type: "string"
+        complemento:
+          type: "string"
+        cidade:
+          type: "string"
+        cep:
+          type: "string"
+        principal:
+          type: "boolean"
+    PagamentoExigido:
+      type: "string"
+      enum: ["nenhum","forma","parcelas"]
+    CondicaoPagamento:
+      type: "object"
+      required: ["id","descricao","parcelas","dias","pedido_minimo","parcela_minima","taxa_por_parcela","padrao","pix"]
+      properties:
+        id:
+          type: "integer"
+        descricao:
+          type: "string"
+        parcelas:
+          type: "integer"
+        dias:
+          type: "array"
+          items:
+            type: "integer"
+        pedido_minimo:
+          anyOf:
+            -
+              "$ref": "#/components/schemas/Dinheiro"
+            - type: "null"
+        parcela_minima:
+          anyOf:
+            -
+              "$ref": "#/components/schemas/Dinheiro"
+            - type: "null"
+        taxa_por_parcela:
+          anyOf:
+            -
+              "$ref": "#/components/schemas/Dinheiro"
+            - type: "null"
+        padrao:
+          type: "boolean"
+        pix:
+          type: "boolean"
+          description: "Condição marcada para uso com Pix no G360."
+    Opcoes:
+      type: "object"
+      required: ["modalidades","enderecos","pagamento"]
+      properties:
+        modalidades:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/Modalidade"
+        enderecos:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/Endereco"
+        pagamento:
+          type: "object"
+          required: ["exigido","condicoes"]
+          properties:
+            exigido:
+              "$ref": "#/components/schemas/PagamentoExigido"
+            condicoes:
+              type: "array"
+              items:
+                "$ref": "#/components/schemas/CondicaoPagamento"
+              maxItems: 100
+    ItemEntrada:
+      type: "object"
+      required: ["produto_id","quantidade"]
+      additionalProperties: false
+      properties:
+        produto_id:
+          "$ref": "#/components/schemas/IdEntrada"
+        quantidade:
+          type: "string"
+          pattern: "^[0-9]{1,7}(?:\\.[0-9]{1,4})?$"
+          description: "Texto decimal maior que zero. Aceita zeros à esquerda e zeros finais na fração."
+          not:
+            pattern: "^0+(?:\\.0+)?$"
+        unidade:
+          type: ["string","null"]
+          pattern: "^[^\\x00-\\x1F\\x7F]{1,24}$"
+          description: "Identificador em unidades[].id do catálogo. Use null ou omita para unidade base. Unidades que o fornecedor ocultar do catálogo serão recusadas na revisão e no envio."
+    RevisaoEntrada:
+      type: "object"
+      required: ["itens","modalidade"]
+      additionalProperties: false
+      properties:
+        itens:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/ItemEntrada"
+          minItems: 1
+          maxItems: 100
+        modalidade:
+          "$ref": "#/components/schemas/Modalidade"
+        endereco_id:
+          anyOf:
+            -
+              "$ref": "#/components/schemas/IdEntrada"
+            - type: "null"
+          description: "Na entrega, ausente ou nulo seleciona o primeiro endereço da lista. Na retirada, omita ou envie null."
+        condicao_pagamento_id:
+          anyOf:
+            -
+              "$ref": "#/components/schemas/IdEntrada"
+            - type: "null"
+          description: "Escolha da lista de condições quando exigida. Ignorada se o pagamento for nenhum."
+        data_prevista:
+          "$ref": "#/components/schemas/DataPrevista"
+        observacao:
+          type: ["string","null"]
+          maxLength: 400
+          description: "Controles são substituídos por espaços e as bordas são aparadas."
+    PedidoEntrada:
+      type: "object"
+      required: ["itens","modalidade"]
+      additionalProperties: false
+      properties:
+        itens:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/ItemEntrada"
+          minItems: 1
+          maxItems: 100
+        modalidade:
+          "$ref": "#/components/schemas/Modalidade"
+        endereco_id:
+          anyOf:
+            -
+              "$ref": "#/components/schemas/IdEntrada"
+            - type: "null"
+          description: "Na entrega, ausente ou nulo seleciona o primeiro endereço da lista. Na retirada, omita ou envie null."
+        condicao_pagamento_id:
+          anyOf:
+            -
+              "$ref": "#/components/schemas/IdEntrada"
+            - type: "null"
+          description: "Escolha da lista de condições quando exigida. Ignorada se o pagamento for nenhum."
+        data_prevista:
+          "$ref": "#/components/schemas/DataPrevista"
+        observacao:
+          type: ["string","null"]
+          maxLength: 400
+          description: "Controles são substituídos por espaços e as bordas são aparadas."
+        assinatura:
+          description: "Obrigatória para criar um pedido. A repetição com a mesma chave e carrinho ignora este campo."
+          examples: ["0000000000000000000000000000000000000000000000000000000000000000"]
+    Assinatura:
+      type: "string"
+      pattern: "^[a-f0-9]{64}$"
+      description: "Assinatura retornada pela revisão. Reenvie o valor como recebido."
+    DataPrevista:
+      type: ["string","null"]
+      format: "date"
+      description: "Previsão informada pelo sistema que chama a API, em AAAA-MM-DD. Para novos pedidos, deve ser de hoje em diante pela data do ERP. Pode ser obrigatória na natureza."
+    Frete:
+      type: "object"
+      required: ["situacao","valor"]
+      properties:
+        situacao:
+          type: "string"
+          enum: ["definido","gratis","a_combinar","nao_aplicavel"]
+          description: "Na revisão, gratis indica valor zero pela tabela da loja. O pedido gravado apresenta frete definido pelo valor persistido."
+        origem:
+          description: "Na revisão de entrega com tabela da loja, identifica a origem da tarifa. Nulo quando o frete da tabela estiver indefinido."
+          type: ["string", "null"]
+          enum: ["cidade", "regiao", null]
+        valor:
+          anyOf:
+            -
+              "$ref": "#/components/schemas/Dinheiro"
+            - type: "null"
+    Parcela:
+      type: "object"
+      required: ["numero","vencimento","valor"]
+      properties:
+        numero:
+          type: "integer"
+        vencimento:
+          type: "string"
+          description: "Data do vencimento em AAAA-MM-DD. Quando a condição de pagamento vence em dia útil, a data já vem ajustada para fim de semana e feriado do cadastro do fornecedor: use a data devolvida, sem recalcular. A leitura do pedido retorna texto vazio quando o dado gravado está ausente."
+        valor:
+          "$ref": "#/components/schemas/Dinheiro"
+    Responsavel:
+      type: "string"
+      enum: ["usuario","fornecedor","tentar_de_novo","integracao"]
+      description: >-
+        Quem resolve a recusa. usuario: quem está na tela (comprador ou operador) ajusta e tenta de novo.
+        fornecedor: falta configuração ou cadastro no G360 do fornecedor; mostre a mensagem e registre o caso para o fornecedor ver.
+        tentar_de_novo: recusa passageira; aguarde (Retry-After, quando vier) e reenvie o mesmo pedido.
+        integracao: defeito na chamada; mostre uma mensagem genérica e registre o request_id.
+        O mesmo código pode ter responsável diferente como erro e como pendência (CONDICAO_INVALIDA).
+    Pendencia:
+      type: "object"
+      required: ["codigo","mensagem","responsavel"]
+      properties:
+        responsavel:
+          "$ref": "#/components/schemas/Responsavel"
+        codigo:
+          type: "string"
+          enum: ["CADASTRO_BLOQUEADO","LOJA_SEM_CONFIGURACAO","PRODUTO_INDISPONIVEL","ITEM_BLOQUEADO","CADASTRO_SEM_ENDERECO","SEM_CONDICAO_DE_PAGAMENTO","ESCOLHA_O_PAGAMENTO","CONDICAO_INVALIDA","PEDIDO_MINIMO","PARCELA_MINIMA","FRETE_A_COMBINAR","DATA_PREVISTA_INVALIDA","DATA_PREVISTA_OBRIGATORIA","CONDICAO_CREDITO_BLOQUEADA","CREDITO_INDISPONIVEL"]
+        mensagem:
+          type: "string"
+        produto_id:
+          type: "integer"
+    Revisao:
+      type: "object"
+      required: ["itens","subtotal","frete","taxa_pagamento","total","total_fechado","entrega","pagamento","pode_enviar","pendencias","observacao","assinatura","data_prevista","credito"]
+      properties:
+        itens:
+          type: "array"
+          items:
+            type: "object"
+            required: ["produto_id","codigo","nome","unidade_id","unidade","kit","quantidade","preco_unitario","total","aviso","pendencia"]
+            properties:
+              produto_id:
+                type: "integer"
+              codigo:
+                type: ["string","null"]
+              nome:
+                type: ["string","null"]
+              unidade_id:
+                type: ["string","null"]
+              unidade:
+                type: ["string","null"]
+              kit:
+                type: "boolean"
+              quantidade:
+                "$ref": "#/components/schemas/Quantidade"
+              preco_unitario:
+                anyOf:
+                  -
+                    "$ref": "#/components/schemas/PrecoUnitario"
+                  - type: "null"
+              seu_preco:
+                "$ref": "#/components/schemas/SeuPreco"
+              total:
+                anyOf:
+                  -
+                    "$ref": "#/components/schemas/Dinheiro"
+                  - type: "null"
+              aviso:
+                type: ["string","null"]
+              pendencia:
+                type: ["string","null"]
+        subtotal:
+          "$ref": "#/components/schemas/Dinheiro"
+        frete:
+          "$ref": "#/components/schemas/Frete"
+        taxa_pagamento:
+          "$ref": "#/components/schemas/Dinheiro"
+        total:
+          "$ref": "#/components/schemas/Dinheiro"
+        total_fechado:
+          type: "boolean"
+        data_prevista:
+          "$ref": "#/components/schemas/DataPrevista"
+        credito:
+          type: "object"
+          required: ["situacao","mensagem"]
+          properties:
+            situacao:
+              enum: ["liberado","aviso","aguardando_aprovacao",null]
+              description: >-
+                Nulo enquanto outras pendências impedem a avaliação. O valor das vendas do G360 Desktop em andamento para
+                o mesmo cliente conta no limite até os títulos delas aparecerem.
+            mensagem:
+              type: ["string","null"]
+        entrega:
+          type: "object"
+          required: ["modalidade","endereco_id"]
+          properties:
+            modalidade:
+              "$ref": "#/components/schemas/Modalidade"
+            endereco_id:
+              type: ["integer","null"]
+        pagamento:
+          type: "object"
+          required: ["exigido","condicao_id","descricao","parcelas_a_definir","parcelas"]
+          properties:
+            exigido:
+              "$ref": "#/components/schemas/PagamentoExigido"
+            condicao_id:
+              type: ["integer","null"]
+            descricao:
+              type: ["string","null"]
+            parcelas_a_definir:
+              type: "boolean"
+            parcelas:
+              type: "array"
+              items:
+                "$ref": "#/components/schemas/Parcela"
+        pode_enviar:
+          type: "boolean"
+        pendencias:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/Pendencia"
+        observacao:
+          type: "string"
+        assinatura:
+          "$ref": "#/components/schemas/Assinatura"
+    PedidoResumo:
+      type: "object"
+      required: ["id","numero","data","hora","situacao","situacao_nome","faturado","separacao_status","separacao_atualizada_em","total"]
+      properties:
+        id:
+          type: "integer"
+        numero:
+          type: ["integer","null"]
+        data:
+          anyOf:
+            - type: "string"
+              format: "date"
+            - type: "null"
+        hora:
+          type: ["string","null"]
+          description: "Horário armazenado, quando presente, retornado com até cinco caracteres."
+        situacao:
+          type: "string"
+          enum: ["recebido","em_analise","aguardando_aprovacao","confirmado","em_separacao","separado","faturado","encaminhado_para_entrega","entregue","cancelado"]
+        situacao_nome:
+          type: "string"
+        faturado:
+          type: "boolean"
+          description: "Há nota fiscal válida emitida para o pedido. Pode coexistir com encaminhado para entrega ou entregue."
+        separacao_status:
+          type: ["integer","null"]
+          minimum: 0
+          maximum: 5
+          description: "Etapa registrada no G360. Pode vir nula antes de o pedido entrar na separação."
+        separacao_atualizada_em:
+          type: ["string","null"]
+          description: "Último evento de separação registrado no pedido de origem, em data e hora local (AAAA-MM-DDThh:mm:ss), quando disponível."
+        total:
+          "$ref": "#/components/schemas/Dinheiro"
+    Pedido:
+      type: "object"
+      required: ["id","numero","data","hora","situacao","situacao_nome","faturado","separacao_status","separacao_atualizada_em","total","itens","subtotal","frete","taxa_pagamento","entrega","pagamento","observacao","data_prevista"]
+      properties:
+        data_prevista:
+          "$ref": "#/components/schemas/DataPrevista"
+        id:
+          type: "integer"
+        numero:
+          type: ["integer","null"]
+        data:
+          anyOf:
+            - type: "string"
+              format: "date"
+            - type: "null"
+        hora:
+          type: ["string","null"]
+          description: "Horário armazenado, quando presente, retornado com até cinco caracteres."
+        situacao:
+          type: "string"
+          enum: ["recebido","em_analise","aguardando_aprovacao","confirmado","em_separacao","separado","faturado","encaminhado_para_entrega","entregue","cancelado"]
+        situacao_nome:
+          type: "string"
+        faturado:
+          type: "boolean"
+          description: "Há nota fiscal válida emitida para o pedido. Pode coexistir com encaminhado para entrega ou entregue."
+        separacao_status:
+          type: ["integer","null"]
+          minimum: 0
+          maximum: 5
+          description: "Etapa registrada no G360. Pode vir nula antes de o pedido entrar na separação."
+        separacao_atualizada_em:
+          type: ["string","null"]
+          description: "Último evento de separação registrado no pedido de origem, em data e hora local (AAAA-MM-DDThh:mm:ss), quando disponível."
+        total:
+          "$ref": "#/components/schemas/Dinheiro"
+        itens:
+          type: "array"
+          items:
+            type: "object"
+            required: ["produto_id","codigo","nome","unidade","quantidade","preco_unitario","total","kit_id"]
+            properties:
+              produto_id:
+                type: "integer"
+              codigo:
+                type: "string"
+              nome:
+                type: "string"
+              unidade:
+                type: ["string","null"]
+              quantidade:
+                "$ref": "#/components/schemas/Quantidade"
+              preco_unitario:
+                "$ref": "#/components/schemas/PrecoUnitario"
+              seu_preco:
+                "$ref": "#/components/schemas/SeuPreco"
+              total:
+                "$ref": "#/components/schemas/Dinheiro"
+              kit_id:
+                type: ["integer","null"]
+        subtotal:
+          "$ref": "#/components/schemas/Dinheiro"
+        frete:
+          "$ref": "#/components/schemas/Frete"
+        taxa_pagamento:
+          "$ref": "#/components/schemas/Dinheiro"
+        entrega:
+          type: "object"
+          required: ["modalidade","endereco"]
+          properties:
+            modalidade:
+              anyOf:
+                -
+                  "$ref": "#/components/schemas/Modalidade"
+                - type: "null"
+            endereco:
+              anyOf:
+                -
+                  "$ref": "#/components/schemas/Endereco"
+                - type: "null"
+        pagamento:
+          type: "object"
+          required: ["descricao","parcelas"]
+          properties:
+            descricao:
+              type: ["string","null"]
+            parcelas:
+              type: "array"
+              items:
+                "$ref": "#/components/schemas/Parcela"
+        observacao:
+          type: "string"

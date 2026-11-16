@@ -1,5 +1,20 @@
 # Pendências para a Movimento Sistemas
 
+Arquivo mantido pelo projeto durante a integração com a **API dos sistemas externos 2026.11.16**.
+Cada item diz o que falta e por quê. Nenhum segredo ou dado de cliente é registrado aqui.
+
+## Integração G360 (em andamento)
+
+| # | Data | Assunto | O que precisamos | Situação |
+|---|---|---|---|---|
+| 1 | 16/11/2026 | Origem fixa de homologação | Cadastrar a origem `https://sr-portal-b2b-homologacao.vercel.app` na loja de homologação `96da1e99a3f327f0` (CORS). `http://localhost:5173` já está cadastrada. | Aguardando a Movimento |
+| 2 | 16/11/2026 | Catálogo antes do login | No contrato, `GET produtos`, `GET grupos` e `GET marcas` exigem a sessão do comprador. O protótipo mostrava o catálogo sem preço para visitantes. Por ora o portal mostra só a página de entrada. Se quiserem catálogo público (sem preço), seria uma operação nova. | Informativo — sem bloqueio |
+
+---
+
+## Histórico: pendências da fase de protótipo (antes do escopo revisão 2)
+
+
 Pontos em que o frontend precisa de uma definição da Movimento.
 
 Enquanto a definição não chega, o adaptador mock (`servicos/adaptador-mock.js`) devolve uma resposta simulada e a tela segue funcionando.

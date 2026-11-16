@@ -1,0 +1,57 @@
+/* Página de entrada da integração G360 — mesma identidade visual do portal.
+   Enquanto o comprador não entra, só o fundo do portal e esta página aparecem. */
+body.g360 > *:not(.fundo):not(#g360Entrada) { display: none !important; }
+
+.g360-entrada {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  overflow-y: auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+.g360-cartao {
+  width: 100%;
+  max-width: 440px;
+  background: linear-gradient(180deg, rgba(21, 55, 13, .92), rgba(12, 36, 8, .94));
+  border: 1px solid var(--linha2);
+  border-radius: 20px;
+  padding: 28px 24px 22px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .45);
+  text-align: center;
+}
+.g360-marca { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 14px; }
+.g360-marca img { height: 52px; width: auto; }
+.g360-portal { font-size: 13px; font-weight: 700; color: var(--lima); letter-spacing: .4px; }
+.g360-nome { font-size: 24px; line-height: 1.25; font-weight: 800; margin: 0 0 10px; overflow-wrap: anywhere; }
+.g360-estado { min-height: 48px; }
+.g360-info { color: var(--tx2); font-size: 14px; margin: 0 0 6px; }
+.g360-mini { color: var(--tx3); font-size: 12px; margin: 0; }
+.g360-erro {
+  text-align: left;
+  background: rgba(255, 107, 107, .1);
+  border: 1px solid rgba(255, 107, 107, .4);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.g360-erro p { margin: 0; color: #ffd0ca; font-size: 14px; }
+.g360-erro small { color: var(--tx3); font-size: 11px; font-family: var(--mono); overflow-wrap: anywhere; }
+.g360-acoes { display: grid; gap: 10px; margin-top: 18px; }
+.g360-btn {
+  min-height: 44px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  padding: 0 16px;
+}
+.g360-btn.pri { background: var(--lima); color: #132c09; }
+.g360-btn.sec { background: transparent; color: var(--tx); border-color: var(--linha2); }
+.g360-btn:disabled { opacity: .45; cursor: not-allowed; }
+.g360-btn:focus-visible { outline: 3px solid var(--lima); outline-offset: 2px; }
+.g360-etapa { margin: 14px 0 0; font-size: 11px; color: var(--tx3); }

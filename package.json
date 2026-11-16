@@ -1,0 +1,15 @@
+{
+  "name": "sr-portal-b2b",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Portal B2B da Souza Ribeiro integrado à API dos sistemas externos (G360)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 5173 --strictPort"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}
