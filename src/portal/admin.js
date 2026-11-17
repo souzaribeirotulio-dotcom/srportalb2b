@@ -21,6 +21,8 @@ import { $, esc, toast, abrirModal, fecharModal, adiar } from './comum.js';
 import { carregarExibicao, sinonimos as sinonimosPortal, categorias, registro, nomeExibicao, categoriaExibicao, codigosDaCategoria, aplicarLocal, definirCategoriasLocal } from '../catalogo/exibicao.js';
 import { nomeEcommerce, categoriaPeloNome } from '../catalogo/nomes.js';
 import { buscarLocal } from '../catalogo/busca.js';
+import { fichaDoProduto, descricaoBasica } from '../catalogo/descricoes.js';
+import { supabaseComprador } from '../api/supabase.js';
 
 const op = { token: null, expira: 0, ultima: 0, minutos: 8, aviso: null };
 let ctx = null;            // { loja, ir }
@@ -104,13 +106,13 @@ function ligar() {
   });
 
   // Produtos
-  $('aSt').innerHTML = '<option value="">Todos os produtos</option><option value="auto">Nome automático (revisar)</option><option value="semcat">Sem categoria definida</option><option value="baixa">Margem abaixo do mínimo</option><option value="semcusto">Sem custo cadastrado</option>';
+  $('aSt').innerHTML = '<option value="">Todos os produtos</option><option value="auto">Nome automático (revisar)</option><option value="semcat">Sem categoria definida</option><option value="baixa">Margem abaixo do mínimo</option><option value="semcusto">Sem custo cadastrado</option><option value="oculto">Ocultos no catálogo</option><option value="semdesc">Sem descrição da equipe</option>';
   $('aCat').innerHTML = '<option value="">Todas as categorias</option>';
   $('aPanel').insertAdjacentHTML('beforebegin', `<div class="afil" style="align-items:center;margin-top:-4px"><button class="btn sec" id="aGerar" style="height:36px">✨ Gerar nomes e categorias</button>
     <span class="hint" id="aGerarInfo" style="margin:0">Passa por todos os produtos do G360 e cria o nome no padrão de e-commerce e a categoria. Não mexe no que a equipe já ajustou nem nos nomes do portal antigo.</span></div>`);
   $('aGerar').addEventListener('click', gerarTudo);
   $('aPanel').addEventListener('change', salvarLinhaProduto);
-  const buscarProd = adiar(() => { prod.pagina = 1; desenharProdutos(); }, 450);
+  const buscarProd = adiar(() => { if ($('aQ').value.trim() === prod.qFeita) return; prod.pagina = 1; desenharProdutos(); }, 450);
   $('aQ').addEventListener('input', buscarProd);
   $('aQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); prod.pagina = 1; desenharProdutos(); } });
   $('aCat').addEventListener('change', () => { prod.pagina = 1; desenharProdutos(); });
@@ -118,6 +120,7 @@ function ligar() {
   $('aPanel').addEventListener('click', (e) => {
     const r = e.target.closest('.arow[data-id]'); if (!r) return;
     if (e.target.closest('[data-ed]') || e.target.closest('.amini')) abrirFotos(Number(r.dataset.id), r.dataset.nome);
+    if (e.target.closest('[data-mais]')) { abrirEditorProduto(r); return; }
     if (e.target.closest('[data-cg]')) { aba = 'cong'; cong.produto = { id: Number(r.dataset.id), rotulo: `${r.dataset.cod} · ${r.dataset.nome}` }; desenharAba(); }
   });
 
@@ -163,6 +166,8 @@ function desenhar() {
   $('aQuem').textContent = logado ? 'Conectado ao G360' : '';
   if (!logado) { telaLogin(); return; }
   desenharAba();
+  carregarConfigLoja().then(() => { if ($('mgLim')) $('mgLim').value = limiteMargem(); });
+  contarNegociacoes();
 }
 
 /* ---------------- login do operador (usuário do G360) ---------------- */
@@ -205,8 +210,6 @@ function telaLogin() {
 
 /* ---------------- abas ---------------- */
 
-const PARTE = { neg: ['Negociações', 3] };
-
 function desenharAba() {
   document.querySelectorAll('#vAdm [data-at]').forEach((b) => b.classList.toggle('on', b.dataset.at === aba));
   const ids = { cli: 'atCli', prod: 'atProd', cong: 'atCong', mrg: 'atMrg', intel: 'atIntel', neg: 'atNeg', souzinha: 'atSouzinha', cfg: 'atCfg', ocor: 'atOcor' };
@@ -219,13 +222,89 @@ function desenharAba() {
   else if (aba === 'cfg') desenharConfig();
   else if (aba === 'intel') desenharInteligencia();
   else if (aba === 'souzinha') desenharEscola();
-  else emPreparacao(aba);
+  else if (aba === 'neg') desenharNegociacoes();
 }
 
-function emPreparacao(a) {
-  const [nome, parte] = PARTE[a];
-  const alvo = { intel: 'intelPanel', neg: 'negAdminView', souzinha: 'souzinhaEscola', cfg: 'cfgPanel' }[a];
-  $(alvo).innerHTML = `<div class="panel">${vazio(`<b>${esc(nome)}</b><br>Esta aba volta na próxima parte da restauração do painel antigo (parte ${parte}).`)}</div>`;
+/* ---------------- Negociações ---------------- */
+
+const SITN = { aberta: 'Aguardando', aprovada: 'Aprovada', recusada: 'Recusada', cancelada: 'Cancelada pelo cliente' };
+let negs = null;
+
+async function contarNegociacoes() {
+  try { negs = (await painel('negociacoes_listar')).dados || []; $('negN').textContent = negs.filter((n) => n.status === 'aberta').length || ''; } catch { /* badge fica vazio */ }
+}
+
+const valorPainel = (t) => { const s = String(t || '').trim().replace(/\s|R\$/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'); return /^\d{1,11}(\.\d{1,4})?$/.test(s) && Number(s) > 0 ? s : null; };
+
+/** Pedidos de preço dos clientes. Aprovar = grava preço congelado no G360 (API) e responde ao cliente. */
+async function desenharNegociacoes() {
+  const alvo = $('negAdminView');
+  if (!$('ngSt')) {
+    alvo.innerHTML = `<div class="afil" style="align-items:center"><select id="ngSt" class="inp" style="max-width:240px"><option value="aberta">Aguardando resposta</option><option value="">Todas</option><option value="aprovada">Aprovadas</option><option value="recusada">Recusadas</option><option value="cancelada">Canceladas pelo cliente</option></select>
+      <button class="tool" id="ngRec">↻ Atualizar</button><span class="hint" style="margin:0">Aprovar grava o preço congelado do cliente no G360. Ele passa a ver o valor como "Seu preço".</span></div><div class="panel" id="ngPanel"></div>`;
+    $('ngSt').onchange = () => pintarNegociacoes();
+    $('ngRec').onclick = () => desenharNegociacoes();
+  }
+  $('ngPanel').innerHTML = carregandoHtml('Carregando negociações…');
+  try { negs = (await painel('negociacoes_listar')).dados || []; } catch (e) { $('ngPanel').innerHTML = vazio(esc(e.message)); return; }
+  $('negN').textContent = negs.filter((n) => n.status === 'aberta').length || '';
+  pintarNegociacoes();
+}
+
+function pintarNegociacoes() {
+  const alvo = $('ngPanel'); const st = $('ngSt').value;
+  const L = negs.filter((n) => !st || n.status === st);
+  const hoje = new Date(); const fim = new Date(hoje.getTime() + 90 * 864e5);
+  const iso = (d) => d.toISOString().slice(0, 10);
+  alvo.innerHTML = L.length ? L.map((n) => `<div class="negadm" data-id="${esc(n.id)}">
+    <div class="nm"><b>${esc(n.produto_nome)}</b><small>Cód. ${esc(n.codigo)}${n.unidade ? ` · ${esc(n.unidade)}` : ''} · cliente <b>${esc(n.comprador_nome || '')}</b> (cód. ${esc(n.comprador_codigo)}) · ${esc(new Date(n.criado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }))}</small>
+      <small>Preço de hoje: <b>${n.preco_atual ? esc(dinheiro(n.preco_atual)) : '—'}</b> · cliente pede <b style="color:var(--lima)">${esc(dinheiro(n.preco_desejado))}</b>${n.quantidade ? ` · quantidade ${esc(n.quantidade.replace('.', ','))}` : ''}</small>
+      ${n.mensagem ? `<small>“${esc(n.mensagem)}”</small>` : ''}
+      ${n.status !== 'aberta' ? `<small><span class="stt ${n.status === 'aprovada' ? 'aprovado' : 'reprovado'}">${SITN[n.status]}</span>${n.preco_aprovado ? ` ${esc(dinheiro(n.preco_aprovado))} até ${esc(dataBr(n.valido_ate))}` : ''}${n.resposta ? ` · ${esc(n.resposta)}` : ''}</small>` : ''}
+      <div class="ngcusto hint" style="margin:4px 0 0"></div></div>
+    ${n.status === 'aberta' ? `<div class="ngform">
+      <div class="pin"><span>R$</span><input data-v value="${esc(String(n.preco_desejado).replace('.', ','))}" inputmode="decimal" aria-label="Preço aprovado"></div>
+      <label class="hint" style="margin:0">Até <input type="date" data-ate value="${iso(fim)}" min="${iso(hoje)}"></label>
+      <input class="inp" data-resp maxlength="400" placeholder="Resposta ao cliente (opcional)" aria-label="Resposta ao cliente">
+      <div class="row"><button class="btn pri" data-ok type="button">Aprovar e congelar</button><button class="btn sec" data-no type="button">Recusar</button></div></div>` : ''}
+  </div>`).join('') : vazio(st === 'aberta' ? 'Nenhum pedido de negociação aguardando resposta.' : 'Nenhuma negociação nesta situação.');
+  // Custo e margem do produto para este cliente (quando o operador tem acesso).
+  alvo.querySelectorAll('.negadm').forEach(async (el) => {
+    const n = negs.find((x) => x.id === el.dataset.id); const box = el.querySelector('.ngcusto');
+    if (n.status !== 'aberta') return;
+    try {
+      const [p] = await consultarPrecosOperador(op.token, n.comprador_codigo, [Number(n.produto_id)]);
+      if (!p) { box.textContent = 'Produto fora do catálogo deste cliente.'; return; }
+      const custo = p.custo_visivel && p.custo !== null ? Number(p.custo) : null;
+      const mostrar = () => {
+        const v = Number(valorPainel(el.querySelector('[data-v]')?.value) || 0);
+        const mg = custo !== null && v > 0 ? ((v - custo) / v) * 100 : null;
+        box.innerHTML = `Tabela para o cliente: <b>${esc(dinheiro(p.preco))}</b>${p.preco_congelado ? ` · já congelado: ${esc(dinheiro(p.preco_congelado))}` : ''}${custo !== null ? ` · custo R$ ${esc(numeroPainel(custo, 2))}` : ' · custo sem acesso'}${mg !== null ? ` · margem no preço digitado: <b class="mg ${mg < limiteMargem() ? 'bad' : 'ok'}">${esc(numeroPainel(mg, 1))}%</b>${mg < limiteMargem() ? ' (abaixo do mínimo)' : ''}` : ''}`;
+      };
+      mostrar(); el.querySelector('[data-v]')?.addEventListener('input', mostrar);
+    } catch (e) { box.textContent = e.message; }
+  });
+  alvo.querySelectorAll('.negadm [data-ok], .negadm [data-no]').forEach((b) => b.addEventListener('click', async () => {
+    const el = b.closest('.negadm'); const n = negs.find((x) => x.id === el.dataset.id);
+    const resposta = el.querySelector('[data-resp]').value.trim();
+    if (b.hasAttribute('data-no')) {
+      b.disabled = true;
+      try { await painel('negociacao_decidir', { id: n.id, status: 'recusada', resposta }); toast('Negociação recusada — o cliente vê a resposta em Meus Pedidos'); desenharNegociacoes(); }
+      catch (e) { b.disabled = false; toast(e.message); }
+      return;
+    }
+    const valor = valorPainel(el.querySelector('[data-v]').value); const ate = el.querySelector('[data-ate]').value;
+    const inicio = new Date().toISOString().slice(0, 10);
+    if (!valor) { toast('Digite o preço aprovado, por exemplo 12,50.'); return; }
+    if (!ate || ate < inicio) { toast('A data final precisa ser hoje ou depois.'); return; }
+    b.disabled = true; b.textContent = 'Gravando no G360…';
+    try {
+      await incluirPrecoCongelado(op.token, n.comprador_codigo, { produto: Number(n.produto_id), unidade_id: n.unidade_id || null, valor, inicio, fim: ate });
+    } catch (e) { b.disabled = false; b.textContent = 'Aprovar e congelar'; mostrarMensagemErro(el.querySelector('.ngcusto'), e); return; }
+    try { await painel('negociacao_decidir', { id: n.id, status: 'aprovada', preco_aprovado: valor, valido_ate: ate, resposta }); }
+    catch (e) { toast(`Preço congelado no G360, mas a resposta ao cliente não foi gravada: ${e.message}`); }
+    toast('Aprovada ✓ — preço congelado no G360'); desenharNegociacoes();
+  }));
 }
 
 /* ---------------- Produtos ---------------- */
@@ -237,8 +316,10 @@ async function desenharProdutos(buscar = true) {
   if (buscar) {
     alvo.innerHTML = carregandoHtml('Buscando produtos no G360…');
     const q = $('aQ').value.trim();
+    prod.qFeita = q;
     try {
       await carregarExibicao();
+      if (!clipsAdm) { try { clipsAdm = (await painel('clips_listar')).dados || []; } catch { clipsAdm = []; } }
       preencherGrupos();
       const cat = $('aCat').value;
       const codigos = cat ? codigosDaCategoria(cat) : null;
@@ -254,23 +335,99 @@ async function desenharProdutos(buscar = true) {
     || (st === 'auto' && (!registro(p) || registro(p).origem === 'automatico'))
     || (st === 'semcat' && !registro(p)?.categoria)
     || (st === 'baixa' && p.custo_visivel && p.margem_percentual !== null && p.margem_percentual < limiteMargem())
-    || (st === 'semcusto' && p.custo_visivel && p.custo === null));
+    || (st === 'semcusto' && p.custo_visivel && p.custo === null)
+    || (st === 'oculto' && registro(p)?.oculto)
+    || (st === 'semdesc' && !registro(p)?.descricao));
   const paginas = Math.max(1, Math.ceil(prod.total / 20));
   const cats = categorias();
   alvo.innerHTML = `<div class="arow h"><div></div><div>Nome no portal (${prod.total})</div><div>Preço de tabela</div><div>Categoria</div><div>Custo</div><div></div></div>`
     + (L.length ? L.map((p) => { const r = registro(p); const cat = categoriaExibicao(p); return `<div class="arow" data-id="${Number(p.id)}" data-nome="${esc(nomeExibicao(p))}" data-cod="${esc(p.codigo)}" data-g360="${esc(p.nome)}">
       <div class="amini g360-mini" data-foto="${Number(p.id)}" title="Fotos"><span>…</span></div>
       <div class="nm"><input class="inp pnome" value="${esc(nomeExibicao(p))}" maxlength="160" aria-label="Nome no portal" style="width:100%;font-weight:600">
-        <small>G360: ${esc(p.nome)} · Cód. ${esc(p.codigo)} · ${esc(p.unidade || '—')}${r?.curva ? ` · <b style="color:var(--lima)">Curva ${esc(r.curva)}</b>` : ''} · ${margemHtml(p)} · <span class="org">${!r ? 'nome automático (não salvo)' : r.origem === 'automatico' ? 'nome automático' : r.origem === 'legado' ? 'portal antigo' : 'ajustado pela equipe'}</span></small></div>
+        <small>G360: ${esc(p.nome)} · Cód. ${esc(p.codigo)} · ${esc(p.unidade || '—')}${r?.curva ? ` · <b style="color:var(--lima)">Curva ${esc(r.curva)}</b>` : ''} · ${margemHtml(p)} · ${r?.oculto ? '<b style="color:#ff8a8a">🙈 Oculto no catálogo</b> · ' : ''}${clipsAdm?.some((c) => Number(c.produto_id) === Number(p.id)) ? '▶ clip · ' : ''}<span class="org">${!r ? 'nome automático (não salvo)' : r.origem === 'automatico' ? 'nome automático' : r.origem === 'legado' ? 'portal antigo' : 'ajustado pela equipe'}</span></small></div>
       <div class="num"><b>${esc(dinheiro(p.preco))}</b>${p.origem_preco ? `<small style="display:block;color:var(--tx3);font-size:11px">${esc(p.origem_preco)}</small>` : ''}</div>
       <div><select class="inp pcat" aria-label="Categoria">${cats.map((c) => `<option ${c === cat ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>${r?.categoria ? '' : '<small style="display:block;color:var(--tx3);font-size:11px">sugerida pelo nome</small>'}</div>
       <div class="uns">${p.custo_visivel ? (p.custo === null ? '—' : `R$ ${esc(numeroPainel(p.custo, 2))}`) : 'sem acesso'}</div>
-      <div class="ab2"><button class="tool ab" data-ed>🖼 Fotos</button><button class="tool ab" data-cg>❄ Congelar</button></div></div>`; }).join('')
+      <div class="ab2"><button class="tool ab" data-ed>🖼 Fotos</button><button class="tool ab" data-mais aria-expanded="false">📝 Descrição e clips</button><button class="tool ab" data-cg>❄ Congelar</button></div></div>`; }).join('')
       : vazio('Nenhum produto encontrado. Tente outro nome ou código.'))
     + (paginas > 1 ? `<nav class="g360-pag" style="margin:14px auto"><button class="tool" id="apA" ${prod.pagina <= 1 ? 'disabled' : ''}>‹ Anterior</button><span>Página ${prod.pagina} de ${paginas}</span><button class="tool" id="apP" ${prod.pagina >= paginas ? 'disabled' : ''}>Próxima ›</button></nav>` : '');
   $('apA')?.addEventListener('click', () => { prod.pagina -= 1; desenharProdutos(); });
   $('apP')?.addEventListener('click', () => { prod.pagina += 1; desenharProdutos(); });
   carregarMiniaturas(alvo);
+}
+
+let clipsAdm = null;
+
+/** Abaixo da linha do produto: descrição do portal, ocultar do catálogo e clips (vídeos). */
+function abrirEditorProduto(r) {
+  const prox = r.nextElementSibling;
+  const botao = r.querySelector('[data-mais]');
+  if (prox?.classList.contains('aedit')) { prox.remove(); botao.setAttribute('aria-expanded', 'false'); return; }
+  botao.setAttribute('aria-expanded', 'true');
+  const p = prod.lista.find((x) => Number(x.id) === Number(r.dataset.id));
+  const reg = registro(p);
+  const vis = { ...p, nome: nomeExibicao(p), categoria: categoriaExibicao(p) };
+  const sugerida = fichaDoProduto({ ...vis, aplicacao: p.aplicacao }, null).texto;
+  r.insertAdjacentHTML('afterend', `<div class="aedit">
+    <div><label class="hint" for="ed${p.id}" style="margin:0 0 4px;display:block">Descrição no portal</label>
+      <textarea class="inp" id="ed${p.id}" rows="4" maxlength="1500" style="width:100%;resize:vertical" placeholder="${esc(sugerida)}">${esc(reg?.descricao || '')}</textarea>
+      <small class="hint" style="display:block;margin:4px 0 0">Em branco, o cliente vê o texto cinza acima (${reg?.descricao ? '' : 'descrição automática pelo tipo do produto'}${reg?.descricao ? 'automático' : ''}).</small>
+      <label class="hint" style="display:flex;gap:8px;align-items:center;margin:10px 0 0;cursor:pointer"><input type="checkbox" class="eOculto" ${reg?.oculto ? 'checked' : ''} style="width:18px;height:18px;accent-color:var(--lima)"> Ocultar este produto do catálogo do portal <span style="color:var(--tx3)">(continua no G360, no histórico e na Minha Lista)</span></label>
+      <div class="row" style="margin-top:10px"><button class="btn pri eSalvar" type="button">Salvar</button><span class="hint eRes" style="margin:0 0 0 10px" aria-live="polite"></span></div></div>
+    <div><b style="font-size:13px">Clips (vídeos do produto)</b>
+      <div class="eclips"></div>
+      <div class="fxurl" style="margin:8px 0 0"><input class="eTit" maxlength="120" placeholder="Título do clip (opcional)" aria-label="Título do clip">
+        <label class="btn sec" style="height:38px;display:flex;align-items:center;cursor:pointer">⬆ Enviar vídeo<input type="file" class="eArq" accept="video/mp4,video/webm,video/quicktime" hidden></label></div>
+      <small class="hint" style="display:block;margin:4px 0 0">Vídeo vertical em MP4, WebM ou MOV, até 50 MB. Aparece em Clips e no botão "Ver clip" do produto.</small>
+      <div class="hint eClipRes" style="margin:4px 0 0" aria-live="polite"></div></div></div>`);
+  const ed = r.nextElementSibling;
+  const pintarClips = () => {
+    const L = (clipsAdm || []).filter((c) => Number(c.produto_id) === Number(p.id));
+    const base = String(import.meta.env.VITE_SUPABASE_URL || '').trim();
+    ed.querySelector('.eclips').innerHTML = L.length ? L.map((c) => `<div class="eclip" data-id="${esc(c.id)}"><video src="${esc(`${base}/storage/v1/object/public/portal-clips/${c.caminho}`)}" muted playsinline preload="metadata"></video>
+      <div><input value="${esc(c.titulo || '')}" maxlength="120" aria-label="Título do clip" data-tit><small>${c.ativo ? 'No ar' : 'Pausado'} · enviado em ${esc(new Date(c.criado_em).toLocaleDateString('pt-BR'))}</small></div>
+      <button type="button" class="tool" data-at title="${c.ativo ? 'Pausar' : 'Publicar'}">${c.ativo ? '⏸' : '▶'}</button><button type="button" class="rm" data-rm title="Apagar clip">×</button></div>`).join('') : '<small class="hint" style="display:block;margin:6px 0">Nenhum clip para este produto.</small>';
+    ed.querySelectorAll('.eclip').forEach((el) => {
+      const c = clipsAdm.find((x) => x.id === el.dataset.id);
+      el.querySelector('[data-tit]').onchange = async (e) => { try { await painel('clip_salvar', { id: c.id, titulo: e.target.value }); c.titulo = e.target.value; toast('Título salvo ✓'); } catch (err) { toast(err.message); } };
+      el.querySelector('[data-at]').onclick = async () => { try { await painel('clip_salvar', { id: c.id, ativo: !c.ativo }); c.ativo = !c.ativo; pintarClips(); } catch (err) { toast(err.message); } };
+      el.querySelector('[data-rm]').onclick = async (e) => {
+        const b = e.currentTarget;
+        if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = 'Apagar?'; b.style.width = 'auto'; return; }
+        try { await painel('clip_apagar', { id: c.id }); clipsAdm = clipsAdm.filter((x) => x.id !== c.id); pintarClips(); toast('Clip apagado'); } catch (err) { toast(err.message); }
+      };
+    });
+  };
+  pintarClips();
+  ed.querySelector('.eSalvar').onclick = async (e) => {
+    const b = e.currentTarget; const desc = ed.querySelector('textarea').value.trim(); const oc = ed.querySelector('.eOculto').checked;
+    b.disabled = true;
+    try {
+      await painel('produto_extra_salvar', { codigo: String(p.codigo), produto_id: Number(p.id), nome: nomeExibicao(p), nome_g360: p.nome, categoria: categoriaExibicao(p), descricao: desc, oculto: oc });
+      const rg = registro(p);
+      if (rg) { rg.descricao = desc || null; rg.oculto = oc; } else await carregarExibicao(true);
+      ed.querySelector('.eRes').textContent = 'Salvo ✓ — o cliente já vê assim';
+      toast(oc ? 'Salvo ✓ — produto oculto no catálogo' : 'Salvo ✓');
+    } catch (err) { ed.querySelector('.eRes').textContent = err.message; } finally { b.disabled = false; }
+  };
+  ed.querySelector('.eArq').onchange = async (e) => {
+    const arq = e.target.files?.[0]; e.target.value = '';
+    const res = ed.querySelector('.eClipRes');
+    if (!arq) return;
+    if (!['video/mp4', 'video/webm', 'video/quicktime'].includes(arq.type)) { res.textContent = 'Envie o vídeo em MP4, WebM ou MOV.'; return; }
+    if (arq.size > 50 * 1024 * 1024) { res.textContent = 'O vídeo pode ter até 50 MB.'; return; }
+    res.textContent = `Enviando ${arq.name}…`;
+    try {
+      const up = (await painel('clip_upload_url', { tipo: arq.type, tamanho: arq.size })).dados;
+      const { error } = await supabaseComprador().storage.from('portal-clips').uploadToSignedUrl(up.caminho, up.token, arq, { contentType: arq.type });
+      if (error) throw new Error('Não foi possível enviar o vídeo agora. Tente de novo em instantes.');
+      const novo = (await painel('clip_salvar', { produto_id: Number(p.id), codigo: String(p.codigo), caminho: up.caminho, titulo: ed.querySelector('.eTit').value.trim() })).dados;
+      clipsAdm.unshift({ id: novo.id, produto_id: Number(p.id), codigo: String(p.codigo), titulo: ed.querySelector('.eTit').value.trim() || null, caminho: up.caminho, ativo: true, criado_em: new Date().toISOString() });
+      ed.querySelector('.eTit').value = '';
+      res.textContent = 'Clip enviado ✓ — já aparece em Clips';
+      pintarClips();
+    } catch (err) { res.textContent = err.message; }
+  };
 }
 
 function preencherGrupos() {
@@ -889,11 +1046,16 @@ async function mudancaCongelado(e) {
 /* ---------------- Margens ---------------- */
 
 let limiteMem = null;
-function limiteMargem() {
-  if (limiteMem === null) { try { limiteMem = Number(localStorage.getItem('sr-painel-margem-min')); } catch { /* sem armazenamento */ } if (!(limiteMem >= 0) || limiteMem === 0) limiteMem = 15; }
-  return limiteMem;
+let cfgLoja = null;
+function limiteMargem() { return limiteMem ?? 15; }
+/** Margem mínima e "só com estoque" ficam no Supabase (valem para toda a equipe). */
+async function carregarConfigLoja(forcar = false) {
+  if (cfgLoja && !forcar) return cfgLoja;
+  try { cfgLoja = (await painel('config_ler')).dados; limiteMem = Number(cfgLoja.margem_minima); } catch { cfgLoja = cfgLoja || { so_estoque: false, margem_minima: 15 }; }
+  return cfgLoja;
 }
-function guardarLimite(v) { const n = Number(String(v).replace(',', '.')); if (!(n >= 0)) return; limiteMem = n; try { localStorage.setItem('sr-painel-margem-min', String(n)); } catch { /* ok */ } }
+const gravarLimite = adiar(async (n) => { try { cfgLoja = (await painel('config_salvar', { margem_minima: n })).dados; toast('Margem mínima salva ✓'); } catch (e) { toast(e.message); } }, 800);
+function guardarLimite(v) { const n = Number(String(v).replace(',', '.')); if (!(n >= 0 && n <= 100)) return; limiteMem = n; gravarLimite(n); }
 
 const mrg = { carregado: false, lista: [], pagina: 0, total: 0, semAcesso: false };
 
@@ -936,7 +1098,7 @@ async function desenharMargens(carregarMais = false) {
 async function desenharConfig() {
   const alvo = $('cfgPanel');
   alvo.innerHTML = carregandoHtml('Carregando categorias…');
-  await Promise.all([carregarExibicao(), carregarVendedores(true)]);
+  await Promise.all([carregarExibicao(), carregarVendedores(true), carregarConfigLoja(true)]);
   let lista = categorias().map((c) => ({ de: c, para: c }));
   const pintar = () => {
     alvo.innerHTML = `<div class="ci2" style="display:block"><b>Categorias do catálogo</b><small>Definidas pela Souza Ribeiro (não vêm do G360). A ordem aqui é a ordem dos botões no catálogo. Para pôr um produto numa categoria, use a aba Produtos.</small>
@@ -950,7 +1112,11 @@ async function desenharConfig() {
       <div class="ci2" style="display:block"><b>Vendedores</b><small>Um por linha. Aparecem no cadastro do cliente em "Vendedor responsável" e em "Como conheceu a Souza Ribeiro?".</small>
         <textarea id="cfVend" rows="5" class="inp" style="width:100%;margin-top:10px" spellcheck="false">${esc((vendedores || []).join('\n'))}</textarea>
         <div class="row" style="margin-top:10px"><button class="btn pri" id="cfVendSalvar">Salvar vendedores</button><span class="hint" id="cfVendRes" style="margin:0 0 0 10px"></span></div></div>
-      <div class="ci2"><div><b>Outras configurações</b><small>Margem mínima e o restante do painel antigo voltam na parte 5.</small></div></div>`;
+      <div class="ci2" style="display:block"><b>Catálogo e margem</b>
+        <label class="hint" style="display:flex;gap:8px;align-items:center;margin:10px 0 0;cursor:pointer"><input type="checkbox" id="cfEst" ${cfgLoja?.so_estoque ? 'checked' : ''} style="width:18px;height:18px;accent-color:var(--lima)"> Mostrar só produtos com estoque também na busca <span style="color:var(--tx3)">(a página inicial já mostra só os com estoque)</span></label>
+        <div class="row" style="margin-top:10px;align-items:center;gap:8px"><span class="hint" style="margin:0">Margem mínima para alerta</span><div class="pin" style="width:110px"><input id="cfMg" inputmode="decimal" value="${esc(String(limiteMargem()).replace('.', ','))}" style="text-align:right"><span>%</span></div>
+          <button class="btn pri" id="cfCatSalvar">Salvar</button><span class="hint" id="cfCatRes" style="margin:0 0 0 6px"></span></div>
+        <small class="hint" style="display:block;margin:6px 0 0">A margem mínima vale para toda a equipe: alertas em Produtos, Margens e Negociações.</small></div>`;
     alvo.querySelectorAll('#cfCats input').forEach((inp) => inp.addEventListener('input', () => { lista[Number(inp.parentElement.dataset.i)].para = inp.value; }));
     alvo.querySelectorAll('#cfCats button').forEach((b) => b.addEventListener('click', () => {
       const i = Number(b.parentElement.dataset.i);
@@ -967,6 +1133,13 @@ async function desenharConfig() {
       $('cfSinSalvar').disabled = true;
       try { const r = await painel('sinonimos_salvar', { sinonimos: lista }); await carregarExibicao(true); $('cfSinRes').textContent = `${r.gravados} sinônimos salvos ✓ — a busca já usa`; toast('Sinônimos salvos ✓'); }
       catch (e) { $('cfSinRes').textContent = e.message; } finally { $('cfSinSalvar').disabled = false; }
+    };
+    $('cfCatSalvar').onclick = async () => {
+      const m = Number($('cfMg').value.replace(',', '.'));
+      if (!(m >= 0 && m <= 100)) { $('cfCatRes').textContent = 'Margem entre 0 e 100%.'; return; }
+      $('cfCatSalvar').disabled = true;
+      try { cfgLoja = (await painel('config_salvar', { so_estoque: $('cfEst').checked, margem_minima: m })).dados; limiteMem = Number(cfgLoja.margem_minima); $('cfCatRes').textContent = 'Salvo ✓ — vale para o portal na próxima abertura'; }
+      catch (e) { $('cfCatRes').textContent = e.message; } finally { $('cfCatSalvar').disabled = false; }
     };
     $('cfVendSalvar').onclick = async () => {
       const nomes = $('cfVend').value.split('\n').map((l) => l.trim()).filter(Boolean);

@@ -6,7 +6,7 @@
    ===================================================================== */
 import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
-import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva } from '../catalogo/exibicao.js';
+import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva, oculto, soEstoque } from '../catalogo/exibicao.js';
 import { buscarLocal, temEstoque, variacoes } from '../catalogo/busca.js';
 import { listarProdutos, buscarProdutos, listarMarcas } from '../api/g360.js';
 import { sessao, entrar, sair, trocarSenha } from '../estado/sessao.js';
@@ -23,6 +23,8 @@ import { resultadoPublico, htmlCartaoPublico, chipsPublicos, marcasPublicas, lim
 import { abrirCheckout } from './checkout.js';
 import { desenharMinhaLista } from './lista.js';
 import { desenharPedidos } from './pedidos.js';
+import { desenharClips, ligarClips, pausarClips, carregarClips, clipDoProduto } from './clips.js';
+import { abrirNegociacao, desenharMinhasNegociacoes } from './negociacao.js';
 import { abrirCadastro } from './cadastro.js';
 
 const filtros = { q: '', grupo: '', marca: '', pagina: 1 };
@@ -56,12 +58,20 @@ function montar() {
     else if (v === 'lista') exigirLogin(() => ctx.ir('/minha-lista'));
     else if (v === 'ped') exigirLogin(() => ctx.ir('/pedidos'));
     else if (v === 'adm') ctx.ir('/painel');
+    else if (v === 'clips') ctx.ir('/clips');
   }));
   $('tbConta').addEventListener('click', () => (sessao.ativa ? abrirConta() : abrirLogin()));
   $('cartBtn').addEventListener('click', () => exigirLogin(abrirCarrinho));
   $('dClose').addEventListener('click', fecharCarrinho);
   $('shade').addEventListener('click', fecharCarrinho);
   $('dGo').addEventListener('click', () => { fecharCarrinho(); abrirCheckout(ctx); });
+  $('dNeg').addEventListener('click', () => exigirLogin(() => {
+    const itens = linhasCarrinho().map((l) => ({ produto: { id: l.produto_id, codigo: l.codigo, nome: l.nome, unidade: l.unidadeNome, preco: l.precoTexto, unidades: [] },
+      op: { id: l.unidade || '', nome: l.unidadeNome || 'UN', preco: l.precoTexto }, quantidade: l.quantidade }));
+    fecharCarrinho(); abrirNegociacao(itens);
+  }));
+  ligarClips();
+  carregarClips().catch(() => { /* sem clips: sem botão */ });
 
   // Busca do topo: a API procura por nome, código e aplicação.
   const q = $('q');
@@ -96,7 +106,7 @@ function montar() {
     ir: (c) => ctx.ir(c),
     exigirLogin,
     buscar: (texto) => exigirLogin(() => { $('q').value = texto; filtros.q = texto; filtros.pagina = 1; if (ctx.rota === 'cat') desenharCatalogo(); else ctx.ir('/catalogo'); }),
-    abrirDetalhe: (p) => { const l = idsCarregados(); abrirDetalhe(p, { naLista: l ? l.has(Number(p.id)) : null, aoFavoritar: async (prod, estava) => { if (estava) await removerDaLista(prod.id); else await incluirNaLista(prod.id); return !estava; } }); },
+    abrirDetalhe: (p) => abrirDetalheLoja(p),
   });
   $('grid').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('.qty input')) { e.preventDefault(); e.target.closest('.card').querySelector('.add')?.click(); } });
   $('dBody').addEventListener('click', cliqueCarrinho);
@@ -143,7 +153,9 @@ export function mostrarLoja(contexto, rota, params = [], estado = {}) {
   ctx = { ...contexto, rota };
   montar();
   liberarFotosDaTela();
-  document.querySelectorAll('.view').forEach((el) => { el.hidden = el.id !== { cat: 'vCat', lista: 'vLista', ped: 'vPed' }[rota]; });
+  document.querySelectorAll('.view').forEach((el) => { el.hidden = el.id !== { cat: 'vCat', lista: 'vLista', ped: 'vPed', clips: 'vClips' }[rota]; });
+  document.body.classList.toggle('clipsmode', rota === 'clips');
+  if (rota !== 'clips') pausarClips();
   document.querySelector('header nav').style.display = rota === 'cat' ? '' : 'none';
   desenharTopo();
   window.scrollTo(0, 0);
@@ -154,7 +166,8 @@ export function mostrarLoja(contexto, rota, params = [], estado = {}) {
   } else if (estado.aviso === 'saiu') toast('Você saiu da conta');
   if (rota === 'cat') { desenharHero(); desenharChips(); desenharCatalogo(); }
   if (rota === 'lista') desenharMinhaLista(ctx);
-  if (rota === 'ped') desenharPedidos(ctx, params[0]);
+  if (rota === 'ped') { desenharPedidos(ctx, params[0]); desenharMinhasNegociacoes(); }
+  if (rota === 'clips') desenharClips(estado.clip || null, opcoesClips());
   if (estado.abrirCarrinho) exigirLogin(abrirCarrinho);
   if (estado.abrirConta && sessao.ativa) abrirConta();
 }
@@ -237,7 +250,7 @@ async function resultadoVitrine() {
     vitrine.apiPagina = pagina; lidas += 1;
     vitrine.apiPaginas = Math.max(1, Math.ceil((paginacao?.total || 0) / 50));
     if (!filtros.grupo && !filtros.marca && pagina === 1) $('tot').textContent = Number(paginacao?.total || 0).toLocaleString('pt-BR');
-    vitrine.itens.push(...dados.map(apresentar).filter(temEstoque));
+    vitrine.itens.push(...dados.map(apresentar).filter((p) => temEstoque(p) && !oculto(p)));
     if (pagina >= vitrine.apiPaginas) {
       if (vitrine.bloco + 1 < blocos.length) { vitrine.bloco += 1; vitrine.apiPagina = 0; } else vitrine.fim = true;
     }
@@ -272,7 +285,7 @@ async function resultadoBusca() {
         .forEach((p) => { if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); if (!pontos.has(String(p.codigo))) pontos.set(String(p.codigo), 100); } });
     } catch (e) { if (!achados.size) throw e; }
     // Ordem: com estoque primeiro; entre os que batem com a busca, os mais vendidos (curva A, B, C); depois a relevância.
-    const todos = [...achados.values()].sort((a, b) => (temEstoque(b) - temEstoque(a)) || (pesoCurva(a) - pesoCurva(b))
+    const todos = [...achados.values()].filter((p) => !oculto(p) && (!soEstoque() || temEstoque(p))).sort((a, b) => (temEstoque(b) - temEstoque(a)) || (pesoCurva(a) - pesoCurva(b))
       || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
     busca = { chave, itens: todos, semEstoque: todos.filter((p) => !temEstoque(p)).length, ordem: '' };
     registrarBusca(filtros.q, todos.length);
@@ -356,6 +369,32 @@ export async function desenharCatalogo() {
   }
 }
 
+/** Janela de detalhes com Minha Lista, clip do produto e "Negociar preço". */
+function abrirDetalheLoja(p, aoMudarLista) {
+  const lista = idsCarregados();
+  const clip = clipDoProduto(p);
+  abrirDetalhe(p, {
+    naLista: lista ? lista.has(Number(p.id)) : null,
+    aoFavoritar: async (prod, estava) => {
+      if (estava) await removerDaLista(prod.id); else await incluirNaLista(prod.id);
+      aoMudarLista?.(!estava);
+      toast(estava ? 'Removido da Minha Lista' : 'Adicionado à Minha Lista ⭐');
+      return !estava;
+    },
+    aoClip: clip ? () => ctx.ir('/clips', { clip: clip.id }) : null,
+    aoNegociar: sessao.ativa && sessao.supabaseOk ? (prod, op, qtd) => abrirNegociacao([{ produto: prod, op, quantidade: qtd }]) : null,
+  });
+}
+
+function opcoesClips() {
+  return {
+    exigirLogin,
+    abrirDetalhe: (p) => abrirDetalheLoja(p),
+    naLista: (p) => { const l = idsCarregados(); return l ? l.has(Number(p.id)) : null; },
+    alternarLista: async (p) => { const l = idsCarregados(); const estava = l?.has(Number(p.id)); if (estava) await removerDaLista(p.id); else await incluirNaLista(p.id); toast(estava ? 'Removido da Minha Lista' : 'Adicionado à Minha Lista ⭐'); return !estava; },
+  };
+}
+
 async function cliqueCartao(e) {
   const card = e.target.closest('.card'); if (!card) return;
   if (card.classList.contains('publico')) { abrirLogin(); return; }
@@ -381,16 +420,9 @@ async function cliqueCartao(e) {
   }
   // Foto ou nome: abre o detalhe do produto.
   if (!e.target.closest('.fav') && (e.target.closest('.img') || e.target.closest('.name'))) {
-    const lista = idsCarregados();
-    abrirDetalhe(p, {
-      naLista: lista ? lista.has(Number(p.id)) : null,
-      aoFavoritar: async (prod, estava) => {
-        if (estava) await removerDaLista(prod.id); else await incluirNaLista(prod.id);
-        const f = card.querySelector('.fav');
-        if (f) { f.classList.toggle('on', !estava); f.setAttribute('aria-pressed', String(!estava)); f.textContent = estava ? '☆ Lista' : '⭐ Na lista'; }
-        toast(estava ? 'Removido da Minha Lista' : 'Adicionado à Minha Lista ⭐');
-        return !estava;
-      },
+    abrirDetalheLoja(p, (agora) => {
+      const f = card.querySelector('.fav');
+      if (f) { f.classList.toggle('on', agora); f.setAttribute('aria-pressed', String(agora)); f.textContent = agora ? '⭐ Na lista' : '☆ Lista'; }
     });
     return;
   }

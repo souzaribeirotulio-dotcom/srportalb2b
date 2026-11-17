@@ -6,7 +6,7 @@
    catálogo autenticado; ao sair, estes dados públicos voltam do zero.
    ===================================================================== */
 import { listarVitrine, listarMarcasVitrine, urlVitrine } from '../api/g360.js';
-import { carregarExibicao, apresentar, codigosDaCategoria, pesoCurva, categorias as categoriasPortal } from '../catalogo/exibicao.js';
+import { carregarExibicao, apresentar, codigosDaCategoria, pesoCurva, oculto, categorias as categoriasPortal } from '../catalogo/exibicao.js';
 import { buscarLocal, variacoes } from '../catalogo/busca.js';
 import { esc } from './comum.js';
 
@@ -47,7 +47,7 @@ export async function resultadoPublico(filtros) {
         dados.map(apresentar).filter((p) => !filtros.grupo || p.categoria === filtros.grupo)
           .forEach((p) => { if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); pontos.set(String(p.codigo), 100); } });
       } catch (e) { if (!achados.size) throw e; }
-      const itens = [...achados.values()].sort((a, b) => (pesoCurva(a) - pesoCurva(b))
+      const itens = [...achados.values()].filter((p) => !oculto(p)).sort((a, b) => (pesoCurva(a) - pesoCurva(b))
         || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
       cache.set(chave, { itens, total: itens.length });
     }
@@ -62,7 +62,7 @@ export async function resultadoPublico(filtros) {
       // A página N da categoria: busca os códigos daquela fatia e ordena pela curva.
       const fatia = codigos.slice((filtros.pagina - 1) * POR_PAGINA, filtros.pagina * POR_PAGINA);
       const { dados } = fatia.length ? await listarVitrine({ codigos: fatia, marca, limite: 50 }) : { dados: [] };
-      cache.set(chave, { itens: dados.map(apresentar).sort((a, b) => (pesoCurva(a) - pesoCurva(b)) || a.nome.localeCompare(b.nome, 'pt')), total: codigos.length });
+      cache.set(chave, { itens: dados.map(apresentar).filter((p) => !oculto(p)).sort((a, b) => (pesoCurva(a) - pesoCurva(b)) || a.nome.localeCompare(b.nome, 'pt')), total: codigos.length });
     }
     const r = cache.get(chave);
     return { itens: r.itens, total: r.total, paginas: Math.max(1, Math.ceil(r.total / POR_PAGINA)) };
@@ -70,7 +70,7 @@ export async function resultadoPublico(filtros) {
   const chave = `t|${filtros.marca}|${filtros.pagina}`;
   if (!cache.has(chave)) {
     const { dados, paginacao } = await listarVitrine({ marca, pagina: filtros.pagina, limite: POR_PAGINA });
-    cache.set(chave, { itens: dados.map(apresentar).sort((a, b) => (pesoCurva(a) - pesoCurva(b)) || a.nome.localeCompare(b.nome, 'pt')), total: paginacao?.total || 0 });
+    cache.set(chave, { itens: dados.map(apresentar).filter((p) => !oculto(p)).sort((a, b) => (pesoCurva(a) - pesoCurva(b)) || a.nome.localeCompare(b.nome, 'pt')), total: paginacao?.total || 0 });
   }
   const r = cache.get(chave);
   return { itens: r.itens, total: r.total, paginas: Math.max(1, Math.ceil(r.total / POR_PAGINA)), totalCatalogo: !filtros.marca ? r.total : null };

@@ -155,6 +155,108 @@ async function executar(acao: string, d: Record<string, unknown>): Promise<[numb
     }
     return [200, { dados: nomes }];
   }
+  if (acao === "produto_extra_salvar") {
+    // Descrição e "ocultar do catálogo" de um produto. Só grava os campos enviados.
+    const codigo = texto(d.codigo, 40);
+    if (!codigo) return [400, { mensagem: "Produto inválido." }];
+    const mud: Record<string, unknown> = { atualizado_em: new Date().toISOString() };
+    if ("descricao" in d) { const t = texto(d.descricao, 1500); mud.descricao = t.length ? t : null; }
+    if ("oculto" in d) mud.oculto = d.oculto === true;
+    const { data: ex, error: e0 } = await admin.from("portal_produtos_exibicao").select("codigo").eq("loja", loja).eq("codigo", codigo).limit(1);
+    if (e0) throw e0;
+    if (ex?.length) {
+      const { error } = await admin.from("portal_produtos_exibicao").update(mud).eq("loja", loja).eq("codigo", codigo);
+      if (error) throw error;
+    } else {
+      const nome = texto(d.nome, 160);
+      if (nome.length < 2) return [400, { mensagem: "Produto sem nome." }];
+      const { error } = await admin.from("portal_produtos_exibicao").insert({
+        loja, codigo, nome, origem: "automatico", categoria: texto(d.categoria, 40) || null, nome_g360: texto(d.nome_g360, 200) || null,
+        produto_id: Number.isSafeInteger(d.produto_id) && (d.produto_id as number) > 0 ? d.produto_id : null, ...mud,
+      });
+      if (error) throw error;
+    }
+    return [200, { ok: true }];
+  }
+  if (acao === "config_ler") {
+    const { data, error } = await admin.from("portal_config").select("so_estoque, margem_minima").eq("loja", loja).maybeSingle();
+    if (error) throw error;
+    return [200, { dados: data ?? { so_estoque: false, margem_minima: 15 } }];
+  }
+  if (acao === "config_salvar") {
+    const linha: Record<string, unknown> = { loja, atualizado_em: new Date().toISOString() };
+    if ("so_estoque" in d) linha.so_estoque = d.so_estoque === true;
+    if ("margem_minima" in d) {
+      const m = Number(d.margem_minima);
+      if (!(m >= 0 && m <= 100)) return [400, { mensagem: "Margem mínima entre 0 e 100%." }];
+      linha.margem_minima = Math.round(m * 100) / 100;
+    }
+    const { data, error } = await admin.from("portal_config").upsert(linha, { onConflict: "loja" }).select("so_estoque, margem_minima");
+    if (error) throw error;
+    return [200, { dados: data?.[0] }];
+  }
+  if (acao === "clips_listar") {
+    const { data, error } = await admin.from("portal_clips").select("id, produto_id, codigo, titulo, caminho, ativo, criado_em").eq("loja", loja).order("criado_em", { ascending: false }).limit(500);
+    if (error) throw error;
+    return [200, { dados: data }];
+  }
+  if (acao === "clip_upload_url") {
+    // URL assinada para o navegador enviar o vídeo direto ao Storage (até 50 MB).
+    const ext = ({ "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" } as Record<string, string>)[texto(d.tipo, 40)];
+    const tam = Number(d.tamanho);
+    if (!ext) return [400, { mensagem: "Envie o vídeo em MP4, WebM ou MOV." }];
+    if (!(tam > 0 && tam <= 50 * 1024 * 1024)) return [400, { mensagem: "O vídeo pode ter até 50 MB." }];
+    const caminho = `${loja}/${crypto.randomUUID()}.${ext}`;
+    const { data, error } = await admin.storage.from("portal-clips").createSignedUploadUrl(caminho);
+    if (error) throw error;
+    return [200, { dados: { caminho, url: data.signedUrl, token: data.token } }];
+  }
+  if (acao === "clip_salvar") {
+    const id = texto(d.id, 40);
+    const linha: Record<string, unknown> = {};
+    if ("titulo" in d) linha.titulo = texto(d.titulo, 120) || null;
+    if ("ativo" in d) linha.ativo = d.ativo !== false;
+    if (id) {
+      if (!/^[0-9a-f-]{36}$/.test(id)) return [400, { mensagem: "Clip inválido." }];
+      const { error } = await admin.from("portal_clips").update(linha).eq("id", id).eq("loja", loja);
+      if (error) throw error;
+      return [200, { ok: true }];
+    }
+    const caminho = texto(d.caminho, 120);
+    const pid = Number(d.produto_id);
+    if (!caminho.startsWith(`${loja}/`) || !Number.isSafeInteger(pid) || pid <= 0) return [400, { mensagem: "Dados do clip inválidos." }];
+    const { data, error } = await admin.from("portal_clips").insert({ ...linha, loja, produto_id: pid, codigo: texto(d.codigo, 40), caminho }).select("id");
+    if (error) throw error;
+    return [200, { dados: data?.[0] }];
+  }
+  if (acao === "clip_apagar") {
+    const id = texto(d.id, 40);
+    if (!/^[0-9a-f-]{36}$/.test(id)) return [400, { mensagem: "Clip inválido." }];
+    const { data, error } = await admin.from("portal_clips").delete().eq("id", id).eq("loja", loja).select("caminho");
+    if (error) throw error;
+    if (data?.[0]?.caminho) await admin.storage.from("portal-clips").remove([data[0].caminho]);
+    return [200, { ok: true }];
+  }
+  if (acao === "negociacoes_listar") {
+    const { data, error } = await admin.from("portal_negociacoes").select("*").eq("loja", loja).order("criado_em", { ascending: false }).limit(300);
+    if (error) throw error;
+    return [200, { dados: data }];
+  }
+  if (acao === "negociacao_decidir") {
+    // Chamada depois que o painel já gravou o preço congelado no G360 (aprovada) ou para recusar.
+    const id = texto(d.id, 40); const status = texto(d.status, 12);
+    if (!/^[0-9a-f-]{36}$/.test(id) || !["aprovada", "recusada"].includes(status)) return [400, { mensagem: "Dados inválidos." }];
+    const linha: Record<string, unknown> = { status, resposta: texto(d.resposta, 400) || null, decidido_por: "Equipe (usuário do G360)", atualizado_em: new Date().toISOString() };
+    if (status === "aprovada") {
+      const preco = texto(d.preco_aprovado, 20); const ate = texto(d.valido_ate, 10);
+      if (!/^[0-9]{1,11}(\.[0-9]{1,7})?$/.test(preco) || !/^\d{4}-\d{2}-\d{2}$/.test(ate)) return [400, { mensagem: "Preço ou data inválidos." }];
+      linha.preco_aprovado = preco; linha.valido_ate = ate;
+    }
+    const { data, error } = await admin.from("portal_negociacoes").update(linha).eq("id", id).eq("loja", loja).eq("status", "aberta").select("id");
+    if (error) throw error;
+    if (!data?.length) return [409, { mensagem: "Esta negociação já foi respondida ou cancelada pelo cliente." }];
+    return [200, { ok: true }];
+  }
   if (acao === "ocorrencias_listar") {
     const { data, error } = await admin.from("ocorrencias_g360")
       .select("registrada_em, codigo, operacao, comprador_codigo, request_id").eq("loja", loja)

@@ -49,6 +49,7 @@ const LOJA = [
   [/^\/minha-lista$/, 'lista', true],
   [/^\/comprar-de-novo$/, 'lista', true],
   [/^\/pedidos$/, 'ped', true],
+  [/^\/clips$/, 'clips', false],
   [/^\/pedidos\/(\d{1,10})$/, 'ped', true],
 ];
 

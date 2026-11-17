@@ -25,20 +25,26 @@ export function carregarExibicao(forcar = false) {
       estado.sinonimos = sin || []; definirSinonimos(estado.sinonimos);
       const porCodigo = new Map(); const porId = new Map();
       for (let de = 0; de < 20000; de += 1000) {
-        const { data, error } = await sb.from('portal_produtos_exibicao').select('codigo, produto_id, nome, categoria, origem, nome_g360, curva, descricao, ean')
+        const { data, error } = await sb.from('portal_produtos_exibicao').select('codigo, produto_id, nome, categoria, origem, nome_g360, curva, descricao, ean, oculto')
           .eq('loja', LOJA).order('codigo').range(de, de + 999);
         if (error) throw error;
         data.forEach((r) => { porCodigo.set(String(r.codigo), r); if (r.produto_id) porId.set(Number(r.produto_id), r); });
         if (data.length < 1000) break;
       }
       estado.porCodigo = porCodigo; estado.porId = porId;
-      indexar([...porCodigo.values()]);
+      indexar([...porCodigo.values()].filter((r) => !r.oculto));
+      try { const { data: cfg } = await sb.rpc('portal_config_publica', { p_loja: LOJA }); estado.soEstoque = cfg?.so_estoque === true; } catch { estado.soEstoque = false; }
     } catch { if (!estado.categorias.length) estado.categorias = CATEGORIAS_PADRAO; }
     estado.carregado = true; estado.carregando = null;
     return estado;
   })();
   return estado.carregando;
 }
+
+/** Produto escondido do catálogo pela equipe (continua no G360, no histórico e na Minha Lista). */
+export function oculto(p) { return registro(p)?.oculto === true; }
+/** Configuração da loja: mostrar só produtos com estoque também na busca. */
+export function soEstoque() { return estado.soEstoque === true; }
 
 export function sinonimos() { return estado.sinonimos || []; }
 
@@ -78,7 +84,7 @@ export function nomeDoItem(i) {
 /** Códigos G360 de uma categoria (para o filtro do catálogo, até 500). */
 export function codigosDaCategoria(cat, max = 500) {
   const out = [];
-  for (const r of estado.porCodigo.values()) if (r.categoria === cat) out.push(String(r.codigo));
+  for (const r of estado.porCodigo.values()) if (r.categoria === cat && !r.oculto) out.push(String(r.codigo));
   return out.slice(0, max);
 }
 

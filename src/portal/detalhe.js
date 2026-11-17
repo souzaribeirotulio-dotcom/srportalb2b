@@ -13,7 +13,7 @@ let atual = null;
 
 const htmlFotoItem = (p, item, classe) => `<div class="foto ${classe}" data-produto="${Number(p.id)}" data-item="${Number(item)}" data-alt="${esc(p.nome)}"><span>Carregando…</span></div>`;
 
-/** opcoes: { naLista: true|false|null, aoFavoritar: async (p, estava) => novoEstado, aoClip: fn|null } */
+/** opcoes: { naLista: true|false|null, aoFavoritar: async (p, estava) => novoEstado, aoClip: fn|null, aoNegociar: fn(p, op, qtd)|null } */
 export function abrirDetalhe(p, opcoes = {}) {
   atual = { p, un: '', foto: 0, ...opcoes };
   desenhar();
@@ -43,6 +43,7 @@ function desenhar() {
         <button type="button" class="add" id="dAdd" ${comprar ? '' : 'disabled aria-disabled="true"'}><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Adicionar ao carrinho</button>
         ${naLista === null || naLista === undefined ? '' : `<button type="button" class="dfav ${naLista ? 'on' : ''}" id="dFav" title="Minha Lista" aria-pressed="${naLista}">${naLista ? '★' : '☆'}</button>`}</div>
       ${atual.aoClip ? '<button type="button" class="dclip" id="dClip">▶ Ver clip deste produto</button>' : ''}
+      ${atual.aoNegociar && comprar ? '<button type="button" class="dclip" id="dNegociar">🤝 Negociar preço</button>' : ''}
       <div class="dsec"><h4>Descrição</h4><p>${esc(ficha.texto)}</p></div>
       <div class="dsec"><h4>Características</h4><table class="ftab">${caract.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</table></div>
     </div>`;
@@ -79,5 +80,6 @@ export function ligarDetalhe() {
       return;
     }
     if (e.target.closest('#dClip')) { fecharModal('mDet'); atual.aoClip(); }
+    if (e.target.closest('#dNegociar')) { const q = normalizarQuantidade($id('dQ').value) || '1'; fecharModal('mDet'); atual.aoNegociar(atual.p, unidadeEscolhida(atual.p, atual.un), q); }
   });
 }

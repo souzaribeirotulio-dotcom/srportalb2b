@@ -402,7 +402,7 @@ with sync_playwright() as pw:
     pg.click('[data-at="prod"]'); pg.fill('#aQ', 'P-104'); pg.press('#aQ', 'Enter'); pg.wait_for_selector('.arow[data-id="104"]')
     pg.click('.arow[data-id="104"] [data-ed]'); pg.wait_for_selector('#mod.open #fxTh img')
     pg.click('#mOk')
-    pg.click('[data-at="neg"]'); checar('parte 3' in n.tc('#negAdminView'), 'aba em preparação')
+    pg.click('[data-at="neg"]'); pg.wait_for_function("document.getElementById('ngPanel') && !document.getElementById('ngPanel').textContent.includes('Carregando')"); checar('Nenhum pedido' in n.tc('#ngPanel') or pg.locator('.negadm').count() > 0, 'aba de negociações')
     pg.click('[data-at="souzinha"]'); pg.wait_for_selector('#szSalvar'); pg.click('#szSalvar'); pg.wait_for_timeout(200)
     checar('mínimo 10' in n.tc('#szStatus'), 'ensinamento curto recusado')
     pg.select_option('#szTemplate', 'academia'); pg.click('#szSalvar'); pg.wait_for_selector('#szSchoolList .sz-school-item')
@@ -437,6 +437,49 @@ with sync_playwright() as pw:
         checar(any(c['documento'] == '12ABC34501DE35' and c['status'] == 'aprovado' for c in sim.cadastros), 'aprovar cadastro com o login do G360')
     pg.click('[data-at="ocor"]'); pg.wait_for_selector('#ocPanel .mrow:not(.h)')
     t = n.tc('#ocPanel'); checar('FRETE_A_COMBINAR' in t and 'LOJA_INDISPONIVEL' in t, 'ocorrências no painel')
+    n.fechar()
+
+    # Etapa 12: descrição/ocultar/clips no painel, configuração, clips e negociação do comprador
+    etapa[0] = 'Etapa 12'
+    n = N(pw, sim, '/painel', largura=1280); pg = n.pg
+    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
+    pg.click('[data-at="prod"]'); pg.fill('#aQ', 'P-104'); pg.press('#aQ', 'Enter'); pg.wait_for_selector('.arow[data-id="104"]')
+    pg.click('.arow[data-id="104"] [data-mais]'); pg.wait_for_selector('.aedit textarea')
+    pg.fill('.aedit textarea', 'Descrição escrita pela equipe para o teste.'); pg.click('.aedit .eSalvar'); pg.wait_for_timeout(400)
+    checar(sim.exibicao.get('P-104', {}).get('descricao') == 'Descrição escrita pela equipe para o teste.', f"descrição salva: {sim.exibicao.get('P-104')}")
+    pg.set_input_files('.aedit .eArq', files=[{'name': 'clip.txt', 'mimeType': 'text/plain', 'buffer': b'x'}]); pg.wait_for_timeout(200)
+    checar('MP4' in n.tc('.aedit .eClipRes') and not sim.clips, 'arquivo que não é vídeo recusado')
+    pg.fill('.aedit .eTit', 'Clip de teste'); pg.set_input_files('.aedit .eArq', files=[{'name': 'clip.mp4', 'mimeType': 'video/mp4', 'buffer': b'\x00' * 2048}])
+    pg.wait_for_selector('.aedit .eclip'); checar(len(sim.clips) == 1 and sim.clips[0]['produto_id'] == 104 and sim.uploads, f'clip enviado: {sim.clips}')
+    pg.fill('#aQ', 'P-102'); pg.press('#aQ', 'Enter'); pg.wait_for_selector('.arow[data-id="102"]')
+    pg.click('.arow[data-id="102"] [data-mais]'); pg.wait_for_selector('.aedit .eOculto'); pg.check('.aedit .eOculto'); pg.click('.aedit .eSalvar'); pg.wait_for_timeout(400)
+    checar(sim.exibicao.get('P-102', {}).get('oculto') is True, 'produto ocultado')
+    pg.click('[data-at="cfg"]'); pg.wait_for_selector('#cfEst'); pg.check('#cfEst'); pg.fill('#cfMg', '22'); pg.click('#cfCatSalvar'); pg.wait_for_timeout(400)
+    checar(sim.config == {'so_estoque': True, 'margem_minima': 22.0} or sim.config == {'so_estoque': True, 'margem_minima': 22}, f'configuração salva: {sim.config}')
+    sim.config['so_estoque'] = False
+    n.fechar()
+    n = N(pw, sim, '/'); pg = n.pg
+    n.entrar(U1, S1)
+    checar(pg.locator('#grid .card[data-id="102"]').count() == 0, 'produto oculto fora do catálogo')
+    n.ir('clips'); pg.wait_for_selector('#clipsFeed .clip')
+    checar(pg.locator('#clipsFeed .clip').count() == 1 and 'Clip de teste' in n.tc('#clipsFeed'), 'feed de clips')
+    n.ir('cat'); pg.wait_for_selector('#grid .card[data-id="101"]')
+    pg.click('.card[data-id="101"] .name'); pg.wait_for_selector('#mDet.open #dNegociar')
+    pg.click('#dNegociar'); pg.wait_for_selector('#mCad.open #ngEnviar')
+    pg.click('#ngEnviar'); checar('pelo menos um' in n.tc('#ngErr'), 'negociação sem preço recusada')
+    pg.fill('.negit input', 'abc'); pg.click('#ngEnviar'); checar('Confira os preços' in n.tc('#ngErr'), 'preço inválido recusado')
+    pg.fill('.negit input', '4,50'); pg.fill('#ngMsg', 'Compro todo mês'); pg.click('#ngEnviar'); pg.wait_for_selector('#ngOk')
+    checar(len(sim.negociacoes) == 1 and sim.negociacoes[0]['preco_desejado'] == '4.50' and sim.negociacoes[0]['comprador_codigo'] == 1165, f'negociação enviada: {sim.negociacoes}')
+    pg.click('#ngOk'); n.ir('ped'); pg.wait_for_selector('#negClientView .ped')
+    checar('Aguardando resposta' in n.tc('#negClientView'), 'minhas negociações')
+    n.fechar()
+    n = N(pw, sim, '/painel', largura=1280); pg = n.pg
+    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
+    pg.wait_for_function("document.getElementById('negN').textContent === '1'")
+    pg.click('[data-at="neg"]'); pg.wait_for_selector('.negadm [data-ok]')
+    pg.fill('.negadm [data-v]', '4,75'); pg.click('.negadm [data-ok]'); pg.wait_for_function("!document.querySelector('.negadm [data-ok]')")
+    inc = [x for x in sim.chamadas if x[0] == 'POST' and 'precos-congelados' in x[1]][-1][3]
+    checar(inc['valor'] == '4.75' and inc['produto'] == 101 and sim.negociacoes[0]['status'] == 'aprovada', f'aprovar congela no G360: {inc} {sim.negociacoes[0]["status"]}')
     n.fechar()
 
 print('FALHAS:' if falhas else 'Portal (layout original) + Etapas 1, 2 e 5 a 11: todos os testes passaram.')

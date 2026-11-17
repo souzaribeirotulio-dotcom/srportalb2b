@@ -1,6 +1,6 @@
 /* Ajustes do layout original para a integração com o G360. */
-body.g360-legado [data-v="clips"], body.g360-legado .adm-only, body.g360-legado .edbar, body.g360-legado #edt,
-body.g360-legado #vClips, body.g360-legado #vAdm, body.g360-legado #dNeg, body.g360-legado .demo-faixa,
+body.g360-legado .adm-only, body.g360-legado .edbar, body.g360-legado #edt,
+body.g360-legado #vAdm, body.g360-legado .demo-faixa,
 body.g360-legado #lgEsq, body.g360-legado #lgVolta, body.g360-legado #lgAdmT { display: none !important; }
 body.g360-legado #g360Entrada[hidden] { display: none !important; }
 body.g360-legado #srBoot { display: none; }
@@ -123,3 +123,31 @@ body.g360-painel #souzinha-widget, body.g360:not(.g360-legado) #souzinha-widget 
 @media (hover: none), (pointer: coarse) {
   .card .eye { opacity: 1; transform: none; width: 44px; height: 44px; top: 4px; right: 4px; }
 }
+
+/* Clips: miniatura do produto (foto da API, com Bearer) no cartão sobre o vídeo. */
+.ccard .cimgw { width: 70px; height: 70px; background: #fff; border-radius: 11px; overflow: hidden; cursor: pointer; }
+.ccard .cimgw .foto { width: 100%; height: 100%; }
+.ccard .cimgw img { width: 100%; height: 100%; object-fit: contain; padding: 4px; }
+.ccard .lockp { width: 100%; }
+
+/* Painel: editor do produto (descrição, ocultar, clips) abaixo da linha. */
+.aedit { display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; padding: 14px 18px 18px; border-bottom: 1px solid var(--linha); background: rgba(0,0,0,.18); }
+@media (max-width: 860px) { .aedit { grid-template-columns: 1fr; } }
+.aedit .eclips { margin-top: 8px; }
+.aedit textarea::placeholder { color: var(--tx3); }
+
+/* Painel: negociações. */
+.negadm { display: grid; grid-template-columns: 1fr minmax(260px, 340px); gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--linha); }
+.negadm .nm small { display: block; margin-top: 3px; color: var(--tx2); font-size: 12px; }
+.negadm .ngform { display: grid; gap: 8px; align-content: start; }
+.negadm .ngform input[type=date] { height: 34px; border-radius: 8px; border: 1px solid var(--linha2); background: var(--n950); color: var(--tx); padding: 0 8px; }
+.negadm .ngform .row { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 760px) { .negadm { grid-template-columns: 1fr; } }
+
+/* Comprador: formulário de negociação. */
+.negitens { display: grid; gap: 8px; margin: 12px 0; max-height: 46vh; overflow: auto; }
+.negit { display: grid; grid-template-columns: 1fr 150px; gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--linha); border-radius: 11px; }
+.negit .nm small { display: block; color: var(--tx2); font-size: 12px; margin-top: 2px; }
+.negit .negv span { display: block; font-size: 11px; color: var(--tx2); margin-bottom: 3px; }
+.negit .negv input { width: 100%; }
+@media (max-width: 520px) { .negit { grid-template-columns: 1fr; } }

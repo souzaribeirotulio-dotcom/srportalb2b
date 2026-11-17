@@ -59,6 +59,10 @@ class Sim:
         self.fotos_pedidas = []
         self.cadastros = []
         self.vendedores = []
+        self.clips = []
+        self.negociacoes = []
+        self.config = {'so_estoque': False, 'margem_minima': 15}
+        self.uploads = []
         self.sinonimos = [{'termo': 'durex', 'equivalentes': ['fita adesiva']}]
         self.eventos = []; self.acessos = {}; self.ensinos = []
         self.categorias = ['Limpeza', 'Descartáveis', 'Embalagens', 'Copa & Alimentos', 'Higiene', 'Utensílios & EPI', 'Papelaria', 'Outros']
@@ -364,6 +368,34 @@ class Sim:
                 for i, c in enumerate(self.cadastros):
                     c.setdefault('id', str(uuid.UUID(int=i + 1))); c.setdefault('status', 'pendente'); c.setdefault('criado_em', '2026-11-17T12:00:00+00:00')
                 return res(200, {'dados': list(reversed(self.cadastros))})
+            if ac == 'produto_extra_salvar':
+                r = self.exibicao.get(d['codigo'])
+                if not r: r = self.exibicao[d['codigo']] = {'codigo': d['codigo'], 'produto_id': d.get('produto_id'), 'nome': d.get('nome'), 'categoria': d.get('categoria'), 'origem': 'automatico'}
+                if 'descricao' in d: r['descricao'] = d['descricao'] or None
+                if 'oculto' in d: r['oculto'] = d['oculto'] is True
+                return res(200, {'ok': True})
+            if ac == 'config_ler': return res(200, {'dados': dict(self.config)})
+            if ac == 'config_salvar':
+                for k in ('so_estoque', 'margem_minima'):
+                    if k in d: self.config[k] = d[k]
+                return res(200, {'dados': dict(self.config)})
+            if ac == 'clips_listar': return res(200, {'dados': list(self.clips)})
+            if ac == 'clip_upload_url':
+                cam = f"{LOJA}/{uuid.uuid4()}.mp4"; return res(200, {'dados': {'caminho': cam, 'url': f'https://sb.example/storage/v1/object/upload/sign/portal-clips/{cam}?token=t', 'token': 't'}})
+            if ac == 'clip_salvar':
+                if d.get('id'):
+                    for c in self.clips:
+                        if c['id'] == d['id']: c.update({k: d[k] for k in ('titulo', 'ativo') if k in d})
+                    return res(200, {'ok': True})
+                c = {'id': str(uuid.uuid4()), 'produto_id': d['produto_id'], 'codigo': d['codigo'], 'titulo': d.get('titulo') or None, 'caminho': d['caminho'], 'ativo': True, 'criado_em': '2026-11-17T18:00:00+00:00'}
+                self.clips.insert(0, c); return res(200, {'dados': {'id': c['id']}})
+            if ac == 'clip_apagar': self.clips = [c for c in self.clips if c['id'] != d['id']]; return res(200, {'ok': True})
+            if ac == 'negociacoes_listar': return res(200, {'dados': list(reversed(self.negociacoes))})
+            if ac == 'negociacao_decidir':
+                for n in self.negociacoes:
+                    if n['id'] == d['id'] and n['status'] == 'aberta':
+                        n.update({'status': d['status'], 'resposta': d.get('resposta') or None, 'preco_aprovado': d.get('preco_aprovado'), 'valido_ate': d.get('valido_ate')}); return res(200, {'ok': True})
+                return res(409, {'mensagem': 'Esta negociação já foi respondida ou cancelada pelo cliente.'})
             if ac == 'vendedores_listar': return res(200, {'dados': list(self.vendedores)})
             if ac == 'vendedores_salvar': self.vendedores = [v.strip() for v in d.get('vendedores', []) if v.strip()]; return res(200, {'dados': list(self.vendedores)})
             if ac == 'cliente_salvar':
@@ -421,6 +453,31 @@ class Sim:
             if m == 'DELETE':
                 pid = int(q['produto_id'][0].replace('eq.', ''))
                 self.lista.get(s['codigo'], set()).discard(pid); return route.fulfill(status=204, headers=cab, body='')
+        if p.startswith('/storage/v1/object/upload/sign/portal-clips/'):
+            self.uploads.append(p); return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({'Key': p}))
+        if p.startswith('/storage/v1/object/public/portal-clips/'):
+            return route.fulfill(status=404, headers=cab, body='')
+        if tabela == 'portal_clips':
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps([c for c in self.clips if c['ativo']]))
+        if tabela == 'rpc/portal_config_publica':
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({'so_estoque': self.config['so_estoque']}))
+        if tabela == 'portal_negociacoes':
+            if not valido:
+                return route.fulfill(status=200 if m == 'GET' else 403, headers=cab, content_type='application/json', body='[]' if m == 'GET' else '{"code":"42501"}')
+            if m == 'GET':
+                return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps([n for n in reversed(self.negociacoes) if n['comprador_codigo'] == s['codigo']]))
+            if m == 'POST':
+                rs = json.loads(req.post_data); rs = rs if isinstance(rs, list) else [rs]
+                for r in rs:
+                    if r['comprador_codigo'] != s['codigo'] or r['loja'] != LOJA or set(r) - {'loja', 'comprador_codigo', 'comprador_nome', 'produto_id', 'codigo', 'produto_nome', 'unidade', 'unidade_id', 'preco_atual', 'preco_desejado', 'quantidade', 'mensagem'}:
+                        return route.fulfill(status=403, headers=cab, content_type='application/json', body='{"code":"42501"}')
+                    self.negociacoes.append({**r, 'id': str(uuid.uuid4()), 'status': 'aberta', 'criado_em': '2026-11-17T18:00:00+00:00', 'preco_aprovado': None, 'valido_ate': None, 'resposta': None})
+                return route.fulfill(status=201, headers=cab, body='')
+            if m == 'PATCH':
+                nid = q['id'][0].replace('eq.', ''); r = json.loads(req.post_data)
+                for n in self.negociacoes:
+                    if n['id'] == nid and n['comprador_codigo'] == s['codigo'] and n['status'] == 'aberta' and r.get('status') == 'cancelada': n['status'] = 'cancelada'
+                return route.fulfill(status=204, headers=cab, body='')
         if tabela == 'portal_sinonimos':
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps(self.sinonimos))
         if tabela == 'portal_eventos' and m == 'POST':
