@@ -39,6 +39,7 @@ class Sim:
         P[103].update(disponibilidade='indisponivel', compravel=False, faixa_disponibilidade='indisponivel', aviso='Há uma venda em andamento com este produto no fornecedor. Tente de novo em instantes.')
         P[104].update(fotos=[1, 2], imagem='produtos/104/fotos/1')
         P[105].update(fotos=[1])  # foto que falha (404)
+        P[119].update(fotos=[1])  # longe da tela: não pode ser baixada antes de rolar
         P[106].update(faixa_disponibilidade='ultimas_unidades', unidade='KG')
         self.tokens = {}           # token -> doc
         self.supa = {}             # access_token -> {codigo, expira_vinculo}
@@ -196,6 +197,7 @@ class Sim:
             p = next((p for p in self.pedidos if p['dados']['id'] == int(mm.group(1)) and p['comprador'] == cod), None)
             return self.ok(route, p['dados']) if p else self.erro(route, 404, 'NAO_ENCONTRADO', 'Pedido não encontrado.', 'integracao')
         if caminho == 'historico-compras':
+            if cod != 1165: return self.ok(route, {'inicio': '2026-05-16', 'fim': '2026-11-16', 'produtos': []})
             return self.ok(route, {'inicio': '2026-05-16', 'fim': '2026-11-16', 'produtos': [
                 {'produto_id': 104, 'pedidos': 3, 'quantidade_media': '4', 'ultima_compra': {'data': '2026-11-01', 'quantidade': '5', 'unidade_base': 'UN', 'unidade_vendida': 'UN'}},
                 {'produto_id': 999, 'pedidos': 1, 'quantidade_media': '2', 'ultima_compra': {'data': '2026-08-01', 'quantidade': '2', 'unidade_base': 'UN', 'unidade_vendida': 'UN'}}]})

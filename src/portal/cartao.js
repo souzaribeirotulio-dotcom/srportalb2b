@@ -1,0 +1,78 @@
+/* Cartão de produto no layout original. Regras da API (seção 6 do CLAUDE.md):
+   - quem decide a compra é "compravel"; sem compra, o motivo é o "aviso", como veio;
+   - "sob_consulta" com compravel = disponibilidade a confirmar (deixa comprar);
+   - "seu_preco" preenchido = selo "Seu preço", sem preço riscado;
+   - fotos só pela lista fotos[] (vazia = espaço reservado). */
+import { esc } from './comum.js';
+import { dinheiro } from '../ui/formato.js';
+import { htmlFoto } from '../ui/fotos.js';
+
+export function opcoesUnidade(p) {
+  const base = { id: '', nome: p.unidade || 'UN', descricao: '', preco: p.preco, seu_preco: p.seu_preco ?? null };
+  return [base, ...(p.unidades || []).map((u) => ({ id: u.id, nome: u.nome, descricao: u.descricao, preco: u.preco, seu_preco: u.seu_preco ?? null }))];
+}
+
+export function podeComprar(p) {
+  return p.compravel === true && p.preco !== null && p.preco !== undefined;
+}
+
+export function htmlPreco(op) {
+  if (op.preco === null || op.preco === undefined) return '';
+  return `<b>${esc(dinheiro(op.preco))}</b><small>/ ${esc(String(op.nome).toLowerCase())}</small>${op.seu_preco ? '<span class="tagcg">Seu preço</span>' : ''}`;
+}
+
+export function htmlEstoque(p) {
+  if (!podeComprar(p)) return '';
+  if (p.disponibilidade === 'sob_consulta') return '<div class="stk low">Disponibilidade a confirmar</div>';
+  if (p.disponibilidade === 'indisponivel') return '<div class="stk no">Indisponível</div>';
+  return p.faixa_disponibilidade === 'ultimas_unidades' ? '<div class="stk low">Últimas unidades</div>' : '<div class="stk ok">Em estoque</div>';
+}
+
+export function htmlUnidades(p, sel = '', cls = '') {
+  const ops = opcoesUnidade(p);
+  if (ops.length < 2) return '';
+  return `<div class="unsel ${cls}" role="group" aria-label="Embalagem">${ops.map((o) =>
+    `<button type="button" data-un="${esc(o.id)}" class="${o.id === (sel || '') ? 'on' : ''}" title="${esc(o.descricao || o.nome)}">${esc(o.nome)}${o.descricao ? ` <small>${esc(o.descricao)}</small>` : ''}</button>`).join('')}</div>`;
+}
+
+/** Cartão completo. naLista: true/false/null (null = Minha Lista indisponível, sem botão). */
+export function htmlCartao(p, { naLista = null } = {}) {
+  const comprar = podeComprar(p);
+  const ops = opcoesUnidade(p);
+  return `
+  <article class="card" data-id="${Number(p.id)}" data-un="">
+    <div class="img">${p.grupo?.nome ? `<span class="cat">${esc(p.grupo.nome)}</span>` : ''}
+      ${htmlFoto(p, 'g360-foto')}
+      ${naLista === null ? '' : `<button type="button" class="fav ${naLista ? 'on' : ''}" aria-pressed="${naLista}" title="Minha Lista">${naLista ? '⭐ Na lista' : '☆ Lista'}</button>`}
+    </div>
+    <div class="info">
+      <div class="brand">${esc(p.marca || '')}${ops.length > 1 ? `<span class="tagcx">${esc(ops[1].nome)} disponível</span>` : ''}</div>
+      <div class="name" title="${esc(p.nome)}">${esc(p.nome)}</div>
+      <div class="meta">Cód. ${esc(p.codigo)} · ${esc(p.unidade || '')}</div>
+      <div class="price">${htmlPreco(ops[0])}</div>
+      ${htmlEstoque(p)}
+      ${p.aviso ? `<div class="warn">${esc(p.aviso)}</div>` : ''}
+      ${htmlUnidades(p)}
+      <div class="buy">
+        <div class="qty"><button type="button" data-d="-1" aria-label="Diminuir" ${comprar ? '' : 'disabled'}>−</button><input type="text" inputmode="decimal" value="1" maxlength="13" aria-label="Quantidade" ${comprar ? '' : 'disabled'}><button type="button" data-d="1" aria-label="Aumentar" ${comprar ? '' : 'disabled'}>+</button></div>
+        <button type="button" class="add" ${comprar ? '' : 'disabled aria-disabled="true"'}><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+      </div>
+    </div>
+  </article>`;
+}
+
+/** Unidade escolhida no cartão (ou linha). */
+export function unidadeEscolhida(p, id) {
+  const ops = opcoesUnidade(p);
+  return ops.find((o) => o.id === (id || '')) || ops[0];
+}
+
+/** Linha para o carrinho. */
+export function linhaCarrinho(p, unidadeId, quantidade) {
+  const op = unidadeEscolhida(p, unidadeId);
+  return {
+    produto_id: Number(p.id), unidade: op.id ? op.id : null, quantidade,
+    nome: p.nome, codigo: p.codigo, unidadeNome: op.nome, precoTexto: op.preco || null,
+    fotos: p.fotos || [], id: p.id, seu_preco: op.seu_preco,
+  };
+}

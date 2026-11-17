@@ -1,27 +1,28 @@
-/* Portal B2B — integração com a API do G360 (homologação por etapas).
+/* Portal B2B — integração com a API do G360, no layout original do portal.
    Rotas pelo caminho (sem #): a página de senha recebe o token depois do #.
-   Públicas: entrada/login, primeiro acesso, esqueci minha senha, definir senha, painel.
-   Privadas (comprador logado): catálogo, carrinho, pedidos, Minha Lista, comprar de novo, minha conta. */
+   - Layout original (topo, catálogo, carrinho, Minha Lista, Meus Pedidos, modais):
+     /, /catalogo, /minha-lista, /comprar-de-novo, /pedidos, /pedidos/{id}, /carrinho, /minha-conta
+   - Cartão de acesso: /primeiro-acesso, /esqueci-senha, /definir-senha
+   - Painel da equipe: /painel */
 import './entrada.css';
 import './app.css';
+import './portal.css';
 import { apresentarLoja } from './api/g360.js';
 import { mostrarMensagemErro } from './ui/mensagem.js';
 import { esc } from './ui/util.js';
-import { sessao, aoEncerrar, sair } from './estado/sessao.js';
-import { aoMudarCarrinho, quantidadeLinhas, esvaziar } from './estado/carrinho.js';
-import { liberarFotosDaTela, limparCacheFotos } from './ui/fotos.js';
+import { sessao, aoEncerrar } from './estado/sessao.js';
+import { esvaziar } from './estado/carrinho.js';
+import { limparMinhaListaEstado } from './estado/minha-lista.js';
 import { descartarEnvioDeOutroComprador } from './estado/envio.js';
 import { limparOcorrenciasSessao } from './estado/ocorrencias.js';
-import { telaEntrada } from './telas/entrada.js';
+import { liberarFotosDaTela, limparCacheFotos } from './ui/fotos.js';
 import { telaPedirLink } from './telas/pedir-link.js';
 import { telaDefinirSenha, receberTokenDoLink } from './telas/definir-senha.js';
-import { telaCatalogo, limparFiltrosCatalogo } from './telas/catalogo.js';
-import { telaCarrinho, limparCarrinhoTela } from './telas/carrinho.js';
-import { telaPedidos, telaPedido } from './telas/pedidos.js';
-import { telaMinhaLista, limparMinhaLista } from './telas/minha-lista.js';
-import { telaComprarDeNovo } from './telas/comprar-de-novo.js';
-import { telaMinhaConta } from './telas/minha-conta.js';
 import { telaPainel } from './telas/painel.js';
+import { mostrarLoja, limparLoja, fecharTudo } from './portal/loja.js';
+import { limparCheckout } from './portal/checkout.js';
+import { limparListaTela } from './portal/lista.js';
+import { limparPedidosTela } from './portal/pedidos.js';
 
 const ATIVO = window.SR_ADAPTADOR !== 'mock';
 
@@ -31,20 +32,21 @@ if ('__srTokenSenha' in window) {
   delete window.__srTokenSenha;
 }
 
-const PUBLICAS = {
-  '/': telaEntrada,
+const CARTAO = {
   '/primeiro-acesso': (ctx) => telaPedirLink(ctx, 'primeiro'),
   '/esqueci-senha': (ctx) => telaPedirLink(ctx, 'esqueci'),
   '/definir-senha': telaDefinirSenha,
 };
-const PRIVADAS = [
-  [/^\/catalogo$/, telaCatalogo, 'catalogo'],
-  [/^\/carrinho$/, telaCarrinho, 'carrinho'],
-  [/^\/pedidos$/, telaPedidos, 'pedidos'],
-  [/^\/pedidos\/(\d{1,10})$/, telaPedido, 'pedidos'],
-  [/^\/minha-lista$/, telaMinhaLista, 'lista'],
-  [/^\/comprar-de-novo$/, telaComprarDeNovo, 'recompra'],
-  [/^\/minha-conta$/, telaMinhaConta, 'conta'],
+// [padrão, tela do layout original, exige login, extras]
+const LOJA = [
+  [/^\/$/, 'cat', false],
+  [/^\/catalogo$/, 'cat', false],
+  [/^\/carrinho$/, 'cat', true, { abrirCarrinho: true }],
+  [/^\/minha-conta$/, 'cat', true, { abrirConta: true }],
+  [/^\/minha-lista$/, 'lista', true],
+  [/^\/comprar-de-novo$/, 'lista', true],
+  [/^\/pedidos$/, 'ped', true],
+  [/^\/pedidos\/(\d{1,10})$/, 'ped', true],
 ];
 
 let raiz = null;
@@ -53,7 +55,6 @@ let numeroTela = 0;
 
 function montarRaiz() {
   document.getElementById('srBoot')?.remove();
-  document.body.classList.add('g360');
   raiz = document.createElement('div');
   raiz.setAttribute('role', 'main');
   raiz.id = 'g360Entrada';
@@ -78,7 +79,16 @@ export function ir(destino, estado = null) {
   desenhar();
 }
 
-function cascaPublica() {
+/** Alterna entre o layout original (loja) e o cartão/painel. */
+function modo(m) {
+  const legado = m === 'loja';
+  document.body.classList.toggle('g360', !legado);
+  document.body.classList.toggle('g360-legado', legado);
+  raiz.hidden = legado;
+  if (!legado) fecharTudo?.();
+}
+
+function cascaCartao() {
   const logo = logoSrc();
   raiz.className = 'g360-entrada';
   raiz.innerHTML = `
@@ -91,105 +101,56 @@ function cascaPublica() {
   return raiz.querySelector('#g360Conteudo');
 }
 
-const NAV = [
-  ['catalogo', '/catalogo', 'Catálogo'],
-  ['lista', '/minha-lista', 'Minha Lista'],
-  ['recompra', '/comprar-de-novo', 'Comprar de novo'],
-  ['pedidos', '/pedidos', 'Meus pedidos'],
-  ['carrinho', '/carrinho', 'Carrinho'],
-];
-
-function cascaPrivada(loja, ativo) {
-  const logo = logoSrc();
-  const c = sessao.comprador || {};
-  raiz.className = 'g360-app';
-  raiz.innerHTML = `
-    <header class="app-topo">
-      <div class="app-marca">${logo ? `<img src="${esc(logo)}" alt="" width="30" height="36">` : ''}
-        <div><strong id="g360Titulo">${esc(loja.nome)}</strong><span class="app-quem">${esc(c.fantasia || c.nome || '')}</span></div></div>
-      <div class="app-conta">
-        <button type="button" class="app-link ${ativo === 'conta' ? 'ativo' : ''}" data-ir="/minha-conta">Minha conta</button>
-        <button type="button" class="app-link" id="g360Sair">Sair</button>
-      </div>
-    </header>
-    <nav class="app-nav" aria-label="Seções do portal">
-      ${NAV.map(([id, href, nome]) => `<button type="button" data-ir="${href}" class="${ativo === id ? 'ativo' : ''}" ${ativo === id ? 'aria-current="page"' : ''}>${nome}${id === 'carrinho' ? ` <span class="app-badge" id="g360ContaCarrinho">${quantidadeLinhas() || ''}</span>` : ''}</button>`).join('')}
-    </nav>
-    ${c.compra_bloqueada ? `<div class="app-aviso" role="status"><strong>Compras bloqueadas.</strong> Você pode consultar o catálogo, mas não pode enviar pedidos agora. Fale com o seu vendedor da Souza Ribeiro.</div>` : ''}
-    ${sessao.supabaseOk ? '' : `<div class="app-aviso suave" role="status" id="g360AvisoSupabase">A Minha Lista está indisponível no momento. O resto do portal funciona normalmente.</div>`}
-    <section class="app-conteudo" id="g360Conteudo" tabindex="-1"></section>`;
-  raiz.querySelectorAll('[data-ir]').forEach((b) => b.addEventListener('click', () => ir(b.dataset.ir)));
-  raiz.querySelector('#g360Sair').addEventListener('click', async (ev) => {
-    ev.currentTarget.disabled = true;
-    await sair();
-  });
-  return raiz.querySelector('#g360Conteudo');
-}
-
-aoMudarCarrinho(() => {
-  const b = document.getElementById('g360ContaCarrinho');
-  if (b) b.textContent = quantidadeLinhas() || '';
-});
-
-// Sessão encerrada (401, inatividade, saída): limpa os dados da tela e volta ao login com a mensagem.
+// Sessão encerrada (401, inatividade, saída): limpa tudo e volta ao início com a mensagem.
 aoEncerrar((motivo, mensagem) => {
   esvaziar();
-  limparCarrinhoTela();
-  limparFiltrosCatalogo();
+  limparMinhaListaEstado();
+  limparLoja(); limparCheckout(); limparListaTela(); limparPedidosTela();
   limparOcorrenciasSessao();
-  limparMinhaLista();
-  liberarFotosDaTela();
-  limparCacheFotos();
+  liberarFotosDaTela(); limparCacheFotos();
+  document.body.classList.remove('logged');
+  fecharTudo();
   ir('/', mensagem ? { aviso: 'sessao_encerrada', mensagem } : { aviso: motivo === 'saida' ? 'saiu' : null });
 });
+
+async function erroDaLoja(e) {
+  modo('cartao');
+  const c = cascaCartao();
+  document.getElementById('g360Titulo').textContent = 'Portal B2B';
+  c.innerHTML = '<div id="g360Estado" class="g360-estado"></div>';
+  mostrarMensagemErro(document.getElementById('g360Estado'), e, { aoTentarDeNovo: desenhar });
+}
 
 async function desenhar() {
   const minhaTela = ++numeroTela;
   liberarFotosDaTela();
   const c = caminho();
-
-  if (c === '/painel') { // painel do operador tem sessões próprias
-    raiz.className = 'g360-app painel';
-    let loja;
-    try { loja = await carregarLoja(); } catch (e) {
-      raiz.innerHTML = '<section class="app-conteudo"><div id="g360Estado"></div></section>';
-      mostrarMensagemErro(raiz.querySelector('#g360Estado'), e, { aoTentarDeNovo: desenhar });
-      return;
-    }
-    telaPainel({ loja, raiz, ir, logo: logoSrc() });
-    return;
-  }
-
-  const privada = PRIVADAS.find(([re]) => re.test(c));
-  if (privada && !sessao.ativa) { history.replaceState({ aviso: 'entre' }, '', '/'); return desenhar(); }
-  if (!privada && sessao.ativa && (c === '/' || !PUBLICAS[c])) { history.replaceState(null, '', '/catalogo'); return desenhar(); }
-
-  let conteudo;
-  if (privada) {
-    let loja;
-    try { loja = await carregarLoja(); } catch { loja = { nome: 'Portal B2B', ...(sessao.loja || {}) }; }
-    if (minhaTela !== numeroTela) return;
-    conteudo = cascaPrivada(sessao.loja ? { ...loja, ...sessao.loja } : loja, privada[2]);
-    const params = c.match(privada[0]).slice(1);
-    privada[1]({ loja, conteudo, ir, estado: history.state || {}, params, eAtual: () => minhaTela === numeroTela });
-    return;
-  }
-
-  conteudo = cascaPublica();
-  const tela = PUBLICAS[c] || PUBLICAS['/'];
-  conteudo.innerHTML = '<div id="g360Estado" class="g360-estado" aria-live="polite"><p class="g360-info">Carregando os dados da loja…</p></div>';
   let loja;
-  try {
-    loja = await carregarLoja();
-  } catch (e) {
-    if (minhaTela !== numeroTela) return;
-    document.getElementById('g360Titulo').textContent = 'Portal B2B';
-    mostrarMensagemErro(document.getElementById('g360Estado'), e, { aoTentarDeNovo: desenhar });
+  try { loja = await carregarLoja(); } catch (e) { if (minhaTela === numeroTela) erroDaLoja(e); return; }
+  if (minhaTela !== numeroTela) return;
+
+  if (c === '/painel') { modo('cartao'); telaPainel({ loja, raiz, ir, logo: logoSrc() }); return; }
+
+  if (CARTAO[c]) {
+    modo('cartao');
+    const conteudo = cascaCartao();
+    document.getElementById('g360Titulo').textContent = loja.nome;
+    CARTAO[c]({ loja, conteudo, ir, estado: history.state || {} });
     return;
   }
-  if (minhaTela !== numeroTela) return;
-  document.getElementById('g360Titulo').textContent = loja.nome;
-  tela({ loja, conteudo, ir, estado: history.state || {}, aoEntrar: () => { descartarEnvioDeOutroComprador(); ir('/catalogo'); } });
+
+  const rota = LOJA.find(([re]) => re.test(c)) || LOJA[0];
+  if (rota[2] && !sessao.ativa) { history.replaceState({ aviso: 'entre' }, '', '/'); return desenhar(); }
+  modo('loja');
+  document.body.classList.toggle('logged', sessao.ativa);
+  const params = c.match(rota[0])?.slice(1) || [];
+  const estado = { ...(rota[3] || {}), ...(history.state || {}) };
+  if (history.state?.aviso) history.replaceState(null, '', location.pathname); // o aviso aparece uma vez só
+  mostrarLoja({
+    loja: sessao.loja ? { ...loja, ...sessao.loja } : loja,
+    ir,
+    aoEntrar: () => { descartarEnvioDeOutroComprador(); document.body.classList.add('logged'); history.replaceState(null, '', location.pathname); desenhar(); },
+  }, rota[1], params, estado);
 }
 
 if (ATIVO) {

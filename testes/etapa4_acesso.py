@@ -37,7 +37,10 @@ def abrir(pw, caminho, troca=True, ponte=None, senha=None, largura=390):
         return route.abort()
     pg.route('**/*', r)
     pg.goto(BASE + caminho)
-    pg.wait_for_function("document.getElementById('g360Conteudo') && !/Carregando os dados/.test(document.getElementById('g360Conteudo').innerText)", timeout=40000)
+    if caminho == '/':
+        pg.wait_for_selector('#grid .empty', timeout=40000)
+    else:
+        pg.wait_for_function("document.getElementById('g360Conteudo') && !/Carregando os dados/.test(document.getElementById('g360Conteudo').innerText)", timeout=40000)
     return br, pg, reg
 
 def sem_rolagem(pg, nome):
@@ -48,9 +51,10 @@ def sem_rolagem(pg, nome):
 with sync_playwright() as pw:
     # 1) Entrada com os dois caminhos; Primeiro acesso abre pelo caminho (sem #)
     br, pg, reg = abrir(pw, '/')
-    checar(pg.get_by_role('button', name='Primeiro acesso').is_visible(), 'botão Primeiro acesso ausente')
-    checar(pg.get_by_role('button', name='Esqueci minha senha').is_visible(), 'link Esqueci minha senha ausente')
-    pg.get_by_role('button', name='Primeiro acesso').click()
+    checar(pg.locator('#gPrimeiro').is_visible(), 'botão Primeiro acesso ausente')
+    pg.click('#tbConta'); checar(pg.locator('#lgEsqL').is_visible(), 'link Esqueci minha senha ausente'); pg.click('#lgX')
+    pg.click('#gPrimeiro')
+    pg.wait_for_selector('#g360Documento')
     checar(pg.evaluate('location.pathname') == '/primeiro-acesso', 'rota /primeiro-acesso não abriu')
     checar('30 minutos' in pg.inner_text('#g360Conteudo') and '3 pedidos' in pg.inner_text('#g360Conteudo'), 'avisos do link ausentes')
     # campo vazio e caractere inválido: erro no campo, sem chamar a ponte
@@ -94,7 +98,8 @@ with sync_playwright() as pw:
 
     # 4) troca_senha falso: sem os botões, com a explicação
     br, pg, reg = abrir(pw, '/', troca=False)
-    checar(pg.get_by_role('button', name='Primeiro acesso').count() == 0, 'Primeiro acesso visível com troca_senha falso')
+    checar(not pg.locator('#gPrimeiro').is_visible(), 'Primeiro acesso visível com troca_senha falso')
+    pg.goto(BASE + '/primeiro-acesso'); pg.wait_for_selector('#g360Conteudo h2')
     checar('definida pela Souza Ribeiro' in pg.inner_text('#g360Conteudo'), 'explicação de troca_senha falso ausente')
     pg.goto(BASE + '/definir-senha#token=' + TOKEN); pg.wait_for_selector('#g360Conteudo h2')
     checar(pg.locator('#g360FormSenha').count() == 0, 'formulário de senha com troca_senha falso')
@@ -113,9 +118,9 @@ with sync_playwright() as pw:
     pg.screenshot(path=f'{OUT}/etapa4_definir_senha_390.png', full_page=True)
     sem_rolagem(pg, 'definir senha')
     pg.fill('#g360Senha2', 'Teste12'); pg.click('#g360SalvarSenha')
-    pg.wait_for_selector('.g360-ok')
+    pg.wait_for_selector('#mLogin.open #lgRes .rv-aviso')
     checar(pg.evaluate('location.pathname') == '/', 'não voltou à entrada depois do 204')
-    checar('Senha definida' in pg.inner_text('#g360Conteudo'), 'aviso de senha definida ausente')
+    checar('Senha definida' in pg.text_content('#lgRes'), 'aviso de senha definida ausente')
     corpo = json.loads(reg['senha'][0]['corpo'])
     checar(corpo == {'token': TOKEN, 'senha_nova': 'Teste12'}, f'corpo de acessos/senha diferente: {corpo}')
     checar('authorization' not in reg['senha'][0]['cab'] and 'idempotency-key' not in reg['senha'][0]['cab'], 'cabeçalho indevido em acessos/senha')
