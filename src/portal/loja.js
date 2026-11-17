@@ -7,6 +7,7 @@
 import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
 import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva, oculto, soEstoque } from '../catalogo/exibicao.js';
+import { LOJA } from '../api/supabase.js';
 import { buscarLocal, temEstoque, variacoes } from '../catalogo/busca.js';
 import { listarProdutos, buscarProdutos, listarMarcas } from '../api/g360.js';
 import { sessao, entrar, sair, trocarSenha } from '../estado/sessao.js';
@@ -263,38 +264,41 @@ async function resultadoVitrine() {
 }
 
 /* Contador do topo: produtos com estoque (o que o cliente realmente encontra no portal).
-   A API não informa esse total, então o portal lê o catálogo devagar em segundo plano
-   (1 página de 50 a cada 1,2 s, para não gastar o limite de chamadas) e guarda o
-   número por 30 minutos nesta aba. Enquanto conta, mostra "contando…". */
+   A API não informa esse total, então o portal lê o catálogo em 5 consultas paralelas
+   (páginas de 50; cerca de 10 segundos para o catálogo todo) e guarda o número por
+   2 horas neste navegador, para as próximas aberturas serem instantâneas.
+   Se a API pedir para esperar (limite de chamadas), mostra o total do catálogo. */
 let contagem = null;
 async function contarComEstoque(totalCatalogo) {
   const rotulo = $('tot').nextElementSibling;
-  const chave = `sr-estoque-${sessao.comprador?.codigo || ''}`;
+  const chave = `sr-estoque-${LOJA}-${sessao.comprador?.codigo || ''}`;
+  const mostrar = (t, r) => { $('tot').textContent = t; if (rotulo) rotulo.textContent = r; };
   try {
-    const salvo = JSON.parse(sessionStorage.getItem(chave) || 'null');
-    if (salvo && Date.now() - salvo.em < 30 * 60 * 1000) { $('tot').textContent = Number(salvo.n).toLocaleString('pt-BR'); if (rotulo) rotulo.textContent = 'Com estoque'; return; }
+    const salvo = JSON.parse(localStorage.getItem(chave) || 'null');
+    if (salvo && Date.now() - salvo.em < 2 * 60 * 60 * 1000) { mostrar(Number(salvo.n).toLocaleString('pt-BR'), 'Com estoque'); return; }
   } catch { /* sem armazenamento: conta de novo */ }
   if (contagem && contagem.token === sessao.token) return;
   const token = sessao.token;
   contagem = { token };
-  $('tot').textContent = '…'; if (rotulo) rotulo.textContent = 'Contando estoque';
+  mostrar('…', 'Contando estoque');
   const paginas = Math.max(1, Math.ceil(totalCatalogo / 50));
-  let n = 0;
-  try {
-    for (let pagina = 1; pagina <= paginas; pagina++) {
-      if (sessao.token !== token) return;
-      const { dados } = await listarProdutos(token, { pagina, limite: 50 });
-      n += dados.map(apresentar).filter((p) => temEstoque(p) && !oculto(p)).length;
-      if (sessao.token === token && pagina < paginas) { $('tot').textContent = `${n.toLocaleString('pt-BR')}…`; if (rotulo) rotulo.textContent = `Contando estoque ${Math.round((pagina / paginas) * 100)}%`; }
-      if (pagina < paginas) await new Promise((r) => { setTimeout(r, 1200); });
+  let n = 0; let feitas = 0; let proxima = 1; let falhou = false;
+  const trabalhador = async () => {
+    while (!falhou && proxima <= paginas && sessao.token === token) {
+      const pagina = proxima++;
+      try {
+        const { dados } = await listarProdutos(token, { pagina, limite: 50 });
+        n += dados.map(apresentar).filter((p) => temEstoque(p) && !oculto(p)).length;
+      } catch { falhou = true; return; }
+      feitas += 1;
+      if (sessao.token === token && feitas < paginas) mostrar(`${n.toLocaleString('pt-BR')}…`, `Contando estoque ${Math.round((feitas / paginas) * 100)}%`);
     }
-  } catch {
-    if (sessao.token === token) { $('tot').textContent = totalCatalogo.toLocaleString('pt-BR'); if (rotulo) rotulo.textContent = 'Produtos'; }
-    contagem = null; return;
-  }
+  };
+  await Promise.all(Array.from({ length: Math.min(5, paginas) }, trabalhador));
   if (sessao.token !== token) return;
-  $('tot').textContent = n.toLocaleString('pt-BR'); if (rotulo) rotulo.textContent = 'Com estoque';
-  try { sessionStorage.setItem(chave, JSON.stringify({ n, em: Date.now() })); } catch { /* ok */ }
+  if (falhou) { mostrar(totalCatalogo.toLocaleString('pt-BR'), 'Produtos'); contagem = null; return; }
+  mostrar(n.toLocaleString('pt-BR'), 'Com estoque');
+  try { localStorage.setItem(chave, JSON.stringify({ n, em: Date.now() })); } catch { /* ok */ }
 }
 
 /** Busca: nomes do portal (tolerante) + busca da API (código, EAN, aplicação); com estoque primeiro. */
