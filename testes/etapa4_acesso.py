@@ -38,7 +38,7 @@ def abrir(pw, caminho, troca=True, ponte=None, senha=None, largura=390):
     pg.route('**/*', r)
     pg.goto(BASE + caminho)
     if caminho == '/':
-        pg.wait_for_selector('#grid .empty', timeout=40000)
+        pg.wait_for_selector('#grid .g360-convite', timeout=40000)
     else:
         pg.wait_for_function("document.getElementById('g360Conteudo') && !/Carregando os dados/.test(document.getElementById('g360Conteudo').innerText)", timeout=40000)
     return br, pg, reg
