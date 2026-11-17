@@ -360,7 +360,7 @@ function comContaPainel(alvo, titulo, aoEntrar) {
   const sb = supabasePainel();
   const login = (mensagem = '') => {
     alvo.innerHTML = `<section class="resumo"><h3>${esc(titulo)}</h3>
-      <p class="g360-mini">Use a conta do painel criada no Supabase da Souza Ribeiro (é diferente do usuário do G360).</p>
+      <p class="g360-dica" style="font-size:13px;opacity:.8;margin:0 0 8px">Use a conta do painel criada no Supabase da Souza Ribeiro (é diferente do usuário do G360).</p>
       ${mensagem ? `<div class="g360-msg g360-msg-corrigir" role="alert"><p>${esc(mensagem)}</p></div>` : ''}
       <form class="g360-form" id="oLogin" novalidate>
         <label for="oEmail">E-mail</label><input id="oEmail" type="email" autocomplete="username">
@@ -439,7 +439,7 @@ function abaOcorrencias(c) {
 
   function login(mensagem = '') {
     alvo.innerHTML = `<section class="resumo"><h3>Entrar para ver as ocorrências</h3>
-      <p class="g360-mini">Use a conta do painel criada no Supabase da Souza Ribeiro (é diferente do usuário do G360).</p>
+      <p class="g360-dica" style="font-size:13px;opacity:.8;margin:0 0 8px">Use a conta do painel criada no Supabase da Souza Ribeiro (é diferente do usuário do G360).</p>
       ${mensagem ? `<div class="g360-msg g360-msg-corrigir" role="alert"><p>${esc(mensagem)}</p></div>` : ''}
       <form class="g360-form" id="oLogin" novalidate>
         <label for="oEmail">E-mail</label><input id="oEmail" type="email" autocomplete="username">

@@ -69,12 +69,16 @@ export function formularioEndereco(alvo, { aoSalvar, aoCancelar }) {
         if (q.length < 2) { lista.innerHTML = ''; return; }
         lista.innerHTML = '<li style="padding:8px 10px;color:var(--tx3);font-size:13px">Buscando…</li>';
         try {
-          const r = await buscarReferenciasEndereco(sessao.token, tipo, q, tipo === 'cidade' ? $('eUf').value : undefined);
+          const r = await buscarReferenciasEndereco(sessao.token, tipo, semAcento(q).slice(0, 70), tipo === 'cidade' ? $('eUf').value : undefined);
           if (entrada.value.trim() !== q) return;
           lista.innerHTML = r.length ? r.map((x) => `<li><button type="button" role="option" data-id="${Number(x.id)}" data-nome="${esc(x.nome)}">${esc(x.nome)}</button></li>`).join('')
             : `<li style="padding:8px 10px;color:var(--tx3);font-size:13px">Nada encontrado. Confira ${tipo === 'cidade' ? 'o nome e a UF' : 'o nome do bairro'}.</li>`;
           lista.querySelectorAll('button').forEach((b) => b.onclick = () => { escolha[tipo] = { id: Number(b.dataset.id), nome: b.dataset.nome }; erro(id.slice(0, -1), ''); desenhar(); });
-        } catch (e) { lista.innerHTML = ''; mostrarMensagemErro($('eRes'), e); }
+        } catch (e) {
+          // Erro da API (ex.: 422 DADOS_INVALIDOS): a mensagem dela, não "Nada encontrado".
+          if (entrada.value.trim() !== q) return;
+          lista.innerHTML = `<li style="padding:8px 10px;color:#ffb5ac;font-size:13px">${esc(e?.message || 'Não foi possível buscar agora.')}${e?.codigo ? ` <small style="color:var(--tx3)">(${esc(e.codigo)}${e.requestId ? ` · ${esc(e.requestId)}` : ''})</small>` : ''}</li>`;
+        }
       }, 400);
       entrada.addEventListener('input', buscar);
     };
@@ -84,14 +88,15 @@ export function formularioEndereco(alvo, { aoSalvar, aoCancelar }) {
   cidade.desenhar(); bairro.desenhar();
   $('eUf').addEventListener('change', () => { escolha.cidade = null; cidade.desenhar(); });
 
-  /** Procura e já escolhe quando o nome bate exatamente. */
+  /** Procura pelo nome do ViaCEP (sem acento). Um resultado: escolhe. Vários: escolhe o de nome igual; dá para trocar. */
   async function autoEscolher(tipo, nome, uf) {
+    const campo = tipo === 'cidade' ? cidade : bairro;
     try {
-      const r = await buscarReferenciasEndereco(sessao.token, tipo, nome.slice(0, 70), tipo === 'cidade' ? uf : undefined);
-      const igual = r.filter((x) => sem(x.nome) === sem(nome));
-      if (igual.length === 1) { escolha[tipo] = { id: Number(igual[0].id), nome: igual[0].nome }; (tipo === 'cidade' ? cidade : bairro).desenhar(); return; }
-    } catch { /* segue com a busca manual */ }
-    (tipo === 'cidade' ? cidade : bairro).preencher(nome);
+      const r = await buscarReferenciasEndereco(sessao.token, tipo, semAcento(nome).slice(0, 70), tipo === 'cidade' ? uf : undefined);
+      const escolhido = r.length === 1 ? r[0] : r.find((x) => sem(x.nome) === sem(nome));
+      if (escolhido) { escolha[tipo] = { id: Number(escolhido.id), nome: escolhido.nome }; campo.desenhar(); return; }
+    } catch { /* a busca manual abaixo mostra a mensagem da API */ }
+    campo.preencher(nome);
   }
 
   /* ---- CEP ---- */

@@ -330,7 +330,8 @@ export function abrirLogin(depois = null, mensagemErro = null, mensagemOk = null
   const semTroca = ctx?.loja?.troca_senha !== true;
   $('lgEsqL').style.display = semTroca ? 'none' : '';
   abrirModal('mLogin');
-  setTimeout(() => $('lgC').focus(), 50);
+  // Foca o documento só se a pessoa ainda não clicou em outro campo do modal.
+  setTimeout(() => { if (!$('mLogin').contains(document.activeElement)) $('lgC').focus(); }, 50);
 }
 
 /* ---------------- Minha conta (modal original) ---------------- */
