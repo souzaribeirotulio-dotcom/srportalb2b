@@ -76,3 +76,27 @@ body.g360-legado #srBoot { display: none; }
 .lrow .unsel.sm { max-width: 100%; }
 /* Só no celular o layout original usa áreas nomeadas (img / nm / pr / qty / sub). */
 @media (max-width: 640px) { .lrow .g360-mini { grid-area: img; width: 56px; height: 56px; } .lrow .pr { font-size: 14px; } }
+
+/* Painel do administrador (layout original) */
+body.g360-painel #vAdm:not([hidden]) { display: block !important; }
+body.g360-painel header .search, body.g360-painel #cartBtn, body.g360-painel header nav,
+body.g360-painel .hb[data-v="lista"], body.g360-painel .hb[data-v="ped"], body.g360-painel #user,
+body.g360-painel .tabbar [data-v="lista"], body.g360-painel .tabbar [data-v="ped"], body.g360-painel #tbConta, body.g360-painel #g360Avisos { display: none !important; }
+body.g360-op .hb.adm-only, body.g360-op .tabbar .adm-only { display: flex !important; }
+body.g360-painel .hb.adm-only { background: var(--lima); color: #0b1a0b; }
+body.g360-painel .arow { grid-template-columns: 52px 1fr 130px 90px 100px 200px; }
+body.g360-painel .arow .g360-mini, body.g360-painel .crow .g360-mini, body.g360-painel .mrow .g360-mini { width: 52px; height: 52px; cursor: pointer; }
+body.g360-painel .ab2 { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+body.g360-painel .mg.ok { color: #8fd14f; } body.g360-painel .mg.bad { color: #ff8a8a; }
+body.g360-painel .fxt { cursor: pointer; display: grid; place-items: center; font-size: 11px; color: #8a9a86; }
+body.g360-painel .fxt img { width: 100%; height: 100%; object-fit: contain; }
+body.g360-painel #fxAct { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+body.g360-painel #cgDatas input[type=date] { margin-left: 6px; }
+body.g360-painel #aLogin label { display: block; margin-top: 10px; }
+@media (max-width: 640px) {
+  body.g360-painel .arow { grid-template-columns: 52px 1fr; }
+  body.g360-painel .arow > :nth-child(n+3) { grid-column: 2; }
+  body.g360-painel .arow.h { display: none; }
+  body.g360-painel .ab2 { justify-content: flex-start; }
+  body.g360-painel .atabs { overflow-x: auto; flex-wrap: nowrap; }
+}

@@ -47,6 +47,7 @@ function montar() {
     if (v === 'cat') ctx.ir('/catalogo');
     else if (v === 'lista') exigirLogin(() => ctx.ir('/minha-lista'));
     else if (v === 'ped') exigirLogin(() => ctx.ir('/pedidos'));
+    else if (v === 'adm') ctx.ir('/painel');
   }));
   $('tbConta').addEventListener('click', () => (sessao.ativa ? abrirConta() : abrirLogin()));
   $('cartBtn').addEventListener('click', () => exigirLogin(abrirCarrinho));
@@ -97,6 +98,14 @@ function desenharTopo() {
   if (c?.compra_bloqueada) avisos.push('<div class="rv-aviso bad"><b>Compras bloqueadas.</b> Você pode consultar o catálogo, mas não pode enviar pedidos agora. Fale com o seu vendedor da Souza Ribeiro.</div>');
   if (c && !sessao.supabaseOk) avisos.push('<div class="rv-aviso">A Minha Lista está indisponível no momento. O resto do portal funciona normalmente.</div>');
   $('g360Avisos').innerHTML = avisos.join('');
+}
+
+/** Topo do layout original sem tela de compra (usado pelo painel do administrador). */
+export function prepararCasca(contexto) {
+  ctx = { ...contexto, rota: 'adm' };
+  montar();
+  liberarFotosDaTela();
+  desenharTopo();
 }
 
 /** Mostra a tela pedida no layout original. rota: cat | lista | ped. */

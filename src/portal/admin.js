@@ -1,0 +1,685 @@
+/* =====================================================================
+   Painel do administrador no layout original (parte 1 da volta do portal antigo).
+   Duas sessões, separadas das do comprador:
+   - API do G360: POST operadores/sessoes; token só em memória; 401 encerra só o painel.
+   - Supabase: conta do painel (criada pelo administrador), para Clientes
+     (cadastros pelo portal) e Ocorrências; cliente com storageKey próprio.
+   Preço, custo e margem vêm da API; nada é calculado aqui.
+   ===================================================================== */
+import {
+  entrarOperador, sairOperador, consultarClienteOperador, buscarProdutosOperador, consultarPrecosOperador,
+  listarPrecosCongelados, incluirPrecoCongelado, alterarPrecoCongelado, encerrarPrecoCongelado,
+  listarFotosOperador, obterFotoOperador, incluirFotoOperador, definirCapaOperador, ordenarFotosOperador, removerFotoOperador,
+} from '../api/g360.js';
+import { supabasePainel, supabaseConfigurado } from '../api/supabase.js';
+import { definirEncerramentoOperador, definirAtividadeOperador } from '../estado/sessao.js';
+import { mostrarMensagemErro } from '../ui/mensagem.js';
+import { dinheiro, numeroPainel, dataBr } from '../ui/formato.js';
+import { $, esc, toast, abrirModal, fecharModal, adiar } from './comum.js';
+
+const op = { token: null, expira: 0, ultima: 0, minutos: 8, aviso: null };
+let ctx = null;            // { loja, ir }
+let relogio = null;
+let aba = 'cli';
+let ligado = false;
+let urls = [];             // object URLs das fotos da tela (liberadas ao sair)
+const capas = new Map();   // id → url da capa | null (sem foto) — cache da sessão do painel
+
+function liberarFotos() { urls.forEach((u) => URL.revokeObjectURL(u)); urls = []; capas.clear(); }
+
+function encerrarOperador(mensagem) {
+  op.token = null; op.expira = 0; op.aviso = mensagem || null;
+  document.body.classList.remove('g360-op');
+  liberarFotos();
+  fecharModal('mod');
+  if (relogio) { clearInterval(relogio); relogio = null; }
+  if (document.body.classList.contains('g360-painel')) desenhar();
+}
+definirEncerramentoOperador((erro) => encerrarOperador(erro.message));
+definirAtividadeOperador(() => { op.ultima = Date.now(); });
+
+function vigiar() {
+  if (relogio) clearInterval(relogio);
+  relogio = setInterval(() => {
+    if (!op.token) return;
+    if (Date.now() - op.ultima > op.minutos * 60000) encerrarOperador('A sessão do painel terminou por inatividade. Entre novamente.');
+    else if (op.expira && Date.now() >= op.expira) encerrarOperador('A sessão do painel terminou. Entre novamente.');
+  }, 5000);
+}
+
+/** Valor digitado (vírgula ou ponto) → texto do contrato com ponto, ou null. */
+function valorPreco(digitado) {
+  let s = String(digitado || '').trim();
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  return /^(?:0|[1-9][0-9]{0,10})(?:\.[0-9]{1,7})?$/.test(s) && !/^0(?:\.0+)?$/.test(s) ? s : null;
+}
+const valorTela = (v) => String(v ?? '').replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '').replace('.', ',');
+const margemHtml = (p) => (p.custo_visivel
+  ? (p.margem_percentual === null ? '<span class="mg">sem custo</span>' : `<span class="mg ${p.margem_percentual < limiteMargem() ? 'bad' : 'ok'}">margem ${esc(numeroPainel(p.margem_percentual, 1))}%</span>`)
+  : '<span class="mg">custo sem acesso</span>');
+const vazio = (t) => `<div class="empty2">${t}</div>`;
+const carregandoHtml = (t) => `<div class="empty2">${esc(t)}</div>`;
+function erroEm(alvo, e, tentar) { alvo.innerHTML = '<div class="g360-erro"></div>'; mostrarMensagemErro(alvo.firstElementChild, e, { aoTentarDeNovo: tentar }); }
+
+/* ---------------- entrada ---------------- */
+
+export function mostrarAdmin(contexto) {
+  ctx = contexto;
+  op.minutos = Number(ctx.loja.sessao_minutos) || 8;
+  document.body.classList.add('g360-painel');
+  document.querySelectorAll('.view').forEach((el) => { el.hidden = el.id !== 'vAdm'; });
+  window.scrollTo(0, 0);
+  ligar();
+  desenhar();
+}
+
+/** Ao sair do /painel: volta o topo ao modo do comprador (a sessão do painel continua em memória). */
+export function sairDaTelaAdmin() {
+  document.body.classList.remove('g360-painel');
+  fecharModal('mod');
+}
+
+function ligar() {
+  if (ligado) return;
+  ligado = true;
+  const v = $('vAdm');
+  // Cabeçalho: o que o painel do G360 não faz (exportar/importar arquivo) fica fora.
+  v.querySelector('.ph').innerHTML = `<div><h2>Painel do <em>administrador</em></h2><p>Clientes, preços, margens e fotos direto do G360. As fotos aparecem no catálogo dos clientes.</p></div>
+    <div class="row"><span class="hint" id="aQuem" style="margin:0"></span><button class="tool" id="aSair">Sair do admin</button></div>`;
+  // Abas do portal antigo + Ocorrências.
+  const abas = v.querySelector('.atabs');
+  if (!abas.querySelector('[data-at="ocor"]')) abas.insertAdjacentHTML('beforeend', '<button data-at="ocor">Ocorrências</button>');
+  if (!$('atOcor')) v.insertAdjacentHTML('beforeend', '<div id="atOcor" hidden><div class="panel" id="ocPanel"></div></div>');
+  if (!$('aLogin')) v.querySelector('.ph').insertAdjacentHTML('afterend', '<div id="aLogin" hidden></div>');
+  abas.querySelectorAll('[data-at]').forEach((b) => b.addEventListener('click', () => { aba = b.dataset.at; desenharAba(); }));
+  $('aSair').addEventListener('click', async () => {
+    const t = op.token;
+    try { await sairOperador(t); } catch { /* sai localmente de qualquer jeito */ }
+    try { await supabasePainel()?.auth.signOut({ scope: 'local' }); } catch { /* idem */ }
+    encerrarOperador('Você saiu do painel.');
+  });
+
+  // Produtos
+  $('aSt').innerHTML = '<option value="">Todos os produtos</option><option value="baixa">Margem abaixo do mínimo</option><option value="semcusto">Sem custo cadastrado</option>';
+  $('aCat').innerHTML = '<option value="">Todas as categorias</option>';
+  const buscarProd = adiar(() => { prod.pagina = 1; desenharProdutos(); }, 450);
+  $('aQ').addEventListener('input', buscarProd);
+  $('aQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); prod.pagina = 1; desenharProdutos(); } });
+  $('aCat').addEventListener('change', () => { prod.pagina = 1; desenharProdutos(); });
+  $('aSt').addEventListener('change', () => desenharProdutos(false));
+  $('aPanel').addEventListener('click', (e) => {
+    const r = e.target.closest('.arow[data-id]'); if (!r) return;
+    if (e.target.closest('[data-ed]') || e.target.closest('.amini')) abrirFotos(Number(r.dataset.id), r.dataset.nome);
+    if (e.target.closest('[data-cg]')) { aba = 'cong'; cong.produto = { id: Number(r.dataset.id), rotulo: `${r.dataset.cod} · ${r.dataset.nome}` }; desenharAba(); }
+  });
+
+  // Clientes
+  $('clQ').placeholder = 'CNPJ do cliente (consulta no G360) ou nome/CNPJ dos cadastros…';
+  $('clSt').innerHTML = '<option value="pendente">Aguardando aprovação</option><option value="aprovado">Aprovados</option><option value="recusado">Reprovados</option><option value="">Todos</option>';
+  $('clNovo').textContent = 'Consultar no G360';
+  $('clNovo').addEventListener('click', consultarCliente);
+  $('clQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); consultarCliente(); } });
+  $('clQ').addEventListener('input', adiar(() => desenharCadastros(false), 300));
+  $('clSt').addEventListener('change', () => desenharCadastros());
+
+  // Preços congelados: o cliente é escolhido pelo CNPJ (a API não lista clientes).
+  const cgFil = $('cgCli').parentElement;
+  cgFil.innerHTML = `<div class="search" style="max-width:420px"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="cgCnpj" type="search" placeholder="CNPJ do cliente" maxlength="32" autocapitalize="characters" spellcheck="false"></div>
+    <button class="btn pri" id="cgCons" style="height:36px">Consultar cliente</button><span id="cgQuem" class="hint" style="margin:0;align-self:center"></span>`;
+  $('cgCons').addEventListener('click', () => escolherClienteCong($('cgCnpj').value.trim()));
+  $('cgCnpj').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); escolherClienteCong($('cgCnpj').value.trim()); } });
+  $('cgQ').parentElement.insertAdjacentHTML('afterend', `<div class="cgadd" id="cgDatas" style="padding-top:0">
+    <label class="hint" style="margin:0">Início <input id="cgIni" type="date"></label><label class="hint" style="margin:0">Fim <input id="cgFim" type="date"></label>
+    <span class="hint" style="margin:0">Vale para a unidade base. A API recusa períodos que se sobrepõem.</span></div><div id="cgRes" aria-live="polite" style="padding:0 18px"></div>`);
+  $('cgP').type = 'text'; $('cgP').inputMode = 'decimal';
+  $('cgQ').addEventListener('input', adiar(sugerirProdutosCong, 350));
+  $('cgQ').addEventListener('change', () => { const o = cong.sugestoes.get($('cgQ').value); if (o) cong.produto = o; });
+  $('cgAdd').addEventListener('click', congelar);
+  $('cgPanel').addEventListener('click', cliqueCongelado);
+  $('cgPanel').addEventListener('change', mudancaCongelado);
+
+  // Margens
+  $('mgTipo').innerHTML = '<option value="">Preço de tabela</option>';
+  $('mgLim').addEventListener('input', () => { guardarLimite($('mgLim').value); desenharMargens(false); });
+
+  // Fotos (modal do portal antigo)
+  ligarModalFotos();
+}
+
+function desenhar() {
+  const logado = !!op.token;
+  document.body.classList.toggle('g360-op', logado);
+  $('vAdm').querySelectorAll(':scope > .atabs, :scope > [id^="at"]').forEach((el) => { el.style.display = logado ? '' : 'none'; });
+  $('aSair').hidden = !logado;
+  $('aLogin').hidden = logado;
+  $('aQuem').textContent = logado ? 'Conectado ao G360' : '';
+  if (!logado) { telaLogin(); return; }
+  desenharAba();
+}
+
+/* ---------------- login do operador (usuário do G360) ---------------- */
+
+function telaLogin() {
+  const alvo = $('aLogin');
+  alvo.innerHTML = `<div class="panel" style="max-width:440px;margin:10px auto 40px;padding:22px 22px 18px">
+    <h3 style="margin:0 0 4px">Acesso do administrador</h3>
+    <p class="hint" style="margin:0 0 14px">Entre com o seu usuário e a sua senha do G360.</p>
+    <div id="aAviso"></div>
+    <form id="aForm" novalidate>
+      <label for="aUsu">Usuário do G360</label><input class="inp" id="aUsu" maxlength="20" autocomplete="username" spellcheck="false" autocapitalize="off">
+      <label for="aSen">Senha</label><input class="inp" id="aSen" type="password" maxlength="8" autocomplete="current-password">
+      <div class="err" id="aErr"></div><div id="aRes" aria-live="polite"></div>
+      <div class="act"><button type="button" class="btn sec" id="aVoltar">Voltar ao portal</button><button type="submit" class="btn pri" id="aOk">Entrar</button></div>
+    </form></div>`;
+  if (op.aviso) $('aAviso').innerHTML = `<div class="rv-aviso">${esc(op.aviso)}</div>`;
+  $('aVoltar').onclick = () => ctx.ir('/');
+  $('aForm').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const u = $('aUsu').value.trim(); const s = $('aSen');
+    $('aErr').textContent = ''; $('aRes').innerHTML = '';
+    if (!u || !s.value) { $('aErr').textContent = 'Digite o usuário e a senha.'; return; }
+    $('aOk').disabled = true; $('aOk').textContent = 'Entrando…';
+    try {
+      const d = await entrarOperador(u, s.value);
+      s.value = '';
+      op.token = d.token; op.expira = Date.parse(d.expira_em) || 0; op.ultima = Date.now(); op.aviso = null;
+      vigiar();
+      toast('Bem-vindo ao painel!');
+      desenhar();
+    } catch (e) {
+      s.value = '';
+      $('aOk').disabled = false; $('aOk').textContent = 'Entrar';
+      mostrarMensagemErro($('aRes'), e);
+    }
+  };
+  setTimeout(() => { if (!alvo.contains(document.activeElement)) $('aUsu')?.focus(); }, 50);
+}
+
+/* ---------------- abas ---------------- */
+
+const PARTE = { intel: ['Inteligência', 4], neg: ['Negociações', 3], souzinha: ['Escola do Souzinha', 2], cfg: ['Configurações', 5] };
+
+function desenharAba() {
+  document.querySelectorAll('#vAdm [data-at]').forEach((b) => b.classList.toggle('on', b.dataset.at === aba));
+  const ids = { cli: 'atCli', prod: 'atProd', cong: 'atCong', mrg: 'atMrg', intel: 'atIntel', neg: 'atNeg', souzinha: 'atSouzinha', cfg: 'atCfg', ocor: 'atOcor' };
+  Object.entries(ids).forEach(([k, id]) => { $(id).hidden = k !== aba; });
+  if (aba === 'cli') desenharClientes();
+  else if (aba === 'prod') desenharProdutos(!prod.lista);
+  else if (aba === 'cong') desenharCong();
+  else if (aba === 'mrg') desenharMargens(!mrg.carregado);
+  else if (aba === 'ocor') desenharOcorrencias();
+  else emPreparacao(aba);
+}
+
+function emPreparacao(a) {
+  const [nome, parte] = PARTE[a];
+  const alvo = { intel: 'intelPanel', neg: 'negAdminView', souzinha: 'souzinhaEscola', cfg: 'cfgPanel' }[a];
+  $(alvo).innerHTML = `<div class="panel">${vazio(`<b>${esc(nome)}</b><br>Esta aba volta na próxima parte da restauração do painel antigo (parte ${parte}).`)}</div>`;
+}
+
+/* ---------------- Produtos ---------------- */
+
+const prod = { pagina: 1, lista: null, total: 0, grupos: new Map() };
+
+async function desenharProdutos(buscar = true) {
+  const alvo = $('aPanel');
+  if (buscar) {
+    alvo.innerHTML = carregandoHtml('Buscando produtos no G360…');
+    const q = $('aQ').value.trim();
+    try {
+      const { dados, paginacao } = await buscarProdutosOperador(op.token, { q: q || undefined, grupo: $('aCat').value ? Number($('aCat').value) : undefined, pagina: prod.pagina, limite: 20 });
+      prod.lista = dados; prod.total = paginacao?.total || 0;
+      dados.forEach((p) => { if (p.grupo?.codigo !== undefined) prod.grupos.set(String(p.grupo.codigo), p.grupo.nome); });
+      preencherGrupos();
+    } catch (e) { erroEm(alvo, e, () => desenharProdutos()); return; }
+  }
+  const st = $('aSt').value;
+  const L = (prod.lista || []).filter((p) => !st
+    || (st === 'baixa' && p.custo_visivel && p.margem_percentual !== null && p.margem_percentual < limiteMargem())
+    || (st === 'semcusto' && p.custo_visivel && p.custo === null));
+  const paginas = Math.max(1, Math.ceil(prod.total / 20));
+  alvo.innerHTML = `<div class="arow h"><div></div><div>Produto (${prod.total})</div><div>Preço de tabela</div><div>Unidade</div><div>Custo</div><div></div></div>`
+    + (L.length ? L.map((p) => `<div class="arow" data-id="${Number(p.id)}" data-nome="${esc(p.nome)}" data-cod="${esc(p.codigo)}">
+      <div class="amini g360-mini" data-foto="${Number(p.id)}" title="Fotos"><span>…</span></div>
+      <div class="nm">${esc(p.nome)}<small>Cód. ${esc(p.codigo)}${p.marca ? ` · ${esc(p.marca.nome)}` : ''}${p.grupo ? ` · ${esc(p.grupo.nome)}` : ''} · ${margemHtml(p)}</small></div>
+      <div class="num"><b>${esc(dinheiro(p.preco))}</b>${p.origem_preco ? `<small style="display:block;color:var(--tx3);font-size:11px">${esc(p.origem_preco)}</small>` : ''}</div>
+      <div class="uns">${esc(p.unidade || '—')}</div>
+      <div class="uns">${p.custo_visivel ? (p.custo === null ? '—' : `R$ ${esc(numeroPainel(p.custo, 2))}`) : 'sem acesso'}</div>
+      <div class="ab2"><button class="tool ab" data-ed>🖼 Fotos</button><button class="tool ab" data-cg>❄ Congelar</button></div></div>`).join('')
+      : vazio('Nenhum produto encontrado. Tente outro nome ou código.'))
+    + (paginas > 1 ? `<nav class="g360-pag" style="margin:14px auto"><button class="tool" id="apA" ${prod.pagina <= 1 ? 'disabled' : ''}>‹ Anterior</button><span>Página ${prod.pagina} de ${paginas}</span><button class="tool" id="apP" ${prod.pagina >= paginas ? 'disabled' : ''}>Próxima ›</button></nav>` : '');
+  $('apA')?.addEventListener('click', () => { prod.pagina -= 1; desenharProdutos(); });
+  $('apP')?.addEventListener('click', () => { prod.pagina += 1; desenharProdutos(); });
+  carregarMiniaturas(alvo);
+}
+
+function preencherGrupos() {
+  const sel = $('aCat'); const atual = sel.value;
+  sel.innerHTML = '<option value="">Todas as categorias</option>' + [...prod.grupos.entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt'))
+    .map(([id, nome]) => `<option value="${esc(id)}" ${id === atual ? 'selected' : ''}>${esc(nome)}</option>`).join('');
+}
+
+/** Capa de cada produto visível (galeria + foto), com cache; falha vira espaço reservado. */
+function carregarMiniaturas(alvo) {
+  alvo.querySelectorAll('[data-foto]').forEach(async (el) => {
+    const id = Number(el.dataset.foto);
+    const pinta = (u) => { el.innerHTML = u ? `<img src="${u}" alt="">` : '<span>sem foto</span>'; };
+    if (capas.has(id)) { pinta(capas.get(id)); return; }
+    try {
+      const g = await listarFotosOperador(op.token, id);
+      if (!g.capa) { capas.set(id, null); pinta(null); return; }
+      const u = URL.createObjectURL(await obterFotoOperador(op.token, id, g.capa)); urls.push(u);
+      capas.set(id, u); pinta(u);
+    } catch { capas.set(id, null); pinta(null); }
+  });
+}
+
+/* ---------------- Fotos (modal do portal antigo) ---------------- */
+
+const fx = { id: null, nome: '', gal: null, sel: null, urls: new Map() };
+
+function ligarModalFotos() {
+  // O G360 recebe foto por arquivo; link de imagem e "restaurar originais" não existem na API.
+  document.querySelector('#mod .fxurl')?.remove();
+  $('mDel').remove(); $('mCan').remove();
+  $('mOk').textContent = 'Fechar';
+  $('mOk').onclick = fecharFotos; $('mCan2').onclick = fecharFotos;
+  $('fxP').onclick = () => moverSel(-1); $('fxN').onclick = () => moverSel(1);
+  $('mFile').accept = 'image/*';
+  $('mFile').onchange = () => { enviarArquivos([...$('mFile').files]); $('mFile').value = ''; };
+  const drop = $('fxDrop');
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('on'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('on'));
+  drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('on'); enviarArquivos([...e.dataTransfer.files]); });
+  $('fxTh').addEventListener('click', (e) => { const b = e.target.closest('[data-item]'); if (b) { fx.sel = Number(b.dataset.item); desenharFotos(); } });
+  $('fxAct').addEventListener('click', acaoFoto);
+  const hint = document.querySelector('#mod .hint');
+  if (hint) hint.innerHTML = 'Achou a foto no Google ou no Mercado Livre? Salve a imagem no computador ou celular e envie acima. Fotos em outro formato viram JPEG automaticamente (até 2 MB, no máximo 12 por produto).';
+  if (!$('fxRes')) $('opts').insertAdjacentHTML('beforebegin', '<div id="fxRes" aria-live="polite"></div>');
+}
+
+function fecharFotos() {
+  fecharModal('mod');
+  fx.urls.forEach((u) => URL.revokeObjectURL(u)); fx.urls.clear();
+  if (fx.id) { capas.delete(fx.id); }
+  fx.id = null; fx.gal = null;
+  if (aba === 'prod') carregarMiniaturas($('aPanel'));
+}
+
+async function abrirFotos(id, nome) {
+  fx.id = id; fx.nome = nome; fx.gal = null; fx.sel = null;
+  $('mT').textContent = nome; $('mS').textContent = 'Fotos do G360 · aparecem no catálogo dos clientes';
+  $('gG').href = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(nome)}`;
+  $('gM').href = `https://lista.mercadolivre.com.br/${encodeURIComponent(nome)}`;
+  $('fxTh').innerHTML = '<span class="hint">Carregando a galeria…</span>'; $('fxAct').innerHTML = ''; $('fxRes').innerHTML = '';
+  $('mImg').removeAttribute('src'); $('mTag').textContent = '';
+  abrirModal('mod');
+  try { fx.gal = await listarFotosOperador(op.token, id); } catch (e) { mostrarMensagemErro($('fxRes'), e); $('fxTh').innerHTML = ''; return; }
+  fx.sel = fx.gal.capa;
+  desenharFotos();
+}
+
+async function urlFoto(item) {
+  if (fx.urls.has(item)) return fx.urls.get(item);
+  const u = URL.createObjectURL(await obterFotoOperador(op.token, fx.id, item));
+  fx.urls.set(item, u); return u;
+}
+
+function desenharFotos() {
+  const g = fx.gal; if (!g) return;
+  const id = fx.id;
+  const fotos = g.fotos;
+  if (!fotos.some((f) => f.item === fx.sel)) fx.sel = fotos[0]?.item ?? null;
+  $('fxTh').innerHTML = fotos.length ? fotos.map((f) => `<div class="fxt ${f.item === fx.sel ? 'on' : ''}" data-item="${f.item}" role="button" tabindex="0" title="${esc(f.descricao || `Foto ${f.item}`)}"><span class="ld">…</span>${f.item === g.capa ? '<span class="n1">CAPA</span>' : ''}</div>`).join('')
+    : '<div class="fxempty">Nenhuma foto. Envie a primeira abaixo; ela vira a capa.</div>';
+  $('fxTh').querySelectorAll('[data-item]').forEach(async (b) => {
+    try { const u = await urlFoto(Number(b.dataset.item)); if (fx.id === id) b.querySelector('.ld').outerHTML = `<img src="${u}" alt="">`; } catch { b.classList.add('bad'); }
+  });
+  $('fxDrop').style.display = fotos.length >= g.maximo ? 'none' : '';
+  $('mTag').textContent = fx.sel === g.capa && fx.sel ? 'Capa' : '';
+  const i = fotos.findIndex((f) => f.item === fx.sel);
+  $('fxP').style.visibility = i > 0 ? '' : 'hidden'; $('fxN').style.visibility = i >= 0 && i < fotos.length - 1 ? '' : 'hidden';
+  if (fx.sel) urlFoto(fx.sel).then((u) => { if (fx.id === id) $('mImg').src = u; }).catch(() => $('mImg').removeAttribute('src'));
+  else $('mImg').removeAttribute('src');
+  $('fxAct').innerHTML = fx.sel ? `<span class="hint" style="margin:0">${fotos.length} de ${g.maximo} fotos</span>
+    ${fx.sel !== g.capa ? '<button class="tool" data-a="capa">★ Tornar capa</button>' : ''}
+    ${i > 0 ? '<button class="tool" data-a="esq">← Mover</button>' : ''}${i < fotos.length - 1 ? '<button class="tool" data-a="dir">Mover →</button>' : ''}
+    <button class="tool" data-a="rm" style="color:#ff8a8a">Remover</button>` : '';
+}
+
+function moverSel(d) {
+  const f = fx.gal?.fotos || []; const i = f.findIndex((x) => x.item === fx.sel);
+  if (f[i + d]) { fx.sel = f[i + d].item; desenharFotos(); }
+}
+
+async function acaoFoto(e) {
+  const b = e.target.closest('[data-a]'); if (!b || !fx.gal) return;
+  const a = b.dataset.a; const ordem = fx.gal.fotos.map((f) => f.item); const i = ordem.indexOf(fx.sel);
+  if (a === 'rm' && b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = 'Confirmar remoção'; return; }
+  b.disabled = true; $('fxRes').innerHTML = '';
+  try {
+    if (a === 'capa') fx.gal = await definirCapaOperador(op.token, fx.id, fx.sel);
+    if (a === 'esq' || a === 'dir') { const j = a === 'esq' ? i - 1 : i + 1; [ordem[i], ordem[j]] = [ordem[j], ordem[i]]; fx.gal = await ordenarFotosOperador(op.token, fx.id, ordem); }
+    if (a === 'rm') { fx.gal = await removerFotoOperador(op.token, fx.id, fx.sel); fx.sel = fx.gal.capa; }
+    toast('Fotos atualizadas no G360 ✓');
+    desenharFotos();
+  } catch (err) { b.disabled = false; mostrarMensagemErro($('fxRes'), err); }
+}
+
+/** Qualquer imagem vira JPEG (máx. 1600 px, até 2 MB) antes de ir para a API. */
+function paraJpeg(arquivo) {
+  return new Promise((ok, falha) => {
+    if (arquivo.type === 'image/jpeg' && arquivo.size <= 2 * 1024 * 1024) {
+      const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = () => falha(new Error('leitura')); r.readAsDataURL(arquivo); return;
+    }
+    const img = new Image(); const u = URL.createObjectURL(arquivo);
+    img.onload = () => {
+      URL.revokeObjectURL(u);
+      let w = img.naturalWidth; let h = img.naturalHeight; const max = 1600;
+      if (Math.max(w, h) > max) { const f = max / Math.max(w, h); w = Math.round(w * f); h = Math.round(h * f); }
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      const c2 = cv.getContext('2d'); c2.fillStyle = '#fff'; c2.fillRect(0, 0, w, h); c2.drawImage(img, 0, 0, w, h);
+      for (const q of [0.88, 0.8, 0.7, 0.6, 0.5]) {
+        const d = cv.toDataURL('image/jpeg', q);
+        if ((d.length - 23) * 0.75 <= 2 * 1024 * 1024) { ok(d); return; }
+      }
+      falha(new Error('grande'));
+    };
+    img.onerror = () => { URL.revokeObjectURL(u); falha(new Error('formato')); };
+    img.src = u;
+  });
+}
+
+async function enviarArquivos(lista) {
+  if (!fx.gal || !lista.length) return;
+  $('fxRes').innerHTML = '';
+  for (const arq of lista) {
+    if (fx.gal.fotos.length >= fx.gal.maximo) { $('fxRes').innerHTML = '<div class="rv-aviso">A galeria chegou a 12 fotos. Remova uma para incluir outra.</div>'; break; }
+    if (!arq.type.startsWith('image/')) { $('fxRes').innerHTML = `<div class="rv-aviso">${esc(arq.name)} não é uma imagem.</div>`; continue; }
+    $('fxAct').innerHTML = `<span class="hint" style="margin:0">Enviando ${esc(arq.name)}…</span>`;
+    let dados;
+    try { dados = await paraJpeg(arq); } catch { $('fxRes').innerHTML = `<div class="rv-aviso">Não deu para preparar ${esc(arq.name)}. Tente outra imagem.</div>`; continue; }
+    try { fx.gal = await incluirFotoOperador(op.token, fx.id, dados); fx.sel = fx.gal.item ?? fx.sel; toast('Foto enviada ao G360 ✓'); }
+    catch (e) { mostrarMensagemErro($('fxRes'), e); break; }
+  }
+  desenharFotos();
+}
+
+/* ---------------- Clientes ---------------- */
+
+let clienteG360 = null;
+
+function desenharClientes() {
+  const p = $('clPanel');
+  if (!$('clG360')) p.innerHTML = '<div id="clG360"></div><div id="clCad"></div>';
+  mostrarClienteG360();
+  desenharCadastros();
+}
+
+async function consultarCliente() {
+  const cnpj = $('clQ').value.trim();
+  if (cnpj.replace(/[^0-9A-Za-z]/g, '').length < 11) { desenharCadastros(false); toast('Digite o CNPJ completo para consultar no G360.'); return; }
+  const alvo = $('clG360');
+  alvo.innerHTML = carregandoHtml('Consultando o cliente no G360…');
+  try { clienteG360 = { ...(await consultarClienteOperador(op.token, cnpj)), cnpj }; mostrarClienteG360(); }
+  catch (e) { clienteG360 = null; erroEm(alvo, e); }
+}
+
+function mostrarClienteG360() {
+  const alvo = $('clG360');
+  if (!clienteG360) { alvo.innerHTML = ''; return; }
+  const c = clienteG360;
+  alvo.innerHTML = `<div class="crow2 h"><div>Cliente no G360</div><div>Cód. G360</div><div>Segmento</div><div>Portal</div><div></div></div>
+    <div class="crow2"><div class="nm"><b>${esc(c.nome)}</b><small>${esc(c.cnpj)}</small></div>
+      <div class="sm sm2">${esc(c.codigo)}</div><div class="sm">${esc(c.segmento?.descricao || '—')}</div>
+      <div class="stw"><span class="stt ${c.acesso_portal ? 'aprovado' : 'bloqueado'}">${c.acesso_portal ? 'Liberado' : 'Sem acesso'}</span></div>
+      <div class="ab2"><button data-ircg>❄ Preços congelados</button></div></div>
+    ${c.acesso_portal ? '' : '<div class="hint" style="padding:0 18px 12px">Para liberar, marque "Acesso à API dos sistemas externos" no cadastro do cliente no G360 (Gestão comercial).</div>'}`;
+  alvo.querySelector('[data-ircg]').onclick = () => { aba = 'cong'; cong.cliente = { codigo: c.codigo, nome: c.nome, cnpj: c.cnpj }; desenharAba(); };
+}
+
+/* Conta do painel no Supabase (Clientes e Ocorrências): login uma vez por abertura. */
+function comContaPainel(alvo, titulo, aoEntrar) {
+  if (!supabaseConfigurado()) { alvo.innerHTML = vazio('Supabase não configurado. Confira as variáveis públicas do site.'); return null; }
+  const sb = supabasePainel();
+  const login = (mensagem = '') => {
+    alvo.innerHTML = `<div style="padding:16px 18px"><b>${esc(titulo)}</b>
+      <p class="hint" style="margin:4px 0 10px">Use a conta do painel criada no Supabase da Souza Ribeiro (é diferente do usuário do G360).</p>
+      ${mensagem ? `<div class="rv-aviso bad">${esc(mensagem)}</div>` : ''}
+      <form class="sbl" novalidate style="display:grid;gap:8px;max-width:420px">
+        <label>E-mail<input class="inp" type="email" autocomplete="username" data-e></label>
+        <label>Senha<input class="inp" type="password" autocomplete="current-password" data-s></label>
+        <div><button type="submit" class="btn pri">Entrar</button></div></form></div>`;
+    alvo.querySelector('form').onsubmit = async (ev) => {
+      ev.preventDefault();
+      const b = ev.target.querySelector('button'); b.disabled = true;
+      const s = alvo.querySelector('[data-s]');
+      const { error } = await sb.auth.signInWithPassword({ email: alvo.querySelector('[data-e]').value.trim(), password: s.value });
+      s.value = '';
+      if (error) { login('E-mail ou senha incorretos, ou conta sem acesso.'); return; }
+      aoEntrar();
+    };
+  };
+  sb.auth.getSession().then(({ data }) => { if (data.session) aoEntrar(); else login(); });
+  return { sb, login };
+}
+
+const SIT = { pendente: 'Aguardando', aprovado: 'Aprovado', recusado: 'Reprovado' };
+let cadastros = null;
+
+function desenharCadastros(recarregar = true) {
+  const alvo = $('clCad'); if (!alvo) return;
+  if (!recarregar && cadastros) { pintarCadastros(); return; }
+  const conta = comContaPainel(alvo, 'Cadastros feitos pelo portal ("Quero ser cliente")', listar);
+  async function listar() {
+    alvo.innerHTML = carregandoHtml('Carregando cadastros…');
+    const { data, error } = await conta.sb.from('portal_cadastros').select('*').order('criado_em', { ascending: false }).limit(300);
+    if (error) { alvo.innerHTML = vazio('Não foi possível carregar os cadastros. Confira se esta conta tem o acesso do painel.'); return; }
+    cadastros = data; pintarCadastros();
+  }
+  function pintarCadastros() {
+    const st = $('clSt').value; const q = $('clQ').value.trim().toLowerCase();
+    const L = cadastros.filter((k) => (!st || k.status === st) && (!q || [k.razao_social, k.fantasia, k.documento, k.cidade].join(' ').toLowerCase().includes(q)));
+    $('cliN').textContent = cadastros.filter((k) => k.status === 'pendente').length || '';
+    alvo.innerHTML = `<div class="crow2 h"><div>Cadastros pelo portal (${L.length})</div><div>Responsável</div><div>Cidade</div><div>Situação</div><div></div></div>`
+      + (L.length ? L.map((k) => `<div class="crow2" data-id="${esc(k.id)}">
+        <div class="nm"><b>${esc(k.fantasia || k.razao_social)}</b><small>${esc(k.documento)} · ${esc(k.razao_social)}</small>
+          <small>IE: ${esc(k.inscricao_estadual || 'não informada')} · ${esc(k.email)}</small>
+          <small>${esc(k.origem || '')}${k.whats ? ` · WhatsApp ${esc(k.whats)}` : ''}${k.telefone ? ` · ${esc(k.telefone)}` : ''} · enviado em ${esc(new Date(k.criado_em).toLocaleString('pt-BR'))}</small>
+          <small>${esc([k.logradouro, k.numero, k.complemento].filter(Boolean).join(', '))} — ${esc(k.bairro || '')} · CEP ${esc(k.cep || '')}</small>
+          ${k.observacao_equipe ? `<small>Obs.: ${esc(k.observacao_equipe)}</small>` : ''}${k.decidido_por ? `<small>Decidido por ${esc(k.decidido_por)}</small>` : ''}</div>
+        <div class="sm sm2">${esc(k.responsavel)}</div><div class="sm">${esc(k.cidade || '')}${k.uf ? `/${esc(k.uf)}` : ''}</div>
+        <div class="stw"><span class="stt ${k.status === 'recusado' ? 'reprovado' : esc(k.status)}">${SIT[k.status] || esc(k.status)}</span></div>
+        <div class="ab2">${k.status !== 'aprovado' ? '<button class="ap" data-d="aprovado">Aprovar</button>' : ''}${k.status !== 'recusado' ? '<button class="rp" data-d="recusado">Reprovar</button>' : ''}${k.status !== 'pendente' ? '<button data-d="pendente">Voltar p/ análise</button>' : ''}<button data-obs>Observação</button></div></div>`).join('')
+        : vazio('Nenhum cadastro nesta situação. Os pedidos feitos em "Quero ser cliente" aparecem aqui.'))
+      + '<div class="hint" style="padding:10px 18px">Depois de aprovar, cadastre a empresa no G360 e marque "Acesso à API dos sistemas externos" em Gestão comercial. Aí ela usa "Primeiro acesso" no portal para criar a senha.</div>';
+    alvo.querySelectorAll('.crow2[data-id] button').forEach((b) => b.addEventListener('click', async () => {
+      const r = b.closest('.crow2'); const k = cadastros.find((x) => String(x.id) === r.dataset.id);
+      let obs = k.observacao_equipe || '';
+      if (b.dataset.obs !== undefined) {
+        // Observação: campo na própria linha, gravado com a situação atual.
+        if (r.querySelector('.kobs')) return;
+        r.querySelector('.nm').insertAdjacentHTML('beforeend', `<div class="kobs fxurl" style="margin-top:6px"><input maxlength="500" value="${esc(obs)}" placeholder="Observação da equipe"><button class="btn sec" type="button">Salvar</button></div>`);
+        const caixa = r.querySelector('.kobs'); caixa.querySelector('input').focus();
+        caixa.querySelector('button').onclick = async () => {
+          const { error: e2 } = await supabasePainel().rpc('portal_cadastro_decidir', { p_id: k.id, p_status: k.status, p_observacao: caixa.querySelector('input').value });
+          if (e2) { toast(e2.message || 'Não foi possível gravar.'); return; }
+          toast('Observação salva ✓'); desenharCadastros();
+        };
+        return;
+      }
+      b.disabled = true;
+      const { error: e } = await supabasePainel().rpc('portal_cadastro_decidir', { p_id: k.id, p_status: b.dataset.d || k.status, p_observacao: obs });
+      if (e) { b.disabled = false; toast(e.message || 'Não foi possível gravar.'); return; }
+      toast(b.dataset.d === 'aprovado' ? 'Cadastro aprovado ✓ — avise o cliente.' : 'Cadastro atualizado ✓');
+      desenharCadastros();
+    }));
+  }
+}
+
+/* ---------------- Preços congelados ---------------- */
+
+const cong = { cliente: null, produto: null, sugestoes: new Map(), itens: [], precos: new Map() };
+
+async function escolherClienteCong(cnpj) {
+  if (!cnpj) return;
+  $('cgQuem').textContent = 'Consultando…';
+  try { const c = await consultarClienteOperador(op.token, cnpj); cong.cliente = { codigo: c.codigo, nome: c.nome, cnpj }; desenharCong(); }
+  catch (e) { $('cgQuem').textContent = ''; erroEm($('cgPanel'), e); }
+}
+
+function desenharCong() {
+  const hoje = new Date().toISOString().slice(0, 10);
+  if (!$('cgIni').value) $('cgIni').value = hoje;
+  if (!$('cgFim').value) { const f = new Date(); f.setFullYear(f.getFullYear() + 1); $('cgFim').value = f.toISOString().slice(0, 10); }
+  if (cong.produto) $('cgQ').value = cong.produto.rotulo;
+  if (!cong.cliente) { $('cgQuem').textContent = ''; $('cgPanel').innerHTML = vazio('Digite o CNPJ do cliente acima para ver e negociar os preços congelados dele.'); return; }
+  $('cgCnpj').value = cong.cliente.cnpj || '';
+  $('cgQuem').innerHTML = `<b style="color:var(--tx)">${esc(cong.cliente.nome)}</b> · cód. ${esc(cong.cliente.codigo)}`;
+  carregarCongelados();
+}
+
+async function sugerirProdutosCong() {
+  const q = $('cgQ').value.trim();
+  if (cong.sugestoes.has(q)) { cong.produto = cong.sugestoes.get(q); return; }
+  if (q.length < 2) return;
+  try {
+    const { dados } = await buscarProdutosOperador(op.token, { q, limite: 20 });
+    cong.sugestoes = new Map(dados.map((p) => [`${p.codigo} · ${p.nome}`, { id: Number(p.id), rotulo: `${p.codigo} · ${p.nome}`, preco: p.preco }]));
+    $('cgList').innerHTML = [...cong.sugestoes.keys()].map((k) => `<option value="${esc(k)}">`).join('');
+  } catch { /* a lista só some; o erro aparece ao congelar */ }
+}
+
+async function congelar() {
+  const res = $('cgRes'); res.innerHTML = '';
+  if (!cong.cliente) { toast('Escolha o cliente pelo CNPJ primeiro.'); return; }
+  const p = cong.sugestoes.get($('cgQ').value) || (cong.produto?.rotulo === $('cgQ').value ? cong.produto : null);
+  if (!p) { toast('Escolha um produto da lista.'); $('cgQ').focus(); return; }
+  const valor = valorPreco($('cgP').value);
+  if (!valor) { toast('Informe um preço válido.'); $('cgP').focus(); return; }
+  const inicio = $('cgIni').value; const fim = $('cgFim').value;
+  if (!inicio || !fim || fim < inicio) { toast('A data final precisa ser igual ou depois da inicial.'); return; }
+  $('cgAdd').disabled = true;
+  try {
+    await incluirPrecoCongelado(op.token, cong.cliente.codigo, { produto: p.id, unidade_id: null, valor, inicio, fim });
+    $('cgQ').value = ''; $('cgP').value = ''; cong.produto = null;
+    toast('Preço congelado no G360 ✓');
+    carregarCongelados();
+  } catch (e) { mostrarMensagemErro(res, e); } finally { $('cgAdd').disabled = false; }
+}
+
+async function carregarCongelados() {
+  const alvo = $('cgPanel');
+  alvo.innerHTML = carregandoHtml('Carregando preços congelados…');
+  try {
+    let itens = []; let apos;
+    let d;
+    do { d = await listarPrecosCongelados(op.token, cong.cliente.codigo, apos); if (!d.disponivel) break; itens = itens.concat(d.itens); apos = d.proximo; } while (apos && itens.length < 500);
+    if (!d.disponivel) { alvo.innerHTML = vazio('Preço congelado indisponível: a base do G360 precisa ser atualizada para usar este recurso.'); return; }
+    cong.itens = itens.filter((r) => r.situacao === 'ativo').concat(itens.filter((r) => r.situacao !== 'ativo'));
+    const ids = [...new Set(cong.itens.map((r) => Number(r.produto)))];
+    cong.precos = new Map();
+    for (let i = 0; i < ids.length; i += 50) {
+      (await consultarPrecosOperador(op.token, cong.cliente.codigo, ids.slice(i, i + 50))).forEach((p) => cong.precos.set(Number(p.id), p));
+    }
+    pintarCongelados();
+  } catch (e) { erroEm(alvo, e, carregarCongelados); }
+}
+
+function pintarCongelados() {
+  const alvo = $('cgPanel');
+  if (!cong.itens.length) { alvo.innerHTML = vazio('Nenhum preço congelado para este cliente. Busque um produto acima e informe o preço.'); return; }
+  alvo.innerHTML = cong.itens.map((r) => {
+    const p = cong.precos.get(Number(r.produto)); const ativo = r.situacao === 'ativo';
+    return `<div class="crow" data-id="${Number(r.id)}" style="${ativo ? '' : 'opacity:.55'}"><div class="g360-mini" data-foto="${Number(r.produto)}"><span>…</span></div>
+      <div class="nm">${esc(p?.nome || `Produto ${r.produto}`)}<small>Cód. ${esc(p?.codigo || r.produto)} · ${esc(r.unidade_id || p?.unidade || 'unidade base')} · ${esc(dataBr(r.inicio))} a ${esc(dataBr(r.fim))}${ativo ? '' : ' · encerrado'}</small></div>
+      <div class="g">Preço de tabela<b>${esc(dinheiro(p?.preco))}</b></div>
+      <div class="pin"><span>R$</span><input value="${esc(valorTela(r.valor))}" inputmode="decimal" data-cg ${ativo ? '' : 'disabled'}></div>
+      <div class="df2">${p ? margemHtml(p) : ''}<br><span style="font-size:11px;color:var(--tx3)">margem sobre a tabela</span></div>
+      ${ativo ? '<button class="rm" data-rm title="Encerrar">×</button>' : '<span></span>'}</div>`;
+  }).join('') + '<div id="cgRes2" style="padding:0 18px 12px" aria-live="polite"></div>';
+  carregarMiniaturas(alvo);
+}
+
+async function cliqueCongelado(e) {
+  const b = e.target.closest('[data-rm]'); if (!b) return;
+  if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = 'Encerrar?'; b.style.width = 'auto'; return; }
+  b.disabled = true;
+  try { await encerrarPrecoCongelado(op.token, cong.cliente.codigo, Number(b.closest('.crow').dataset.id)); toast('Preço congelado encerrado'); carregarCongelados(); }
+  catch (err) { b.disabled = false; mostrarMensagemErro($('cgRes2'), err); }
+}
+
+async function mudancaCongelado(e) {
+  if (!e.target.matches('[data-cg]')) return;
+  const r = cong.itens.find((x) => x.id === Number(e.target.closest('.crow').dataset.id));
+  const valor = valorPreco(e.target.value);
+  if (!valor) { toast('Informe um preço válido'); e.target.value = valorTela(r.valor); return; }
+  e.target.disabled = true;
+  try { await alterarPrecoCongelado(op.token, cong.cliente.codigo, r.id, { valor, inicio: r.inicio, fim: r.fim }); toast(`Preço alterado: ${dinheiro(valor)}`); carregarCongelados(); }
+  catch (err) { e.target.disabled = false; e.target.value = valorTela(r.valor); mostrarMensagemErro($('cgRes2'), err); }
+}
+
+/* ---------------- Margens ---------------- */
+
+let limiteMem = null;
+function limiteMargem() {
+  if (limiteMem === null) { try { limiteMem = Number(localStorage.getItem('sr-painel-margem-min')); } catch { /* sem armazenamento */ } if (!(limiteMem >= 0) || limiteMem === 0) limiteMem = 15; }
+  return limiteMem;
+}
+function guardarLimite(v) { const n = Number(String(v).replace(',', '.')); if (!(n >= 0)) return; limiteMem = n; try { localStorage.setItem('sr-painel-margem-min', String(n)); } catch { /* ok */ } }
+
+const mrg = { carregado: false, lista: [], pagina: 0, total: 0, semAcesso: false };
+
+async function desenharMargens(carregarMais = false) {
+  $('mgLim').value = limiteMargem();
+  const alvo = $('mgPanel');
+  if (carregarMais) {
+    const btn = $('mgMais'); if (btn) { btn.disabled = true; btn.textContent = 'Verificando…'; } else alvo.innerHTML = carregandoHtml('Verificando as margens no G360…');
+    try {
+      const { dados, paginacao } = await buscarProdutosOperador(op.token, { pagina: mrg.pagina + 1, limite: 50 });
+      mrg.pagina += 1; mrg.total = paginacao?.total || 0; mrg.lista = mrg.lista.concat(dados); mrg.carregado = true;
+      mrg.semAcesso = dados.length > 0 && dados.every((p) => !p.custo_visivel);
+    } catch (e) { erroEm(alvo, e, () => desenharMargens(true)); return; }
+  }
+  const lim = limiteMargem();
+  const baixo = mrg.lista.filter((p) => p.custo_visivel && p.margem_percentual !== null && p.margem_percentual < lim).sort((a, b) => a.margem_percentual - b.margem_percentual);
+  const sem = mrg.lista.filter((p) => p.custo_visivel && p.custo === null);
+  $('mrgN').textContent = baixo.length || '';
+  const resta = mrg.total - mrg.lista.length;
+  alvo.innerHTML = (mrg.semAcesso ? '<div class="rv-aviso" style="margin:16px 18px 0">Seu usuário do G360 não tem acesso a custo e margem (permissão 01110). Peça a liberação no G360.</div>' : '')
+    + `<div style="padding:16px 18px 0" class="mgsum"><div class="stat bad"><b>${baixo.length}</b><span>Abaixo de ${esc(String(lim))}%</span></div><div class="stat"><b>${mrg.lista.length}</b><span>Preços verificados de ${mrg.total}</span></div><div class="stat"><b>${sem.length}</b><span>Sem custo</span></div></div>`
+    + (baixo.length ? `<div class="mrow h"><div></div><div>Produto</div><div>Origem do preço</div><div style="text-align:right">Preço</div><div style="text-align:right">Custo</div><div style="text-align:right">Margem</div><div></div></div>`
+      + baixo.map((p) => `<div class="mrow" data-id="${Number(p.id)}" data-nome="${esc(p.nome)}" data-cod="${esc(p.codigo)}"><div class="g360-mini" data-foto="${Number(p.id)}"><span>…</span></div>
+        <div class="nm">${esc(p.nome)}<small>Cód. ${esc(p.codigo)}</small></div><div class="src">${esc(p.origem_preco || 'tabela')}</div>
+        <div class="num">${esc(dinheiro(p.preco))}</div><div class="num">R$ ${esc(numeroPainel(p.custo, 2))}</div><div class="mg bad">${esc(numeroPainel(p.margem_percentual, 1))}%</div>
+        <button class="tool ab" data-cg>❄ Congelar</button></div>`).join('')
+      : vazio(mrg.lista.length ? `✓ Nenhum preço verificado abaixo de ${esc(String(lim))}% de margem bruta.` : 'Clique em "Verificar" para conferir as margens dos produtos.'))
+    + (sem.length ? `<div style="padding:12px 18px;font-size:12px;color:var(--tx3)">Sem custo cadastrado: ${sem.map((p) => esc(p.codigo)).join(', ')}</div>` : '')
+    + (resta > 0 || !mrg.carregado ? `<div style="padding:12px 18px 18px"><button class="btn sec" id="mgMais">${mrg.carregado ? `Verificar mais ${Math.min(50, resta)} produtos (faltam ${resta})` : 'Verificar os primeiros 50 produtos'}</button>
+        <span class="hint" style="margin-left:8px">A verificação vai de 50 em 50 para não pesar no G360.</span></div>` : '');
+  $('mgMais')?.addEventListener('click', () => desenharMargens(true));
+  alvo.querySelectorAll('.mrow [data-cg]').forEach((b) => b.addEventListener('click', () => {
+    const r = b.closest('.mrow'); aba = 'cong'; cong.produto = { id: Number(r.dataset.id), rotulo: `${r.dataset.cod} · ${r.dataset.nome}` }; desenharAba();
+  }));
+  carregarMiniaturas(alvo);
+}
+
+/* ---------------- Ocorrências ---------------- */
+
+function desenharOcorrencias() {
+  const alvo = $('ocPanel');
+  const conta = comContaPainel(alvo, 'Ocorrências: avisos que dependem de ajuste da Souza Ribeiro no G360', listar);
+  async function listar() {
+    alvo.innerHTML = carregandoHtml('Carregando ocorrências…');
+    const { data, error } = await conta.sb.from('ocorrencias_g360').select('registrada_em, codigo, operacao, comprador_codigo, request_id')
+      .order('registrada_em', { ascending: false }).limit(200);
+    if (error) { alvo.innerHTML = vazio('Não foi possível carregar as ocorrências. Confira se esta conta tem o acesso do painel.'); return; }
+    alvo.innerHTML = `<div style="padding:14px 18px 0" class="row"><button class="tool" id="ocAt">↻ Atualizar</button></div>`
+      + (data.length ? `<div class="mrow h" style="grid-template-columns:150px 1fr 1fr 90px 1.2fr"><div>Quando</div><div>Código</div><div>Operação</div><div>Cliente</div><div>Código para o suporte</div></div>`
+        + data.map((o) => `<div class="mrow" style="grid-template-columns:150px 1fr 1fr 90px 1.2fr"><div class="sm">${esc(new Date(o.registrada_em).toLocaleString('pt-BR'))}</div><div><b>${esc(o.codigo)}</b></div>
+          <div class="sm">${esc(o.operacao)}</div><div class="sm">${esc(o.comprador_codigo ?? '—')}</div><div class="sm" style="font-family:monospace;font-size:11px;word-break:break-all">${esc(o.request_id)}</div></div>`).join('')
+        : vazio('Nenhuma ocorrência registrada. Se esperava ver alguma, confira se esta conta tem o acesso do painel (g360_painel_loja).'));
+    $('ocAt').onclick = listar;
+  }
+}

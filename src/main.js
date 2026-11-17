@@ -18,8 +18,8 @@ import { limparOcorrenciasSessao } from './estado/ocorrencias.js';
 import { liberarFotosDaTela, limparCacheFotos } from './ui/fotos.js';
 import { telaPedirLink } from './telas/pedir-link.js';
 import { telaDefinirSenha, receberTokenDoLink } from './telas/definir-senha.js';
-import { telaPainel } from './telas/painel.js';
-import { mostrarLoja, limparLoja, fecharTudo } from './portal/loja.js';
+import { mostrarAdmin, sairDaTelaAdmin } from './portal/admin.js';
+import { mostrarLoja, limparLoja, fecharTudo, prepararCasca } from './portal/loja.js';
 import { limparCheckout } from './portal/checkout.js';
 import { limparListaTela } from './portal/lista.js';
 import { limparPedidosTela } from './portal/pedidos.js';
@@ -129,7 +129,13 @@ async function desenhar() {
   try { loja = await carregarLoja(); } catch (e) { if (minhaTela === numeroTela) erroDaLoja(e); return; }
   if (minhaTela !== numeroTela) return;
 
-  if (c === '/painel') { modo('cartao'); telaPainel({ loja, raiz, ir, logo: logoSrc() }); return; }
+  if (c === '/painel') {
+    modo('loja');
+    prepararCasca({ loja: sessao.loja ? { ...loja, ...sessao.loja } : loja, ir, aoEntrar: () => desenhar() });
+    mostrarAdmin({ loja, ir });
+    return;
+  }
+  sairDaTelaAdmin();
 
   if (CARTAO[c]) {
     modo('cartao');
