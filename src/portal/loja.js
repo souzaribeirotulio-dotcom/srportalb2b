@@ -6,7 +6,7 @@
    ===================================================================== */
 import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
-import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar } from '../catalogo/exibicao.js';
+import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva } from '../catalogo/exibicao.js';
 import { buscarLocal, temEstoque, variacoes } from '../catalogo/busca.js';
 import { listarProdutos, buscarProdutos, listarMarcas } from '../api/g360.js';
 import { sessao, entrar, sair, trocarSenha } from '../estado/sessao.js';
@@ -197,7 +197,7 @@ function ordenar(lista) {
   const o = $('ord').value;
   const preco = (p) => { try { return new Decimal(p.preco ?? (o === 'menor' ? '1e15' : '-1')); } catch { return new Decimal(0); } };
   lista.sort((a, b) => (temEstoque(b) - temEstoque(a))
-    || (o === 'menor' ? preco(a).cmp(preco(b)) : o === 'maior' ? preco(b).cmp(preco(a)) : a.nome.localeCompare(b.nome, 'pt')));
+    || (o === 'menor' ? preco(a).cmp(preco(b)) : o === 'maior' ? preco(b).cmp(preco(a)) : (pesoCurva(a) - pesoCurva(b)) || a.nome.localeCompare(b.nome, 'pt')));
   return lista;
 }
 
@@ -256,7 +256,8 @@ async function resultadoBusca() {
       dados.map(apresentar).filter((p) => !filtros.grupo || p.categoria === filtros.grupo)
         .forEach((p) => { if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); if (!pontos.has(String(p.codigo))) pontos.set(String(p.codigo), 100); } });
     } catch (e) { if (!achados.size) throw e; }
-    const todos = [...achados.values()].sort((a, b) => (temEstoque(b) - temEstoque(a))
+    // Ordem: com estoque primeiro; entre os que batem com a busca, os mais vendidos (curva A, B, C); depois a relevância.
+    const todos = [...achados.values()].sort((a, b) => (temEstoque(b) - temEstoque(a)) || (pesoCurva(a) - pesoCurva(b))
       || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
     busca = { chave, itens: todos, semEstoque: todos.filter((p) => !temEstoque(p)).length, ordem: '' };
     registrarBusca(filtros.q, todos.length);

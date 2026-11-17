@@ -25,7 +25,7 @@ export function carregarExibicao(forcar = false) {
       estado.sinonimos = sin || []; definirSinonimos(estado.sinonimos);
       const porCodigo = new Map(); const porId = new Map();
       for (let de = 0; de < 20000; de += 1000) {
-        const { data, error } = await sb.from('portal_produtos_exibicao').select('codigo, produto_id, nome, categoria, origem, nome_g360')
+        const { data, error } = await sb.from('portal_produtos_exibicao').select('codigo, produto_id, nome, categoria, origem, nome_g360, curva')
           .eq('loja', LOJA).order('codigo').range(de, de + 999);
         if (error) throw error;
         data.forEach((r) => { porCodigo.set(String(r.codigo), r); if (r.produto_id) porId.set(Number(r.produto_id), r); });
@@ -66,7 +66,7 @@ export function categoriaExibicao(p) {
 /** Produto da API com o nome do portal (o nome do G360 fica em nome_g360). */
 export function apresentar(p) {
   if (!p || p.nome_g360 !== undefined) return p;
-  return { ...p, nome_g360: p.nome, nome: nomeExibicao(p), categoria: categoriaExibicao(p) };
+  return { ...p, nome_g360: p.nome, nome: nomeExibicao(p), categoria: categoriaExibicao(p), curva: registro(p)?.curva || null };
 }
 
 /** Item de revisão/pedido (tem produto_id e nome): troca o nome se o portal conhecer o produto. */
@@ -91,3 +91,6 @@ export function aplicarLocal(linhas) {
   }
 }
 export function definirCategoriasLocal(lista) { estado.categorias = lista; }
+
+/** Curva ABC (importada do G360): A=0, B=1, C=2, sem curva=3. Só ordena; não muda preço nem compra. */
+export function pesoCurva(p) { return { A: 0, B: 1, C: 2 }[(p?.curva ?? registro(p)?.curva) || ''] ?? 3; }
