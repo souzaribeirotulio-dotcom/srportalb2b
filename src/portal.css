@@ -1,7 +1,7 @@
 /* Ajustes do layout original para a integração com o G360. */
 body.g360-legado [data-v="clips"], body.g360-legado .adm-only, body.g360-legado .edbar, body.g360-legado #edt,
 body.g360-legado #vClips, body.g360-legado #vAdm, body.g360-legado #dNeg, body.g360-legado .demo-faixa,
-body.g360-legado #lgEsq, body.g360-legado #lgVolta, body.g360-legado #lgAdmT, body.g360-legado .eye { display: none !important; }
+body.g360-legado #lgEsq, body.g360-legado #lgVolta, body.g360-legado #lgAdmT { display: none !important; }
 body.g360-legado #g360Entrada[hidden] { display: none !important; }
 body.g360-legado #srBoot { display: none; }
 
@@ -117,3 +117,9 @@ body.g360-painel .arow .nm small { margin-top: 4px; }
 #grid .card .img, #grid .card .name { cursor: pointer; }
 @media (max-width: 640px) { #detBox .gmain .foto { min-height: 220px; } #detBox .gmain .foto img { max-height: 260px; } }
 body.g360-painel #souzinha-widget, body.g360:not(.g360-legado) #souzinha-widget { display: none !important; }
+
+/* Olhinho do cartão: visível no foco do teclado e sempre visível em telas de toque (alvo de 44px). */
+.card .eye:focus-visible { opacity: 1; transform: none; }
+@media (hover: none), (pointer: coarse) {
+  .card .eye { opacity: 1; transform: none; width: 44px; height: 44px; top: 4px; right: 4px; }
+}

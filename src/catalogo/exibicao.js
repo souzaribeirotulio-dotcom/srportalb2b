@@ -25,7 +25,7 @@ export function carregarExibicao(forcar = false) {
       estado.sinonimos = sin || []; definirSinonimos(estado.sinonimos);
       const porCodigo = new Map(); const porId = new Map();
       for (let de = 0; de < 20000; de += 1000) {
-        const { data, error } = await sb.from('portal_produtos_exibicao').select('codigo, produto_id, nome, categoria, origem, nome_g360, curva')
+        const { data, error } = await sb.from('portal_produtos_exibicao').select('codigo, produto_id, nome, categoria, origem, nome_g360, curva, descricao, ean')
           .eq('loja', LOJA).order('codigo').range(de, de + 999);
         if (error) throw error;
         data.forEach((r) => { porCodigo.set(String(r.codigo), r); if (r.produto_id) porId.set(Number(r.produto_id), r); });

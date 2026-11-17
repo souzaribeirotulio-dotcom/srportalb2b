@@ -45,6 +45,7 @@ export function htmlCartao(p, { naLista = null } = {}) {
   <article class="card" data-id="${Number(p.id)}" data-un="">
     <div class="img">${p.categoria ? `<span class="cat">${esc(p.categoria)}</span>` : ''}
       ${htmlFoto(p, 'g360-foto')}
+      <button type="button" class="eye" title="Ver detalhes" aria-label="Ver detalhes de ${esc(p.nome)}"><svg class="ic" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
       ${naLista === null ? '' : `<button type="button" class="fav ${naLista ? 'on' : ''}" aria-pressed="${naLista}" title="Minha Lista">${naLista ? '⭐ Na lista' : '☆ Lista'}</button>`}
     </div>
     <div class="info">

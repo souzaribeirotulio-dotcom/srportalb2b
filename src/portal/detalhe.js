@@ -6,6 +6,8 @@ import { podeComprar, htmlPreco, htmlEstoque, htmlUnidades, opcoesUnidade, unida
 import { adicionar } from '../estado/carrinho.js';
 import { normalizarQuantidade } from '../ui/formato.js';
 import { ligarFotos } from '../ui/fotos.js';
+import { registro } from '../catalogo/exibicao.js';
+import { fichaDoProduto } from '../catalogo/descricoes.js';
 
 let atual = null;
 
@@ -23,11 +25,8 @@ function desenhar() {
   const fotos = Array.isArray(p.fotos) ? p.fotos : [];
   const comprar = podeComprar(p);
   const ops = opcoesUnidade(p);
-  const caract = [
-    ['Código', p.codigo], ['Marca', typeof p.marca === 'object' ? p.marca?.nome : p.marca], ['Categoria', p.categoria],
-    ['Unidade de venda', p.unidade], ...ops.slice(1).map((o) => ['Embalagem', `${o.nome}${o.descricao ? ` — ${o.descricao}` : ''}`]),
-    p.kit ? ['Kit', 'Sim'] : null,
-  ].filter((x) => x && x[1]);
+  const ficha = fichaDoProduto(p, registro(p));
+  const caract = [...ficha.caracteristicas, ...ops.slice(1).map((o) => ['Embalagem disponível', `${o.nome}${o.descricao ? ` — ${o.descricao}` : ''}`])];
   $id('detBox').innerHTML = `<div class="gal">
       <div class="gmain">${fotos.length ? htmlFotoItem(p, fotos[atual.foto] ?? fotos[0], 'g360-foto') : '<div class="foto vazia g360-foto"><span>Sem foto</span></div>'}
         ${fotos.length > 1 ? '<button class="gnav p" data-g="-1" aria-label="Foto anterior">‹</button><button class="gnav n" data-g="1" aria-label="Próxima foto">›</button>' : ''}</div>
@@ -36,7 +35,7 @@ function desenhar() {
     <div class="dinfo"><button class="x" id="dX" aria-label="Fechar">×</button>
       <div class="brand">${esc(typeof p.marca === 'object' ? p.marca?.nome || '' : p.marca || '')}</div>
       <h2>${esc(p.nome)}</h2>
-      <div class="meta">Cód. ${esc(p.codigo)}${p.nome_g360 && p.nome_g360 !== p.nome ? ` · ${esc(p.nome_g360)}` : ''}</div>
+      <div class="meta">Cód. ${esc(p.codigo)}${ficha.ean ? ` · EAN ${esc(ficha.ean)}` : ''}</div>
       <div class="dprice">${comprar ? htmlPreco(unidadeEscolhida(p, atual.un)) : ''}</div>
       ${htmlEstoque(p)}
       ${htmlUnidades(p, atual.un, 'lg')}
@@ -44,7 +43,7 @@ function desenhar() {
         <button type="button" class="add" id="dAdd" ${comprar ? '' : 'disabled aria-disabled="true"'}><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Adicionar ao carrinho</button>
         ${naLista === null || naLista === undefined ? '' : `<button type="button" class="dfav ${naLista ? 'on' : ''}" id="dFav" title="Minha Lista" aria-pressed="${naLista}">${naLista ? '★' : '☆'}</button>`}</div>
       ${atual.aoClip ? '<button type="button" class="dclip" id="dClip">▶ Ver clip deste produto</button>' : ''}
-      ${p.aplicacao ? `<div class="dsec"><h4>Descrição</h4><p>${esc(p.aplicacao)}</p></div>` : ''}
+      <div class="dsec"><h4>Descrição</h4><p>${esc(ficha.texto)}</p></div>
       <div class="dsec"><h4>Características</h4><table class="ftab">${caract.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</table></div>
     </div>`;
   ligarFotos($id('detBox'));
