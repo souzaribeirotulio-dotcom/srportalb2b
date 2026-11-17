@@ -33,7 +33,7 @@ export function carregarExibicao(forcar = false) {
       }
       estado.porCodigo = porCodigo; estado.porId = porId;
       indexar([...porCodigo.values()].filter((r) => !r.oculto));
-      try { const { data: cfg } = await sb.rpc('portal_config_publica', { p_loja: LOJA }); estado.soEstoque = cfg?.so_estoque === true; } catch { estado.soEstoque = false; }
+      try { const { data: cfg } = await sb.rpc('portal_config_publica', { p_loja: LOJA }); estado.soEstoque = cfg?.so_estoque === true; estado.estoqueMinimo = Number(cfg?.estoque_minimo) || 0; } catch { estado.soEstoque = false; estado.estoqueMinimo = 0; }
     } catch { if (!estado.categorias.length) estado.categorias = CATEGORIAS_PADRAO; }
     estado.carregado = true; estado.carregando = null;
     return estado;
@@ -45,6 +45,12 @@ export function carregarExibicao(forcar = false) {
 export function oculto(p) { return registro(p)?.oculto === true; }
 /** Configuração da loja: mostrar só produtos com estoque também na busca. */
 export function soEstoque() { return estado.soEstoque === true; }
+/** "Só produtos com mais de N unidades" (quando a API manda a quantidade). Sem número, não esconde. */
+export function abaixoDoMinimo(p) {
+  const min = estado.estoqueMinimo || 0;
+  if (!(min > 0) || p?.quantidade_disponivel === null || p?.quantidade_disponivel === undefined) return false;
+  return Number(p.quantidade_disponivel) <= min;
+}
 
 export function sinonimos() { return estado.sinonimos || []; }
 

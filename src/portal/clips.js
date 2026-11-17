@@ -14,6 +14,7 @@ import { podeComprar, htmlPreco, htmlEstoque, opcoesUnidade, linhaCarrinho } fro
 import { adicionar } from '../estado/carrinho.js';
 import { normalizarQuantidade } from '../ui/formato.js';
 import { htmlFoto, ligarFotos } from '../ui/fotos.js';
+import { htmlDisponivel, conferir, somar } from './estoque.js';
 
 const URL_SUPABASE = String(import.meta.env.VITE_SUPABASE_URL || '').trim();
 const urlClip = (caminho) => `${URL_SUPABASE}/storage/v1/object/public/portal-clips/${caminho.split('/').map(encodeURIComponent).join('/')}`;
@@ -92,7 +93,7 @@ export async function desenharClips(abrirId, op = {}) {
         <div><button type="button" class="cbtn" data-a="ver" aria-label="Ver detalhes">👁</button><small>Detalhes</small></div></div>
       ${c.titulo ? `<div class="cttl">${esc(c.titulo)}</div>` : ''}
       <div class="ccard">${sessao.ativa ? `<div class="cimgw" data-a="ver">${htmlFoto(p, 'g360-foto')}</div>` : (capa ? `<img src="${esc(capa)}" alt="" referrerpolicy="no-referrer" data-a="ver">` : '<div class="cimgw" data-a="ver"></div>')}
-        <div><div class="cn" data-a="ver">${esc(p.nome)}</div>${comprar ? `<div class="cp">${htmlPreco(opcoesUnidade(p)[0])}</div>` : ''}${sessao.ativa ? htmlEstoque(p) : ''}</div>
+        <div><div class="cn" data-a="ver">${esc(p.nome)}</div>${comprar ? `<div class="cp">${htmlPreco(opcoesUnidade(p)[0])}</div>` : ''}${sessao.ativa ? htmlEstoque(p) + htmlDisponivel(p, '') : ''}</div>
         ${sessao.ativa
     ? `<div class="cb"><div class="qty"><button type="button" data-d="-1" ${comprar ? '' : 'disabled'} aria-label="Diminuir">−</button><input type="text" inputmode="decimal" value="1" maxlength="13" aria-label="Quantidade" ${comprar ? '' : 'disabled'}><button type="button" data-d="1" ${comprar ? '' : 'disabled'} aria-label="Aumentar">+</button></div>
             <button type="button" class="add" data-a="add" ${comprar ? '' : 'disabled'}><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button></div>`
@@ -128,7 +129,7 @@ export function ligarClips() {
     const p = f._produtos?.get(Number(s.dataset.p)); const v = s.querySelector('video');
     const a = e.target.closest('[data-a]')?.dataset.a;
     const d = e.target.closest('[data-d]');
-    if (d) { const i = s.querySelector('.qty input'); i.value = passoQuantidade(i.value, Number(d.dataset.d)); return; }
+    if (d) { const i = s.querySelector('.qty input'); const r = somar(p, '', normalizarQuantidade(i.value) || '1', normalizarQuantidade(passoQuantidade(i.value, Number(d.dataset.d))) || '1'); i.value = String(r.valor).replace('.', ','); if (r.msg) toast(r.msg); return; }
     if (e.target.closest('.qty')) return;
     if (a === 'mute') { mudo = !mudo; f.querySelectorAll('video').forEach((x) => { x.muted = mudo; }); f.querySelectorAll('[data-a=mute]').forEach((b) => { b.textContent = mudo ? '🔇' : '🔊'; }); return; }
     if (a === 'entrar') { opcoes.exigirLogin?.(() => desenharClips(s.dataset.id, opcoes)); return; }
@@ -141,6 +142,7 @@ export function ligarClips() {
     if (a === 'add') {
       const q = normalizarQuantidade(s.querySelector('.qty input').value);
       if (!q) { toast('Quantidade inválida: use um número maior que zero, com até 4 casas depois da vírgula.'); return; }
+      const semSaldo = conferir(p, '', q); if (semSaldo) { toast(semSaldo); return; }
       const r = adicionar(linhaCarrinho(p, '', q));
       if (r === 'limite') { toast('O carrinho aceita até 100 linhas. Envie este pedido ou remova itens.'); return; }
       toast(`${r === 'somado' ? 'Quantidade somada' : 'Adicionado'} · ${p.nome.slice(0, 40)}`);

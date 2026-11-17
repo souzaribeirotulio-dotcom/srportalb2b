@@ -9,10 +9,11 @@
 import { esc } from './comum.js';
 import { dinheiro } from '../ui/formato.js';
 import { htmlFoto } from '../ui/fotos.js';
+import { htmlDisponivel } from './estoque.js';
 
 export function opcoesUnidade(p) {
-  const base = { id: '', nome: p.unidade || 'UN', descricao: '', preco: p.preco, seu_preco: p.seu_preco ?? null };
-  return [base, ...(p.unidades || []).map((u) => ({ id: u.id, nome: u.nome, descricao: u.descricao, preco: u.preco, seu_preco: u.seu_preco ?? null }))];
+  const base = { id: '', nome: p.unidade || 'UN', descricao: '', preco: p.preco, seu_preco: p.seu_preco ?? null, quantidade_disponivel: p.quantidade_disponivel ?? null };
+  return [base, ...(p.unidades || []).map((u) => ({ id: u.id, nome: u.nome, descricao: u.descricao, preco: u.preco, seu_preco: u.seu_preco ?? null, quantidade_disponivel: u.quantidade_disponivel ?? null }))];
 }
 
 export function podeComprar(p) {
@@ -54,6 +55,7 @@ export function htmlCartao(p, { naLista = null } = {}) {
       <div class="meta">Cód. ${esc(p.codigo)} · ${esc(p.unidade || '')}</div>
       <div class="price">${htmlPreco(ops[0])}</div>
       ${htmlEstoque(p)}
+      <div class="dispw">${htmlDisponivel(p, '')}</div>
       ${htmlUnidades(p)}
       <div class="buy">
         <div class="qty"><button type="button" data-d="-1" aria-label="Diminuir" ${comprar ? '' : 'disabled'}>−</button><input type="text" inputmode="decimal" value="1" maxlength="13" aria-label="Quantidade" ${comprar ? '' : 'disabled'}><button type="button" data-d="1" aria-label="Aumentar" ${comprar ? '' : 'disabled'}>+</button></div>
@@ -75,6 +77,6 @@ export function linhaCarrinho(p, unidadeId, quantidade) {
   return {
     produto_id: Number(p.id), unidade: op.id ? op.id : null, quantidade,
     nome: p.nome, codigo: p.codigo, unidadeNome: op.nome, precoTexto: op.preco || null,
-    fotos: p.fotos || [], id: p.id, seu_preco: op.seu_preco,
+    fotos: p.fotos || [], id: p.id, seu_preco: op.seu_preco, disponivel: op.quantidade_disponivel ?? null,
   };
 }

@@ -7,6 +7,10 @@ info:
 
     Limites: 240 chamadas por minuto por endereço IP e loja localizada pelo slug, somadas entre operações. Slugs desconhecidos compartilham um contador de 60 por minuto por IP. Atrás de um proxy confiável, o limite usa o endereço de origem resolvido pelo servidor. Por IP de origem e loja, a vitrine tem 30 chamadas por minuto para produtos, grupos e marcas somados e 180 por minuto para fotos. Por IP, o teto anterior ao banco é de 120 listagens e 360 fotos por minuto, somadas entre lojas. Lojas com vitrine indisponível compartilham o contador de recusas com slugs desconhecidos. Os contadores da vitrine são independentes dos do comprador. O corpo pode ter até 65.536 bytes. Na inclusão de uma foto pelo operador, o limite é de 2.804.096 bytes. Páginas de 1 a 100.000, com 1 a 50 registros (padrão 20).
 
+    A vitrine responde 429 MUITAS_TENTATIVAS quando a cota se esgota. Se a API não conseguir registrar a chamada da vitrine após uma breve espera, responde 503 INDISPONIVEL com Retry-After de 30 segundos.
+
+    Disponibilidade no catálogo: mostre a faixa de estoque e, quando a loja ligar Mostrar a quantidade disponível no G360, também o número para compradores autenticados. A vitrine nunca devolve o número.
+
     Login: em cada loja, 5 falhas por documento e IP, 40 por IP e 50 por documento em 15 minutos. Sessões têm limite absoluto de 12 horas e limite de inatividade configurável (padrão 8 minutos).
 
     Operador: o login tem contadores próprios de 5 falhas por apelido e IP, 40 por IP e 50 por apelido, por loja em 15 minutos. O Bearer do operador é vinculado à loja e à sua empresa. A sessão dura até 12 horas com a mesma configuração de inatividade da loja. Com a licença compartilhada ativa, a vaga do tipo Mobile vence após 180 segundos sem atividade e o Bearer revogado exige novo login. O backend reconfere cadastro, credencial, empresa e a permissão de cada operação.
@@ -173,6 +177,538 @@ paths:
           "$ref": "#/components/responses/LicencaOperadorIndisponivel"
         "429":
           "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/operadores/clientes/{cliente}":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+      - name: "cliente"
+        in: "path"
+        required: true
+        description: "Código retornado pela consulta do operador."
+        example: 42
+        schema: {type: "integer", minimum: 1, maximum: 2147483647}
+    get:
+      tags: ["Operador"]
+      operationId: "consultarFichaClienteOperador"
+      summary: "Consultar ficha do cliente"
+      description: "Exige 00500 e o recorte de empresa e vendedor da consulta por CNPJ. Clientes estrangeiros e endereços do exterior são mantidos no Desktop. Prospects ficam fora do recorte. A ficha informa permissões, a versão e a revisão do acesso."
+      security:
+        - SessaoOperador: []
+      responses:
+        "200":
+          description: "Ficha do cliente no G360."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/FichaClienteOperador"
+              example:
+                dados:
+                  id: 42
+                  documento: "12ABC34501DE35"
+                  tipo_pessoa: "juridica"
+                  nome: "LOJA DE TESTE"
+                  fantasia: "Loja de Teste"
+                  ie_rg: "ISENTO"
+                  email: "loja@example.invalid"
+                  telefone1: "11 99000-0000"
+                  telefone2: ""
+                  telefone3: ""
+                  contato: "Pessoa Exemplo"
+                  endereco:
+                    cep: "01234567"
+                    logradouro: "RUA FICTÍCIA"
+                    numero: "100"
+                    complemento: ""
+                    bairro: {id: 10, nome: "BAIRRO EXEMPLO"}
+                    cidade: {id: 123, nome: "CIDADE EXEMPLO"}
+                    uf: "SP"
+                    ibge: "3599999"
+                  acesso_liberado: false
+                  revisao: 0
+                  versao: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  pode_alterar: true
+                  pode_alterar_acesso: true
+                  ie_travada: false
+                request_id: "0011223344556677"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          description: "Origem não permitida ou operador sem o acesso exigido."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["ORIGEM_OPERADOR_NAO_PERMITIDA","OPERADOR_SEM_ACESSO"]
+        "404":
+          description: "Loja indisponível ou cliente fora do recorte."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["LOJA_INDISPONIVEL","CLIENTE_NAO_LOCALIZADO"]
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "422":
+          description: "Cadastro mantido no Desktop."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["CADASTRO_SOMENTE_DESKTOP"]
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+    put:
+      tags: ["Operador"]
+      operationId: "alterarFichaClienteOperador"
+      summary: "Alterar ficha do cliente"
+      description: "Exige 00502 e o mesmo recorte. Envie a versão e apenas os campos que deseja alterar. Após o ajuste, devem existir CPF ou CNPJ válido, nome, IE ou RG e endereço principal completo. Trocar o e-mail invalida os links de primeiro acesso ou recuperação pendentes. A sessão aberta do comprador continua. No conflito de versão, reabra a ficha. Uma gravação posterior no Desktop pode sobrescrever a do painel."
+      security:
+        - SessaoOperador: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/AlteracaoFichaClienteOperador"
+            example:
+              versao: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              email: "novo@example.invalid"
+      responses:
+        "200":
+          description: "Cadastro gravado. Com 00500, retorna a ficha. Nos demais casos, retorna só a versão."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    anyOf:
+                      - "$ref": "#/components/schemas/FichaClienteOperador"
+                      - type: "object"
+                        additionalProperties: false
+                        required: ["versao"]
+                        properties: {versao: {"$ref": "#/components/schemas/VersaoFichaCliente"}}
+              example:
+                dados:
+                  id: 42
+                  documento: "12ABC34501DE35"
+                  tipo_pessoa: "juridica"
+                  nome: "LOJA DE TESTE"
+                  fantasia: "Loja de Teste"
+                  ie_rg: "ISENTO"
+                  email: "loja@example.invalid"
+                  telefone1: "11 99000-0000"
+                  telefone2: ""
+                  telefone3: ""
+                  contato: "Pessoa Exemplo"
+                  endereco:
+                    cep: "01234567"
+                    logradouro: "RUA FICTÍCIA"
+                    numero: "100"
+                    complemento: ""
+                    bairro: {id: 10, nome: "BAIRRO EXEMPLO"}
+                    cidade: {id: 123, nome: "CIDADE EXEMPLO"}
+                    uf: "SP"
+                    ibge: "3599999"
+                  acesso_liberado: false
+                  revisao: 0
+                  versao: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  pode_alterar: true
+                  pode_alterar_acesso: true
+                  ie_travada: false
+                request_id: "0011223344556677"
+        "400":
+          description: "Corpo JSON inválido."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["SOLICITACAO_INVALIDA"]
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          description: "Origem não permitida ou operador sem o acesso exigido."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["ORIGEM_OPERADOR_NAO_PERMITIDA","OPERADOR_SEM_ACESSO"]
+        "404":
+          description: "Loja indisponível, cliente fora do recorte ou CEP não encontrado."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["LOJA_INDISPONIVEL","CLIENTE_NAO_LOCALIZADO","CEP_NAO_ENCONTRADO"]
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "409":
+          description: "A ficha mudou ou outro cadastro usa o documento com IE ou RG diferente."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["CADASTRO_ALTERADO","DOCUMENTO_REPETIDO"]
+              example:
+                erro:
+                  codigo: "CADASTRO_ALTERADO"
+                  mensagem: "O cadastro foi alterado em outra estação. Reabra a ficha antes de continuar."
+                  responsavel: "usuario"
+                  campos: {}
+                request_id: "0011223344556677"
+        "422":
+          description: "Campo inválido, cadastro incompleto, duplicidade de documento e IE ou cadastro mantido no Desktop."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["DADOS_INVALIDOS","DOCUMENTO_E_IE_REPETIDOS","CADASTRO_SOMENTE_DESKTOP"]
+        "503":
+          description: "API ou consulta postal temporariamente indisponível."
+          headers:
+            Retry-After:
+              schema: {type: "integer"}
+              example: 30
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["INDISPONIVEL","CEP_INDISPONIVEL"]
+  "/b2b/v1/lojas/{loja}/operadores/clientes/{cliente}/acesso":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+      - name: "cliente"
+        in: "path"
+        required: true
+        description: "Código retornado pela consulta do operador."
+        example: 42
+        schema: {type: "integer", minimum: 1, maximum: 2147483647}
+    put:
+      tags: ["Operador"]
+      operationId: "alterarAcessoClienteOperador"
+      summary: "Liberar ou bloquear o acesso do comprador"
+      description: "Exige 00502 e o mesmo recorte. Liberar exige CPF ou CNPJ válido, nome e endereço principal completo. O bloqueio invalida sessões e links do comprador. A API exige a revisão atual, soma 1 na revisão e audita a alteração."
+      security:
+        - SessaoOperador: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/AlteracaoAcessoClienteOperador"
+            example:
+              liberado: true
+              revisao: 0
+      responses:
+        "200":
+          description: "Estado atualizado do acesso."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/AcessoClienteOperador"
+              example:
+                dados:
+                  acesso_liberado: true
+                  revisao: 1
+                  versao: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                request_id: "0011223344556677"
+        "400":
+          description: "Corpo JSON inválido."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["SOLICITACAO_INVALIDA"]
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          description: "Origem não permitida ou operador sem o acesso exigido."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["ORIGEM_OPERADOR_NAO_PERMITIDA","OPERADOR_SEM_ACESSO"]
+        "404":
+          description: "Loja indisponível ou cliente fora do recorte."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["LOJA_INDISPONIVEL","CLIENTE_NAO_LOCALIZADO"]
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "409":
+          description: "O acesso mudou ou a base ainda não tem as colunas de controle."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["CADASTRO_ALTERADO","ACESSO_CADASTRO_INDISPONIVEL"]
+        "422":
+          description: "Campo inválido, cadastro incompleto ou cadastro mantido no Desktop."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["DADOS_INVALIDOS","CADASTRO_SOMENTE_DESKTOP"]
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/operadores/enderecos/cep/{cep}":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    get:
+      tags: ["Operador"]
+      operationId: "consultarEnderecoCepOperador"
+      summary: "Consultar CEP na ficha do cliente"
+      description: "Exige 00500. Consulta o mesmo serviço do comprador, sem gravar referências. Se houver mais de uma cidade da mesma UF com o IBGE, usa o menor ID. Bairro ou cidade ainda não cadastrados retornam id nulo."
+      security:
+        - SessaoOperador: []
+      parameters:
+        - name: "cep"
+          in: "path"
+          required: true
+          example: "01234-567"
+          schema: {type: "string", pattern: '^[0-9]{5}-?[0-9]{3}$'}
+      responses:
+        "200":
+          description: "Endereço encontrado pelo CEP."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/EnderecoCep"
+              example:
+                dados:
+                  cep: "01234567"
+                  logradouro: "Rua Fictícia"
+                  bairro: {id: null, nome: "Bairro Exemplo"}
+                  cidade: {id: 123, nome: "Cidade Exemplo"}
+                  uf: "SP"
+                  ibge: "3599999"
+                request_id: "0011223344556677"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          description: "Origem não permitida ou operador sem o acesso exigido."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["ORIGEM_OPERADOR_NAO_PERMITIDA","OPERADOR_SEM_ACESSO"]
+        "404":
+          description: "Loja indisponível ou CEP não encontrado."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["LOJA_INDISPONIVEL","CEP_NAO_ENCONTRADO"]
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "422":
+          description: "Formato de CEP inválido."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["DADOS_INVALIDOS"]
+        "503":
+          description: "API ou consulta postal temporariamente indisponível."
+          headers:
+            Retry-After:
+              schema: {type: "integer"}
+              example: 30
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["INDISPONIVEL","CEP_INDISPONIVEL"]
+  "/b2b/v1/lojas/{loja}/operadores/enderecos/referencias":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    get:
+      tags: ["Operador"]
+      operationId: "buscarReferenciasEnderecoOperador"
+      summary: "Buscar cidade ou bairro para a ficha"
+      description: "Exige 00500. É a alternativa manual à consulta de CEP. Retorna até 30 referências, começando pela igualdade e pelo prefixo do nome consultado. Ignora acento e caixa."
+      security:
+        - SessaoOperador: []
+      parameters:
+        - name: "tipo"
+          in: "query"
+          required: true
+          example: "cidade"
+          schema: {type: "string", enum: ["cidade","bairro"]}
+        - name: "q"
+          in: "query"
+          required: true
+          example: "exemplo"
+          schema: {type: "string", minLength: 2, maxLength: 70}
+        - name: "uf"
+          in: "query"
+          description: "Obrigatória na consulta de cidade."
+          example: "SP"
+          schema: {type: "string", pattern: '^[A-Za-z]{2}$'}
+      responses:
+        "200":
+          description: "Referências do G360."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    type: "array"
+                    maxItems: 30
+                    items: {"$ref": "#/components/schemas/ReferenciaCep"}
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          description: "Origem não permitida ou operador sem o acesso exigido."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["ORIGEM_OPERADOR_NAO_PERMITIDA","OPERADOR_SEM_ACESSO"]
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "422":
+          description: "Tipo, nome ou UF inválidos."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["DADOS_INVALIDOS"]
         "503":
           "$ref": "#/components/responses/Indisponivel"
   "/b2b/v1/lojas/{loja}/operadores/produtos/busca":
@@ -850,6 +1386,7 @@ paths:
                     sessao_minutos: 8
                     pedido_minimo: "150.00"
                     imagens: "PARCEIRO_EXEMPLO/IMGS_PROD_G360"
+                    bloqueia_sem_estoque: true
                 request_id: "0011223344556677"
         "400":
           "$ref": "#/components/responses/CorpoInvalido"
@@ -1176,6 +1713,7 @@ paths:
                     sessao_minutos: 8
                     pedido_minimo: "150.00"
                     imagens: "PARCEIRO_EXEMPLO/IMGS_PROD_G360"
+                    bloqueia_sem_estoque: true
                   expira_em: "2099-01-15T00:00:00+00:00"
                 request_id: "0011223344556677"
         "401":
@@ -1598,8 +2136,14 @@ paths:
                     compravel: true
                     disponibilidade: "disponivel"
                     faixa_disponibilidade: "em_estoque"
+                    quantidade_disponivel: "30"
                     aviso: null
-                    unidades: []
+                    unidades:
+                      - id: "CX*12.0000"
+                        nome: "CX"
+                        descricao: "CX com 12 UN"
+                        preco: "150.00"
+                        quantidade_disponivel: "2"
                     kit: null
                 paginacao:
                   pagina: 1
@@ -1873,7 +2417,7 @@ paths:
       tags: ["Endereços e pagamento"]
       operationId: "incluirEndereco"
       summary: "Incluir endereço de entrega"
-      description: "Inclui endereço ativo para o próprio comprador e o disponibiliza nas opções do pedido. Os endereços padrão do cadastro são preservados."
+      description: "Inclui endereço ativo para o próprio comprador e preserva os endereços padrão. Com cidade_id, exige também bairro_id, UF e logradouro. Sem cidade_id, resolve o CEP no servidor e cria as referências que faltarem. Usa o bairro e o logradouro da consulta postal quando disponíveis. Para CEP geral, selecione um bairro cadastrado e informe o logradouro quando ausente. A inclusão manual continua disponível se a consulta postal falhar."
       requestBody:
         required: true
         content:
@@ -1882,13 +2426,9 @@ paths:
               "$ref": "#/components/schemas/EnderecoEntrada"
             example:
               descricao: "Depósito"
-              endereco: "Rua Fictícia"
               numero: "100"
               complemento: "Galpão B"
               cep: "01234-567"
-              cidade_id: 123
-              bairro_id: 456
-              uf: "MG"
       responses:
         "201":
           description: "Endereço incluído."
@@ -1925,7 +2465,24 @@ paths:
         "401":
           "$ref": "#/components/responses/SessaoInvalida"
         "404":
-          "$ref": "#/components/responses/LojaIndisponivel"
+          description: "Loja indisponível ou CEP não encontrado."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["LOJA_INDISPONIVEL","CEP_NAO_ENCONTRADO"]
+              example:
+                erro:
+                  codigo: "CEP_NAO_ENCONTRADO"
+                  mensagem: "CEP não encontrado. Confira o número ou informe o endereço manualmente."
+                  responsavel: "usuario"
+                  campos: {}
+                request_id: "0011223344556677"
         "409":
           description: "Endereço repetido ou limite de 20 endereços ativos atingido."
           content:
@@ -1962,7 +2519,129 @@ paths:
         "429":
           "$ref": "#/components/responses/LimiteRequisicoes"
         "503":
-          "$ref": "#/components/responses/Indisponivel"
+          description: "API ou consulta postal temporariamente indisponível."
+          headers:
+            Retry-After:
+              schema:
+                type: "integer"
+              example: 30
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["INDISPONIVEL","CEP_INDISPONIVEL"]
+              example:
+                erro:
+                  codigo: "CEP_INDISPONIVEL"
+                  mensagem: "A consulta por CEP está indisponível. Tente novamente ou informe o endereço manualmente."
+                  responsavel: "tentar_de_novo"
+                  campos: {}
+                request_id: "0011223344556677"
+  "/b2b/v1/lojas/{loja}/enderecos/cep/{cep}":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    get:
+      tags: ["Endereços e pagamento"]
+      operationId: "consultarEnderecoCep"
+      summary: "Consultar endereço pelo CEP"
+      description: "Consulta o serviço postal no servidor sem gravar no G360. Busca a cidade pelo IBGE e pela UF e usa o menor ID em caso de duplicidade. Busca o bairro pelo nome sem diferenciar acento, maiúsculas ou pontuação nas pontas e usa o menor ID. Referências ainda não cadastradas retornam id nulo. No CEP geral, bairro e logradouro podem vir vazios."
+      parameters:
+        - name: "cep"
+          in: "path"
+          required: true
+          example: "01234-567"
+          schema:
+            type: "string"
+            pattern: '^[0-9]{5}-?[0-9]{3}$'
+      responses:
+        "200":
+          description: "Endereço encontrado pelo CEP."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/EnderecoCep"
+              example:
+                dados:
+                  cep: "01234567"
+                  logradouro: "Rua Fictícia"
+                  bairro:
+                    id: null
+                    nome: "Bairro Exemplo"
+                  cidade:
+                    id: 123
+                    nome: "Cidade Exemplo"
+                  uf: "MG"
+                  ibge: "3100000"
+                request_id: "0011223344556677"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "404":
+          description: "Loja indisponível ou CEP não encontrado."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["LOJA_INDISPONIVEL","CEP_NAO_ENCONTRADO"]
+              example:
+                erro:
+                  codigo: "CEP_NAO_ENCONTRADO"
+                  mensagem: "CEP não encontrado. Confira o número ou informe o endereço manualmente."
+                  responsavel: "usuario"
+                  campos: {}
+                request_id: "0011223344556677"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "422":
+          description: "Formato de CEP inválido."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["DADOS_INVALIDOS"]
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          description: "API ou consulta postal temporariamente indisponível."
+          headers:
+            Retry-After:
+              schema:
+                type: "integer"
+              example: 30
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["INDISPONIVEL","CEP_INDISPONIVEL"]
+              example:
+                erro:
+                  codigo: "CEP_INDISPONIVEL"
+                  mensagem: "A consulta por CEP está indisponível. Tente novamente ou informe o endereço manualmente."
+                  responsavel: "tentar_de_novo"
+                  campos: {}
+                request_id: "0011223344556677"
   "/b2b/v1/lojas/{loja}/enderecos/referencias":
     parameters:
       - "$ref": "#/components/parameters/Loja"
@@ -1970,7 +2649,7 @@ paths:
       tags: ["Endereços e pagamento"]
       operationId: "buscarReferenciasEndereco"
       summary: "Buscar cidades ou bairros cadastrados"
-      description: "Retorna até 30 registros para preencher os códigos de POST enderecos. A busca de cidade exige UF. O cadastro de bairro do G360 é geral."
+      description: "Retorna até 30 registros para preencher os códigos de POST enderecos. A busca de cidade exige UF. Cidade e bairro ignoram acento e maiúsculas e ordenam por nome exato, começo do nome e demais ocorrências. O cadastro de bairro do G360 é geral."
       parameters:
         - name: "tipo"
           in: "query"
@@ -2164,6 +2843,7 @@ paths:
                       unidade: "UN"
                       kit: false
                       quantidade: "2"
+                      quantidade_disponivel: "30"
                       preco_unitario: "12.50"
                       total: "25.00"
                       aviso: null
@@ -3478,7 +4158,7 @@ components:
           description: "Subtotal mínimo dos produtos, em reais, sem frete nem taxa de pagamento. Nulo quando a loja desativa a regra."
     LojaComSessao:
       type: "object"
-      required: ["nome","troca_senha","sessao_minutos","pedido_minimo","imagens"]
+      required: ["nome","troca_senha","sessao_minutos","pedido_minimo","imagens","bloqueia_sem_estoque"]
       properties:
         nome:
           type: "string"
@@ -3496,6 +4176,9 @@ components:
         imagens:
           type: ["string","null"]
           description: "Pasta das imagens legadas relativa à hospedagem de imagens do parceiro, quando configurada."
+        bloqueia_sem_estoque:
+          type: "boolean"
+          description: "Verdadeiro quando a política da loja é B (bloqueia a venda acima do estoque). Falso nas políticas L e A."
     Comprador:
       type: "object"
       required: ["nome","fantasia","documento","trocar_senha","compra_bloqueada","codigo","segmento"]
@@ -3610,6 +4293,11 @@ components:
       type: "string"
       pattern: "^-?[0-9]+(?:\\.[0-9]{1,4})?$"
       description: "Texto decimal com até quatro casas e sem zeros finais na fração."
+    QuantidadeDisponivel:
+      type: ["string","null"]
+      pattern: '^[0-9]+(?:\.[0-9]{1,4})?$'
+      description: "Texto decimal não negativo na unidade informada, limitado ao que a API aceita por linha. Nulo quando Mostrar a quantidade disponível está desligado ou ausente na base."
+      examples: ["2", "30.237", "0", null]
     IdEntrada:
       type: "integer"
       minimum: 1
@@ -3732,7 +4420,7 @@ components:
           description: "Indica se o produto é um kit."
     Produto:
       type: "object"
-      required: ["id","codigo","nome","marca","grupo","marca_detalhe","unidade","aplicacao","imagem","fotos","preco","compravel","disponibilidade","faixa_disponibilidade","aviso","unidades","kit"]
+      required: ["id","codigo","nome","marca","grupo","marca_detalhe","unidade","aplicacao","imagem","fotos","preco","compravel","disponibilidade","faixa_disponibilidade","quantidade_disponivel","aviso","unidades","kit"]
       properties:
         id:
           type: "integer"
@@ -3782,6 +4470,9 @@ components:
           type: "string"
           enum: ["em_estoque","ultimas_unidades","indisponivel"]
           description: "Faixa informativa de estoque na unidade base. Em kits, considera a quantidade de kits completos pelos componentes. A regra de compra é refletida em compravel e disponibilidade."
+        quantidade_disponivel:
+          "$ref": "#/components/schemas/QuantidadeDisponivel"
+          description: "Saldo na unidade base. Em kits, a capacidade em kits inteiros é a do componente limitante. Nulo com o parâmetro desligado ou ausente."
         aviso:
           type: ["string","null"]
           description: >-
@@ -3792,7 +4483,7 @@ components:
           type: "array"
           items:
             type: "object"
-            required: ["id","nome","descricao","preco"]
+            required: ["id","nome","descricao","preco","quantidade_disponivel"]
             properties:
               id:
                 type: "string"
@@ -3804,6 +4495,9 @@ components:
                 "$ref": "#/components/schemas/PrecoUnitario"
               seu_preco:
                 "$ref": "#/components/schemas/SeuPreco"
+              quantidade_disponivel:
+                "$ref": "#/components/schemas/QuantidadeDisponivel"
+                description: "Saldo convertido para esta embalagem. Caixas e pacotes do tipo multiplicador contam embalagens inteiras. As unidades fracionadas seguem as casas de quantidade da venda, até quatro. Nulo com o parâmetro desligado ou ausente."
         kit:
           anyOf:
             - type: "array"
@@ -3823,7 +4517,11 @@ components:
     EnderecoEntrada:
       type: "object"
       additionalProperties: false
-      required: ["descricao","endereco","numero","cep","cidade_id","bairro_id","uf"]
+      required: ["descricao","numero","cep"]
+      if:
+        required: ["cidade_id"]
+      then:
+        required: ["endereco","bairro_id","uf"]
       properties:
         descricao:
           type: "string"
@@ -3854,6 +4552,130 @@ components:
         uf:
           type: "string"
           pattern: '^[A-Za-z]{2}$'
+    VersaoFichaCliente:
+      type: "string"
+      pattern: '^[a-f0-9]{64}$'
+      description: "Resumo opaco emitido pela API. Envie o mesmo valor ao gravar."
+    RevisaoAcessoCliente:
+      type: "integer"
+      minimum: 0
+      maximum: 2147483647
+    FichaClienteOperador:
+      type: "object"
+      required: ["id","documento","nome","fantasia","tipo_pessoa","ie_rg","email","telefone1","telefone2","telefone3","contato","endereco","acesso_liberado","revisao","versao","pode_alterar","pode_alterar_acesso","ie_travada"]
+      properties:
+        id: {type: "integer"}
+        tipo_pessoa: {type: ["string","null"], enum: ["fisica","juridica",null]}
+        documento: {type: "string", maxLength: 32}
+        nome: {type: "string", maxLength: 90}
+        fantasia: {type: "string", maxLength: 90}
+        ie_rg: {type: "string", maxLength: 26}
+        email: {type: "string", maxLength: 200}
+        telefone1: {type: "string", maxLength: 60}
+        telefone2: {type: "string", maxLength: 60}
+        telefone3: {type: "string", maxLength: 60}
+        contato: {type: "string", maxLength: 50}
+        endereco:
+          type: "object"
+          required: ["cep","logradouro","numero","complemento","bairro","cidade","uf","ibge"]
+          properties:
+            cep: {type: "string"}
+            logradouro: {type: "string"}
+            numero: {type: "string"}
+            complemento: {type: "string"}
+            bairro: {"$ref": "#/components/schemas/ReferenciaCep"}
+            cidade: {"$ref": "#/components/schemas/ReferenciaCep"}
+            uf: {type: "string"}
+            ibge: {type: ["string","null"]}
+        acesso_liberado: {type: "boolean"}
+        revisao:
+          description: "Nula quando faltam as colunas de controle de acesso."
+          anyOf:
+            - "$ref": "#/components/schemas/RevisaoAcessoCliente"
+            - {type: "null"}
+        versao: {"$ref": "#/components/schemas/VersaoFichaCliente"}
+        pode_alterar:
+          type: "boolean"
+          description: "O operador tem o acesso 00502."
+        pode_alterar_acesso:
+          type: "boolean"
+          description: "O operador tem 00502 e as colunas de controle existem."
+        ie_travada:
+          type: "boolean"
+          description: "Há documento fiscal emitido, a IE antiga é específica do cliente e o operador não tem 500085."
+    AlteracaoFichaClienteOperador:
+      type: "object"
+      additionalProperties: false
+      required: ["versao"]
+      description: "O documento aceita CPF, CNPJ numérico ou alfanumérico. A fantasia vazia é formada pelo nome. IE ou RG não pode ficar vazio. E-mail aceita um único endereço sem separadores."
+      properties:
+        versao: {"$ref": "#/components/schemas/VersaoFichaCliente"}
+        confirmar_documento_repetido:
+          type: "boolean"
+          description: "Envie true após confirmar que o outro cadastro tem IE ou RG diferente. Documento e IE ou RG iguais são sempre recusados."
+        documento: {type: ["string","null"], maxLength: 32}
+        nome: {type: ["string","null"], maxLength: 90}
+        fantasia: {type: ["string","null"], maxLength: 90}
+        ie_rg: {type: ["string","null"], maxLength: 26}
+        email: {type: ["string","null"], maxLength: 200}
+        telefone1: {type: ["string","null"], maxLength: 60}
+        telefone2: {type: ["string","null"], maxLength: 60}
+        telefone3: {type: ["string","null"], maxLength: 60}
+        contato: {type: ["string","null"], maxLength: 50}
+        endereco:
+          type: "object"
+          additionalProperties: false
+          description: "Se enviar CEP sem cidade_id, a API resolve as referências pelo serviço postal. Para CEP geral, selecione bairro_id e informe o logradouro se ausente. Para preencher manualmente, envie cidade_id, bairro_id e UF."
+          properties:
+            cep: {type: "string", pattern: '^[0-9]{5}-?[0-9]{3}$'}
+            logradouro: {type: ["string","null"], maxLength: 90}
+            numero: {type: ["string","null"], maxLength: 10}
+            complemento: {type: ["string","null"], maxLength: 60}
+            bairro_id: {type: ["integer","null"], minimum: 1, maximum: 2147483647}
+            cidade_id: {type: ["integer","null"], minimum: 1, maximum: 2147483647}
+            uf: {type: ["string","null"], pattern: '^[A-Za-z]{2}$'}
+    AlteracaoAcessoClienteOperador:
+      type: "object"
+      additionalProperties: false
+      required: ["liberado","revisao"]
+      properties:
+        liberado: {type: "boolean"}
+        revisao: {"$ref": "#/components/schemas/RevisaoAcessoCliente"}
+    AcessoClienteOperador:
+      type: "object"
+      required: ["acesso_liberado","revisao","versao"]
+      properties:
+        acesso_liberado: {type: "boolean"}
+        revisao: {"$ref": "#/components/schemas/RevisaoAcessoCliente"}
+        versao: {"$ref": "#/components/schemas/VersaoFichaCliente"}
+    EnderecoCep:
+      type: "object"
+      required: ["cep","logradouro","bairro","cidade","uf","ibge"]
+      properties:
+        cep:
+          type: "string"
+          pattern: '^[0-9]{8}$'
+        logradouro:
+          type: "string"
+        bairro:
+          "$ref": "#/components/schemas/ReferenciaCep"
+        cidade:
+          "$ref": "#/components/schemas/ReferenciaCep"
+        uf:
+          type: "string"
+          pattern: '^[A-Z]{2}$'
+        ibge:
+          type: "string"
+          pattern: '^[0-9]{7}$'
+    ReferenciaCep:
+      type: "object"
+      required: ["id","nome"]
+      properties:
+        id:
+          type: ["integer","null"]
+          minimum: 1
+        nome:
+          type: "string"
     HistoricoCompras:
       type: "object"
       required: ["inicio","fim","produtos"]
@@ -4119,7 +4941,7 @@ components:
           type: "array"
           items:
             type: "object"
-            required: ["produto_id","codigo","nome","unidade_id","unidade","kit","quantidade","preco_unitario","total","aviso","pendencia"]
+            required: ["produto_id","codigo","nome","unidade_id","unidade","kit","quantidade","quantidade_disponivel","preco_unitario","total","aviso","pendencia"]
             properties:
               produto_id:
                 type: "integer"
@@ -4135,6 +4957,9 @@ components:
                 type: "boolean"
               quantidade:
                 "$ref": "#/components/schemas/Quantidade"
+              quantidade_disponivel:
+                "$ref": "#/components/schemas/QuantidadeDisponivel"
+                description: "Disponível na unidade da linha, descontado o que as outras linhas do carrinho pedem do mesmo produto ou componente. Nulo com o parâmetro desligado ou ausente, ou se o produto ou a unidade não estiver no catálogo. L e A também informam o valor. A recusa por estoque em B informa o número na pendência quando disponível."
               preco_unitario:
                 anyOf:
                   -

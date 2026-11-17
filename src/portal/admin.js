@@ -9,11 +9,12 @@
 import {
   entrarOperador, sairOperador, consultarClienteOperador, buscarProdutosOperador, consultarPrecosOperador,
   listarPrecosCongelados, incluirPrecoCongelado, alterarPrecoCongelado, encerrarPrecoCongelado,
-  listarFotosOperador, obterFotoOperador, incluirFotoOperador, definirCapaOperador, ordenarFotosOperador, removerFotoOperador,
+  consultarFichaClienteOperador, consultarCepOperador, listarFotosOperador, obterFotoOperador, incluirFotoOperador, definirCapaOperador, ordenarFotosOperador, removerFotoOperador,
 } from '../api/g360.js';
 import { chamarPainel } from '../api/painel.js';
 import { pedirLink } from '../api/ponte.js';
 import { consultarCnpj } from './cadastro.js';
+import { abrirFichaG360 } from './fichag360.js';
 import { definirEncerramentoOperador, definirAtividadeOperador } from '../estado/sessao.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { dinheiro, numeroPainel, dataBr } from '../ui/formato.js';
@@ -773,12 +774,13 @@ function pintarCadastros() {
       <div class="sm sm2">${k.codigo_g360 ? esc(k.codigo_g360) : '<span style="color:var(--tx3)">—</span>'}</div>
       <div class="sm">${esc(k.cidade || '')}${k.uf ? `/${esc(k.uf)}` : ''}${k.codigo_g360 ? `<span class="som"> · cód. ${esc(k.codigo_g360)}</span>` : ''}</div>
       <div class="stw"><span class="stt ${k.status === 'recusado' ? 'reprovado' : esc(k.status)}">${SIT[k.status] || esc(k.status)}</span></div>
-      <div class="ab2">${k.status === 'pendente' ? '<button class="ap" data-d="aprovado">Aprovar</button><button class="rp" data-d="recusado">Reprovar</button>' : ''}<button data-lista ${k.codigo_g360 ? '' : 'disabled title="Coloque o código do G360 na ficha (Editar → Buscar dados)"'}>⭐ Minha Lista</button><button data-ed>Editar</button></div></div>`).join('')
+      <div class="ab2">${k.status === 'pendente' ? '<button class="ap" data-d="aprovado">Aprovar</button><button class="rp" data-d="recusado">Reprovar</button>' : ''}<button data-lista ${k.codigo_g360 ? '' : 'disabled title="Coloque o código do G360 na ficha (Editar → Buscar dados)"'}>⭐ Minha Lista</button>${k.codigo_g360 ? '<button data-g360>📋 Ficha G360</button>' : ''}<button data-ed>Editar</button></div></div>`).join('')
       : vazio(cadastros.length ? 'Nenhum cliente encontrado com essa busca.' : 'Nenhum cliente ainda. Clique em "+ Novo cliente" ou aguarde os pedidos de "Quero ser cliente".'))
     + '<div class="hint" style="padding:10px 18px">A ficha é do portal: preço, condições de pagamento, crédito e endereços de entrega continuam vindo do G360. Para o cliente entrar, ele precisa estar no G360 com "Acesso à API dos sistemas externos" marcado.</div>';
   alvo.querySelectorAll('.crow2[data-id] button').forEach((b) => b.addEventListener('click', async () => {
     const k = cadastros.find((x) => String(x.id) === b.closest('.crow2').dataset.id);
     if (b.hasAttribute('data-ed')) { abrirFicha(k); return; }
+    if (b.hasAttribute('data-g360')) { abrirFichaG360(k.codigo_g360, opcoesFichaG360()); return; }
     if (b.hasAttribute('data-lista')) { montarLista({ codigo: k.codigo_g360, nome: k.fantasia || k.razao_social }); return; }
     b.disabled = true;
     try { await painel('cadastro_decidir', { id: k.id, status: b.dataset.d, observacao: k.observacao_equipe || '' }); }
@@ -827,7 +829,7 @@ async function abrirFicha(k) {
     <div class="csec">Liberação (admin)</div>
     <div class="fgrid"><div><label for="kCod">Código do cliente no G360</label>${inp('kCod', d.codigo_g360 || '', 'inputmode="numeric" maxlength="9" placeholder="Vem pelo Buscar dados"')}</div>
       <div><label for="kSt">Situação</label><select class="inp" id="kSt">${Object.entries({ pendente: 'Aguardando aprovação', aprovado: 'Aprovado', recusado: 'Reprovado' }).map(([v, t]) => `<option value="${v}" ${v === d.status ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
-      <div class="full"><div class="okmsg" id="kG360M" aria-live="polite"></div></div>
+      <div class="full"><div class="okmsg" id="kG360M" aria-live="polite"></div><button type="button" class="btn sec" id="kAbrirG360" style="margin-top:6px" ${d.codigo_g360 ? '' : 'hidden'}>📋 Abrir ficha no G360 (alterar cadastro e liberar acesso)</button></div>
       <div class="full"><label for="kVend">Vendedor responsável</label><select class="inp" id="kVend"><option value="">—</option>${vendOpc.map((v) => `<option ${v === d.vendedor ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
         ${vend.length ? '' : '<div class="okmsg" style="color:var(--tx3)">Cadastre os vendedores em Configurações.</div>'}</div></div>
     <div class="ci2" style="display:block;margin-top:12px"><b>Formas de pagamento, preço e crédito</b><small>São configurados no cadastro do cliente no G360. O portal mostra para o cliente o que o G360 liberar.</small></div>
@@ -852,12 +854,11 @@ async function abrirFicha(k) {
     const c = soNum($('kCep').value).slice(0, 8); $('kCep').value = c;
     if (c.length !== 8) { $('kCepM').textContent = ''; return; }
     try {
-      const r = await fetch(`https://viacep.com.br/ws/${c}/json/`, { credentials: 'omit', referrerPolicy: 'no-referrer' });
-      const j = await r.json();
-      if (j.erro) { $('kCepM').className = 'okmsg bad'; $('kCepM').textContent = 'CEP não encontrado.'; return; }
-      pre('kLog', j.logradouro); pre('kBai', j.bairro); pre('kCid', j.localidade); if (j.uf && !$('kUf').value) $('kUf').value = j.uf;
+      // CEP pela API do G360 (operador), no lugar do ViaCEP.
+      const j = await consultarCepOperador(op.token, c);
+      pre('kLog', j.logradouro); pre('kBai', j.bairro?.nome); pre('kCid', j.cidade?.nome); if (j.uf && !$('kUf').value) $('kUf').value = j.uf;
       $('kCepM').className = 'okmsg'; $('kCepM').textContent = '✓ Endereço encontrado';
-    } catch { $('kCepM').textContent = ''; }
+    } catch (e) { $('kCepM').className = 'okmsg bad'; $('kCepM').textContent = e.message || 'Não foi possível consultar o CEP agora.'; }
   });
 
   $('kBusca').onclick = async () => {
@@ -875,6 +876,17 @@ async function abrirFicha(k) {
       g.textContent = cli.acesso_portal ? `✓ Cliente ${cli.codigo} no G360 (${cli.nome}) com acesso ao portal liberado.`
         : `Cliente ${cli.codigo} no G360 (${cli.nome}), mas falta marcar "Acesso à API dos sistemas externos" no G360. Sem isso ele não consegue entrar.`;
       pre('kRaz', cli.nome);
+      $('kAbrirG360').hidden = false;
+      // Dados do cadastro no G360 (endereço, e-mail, contato) antes da Receita.
+      try {
+        const fg = await consultarFichaClienteOperador(op.token, cli.codigo);
+        const en = fg.endereco || {};
+        pre('kRaz', fg.nome); pre('kFan', fg.fantasia); if (fg.ie_rg && /isento/i.test(fg.ie_rg)) $('kIsento').checked = true; else pre('kIE', fg.ie_rg);
+        pre('kEm', fg.email); pre('kResp', fg.contato); pre('kTel', soNum(fg.telefone1).slice(0, 11));
+        pre('kCep', soNum(en.cep)); pre('kLog', en.logradouro); pre('kNum', en.numero); pre('kCom', en.complemento);
+        pre('kBai', en.bairro?.nome); pre('kCid', en.cidade?.nome); if (en.uf && !$('kUf').value) $('kUf').value = en.uf;
+        g.textContent += ' Dados do cadastro do G360 preenchidos.';
+      } catch { /* sem a ficha (acesso 00500 ou base antiga): segue com a Receita */ }
     } else {
       const e = r360.reason;
       if (e?.status === 401) { encerrarOperador(e.message); return; }
@@ -894,6 +906,12 @@ async function abrirFicha(k) {
     } else { m.className = 'okmsg bad'; m.textContent = 'Consulta da Receita indisponível agora. Preencha manualmente.'; }
   };
 
+  $('kAbrirG360').onclick = () => {
+    const cod = Number($('kCod').value);
+    if (!cod) { toast('Busque os dados pelo CNPJ para achar o código do G360.'); return; }
+    abrirFichaG360(cod, { ...opcoesFichaG360(), aoVoltar: () => abrirFicha(k) });
+  };
+  $('kCod').addEventListener('input', () => { $('kAbrirG360').hidden = !$('kCod').value; });
   $('kLink').onclick = async () => {
     const c = docLimpo($('kCnpj').value);
     if (c.length < 11) { $('kLinkM').textContent = 'Digite o CNPJ primeiro.'; return; }
@@ -939,6 +957,10 @@ async function abrirFicha(k) {
       $('kE').textContent = e.message;
     }
   };
+}
+
+function opcoesFichaG360() {
+  return { token: () => op.token, aoSessaoEncerrada: (e) => encerrarOperador(e.message), aoMudar: () => { /* a ficha do portal não muda sozinha */ } };
 }
 
 /* ---------------- Preços congelados ---------------- */
@@ -1114,6 +1136,7 @@ async function desenharConfig() {
         <div class="row" style="margin-top:10px"><button class="btn pri" id="cfVendSalvar">Salvar vendedores</button><span class="hint" id="cfVendRes" style="margin:0 0 0 10px"></span></div></div>
       <div class="ci2" style="display:block"><b>Catálogo e margem</b>
         <label class="hint" style="display:flex;gap:8px;align-items:center;margin:10px 0 0;cursor:pointer"><input type="checkbox" id="cfEst" ${cfgLoja?.so_estoque ? 'checked' : ''} style="width:18px;height:18px;accent-color:var(--lima)"> Mostrar só produtos com estoque também na busca <span style="color:var(--tx3)">(a página inicial já mostra só os com estoque)</span></label>
+        <div class="row" style="margin-top:10px;align-items:center;gap:8px"><span class="hint" style="margin:0">Mostrar só produtos com mais de</span><div class="pin" style="width:110px"><input id="cfEstMin" inputmode="decimal" value="${esc(String(Number(cfgLoja?.estoque_minimo) || 0).replace('.', ','))}" style="text-align:right"><span>un.</span></div><span class="hint" style="margin:0">disponíveis (0 = todos com estoque). Vale no catálogo e na busca, quando o G360 manda a quantidade.</span></div>
         <div class="row" style="margin-top:10px;align-items:center;gap:8px"><span class="hint" style="margin:0">Margem mínima para alerta</span><div class="pin" style="width:110px"><input id="cfMg" inputmode="decimal" value="${esc(String(limiteMargem()).replace('.', ','))}" style="text-align:right"><span>%</span></div>
           <button class="btn pri" id="cfCatSalvar">Salvar</button><span class="hint" id="cfCatRes" style="margin:0 0 0 6px"></span></div>
         <small class="hint" style="display:block;margin:6px 0 0">A margem mínima vale para toda a equipe: alertas em Produtos, Margens e Negociações.</small></div>`;
@@ -1137,8 +1160,10 @@ async function desenharConfig() {
     $('cfCatSalvar').onclick = async () => {
       const m = Number($('cfMg').value.replace(',', '.'));
       if (!(m >= 0 && m <= 100)) { $('cfCatRes').textContent = 'Margem entre 0 e 100%.'; return; }
+      const em = Number($('cfEstMin').value.replace(',', '.'));
+      if (!(em >= 0 && em <= 100000)) { $('cfCatRes').textContent = 'Estoque mínimo inválido.'; return; }
       $('cfCatSalvar').disabled = true;
-      try { cfgLoja = (await painel('config_salvar', { so_estoque: $('cfEst').checked, margem_minima: m })).dados; limiteMem = Number(cfgLoja.margem_minima); $('cfCatRes').textContent = 'Salvo ✓ — vale para o portal na próxima abertura'; }
+      try { cfgLoja = (await painel('config_salvar', { so_estoque: $('cfEst').checked, margem_minima: m, estoque_minimo: em })).dados; limiteMem = Number(cfgLoja.margem_minima); $('cfCatRes').textContent = 'Salvo ✓ — vale para o portal na próxima abertura'; }
       catch (e) { $('cfCatRes').textContent = e.message; } finally { $('cfCatSalvar').disabled = false; }
     };
     $('cfVendSalvar').onclick = async () => {

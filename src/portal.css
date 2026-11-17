@@ -151,3 +151,7 @@ body.g360-painel #souzinha-widget, body.g360:not(.g360-legado) #souzinha-widget 
 .negit .negv span { display: block; font-size: 11px; color: var(--tx2); margin-bottom: 3px; }
 .negit .negv input { width: 100%; }
 @media (max-width: 520px) { .negit { grid-template-columns: 1fr; } }
+
+/* Quantidade disponível (API). */
+.stk.disp { color: var(--lima); font-weight: 600; }
+.stk.disp.out { color: #ff8a8a; }

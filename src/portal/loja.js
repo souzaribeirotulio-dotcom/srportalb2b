@@ -6,7 +6,7 @@
    ===================================================================== */
 import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
-import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva, oculto, soEstoque } from '../catalogo/exibicao.js';
+import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo } from '../catalogo/exibicao.js';
 import { LOJA } from '../api/supabase.js';
 import { buscarLocal, temEstoque, variacoes } from '../catalogo/busca.js';
 import { listarProdutos, buscarProdutos, listarMarcas } from '../api/g360.js';
@@ -26,6 +26,7 @@ import { desenharMinhaLista } from './lista.js';
 import { desenharPedidos } from './pedidos.js';
 import { desenharClips, ligarClips, pausarClips, carregarClips, clipDoProduto } from './clips.js';
 import { abrirNegociacao, desenharMinhasNegociacoes } from './negociacao.js';
+import { htmlDisponivel, conferir, somar } from './estoque.js';
 import { abrirCadastro } from './cadastro.js';
 
 const filtros = { q: '', grupo: '', marca: '', pagina: 1 };
@@ -251,7 +252,7 @@ async function resultadoVitrine() {
     vitrine.apiPagina = pagina; lidas += 1;
     vitrine.apiPaginas = Math.max(1, Math.ceil((paginacao?.total || 0) / 50));
     if (!filtros.grupo && !filtros.marca && pagina === 1) contarComEstoque(Number(paginacao?.total || 0));
-    vitrine.itens.push(...dados.map(apresentar).filter((p) => temEstoque(p) && !oculto(p)));
+    vitrine.itens.push(...dados.map(apresentar).filter((p) => temEstoque(p) && !oculto(p) && !abaixoDoMinimo(p)));
     if (pagina >= vitrine.apiPaginas) {
       if (vitrine.bloco + 1 < blocos.length) { vitrine.bloco += 1; vitrine.apiPagina = 0; } else vitrine.fim = true;
     }
@@ -288,7 +289,7 @@ async function contarComEstoque(totalCatalogo) {
       const pagina = proxima++;
       try {
         const { dados } = await listarProdutos(token, { pagina, limite: 50 });
-        n += dados.map(apresentar).filter((p) => temEstoque(p) && !oculto(p)).length;
+        n += dados.map(apresentar).filter((p) => temEstoque(p) && !oculto(p) && !abaixoDoMinimo(p)).length;
       } catch { falhou = true; return; }
       feitas += 1;
       if (sessao.token === token && feitas < paginas) mostrar(`${n.toLocaleString('pt-BR')}…`, `Contando estoque ${Math.round((feitas / paginas) * 100)}%`);
@@ -324,7 +325,7 @@ async function resultadoBusca() {
         .forEach((p) => { if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); if (!pontos.has(String(p.codigo))) pontos.set(String(p.codigo), 100); } });
     } catch (e) { if (!achados.size) throw e; }
     // Ordem: com estoque primeiro; entre os que batem com a busca, os mais vendidos (curva A, B, C); depois a relevância.
-    const todos = [...achados.values()].filter((p) => !oculto(p) && (!soEstoque() || temEstoque(p))).sort((a, b) => (temEstoque(b) - temEstoque(a)) || (pesoCurva(a) - pesoCurva(b))
+    const todos = [...achados.values()].filter((p) => !oculto(p) && !abaixoDoMinimo(p) && (!soEstoque() || temEstoque(p))).sort((a, b) => (temEstoque(b) - temEstoque(a)) || (pesoCurva(a) - pesoCurva(b))
       || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
     busca = { chave, itens: todos, semEstoque: todos.filter((p) => !temEstoque(p)).length, ordem: '' };
     registrarBusca(filtros.q, todos.length);
@@ -443,14 +444,21 @@ async function cliqueCartao(e) {
     card.dataset.un = un.dataset.un;
     card.querySelectorAll('.unsel button').forEach((b) => b.classList.toggle('on', b === un));
     card.querySelector('.price').innerHTML = htmlPreco(unidadeEscolhida(p, un.dataset.un));
+    card.querySelector('.dispw').innerHTML = htmlDisponivel(p, un.dataset.un);
     return;
   }
   const d = e.target.closest('[data-d]');
-  if (d) { const i = card.querySelector('.qty input'); i.value = passoQuantidade(i.value, Number(d.dataset.d)); return; }
+  if (d) {
+    const i = card.querySelector('.qty input');
+    const r = somar(p, card.dataset.un, normalizarQuantidade(i.value) || '1', normalizarQuantidade(passoQuantidade(i.value, Number(d.dataset.d))) || '1');
+    i.value = String(r.valor).replace('.', ','); if (r.msg) toast(r.msg);
+    return;
+  }
   if (e.target.closest('.add')) {
     const campo = card.querySelector('.qty input');
     const q = normalizarQuantidade(campo.value);
     if (!q) { toast('Quantidade inválida: use um número maior que zero, com até 4 casas depois da vírgula.'); campo.focus(); return; }
+    const semSaldo = conferir(p, card.dataset.un, q); if (semSaldo) { toast(semSaldo); campo.focus(); return; }
     const r = adicionar(linhaCarrinho(p, card.dataset.un, q));
     if (r === 'limite') { toast('O carrinho aceita até 100 linhas. Envie este pedido ou remova itens.'); return; }
     campo.value = '1';
@@ -507,6 +515,14 @@ function desenharCarrinho() {
   ligarFotos($('dBody'));
 }
 
+/** No carrinho: com a loja bloqueando venda sem estoque, a linha não passa do disponível guardado ao adicionar. */
+function limiteLinha(pid, uni, q) {
+  if (sessao.loja?.bloqueia_sem_estoque !== true) return null;
+  const l = linhasCarrinho().find((x) => Number(x.produto_id) === pid && String(x.unidade ?? '') === String(uni || ''));
+  if (!l || l.disponivel === null || l.disponivel === undefined) return null;
+  return Number(q) > Number(l.disponivel) ? `Só há ${String(l.disponivel).replace('.', ',')} ${String(l.unidadeNome || '').toUpperCase()} disponíveis.` : null;
+}
+
 function cliqueCarrinho(e) {
   const r = e.target.closest('.ci'); if (!r) return;
   const [pid, uni] = r.dataset.k.split('|');
@@ -516,7 +532,9 @@ function cliqueCarrinho(e) {
     const i = r.querySelector('.qty input');
     const novo = passoQuantidade(i.value, Number(d.dataset.d));
     if (Number(d.dataset.d) < 0 && i.value.replace(',', '.') === '1') { remover(Number(pid), uni || null); return; }
-    const q = normalizarQuantidade(novo); if (q) alterarQuantidade(Number(pid), uni || null, q);
+    const q = normalizarQuantidade(novo); if (!q) return;
+    const msg = limiteLinha(Number(pid), uni, q); if (msg) { toast(msg); return; }
+    alterarQuantidade(Number(pid), uni || null, q);
   }
 }
 function mudancaCarrinho(e) {
@@ -524,6 +542,7 @@ function mudancaCarrinho(e) {
   const [pid, uni] = r.dataset.k.split('|');
   const q = normalizarQuantidade(e.target.value);
   if (!q) { toast('Quantidade inválida: use um número maior que zero.'); desenharCarrinho(); return; }
+  const msg = limiteLinha(Number(pid), uni, q); if (msg) { toast(msg); desenharCarrinho(); return; }
   alterarQuantidade(Number(pid), uni || null, q);
 }
 

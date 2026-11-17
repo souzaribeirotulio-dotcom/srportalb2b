@@ -179,9 +179,9 @@ async function executar(acao: string, d: Record<string, unknown>): Promise<[numb
     return [200, { ok: true }];
   }
   if (acao === "config_ler") {
-    const { data, error } = await admin.from("portal_config").select("so_estoque, margem_minima").eq("loja", loja).maybeSingle();
+    const { data, error } = await admin.from("portal_config").select("so_estoque, margem_minima, estoque_minimo").eq("loja", loja).maybeSingle();
     if (error) throw error;
-    return [200, { dados: data ?? { so_estoque: false, margem_minima: 15 } }];
+    return [200, { dados: data ?? { so_estoque: false, margem_minima: 15, estoque_minimo: 0 } }];
   }
   if (acao === "config_salvar") {
     const linha: Record<string, unknown> = { loja, atualizado_em: new Date().toISOString() };
@@ -191,7 +191,12 @@ async function executar(acao: string, d: Record<string, unknown>): Promise<[numb
       if (!(m >= 0 && m <= 100)) return [400, { mensagem: "Margem mínima entre 0 e 100%." }];
       linha.margem_minima = Math.round(m * 100) / 100;
     }
-    const { data, error } = await admin.from("portal_config").upsert(linha, { onConflict: "loja" }).select("so_estoque, margem_minima");
+    if ("estoque_minimo" in d) {
+      const e = Number(d.estoque_minimo);
+      if (!(e >= 0 && e <= 100000)) return [400, { mensagem: "Estoque mínimo entre 0 e 100.000." }];
+      linha.estoque_minimo = e;
+    }
+    const { data, error } = await admin.from("portal_config").upsert(linha, { onConflict: "loja" }).select("so_estoque, margem_minima, estoque_minimo");
     if (error) throw error;
     return [200, { dados: data?.[0] }];
   }

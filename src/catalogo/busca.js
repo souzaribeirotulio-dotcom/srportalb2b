@@ -141,5 +141,7 @@ function buscarUma(consulta, { categoria = '', max = 150 } = {}) {
 
 /** Tem estoque para vender agora (prioridade na vitrine e na busca). */
 export function temEstoque(p) {
-  return p?.compravel === true && p?.disponibilidade === 'disponivel';
+  if (p?.compravel !== true || p?.disponibilidade !== 'disponivel') return false;
+  // Com a quantidade ligada no G360, "0" = acabou.
+  return p.quantidade_disponivel === null || p.quantidade_disponivel === undefined || Number(p.quantidade_disponivel) > 0;
 }

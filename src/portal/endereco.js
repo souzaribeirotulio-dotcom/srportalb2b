@@ -1,13 +1,14 @@
 /* =====================================================================
    Cadastro de endereço de entrega (POST enderecos), em passos simples:
-   1. CEP: preenche rua, bairro, cidade e UF pelo ViaCEP (consulta pública,
-      só o CEP vai para lá) e já procura cidade e bairro no G360.
-   2. Cidade e bairro: busca enquanto digita (GET enderecos/referencias),
-      com escolha por toque. Se o CEP achou um nome igual, já vem escolhido.
-   3. Rua, número, complemento e nome do endereço.
-   Os códigos de cidade e bairro vêm sempre do G360; nada é inventado.
+   1. CEP: GET enderecos/cep/{cep} devolve rua, bairro, cidade e UF já com os
+      códigos do G360. Pelo CEP, grava-se sem cidade_id: a API resolve cidade e
+      bairro (e cadastra o bairro que faltar).
+   2. CEP geral da cidade (sem bairro/rua): o comprador escolhe o bairro na lista
+      do G360 (GET enderecos/referencias) e digita a rua.
+   3. CEP fora do ar ou não encontrado: preenchimento manual escolhendo cidade e
+      bairro nas referências (envia cidade_id, bairro_id, UF e rua).
    ===================================================================== */
-import { buscarReferenciasEndereco, incluirEndereco } from '../api/g360.js';
+import { buscarReferenciasEndereco, incluirEndereco, consultarEnderecoCep } from '../api/g360.js';
 import { sessao } from '../estado/sessao.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { esc, adiar } from './comum.js';
@@ -20,6 +21,7 @@ const sem = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLo
  */
 export function formularioEndereco(alvo, { aoSalvar, aoCancelar }) {
   const escolha = { cidade: null, bairro: null };
+  let pelCep = null; // resposta de GET enderecos/cep quando o CEP foi encontrado
   alvo.innerHTML = `<div class="end-form" role="group" aria-labelledby="eTit">
     <h4 id="eTit">Novo endereço de entrega</h4>
     <p class="passo">Comece pelo CEP: o resto vem preenchido. Confira e salve.</p>
@@ -35,11 +37,12 @@ export function formularioEndereco(alvo, { aoSalvar, aoCancelar }) {
     <label for="eComp">Complemento <span style="text-transform:none;font-weight:400">(opcional)</span></label>
     <input class="inp" id="eComp" maxlength="60" placeholder="Sala, galpão, bloco…">
 
-    <div class="grade3">
+    <div id="eCepCidade" class="status-cep" hidden></div>
+    <div class="grade3" id="eManualCid">
       <div><label for="eCidQ">Cidade</label><div id="eCidBox"></div><div class="campo-erro" id="eCidErr"></div></div>
       <div><label for="eUf">UF</label><select class="inp" id="eUf">${UFS.map((u) => `<option ${u === 'MG' ? 'selected' : ''}>${u}</option>`).join('')}</select></div>
     </div>
-    <label for="eBaiQ">Bairro</label><div id="eBaiBox"></div><div class="campo-erro" id="eBaiErr"></div>
+    <div id="eBaiWrap"><label for="eBaiQ">Bairro</label><div id="eBaiBox"></div><div class="campo-erro" id="eBaiErr"></div></div>
 
     <label for="eDesc">Nome deste endereço</label>
     <input class="inp" id="eDesc" maxlength="50" placeholder="Ex.: Depósito, Filial Centro"><div class="campo-erro" id="eDescErr"></div>
@@ -69,7 +72,7 @@ export function formularioEndereco(alvo, { aoSalvar, aoCancelar }) {
         if (q.length < 2) { lista.innerHTML = ''; return; }
         lista.innerHTML = '<li style="padding:8px 10px;color:var(--tx3);font-size:13px">Buscando…</li>';
         try {
-          const r = await buscarReferenciasEndereco(sessao.token, tipo, semAcento(q).slice(0, 70), tipo === 'cidade' ? $('eUf').value : undefined);
+          const r = await buscarReferenciasEndereco(sessao.token, tipo, q.slice(0, 70), tipo === 'cidade' ? $('eUf').value : undefined);
           if (entrada.value.trim() !== q) return;
           lista.innerHTML = r.length ? r.map((x) => `<li><button type="button" role="option" data-id="${Number(x.id)}" data-nome="${esc(x.nome)}">${esc(x.nome)}</button></li>`).join('')
             : `<li style="padding:8px 10px;color:var(--tx3);font-size:13px">Nada encontrado. Confira ${tipo === 'cidade' ? 'o nome e a UF' : 'o nome do bairro'}.</li>`;
@@ -88,59 +91,65 @@ export function formularioEndereco(alvo, { aoSalvar, aoCancelar }) {
   cidade.desenhar(); bairro.desenhar();
   $('eUf').addEventListener('change', () => { escolha.cidade = null; cidade.desenhar(); });
 
-  /** Procura pelo nome do ViaCEP (sem acento). Um resultado: escolhe. Vários: escolhe o de nome igual; dá para trocar. */
-  async function autoEscolher(tipo, nome, uf) {
-    const campo = tipo === 'cidade' ? cidade : bairro;
-    try {
-      const r = await buscarReferenciasEndereco(sessao.token, tipo, semAcento(nome).slice(0, 70), tipo === 'cidade' ? uf : undefined);
-      const escolhido = r.length === 1 ? r[0] : r.find((x) => sem(x.nome) === sem(nome));
-      if (escolhido) { escolha[tipo] = { id: Number(escolhido.id), nome: escolhido.nome }; campo.desenhar(); return; }
-    } catch { /* a busca manual abaixo mostra a mensagem da API */ }
-    campo.preencher(nome);
+  /** Mostra os campos do modo: pelo CEP (cidade fixa, bairro só se o CEP for geral) ou manual. */
+  function modo(m) {
+    const manual = m === 'manual';
+    $('eManualCid').hidden = !manual;
+    $('eCepCidade').hidden = manual || !pelCep;
+    $('eBaiWrap').hidden = !manual && !!pelCep?.bairro?.nome;
   }
 
-  /* ---- CEP ---- */
+  /* ---- CEP (pela API do G360) ---- */
   const cep = $('eCep');
+  let consulta = 0;
   cep.addEventListener('input', async () => {
     const d = cep.value.replace(/\D/g, '').slice(0, 8);
     cep.value = d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
     erro('eCep', '');
+    pelCep = null; escolha.bairro = null; bairro.desenhar(); modo('manual');
     if (d.length !== 8) { $('eCepSt').textContent = ''; return; }
+    const minha = ++consulta;
     $('eCepSt').textContent = 'Procurando o CEP…';
     try {
-      const r = await fetch(`https://viacep.com.br/ws/${d}/json/`, { credentials: 'omit', referrerPolicy: 'no-referrer' });
-      const j = await r.json();
-      if (!r.ok || j.erro) { $('eCepSt').textContent = 'CEP não encontrado. Preencha os campos abaixo.'; return; }
-      if (j.logradouro && !$('eRua').value) $('eRua').value = j.logradouro;
-      if (j.uf) $('eUf').value = j.uf;
-      $('eCepSt').textContent = `${j.localidade || ''}${j.uf ? ` · ${j.uf}` : ''}`;
-      escolha.cidade = null; escolha.bairro = null;
-      if (j.localidade) await autoEscolher('cidade', j.localidade, j.uf);
-      if (j.bairro) await autoEscolher('bairro', j.bairro);
-      else bairro.desenhar();
+      const r = await consultarEnderecoCep(sessao.token, d);
+      if (minha !== consulta) return;
+      pelCep = r;
+      if (r.logradouro) $('eRua').value = r.logradouro;
+      $('eCepSt').textContent = '';
+      $('eCepCidade').innerHTML = `<b>${esc(r.cidade?.nome || '')}${r.uf ? ` · ${esc(r.uf)}` : ''}</b>${r.bairro?.nome ? ` — bairro ${esc(r.bairro.nome)}` : ''}`;
+      if (!r.bairro?.nome) $('eCepSt').textContent = 'Este CEP atende à cidade inteira: escolha o bairro e digite a rua.';
+      modo('cep');
       ($('eRua').value ? $('eNum') : $('eRua')).focus();
-    } catch {
-      $('eCepSt').textContent = 'Não deu para consultar o CEP agora. Preencha os campos abaixo.';
+    } catch (e) {
+      if (minha !== consulta) return;
+      pelCep = null; modo('manual');
+      // CEP_NAO_ENCONTRADO / CEP_INDISPONIVEL: mensagem da API e preenchimento manual pelas referências.
+      $('eCepSt').innerHTML = `${esc(e?.message || 'Não deu para consultar o CEP agora.')} Preencha cidade e bairro abaixo.`;
     }
   });
+  modo('manual');
 
   /* ---- salvar ---- */
   $('eCancelar').onclick = () => aoCancelar();
   $('eSalvar').onclick = async () => {
     ['eCep', 'eRua', 'eNum', 'eCid', 'eBai', 'eDesc'].forEach((i) => erro(i, ''));
     $('eRes').innerHTML = '';
-    const corpo = {
-      descricao: $('eDesc').value.trim(), endereco: $('eRua').value.trim(), numero: $('eNum').value.trim(),
-      cep: cep.value.trim(), uf: $('eUf').value, cidade_id: escolha.cidade?.id, bairro_id: escolha.bairro?.id,
-    };
+    const corpo = { descricao: $('eDesc').value.trim(), numero: $('eNum').value.trim(), cep: cep.value.trim() };
+    const rua = $('eRua').value.trim(); if (rua) corpo.endereco = rua;
     const comp = $('eComp').value.trim(); if (comp) corpo.complemento = comp;
     let primeiro = null;
     const falta = (id, msg) => { erro(id, msg); if (!primeiro) primeiro = id; };
     if (!/^[0-9]{5}-?[0-9]{3}$/.test(corpo.cep)) falta('eCep', 'Digite o CEP com 8 números.');
-    if (!corpo.endereco) falta('eRua', 'Digite a rua ou avenida.');
+    if (!rua) falta('eRua', 'Digite a rua ou avenida.');
     if (!corpo.numero) falta('eNum', 'Digite o número (ou S/N).');
-    if (!corpo.cidade_id) falta('eCid', 'Busque e toque na cidade.');
-    if (!corpo.bairro_id) falta('eBai', 'Busque e toque no bairro.');
+    if (pelCep) {
+      // Pelo CEP: sem cidade_id; no CEP geral, o bairro escolhido na lista.
+      if (!pelCep.bairro?.nome) { if (!escolha.bairro) falta('eBai', 'Busque e toque no bairro.'); else corpo.bairro_id = escolha.bairro.id; }
+    } else {
+      if (!escolha.cidade) falta('eCid', 'Busque e toque na cidade.');
+      if (!escolha.bairro) falta('eBai', 'Busque e toque no bairro.');
+      Object.assign(corpo, { cidade_id: escolha.cidade?.id, bairro_id: escolha.bairro?.id, uf: $('eUf').value });
+    }
     if (!corpo.descricao) falta('eDesc', 'Dê um nome para reconhecer este endereço.');
     if (primeiro) { (alvo.querySelector(`#${primeiro}`) || alvo.querySelector(`#${primeiro}Q`) || alvo.querySelector(`#${primeiro}Err`))?.focus?.(); return; }
     const b = $('eSalvar'); b.disabled = true; b.textContent = 'Salvando…';

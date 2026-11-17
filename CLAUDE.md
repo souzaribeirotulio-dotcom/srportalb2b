@@ -110,6 +110,10 @@ Para as fotos, decida pela lista `fotos[]`. Se ela vier vazia, mostre um espaço
 
 O botão de comprar depende de `compravel` e de `disponibilidade` (`disponivel`, `sob_consulta` ou `indisponivel`). A `faixa_disponibilidade` (`em_estoque`, `ultimas_unidades`, `indisponivel`) é só informativa. Mostre o `aviso` quando vier.
 
+No card e na página do produto, mostre **Disponível: N** quando `quantidade_disponivel` vier preenchido. Use o valor do produto para a unidade base e o valor do item de `unidades[]` para a embalagem escolhida. O texto `"0"` conta como preenchido. Com `null`, mostre só a faixa. Quando `loja.bloqueia_sem_estoque` vier verdadeiro, pare o botão de somar no disponível da embalagem, contando o que já está no carrinho. Com o campo nulo, deixe a conferência para a revisão. Nas outras políticas, use o número só como informação.
+
+No carrinho, mostre a `pendencia` ou o `aviso` de cada linha retornada por `POST revisoes`. Use o disponível da revisão para essa linha, pois ele já desconta as outras linhas que pedem o mesmo produto. Por exemplo, **Quantidade maior que a disponível. Disponível: 2 CX.**
+
 Na paginação, `pagina` começa em 1 e `limite` vai até 50 (o padrão é 20). `paginacao.total` é o número de registros, e o de páginas é esse total dividido pelo limite, arredondado para cima. O filtro `ids` também pagina. Para a Minha Lista e a recompra, use `limite=50` e percorra todas as páginas antes de concluir que um produto saiu do catálogo. Se saiu, mostre o item como "indisponível no momento", sem preço, com opção de remover.
 
 Datas vêm como `AAAA-MM-DD`, e os horários de expiração, em UTC.
@@ -156,7 +160,7 @@ As chamadas, na ordem:
 3. Catálogo com `GET produtos`, usando `q` (texto da busca), `grupo`, `marca`, `codigos`, `ids`, `termos[]`, `pagina` e `limite`, ou com `POST produtos/busca` para listas longas. `GET grupos` e `GET marcas` alimentam os filtros.
 4. Para a Minha Lista e a recompra, pegue os `produto_id` no Supabase ou em `GET historico-compras` e consulte preço e disponibilidade do momento pelo filtro `ids` (até 500 por consulta, paginado como na seção 6). Preço guardado nunca vai para a tela.
 5. A tabela da Minha Lista do exemplo deixa incluir, ler e remover, mas não alterar. Inclua com `insert` e trate a duplicidade como "já está na lista". Um `upsert` comum tenta alterar, e a regra de acesso recusa.
-6. `GET opcoes` traz as modalidades (`entrega` e `retirada`), os endereços e as condições de pagamento. Para incluir endereço, ache bairro e cidade com `GET enderecos/referencias` e grave com `POST enderecos`.
+6. `GET opcoes` traz as modalidades (`entrega` e `retirada`), os endereços e as condições de pagamento. Para incluir endereço, comece pelo CEP. Chame `GET enderecos/cep/{cep}` com a sessão do comprador e use o retorno para preencher logradouro, bairro, cidade e UF. Peça descrição, número e complemento. Grave com `POST enderecos` sem mandar `cidade_id` no fluxo pelo CEP. A API confere o CEP e cadastra o bairro quando o serviço postal informar o nome. Se vier CEP geral, peça o logradouro e o `bairro_id` de `GET enderecos/referencias`. Se a consulta falhar, mostre a mensagem e permita preencher com as referências do G360, enviando cidade, bairro, UF e logradouro. Remova a consulta direta ao ViaCEP do formulário.
 7. `POST revisoes` recebe os itens, a modalidade, o endereço, a condição e a observação. Mesmo quando o HTTP é 200, olhe `dados.pode_enviar`. Mostre `dados.pendencias`, e a `pendencia` de cada item junto do item. Com `pode_enviar` falso, o botão de enviar fica desligado até o comprador resolver e revisar de novo.
 8. No resumo da revisão entram os itens com o preço da API, o subtotal, o frete (`frete.situacao`: `definido`, `gratis`, `a_combinar` ou `nao_aplicavel`), a taxa de pagamento, o total, as parcelas e a situação de crédito.
 9. `POST pedidos` leva o mesmo carrinho, a `assinatura` da última revisão e o cabeçalho `Idempotency-Key` (seção 9).
@@ -220,6 +224,16 @@ A primeira é a sessão da API: `POST operadores/sessoes` com o usuário e a sen
 A segunda é a sessão do Supabase, usada só para ler as ocorrências. A ponte não cria essa conta. Quem cria é o administrador do Supabase da Souza Ribeiro, em Authentication > Users, gravando depois no `app_metadata` dela o `g360_painel_loja` com o slug da loja, pelo SQL Editor. Prepare o comando SQL pronto para a pessoa, com o e-mail da conta como `<preencha>`. O painel entra com `signInWithPassword`, num cliente do Supabase com `storageKey` próprio, para não derrubar a sessão de um comprador aberta no mesmo navegador. A chave secreta do Supabase não entra no site nem para isso.
 
 O painel faz consulta de cliente por CNPJ, busca de produtos com preço, custo e margem, a galeria de fotos e o preço congelado. Os acessos que cada operação exige estão no `primeiros-passos.md`. Faltando acesso, a API responde `OPERADOR_SEM_ACESSO` com a mensagem certa, e é ela que vai para a tela. Custo e margem só aparecem com `custo_visivel` verdadeiro; não esconda nem calcule por conta própria. Diferente do catálogo do comprador, aqui o `preco` de `POST operadores/produtos/precos` é o da tabela, e o valor negociado vigente vem à parte, em `preco_congelado`. As fotos sobem uma de cada vez, em JPEG de até 2 MB, como data URL, com no máximo 12 por produto.
+
+### Cadastro e primeiro acesso do cliente
+
+Na consulta por CNPJ, coloque um botão para abrir a ficha pelo `codigo` que a API devolver. Chame `GET operadores/clientes/{cliente}` com o token do operador. Mostre a ficha e marque documento, nome, IE ou RG, CEP, logradouro, número, bairro e cidade. Use `pode_alterar` para habilitar a edição, `ie_travada` para deixar a IE só para leitura e `pode_alterar_acesso` para exibir os botões de liberar e bloquear. A API confere os acessos de novo ao gravar.
+
+Prefira a consulta por `GET operadores/enderecos/cep/{cep}` para preencher o endereço. No CEP geral, peça o logradouro e deixe escolher bairro em `GET operadores/enderecos/referencias`. Se precisar preencher manualmente, escolha cidade e bairro nas referências e envie os IDs e a UF. Ao gravar pelo CEP, omita `cidade_id` e deixe a API resolver as referências.
+
+Ao salvar, chame `PUT operadores/clientes/{cliente}` com a `versao` da ficha e os campos que mudaram. Nas recusas, mostre `erro.mensagem` e os detalhes dos campos. Em `DOCUMENTO_REPETIDO`, peça confirmação antes de reenviar com `confirmar_documento_repetido: true`. Em `CADASTRO_ALTERADO`, recarregue a ficha e peça para conferir antes de tentar de novo.
+
+Os botões de acesso chamam `PUT operadores/clientes/{cliente}/acesso` com `liberado` e a `revisao`. Atualize a ficha após gravar. O botão de bloquear avisa que sessões e links serão invalidados. Depois de corrigir o e-mail e liberar o acesso, gere o link de primeiro acesso pelo fluxo já usado. Se o e-mail mudou, gere outro link mesmo que já houvesse um pendente.
 
 ## 12. CORS e endereços do portal
 

@@ -286,6 +286,11 @@ export async function buscarReferenciasEndereco(token, tipo, q, uf) {
   return (await requisitar('GET', 'enderecos/referencias', { token, consulta: { tipo, q, uf } })).dados;
 }
 
+/** GET enderecos/cep/{cep} — consultarEnderecoCep (logradouro, bairro, cidade e UF com os códigos do G360). */
+export async function consultarEnderecoCep(token, cep) {
+  return (await requisitar('GET', 'enderecos/cep/{cep}', { token, parametros: { cep } })).dados;
+}
+
 /** POST enderecos — incluirEndereco. */
 export async function incluirEndereco(token, endereco) {
   return (await requisitar('POST', 'enderecos', { token, corpo: endereco })).dados;
@@ -341,6 +346,24 @@ export async function sairOperador(token) { await requisitar('DELETE', 'operador
 /** POST operadores/clientes/consulta — { codigo, nome, acesso_portal, segmento }. */
 export async function consultarClienteOperador(token, cnpj) {
   return (await requisitar('POST', 'operadores/clientes/consulta', { token, corpo: { cnpj } })).dados;
+}
+
+/** Ficha do cliente no G360 (operador): consultar, alterar, liberar/bloquear acesso. */
+export async function consultarFichaClienteOperador(token, cliente) {
+  return (await requisitar('GET', 'operadores/clientes/{cliente}', { token, parametros: { cliente } })).dados;
+}
+export async function alterarFichaClienteOperador(token, cliente, corpo) {
+  return (await requisitar('PUT', 'operadores/clientes/{cliente}', { token, parametros: { cliente }, corpo })).dados;
+}
+export async function alterarAcessoClienteOperador(token, cliente, liberado, revisao) {
+  return (await requisitar('PUT', 'operadores/clientes/{cliente}/acesso', { token, parametros: { cliente }, corpo: { liberado, revisao } })).dados;
+}
+/** GET operadores/enderecos/cep/{cep} e GET operadores/enderecos/referencias (ficha do cliente). */
+export async function consultarCepOperador(token, cep) {
+  return (await requisitar('GET', 'operadores/enderecos/cep/{cep}', { token, parametros: { cep } })).dados;
+}
+export async function buscarReferenciasOperador(token, tipo, q, uf) {
+  return (await requisitar('GET', 'operadores/enderecos/referencias', { token, consulta: { tipo, q, uf } })).dados;
 }
 
 /** POST operadores/produtos/busca — { dados, paginacao } com preço, custo e margem. */

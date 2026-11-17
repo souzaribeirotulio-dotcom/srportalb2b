@@ -20,12 +20,12 @@ def produto(i, **k):
          'grupo': {'codigo': 1 if i % 3 else 2, 'nome': 'Grupo Um' if i % 3 else 'Grupo Dois'},
          'marca_detalhe': {'codigo': 10 if i % 2 else 20, 'nome': 'Marca Exemplo' if i % 2 else 'Outra Marca'},
          'unidade': 'UN', 'aplicacao': None, 'imagem': None, 'fotos': [], 'preco': f'{10 + i % 7}.50', 'seu_preco': None,
-         'compravel': True, 'disponibilidade': 'disponivel', 'faixa_disponibilidade': 'em_estoque', 'aviso': None, 'unidades': [], 'kit': None}
+         'compravel': True, 'disponibilidade': 'disponivel', 'faixa_disponibilidade': 'em_estoque', 'aviso': None, 'unidades': [], 'kit': None, 'quantidade_disponivel': None}
     p.update(k); return p
 
 class Sim:
     def __init__(self, sessao_minutos=8, troca_senha=True):
-        self.loja = {'nome': 'Loja Exemplo Fictícia', 'troca_senha': troca_senha, 'sessao_minutos': sessao_minutos, 'imagens': None, 'pedido_minimo': '150.00'}
+        self.loja = {'nome': 'Loja Exemplo Fictícia', 'troca_senha': troca_senha, 'sessao_minutos': sessao_minutos, 'imagens': None, 'pedido_minimo': '150.00', 'bloqueia_sem_estoque': True}
         self.vitrine_aberta = True; self.vitrine_chamadas = []
         self.compradores = {
             '11.111.111/0001-11': {'senha': 'Teste12', 'codigo': 1165, 'nome': 'Comprador Fictício Um LTDA', 'fantasia': 'Fictício Um', 'bloq': False},
@@ -34,7 +34,8 @@ class Sim:
         }
         self.produtos = [produto(i) for i in range(101, 146)]
         P = {p['id']: p for p in self.produtos}
-        P[101].update(preco='11.50', seu_preco='11.50', unidades=[{'id': 'CX12', 'nome': 'CX', 'descricao': 'Caixa com 12', 'preco': '125.00', 'seu_preco': '125.00'}])
+        P[101].update(preco='11.50', seu_preco='11.50', quantidade_disponivel='30', unidades=[{'id': 'CX12', 'nome': 'CX', 'descricao': 'Caixa com 12', 'preco': '125.00', 'seu_preco': '125.00', 'quantidade_disponivel': '2'}])
+        P[112].update(quantidade_disponivel='3')
         P[102].update(disponibilidade='sob_consulta', compravel=False, aviso='Preço sob consulta. Fale com o seu vendedor.')
         P[108].update(disponibilidade='sob_consulta', compravel=True, faixa_disponibilidade='indisponivel')
         P[103].update(disponibilidade='indisponivel', compravel=False, faixa_disponibilidade='indisponivel', aviso='Há uma venda em andamento com este produto no fornecedor. Tente de novo em instantes.')
@@ -58,10 +59,13 @@ class Sim:
         self.vinculo_segundos = 300
         self.fotos_pedidas = []
         self.cadastros = []
+        self.enderecos_post = []
+        self.fichas = {1165: {'id': 1165, 'documento': '11111111000111', 'tipo_pessoa': 'juridica', 'nome': 'COMPRADOR FICTICIO UM LTDA', 'fantasia': 'Fictício Um', 'ie_rg': 'ISENTO', 'email': 'compras@example.invalid', 'telefone1': '34 99999-0000', 'telefone2': '', 'telefone3': '', 'contato': 'Fulano', 'endereco': {'cep': '38400100', 'logradouro': 'Avenida Exemplo', 'numero': '10', 'complemento': '', 'bairro': {'id': 5, 'nome': 'Centro'}, 'cidade': {'id': 9, 'nome': 'Cidade Exemplo'}, 'uf': 'MG', 'ibge': '3170206'}, 'acesso_liberado': False, 'revisao': 0, 'versao': 'a' * 64, 'pode_alterar': True, 'pode_alterar_acesso': True, 'ie_travada': False}}
+        self.fichas_put = []
         self.vendedores = []
         self.clips = []
         self.negociacoes = []
-        self.config = {'so_estoque': False, 'margem_minima': 15}
+        self.config = {'so_estoque': False, 'margem_minima': 15, 'estoque_minimo': 0}
         self.uploads = []
         self.sinonimos = [{'termo': 'durex', 'equivalentes': ['fita adesiva']}]
         self.eventos = []; self.acessos = {}; self.ensinos = []
@@ -113,7 +117,11 @@ class Sim:
             itens.append({'produto_id': it['produto_id'], 'codigo': p['codigo'], 'nome': p['nome'], 'unidade_id': it.get('unidade'),
                           'unidade': u['nome'] if u else p['unidade'], 'kit': False, 'quantidade': it['quantidade'],
                           'preco_unitario': preco, 'seu_preco': (u['seu_preco'] if u else p['seu_preco']), 'total': str(tot) if tot else None,
-                          'aviso': None, 'pendencia': None})
+                          'aviso': None, 'pendencia': None, 'quantidade_disponivel': (u.get('quantidade_disponivel') if u else p.get('quantidade_disponivel'))})
+            disp = itens[-1]['quantidade_disponivel']
+            if disp is not None and self.loja.get('bloqueia_sem_estoque') and Decimal(it['quantidade']) > Decimal(disp):
+                itens[-1]['pendencia'] = 'Quantidade maior que a disponível.'
+                pend.append({'codigo': 'ESTOQUE_INSUFICIENTE', 'mensagem': 'Há itens acima do estoque disponível.', 'responsavel': 'usuario'})
         sub = sub.quantize(Decimal('0.01'))
         if corpo['modalidade'] == 'entrega':
             frete = {'situacao': 'a_combinar', 'origem': None, 'valor': None}
@@ -207,6 +215,18 @@ class Sim:
                 'pagamento': {'exigido': 'parcelas', 'condicoes': [
                     {'id': 1, 'descricao': 'À vista', 'parcelas': 1, 'dias': [0], 'pedido_minimo': None, 'parcela_minima': None, 'taxa_por_parcela': None, 'padrao': True, 'pix': False},
                     {'id': 2, 'descricao': '30/60 dias', 'parcelas': 2, 'dias': [30, 60], 'pedido_minimo': '200.00', 'parcela_minima': None, 'taxa_por_parcela': None, 'padrao': False, 'pix': False}]}})
+        mm = re.match(r'enderecos/cep/(\d{5}-?\d{3})$', caminho)
+        if mm:
+            c = mm.group(1).replace('-', '')
+            if c == '38400100': return self.ok(route, {'cep': c, 'logradouro': 'Avenida Exemplo', 'bairro': {'id': 5, 'nome': 'Centro'}, 'cidade': {'id': 9, 'nome': 'Cidade Exemplo'}, 'uf': 'MG', 'ibge': '3170206'})
+            if c == '38400000': return self.ok(route, {'cep': c, 'logradouro': '', 'bairro': {'id': None, 'nome': ''}, 'cidade': {'id': 9, 'nome': 'Cidade Exemplo'}, 'uf': 'MG', 'ibge': '3170206'})
+            return self.erro(route, 404, 'CEP_NAO_ENCONTRADO', 'CEP não encontrado. Confira o número ou informe o endereço manualmente.', 'usuario')
+        if caminho == 'enderecos/referencias':
+            tipo = q.get('tipo', [''])[0]
+            return self.ok(route, [{'id': 9, 'nome': 'Cidade Exemplo'}] if tipo == 'cidade' else [{'id': 5, 'nome': 'Centro'}, {'id': 6, 'nome': 'Bairro Dois'}])
+        if caminho == 'enderecos' and m == 'POST':
+            self.enderecos_post.append(corpo)
+            return self.ok(route, {'id': 70 + len(self.enderecos_post), 'descricao': corpo['descricao'], 'endereco': corpo.get('endereco') or 'Avenida Exemplo', 'numero': corpo['numero'], 'complemento': corpo.get('complemento') or '', 'cidade': 'Cidade Exemplo', 'cep': corpo['cep'], 'principal': False}, 201)
         if caminho == 'revisoes': return self.ok(route, self.revisar(doc, corpo))
         if caminho == 'pedidos' and m == 'POST': return self.post_pedido(route, req, doc, cod, corpo)
         if caminho == 'pedidos' and m == 'GET':
@@ -273,6 +293,34 @@ class Sim:
         tok = a[7:] if a.startswith('Bearer ') else None
         if tok not in self.op_tokens: return self.erro(route, 401, 'SESSAO_INVALIDA', 'Sua sessão terminou. Entre novamente.', 'usuario')
         custo = self.op_tokens[tok]
+        mf = re.match(r'operadores/clientes/(\d+)(/acesso)?$', caminho)
+        if mf:
+            f = self.fichas.get(int(mf.group(1)))
+            if not f: return self.erro(route, 404, 'CLIENTE_NAO_LOCALIZADO', 'Cliente não localizado.', 'usuario')
+            if m == 'GET': return self.ok(route, f)
+            if mf.group(2):
+                if corpo.get('revisao') != f['revisao']: return self.erro(route, 409, 'CADASTRO_ALTERADO', 'O cadastro foi alterado em outra estação. Reabra a ficha antes de continuar.', 'usuario')
+                f['acesso_liberado'] = corpo['liberado']; f['revisao'] += 1; f['versao'] = uuid.uuid4().hex * 2
+                return self.ok(route, {'acesso_liberado': f['acesso_liberado'], 'revisao': f['revisao'], 'versao': f['versao']})
+            self.fichas_put.append(corpo)
+            if corpo.get('versao') != f['versao']: return self.erro(route, 409, 'CADASTRO_ALTERADO', 'O cadastro foi alterado em outra estação. Reabra a ficha antes de continuar.', 'usuario')
+            if corpo.get('documento') == '99999999000199' and not corpo.get('confirmar_documento_repetido'):
+                return self.erro(route, 409, 'DOCUMENTO_REPETIDO', 'Já existe um cadastro com este documento e outra IE ou RG. Confirme para continuar.', 'usuario')
+            for k in ('documento', 'nome', 'fantasia', 'ie_rg', 'email', 'telefone1', 'telefone2', 'telefone3', 'contato'):
+                if k in corpo: f[k] = corpo[k]
+            if 'endereco' in corpo:
+                e = corpo['endereco']
+                for k in ('cep', 'logradouro', 'numero', 'complemento'):
+                    if k in e: f['endereco'][k] = e[k]
+            f['versao'] = uuid.uuid4().hex * 2
+            return self.ok(route, f)
+        mc = re.match(r'operadores/enderecos/cep/(\d{5}-?\d{3})$', caminho)
+        if mc:
+            c = mc.group(1).replace('-', '')
+            if c == '38400200': return self.ok(route, {'cep': c, 'logradouro': 'Rua Nova', 'bairro': {'id': 6, 'nome': 'Bairro Dois'}, 'cidade': {'id': 9, 'nome': 'Cidade Exemplo'}, 'uf': 'MG', 'ibge': '3170206'})
+            return self.erro(route, 404, 'CEP_NAO_ENCONTRADO', 'CEP não encontrado. Confira o número ou informe o endereço manualmente.', 'usuario')
+        if caminho == 'operadores/enderecos/referencias':
+            return self.ok(route, [{'id': 9, 'nome': 'Cidade Exemplo'}] if q.get('tipo', [''])[0] == 'cidade' else [{'id': 5, 'nome': 'Centro'}])
         if caminho == 'operadores/sessao': self.op_tokens.pop(tok, None); return route.fulfill(status=204, headers=CORS, body='')
         if caminho == 'operadores/clientes/consulta':
             if re.sub(r'[^0-9A-Za-z]', '', corpo['cnpj']) == '11111111000111': return self.ok(route, {'codigo': 1165, 'nome': 'Comprador Fictício Um LTDA', 'acesso_portal': True, 'segmento': {'codigo': 1, 'descricao': 'Varejo'}})
@@ -376,7 +424,7 @@ class Sim:
                 return res(200, {'ok': True})
             if ac == 'config_ler': return res(200, {'dados': dict(self.config)})
             if ac == 'config_salvar':
-                for k in ('so_estoque', 'margem_minima'):
+                for k in ('so_estoque', 'margem_minima', 'estoque_minimo'):
                     if k in d: self.config[k] = d[k]
                 return res(200, {'dados': dict(self.config)})
             if ac == 'clips_listar': return res(200, {'dados': list(self.clips)})
@@ -460,7 +508,7 @@ class Sim:
         if tabela == 'portal_clips':
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps([c for c in self.clips if c['ativo']]))
         if tabela == 'rpc/portal_config_publica':
-            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({'so_estoque': self.config['so_estoque']}))
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({'so_estoque': self.config['so_estoque'], 'estoque_minimo': self.config['estoque_minimo']}))
         if tabela == 'portal_negociacoes':
             if not valido:
                 return route.fulfill(status=200 if m == 'GET' else 403, headers=cab, content_type='application/json', body='[]' if m == 'GET' else '{"code":"42501"}')

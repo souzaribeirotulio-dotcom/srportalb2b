@@ -7,6 +7,7 @@ import { adicionar } from '../estado/carrinho.js';
 import { normalizarQuantidade } from '../ui/formato.js';
 import { ligarFotos } from '../ui/fotos.js';
 import { registro } from '../catalogo/exibicao.js';
+import { htmlDisponivel, conferir, somar } from './estoque.js';
 import { fichaDoProduto } from '../catalogo/descricoes.js';
 
 let atual = null;
@@ -38,6 +39,7 @@ function desenhar() {
       <div class="meta">Cód. ${esc(p.codigo)}${ficha.ean ? ` · EAN ${esc(ficha.ean)}` : ''}</div>
       <div class="dprice">${comprar ? htmlPreco(unidadeEscolhida(p, atual.un)) : ''}</div>
       ${htmlEstoque(p)}
+      ${htmlDisponivel(p, atual.un)}
       ${htmlUnidades(p, atual.un, 'lg')}
       <div class="dbuy"><div class="qty"><button type="button" data-d="-1" aria-label="Diminuir" ${comprar ? '' : 'disabled'}>−</button><input id="dQ" type="text" inputmode="decimal" value="1" maxlength="13" aria-label="Quantidade" ${comprar ? '' : 'disabled'}><button type="button" data-d="1" aria-label="Aumentar" ${comprar ? '' : 'disabled'}>+</button></div>
         <button type="button" class="add" id="dAdd" ${comprar ? '' : 'disabled aria-disabled="true"'}><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Adicionar ao carrinho</button>
@@ -65,10 +67,15 @@ export function ligarDetalhe() {
     const un = e.target.closest('.unsel [data-un]');
     if (un) { const q = $id('dQ').value; atual.un = un.dataset.un; desenhar(); $id('dQ').value = q; return; }
     const d = e.target.closest('[data-d]');
-    if (d) { $id('dQ').value = passoQuantidade($id('dQ').value, Number(d.dataset.d)); return; }
+    if (d) {
+      const r = somar(atual.p, atual.un, normalizarQuantidade($id('dQ').value) || '1', normalizarQuantidade(passoQuantidade($id('dQ').value, Number(d.dataset.d))) || '1');
+      $id('dQ').value = String(r.valor).replace('.', ','); if (r.msg) toast(r.msg);
+      return;
+    }
     if (e.target.closest('#dAdd')) {
       const q = normalizarQuantidade($id('dQ').value);
       if (!q) { toast('Quantidade inválida: use um número maior que zero, com até 4 casas depois da vírgula.'); return; }
+      const semSaldo = conferir(atual.p, atual.un, q); if (semSaldo) { toast(semSaldo); return; }
       const r = adicionar(linhaCarrinho(atual.p, atual.un, q));
       if (r === 'limite') { toast('O carrinho aceita até 100 linhas. Envie este pedido ou remova itens.'); return; }
       toast(`${r === 'somado' ? 'Quantidade somada' : 'Adicionado ao carrinho'} · ${atual.p.nome.slice(0, 40)}`);
