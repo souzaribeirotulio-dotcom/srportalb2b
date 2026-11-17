@@ -1,0 +1,1 @@
+-- Tabela portal_souzinha_ensinos + 8 ensinos copiados do portal antigo (aplicada via MCP em 17/11).

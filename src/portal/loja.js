@@ -17,6 +17,7 @@ import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { $, esc, toast, abrirModal, fecharModal, saudacao, passoQuantidade, adiar } from './comum.js';
 import { htmlCartao, htmlPreco, unidadeEscolhida, linhaCarrinho } from './cartao.js';
 import { abrirDetalhe, ligarDetalhe } from './detalhe.js';
+import { iniciarSouzinha } from './souzinha.js';
 import { abrirCheckout } from './checkout.js';
 import { desenharMinhaLista } from './lista.js';
 import { desenharPedidos } from './pedidos.js';
@@ -73,6 +74,12 @@ function montar() {
   });
   $('grid').addEventListener('click', cliqueCartao);
   ligarDetalhe();
+  iniciarSouzinha({
+    ir: (c) => ctx.ir(c),
+    exigirLogin,
+    buscar: (texto) => exigirLogin(() => { $('q').value = texto; filtros.q = texto; filtros.pagina = 1; if (ctx.rota === 'cat') desenharCatalogo(); else ctx.ir('/catalogo'); }),
+    abrirDetalhe: (p) => { const l = idsCarregados(); abrirDetalhe(p, { naLista: l ? l.has(Number(p.id)) : null, aoFavoritar: async (prod, estava) => { if (estava) await removerDaLista(prod.id); else await incluirNaLista(prod.id); return !estava; } }); },
+  });
   $('grid').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('.qty input')) { e.preventDefault(); e.target.closest('.card').querySelector('.add')?.click(); } });
   $('dBody').addEventListener('click', cliqueCarrinho);
   $('dBody').addEventListener('change', mudancaCarrinho);

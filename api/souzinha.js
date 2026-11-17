@@ -6,14 +6,17 @@
 const recent = new Map();
 const WINDOW = 60_000;
 const LIMIT = 12;
-const SUPABASE_URL='https://cvhcgihumdvytjvbkxvt.supabase.co';
-const SUPABASE_PUBLISHABLE="sb_publishable_BgIApLyc9EWW2isPjl4-5A_VHh3eQGS";
+// Ensinos publicados na Escola do Souzinha (tabela portal_souzinha_ensinos; leitura pública só dos ativos).
+const SUPABASE_URL=String(process.env.VITE_SUPABASE_URL||'').replace(/\/$/,'');
+const SUPABASE_PUBLISHABLE=String(process.env.VITE_SUPABASE_CHAVE_PUBLICA||'');
+const LOJA=String(process.env.VITE_G360_LOJA||'');
 let trainingCache={until:0,items:[]};
 async function getTraining(){
  if(Date.now()<trainingCache.until)return trainingCache.items;
  const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),3000);
  try{
-  const r=await fetch(SUPABASE_URL+'/rest/v1/rpc/portal_souzinha_publicados',{method:'POST',headers:{'Content-Type':'application/json',apikey:SUPABASE_PUBLISHABLE},body:'{}',signal:ctl.signal});
+  if(!SUPABASE_URL||!SUPABASE_PUBLISHABLE||!/^[a-f0-9]{16}$/.test(LOJA))throw Error('training not configured');
+  const r=await fetch(SUPABASE_URL+'/rest/v1/portal_souzinha_ensinos?select=categoria,titulo,conteudo&ativo=eq.true&loja=eq.'+LOJA+'&limit=100',{headers:{apikey:SUPABASE_PUBLISHABLE},signal:ctl.signal});
   if(!r.ok)throw Error('training unavailable');
   const d=await r.json();trainingCache={until:Date.now()+30000,items:Array.isArray(d)?d.slice(0,100):[]};return trainingCache.items;
  }catch(e){return trainingCache.items;}finally{clearTimeout(timer)}

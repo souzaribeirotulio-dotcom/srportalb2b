@@ -116,3 +116,4 @@ body.g360-painel .arow .nm small { margin-top: 4px; }
 #detBox .gth .foto, #detBox .gth .foto img { width: 100%; height: 100%; object-fit: contain; font-size: 9px; }
 #grid .card .img, #grid .card .name { cursor: pointer; }
 @media (max-width: 640px) { #detBox .gmain .foto { min-height: 220px; } #detBox .gmain .foto img { max-height: 260px; } }
+body.g360-painel #souzinha-widget, body.g360:not(.g360-legado) #souzinha-widget { display: none !important; }

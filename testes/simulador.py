@@ -58,7 +58,7 @@ class Sim:
         self.fotos_pedidas = []
         self.cadastros = []
         self.sinonimos = [{'termo': 'durex', 'equivalentes': ['fita adesiva']}]
-        self.eventos = []; self.acessos = {}
+        self.eventos = []; self.acessos = {}; self.ensinos = []
         self.categorias = ['Limpeza', 'Descartáveis', 'Embalagens', 'Copa & Alimentos', 'Higiene', 'Utensílios & EPI', 'Papelaria', 'Outros']
         self.exibicao = {'P-104': {'codigo': 'P-104', 'produto_id': None, 'nome': 'Copo Descartável Exemplo 200ml (Pacote c/ 100 un)', 'categoria': 'Descartáveis', 'origem': 'legado'}}
 
@@ -330,6 +330,11 @@ class Sim:
                 if ac == 'lista_incluir': atual.update(int(i) for i in d['produto_ids'])
                 if ac == 'lista_remover': atual.discard(int(d['produto_id']))
                 return res(200, {'dados': sorted(atual)})
+            if ac == 'ensinos_listar': return res(200, {'dados': self.ensinos})
+            if ac == 'ensinos_salvar':
+                x = dict(d); x['id'] = x.get('id') or f'00000000-0000-0000-0000-{len(self.ensinos)+1:012d}'
+                self.ensinos = [e for e in self.ensinos if e['id'] != x['id']] + [x]; return res(200, {'ok': True})
+            if ac == 'ensinos_apagar': self.ensinos = [e for e in self.ensinos if e['id'] != d['id']]; return res(200, {'ok': True})
             if ac == 'sinonimos_salvar': self.sinonimos = d['sinonimos']; return res(200, {'gravados': len(d['sinonimos'])})
             if ac == 'clientes_listar': return res(200, {'dados': [{'codigo': c, 'nome': n, 'primeiro_em': '2026-11-17T12:00:00Z', 'ultimo_em': '2026-11-17T12:00:00Z', 'acessos': 1, 'pedidos': 0, 'valor': 0} for c, n in self.acessos.items()]})
             if ac == 'inteligencia':

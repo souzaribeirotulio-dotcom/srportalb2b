@@ -204,7 +204,7 @@ function telaLogin() {
 
 /* ---------------- abas ---------------- */
 
-const PARTE = { neg: ['Negociações', 3], souzinha: ['Escola do Souzinha', 2] };
+const PARTE = { neg: ['Negociações', 3] };
 
 function desenharAba() {
   document.querySelectorAll('#vAdm [data-at]').forEach((b) => b.classList.toggle('on', b.dataset.at === aba));
@@ -217,6 +217,7 @@ function desenharAba() {
   else if (aba === 'ocor') desenharOcorrencias();
   else if (aba === 'cfg') desenharConfig();
   else if (aba === 'intel') desenharInteligencia();
+  else if (aba === 'souzinha') desenharEscola();
   else emPreparacao(aba);
 }
 
@@ -838,6 +839,69 @@ async function desenharConfig() {
     };
   };
   pintar();
+}
+
+/* ---------------- Escola do Souzinha (mesma tela do portal antigo) ---------------- */
+
+const MODELOS = {
+  academia: ['Academia ou estúdio de treino', 'segmento', 'Quando o cliente tiver academia ou estúdio, pergunte se tem banheiros, vestiários e o fluxo de alunos. Ofereça por finalidade: papel toalha, sabonete líquido, papel higiênico, sacos de lixo, desinfetante e copos, escolhendo produtos reais do catálogo. Não indique químicos para aparelhos sem verificar instruções dos fabricantes.'],
+  clinica: ['Clínicas e consultórios', 'segmento', 'Pergunte quais áreas precisam de reposição. Apresente papel toalha, sabonete líquido, papel higiênico e itens de limpeza compatíveis. Nunca garanta eficácia hospitalar ou de desinfecção sem rótulo e indicação específica.'],
+  restaurante: ['Restaurantes e lanchonetes', 'segmento', 'Pergunte se a operação atende salão, delivery ou ambos. Sugira embalagens adequadas, guardanapos, copos descartáveis e materiais de limpeza do catálogo. Confirme capacidade e dimensões antes de indicar embalagens.'],
+  escritorio: ['Escritórios', 'segmento', 'Pergunte quantos colaboradores usam os banheiros e copa. Sugira papel higiênico, papel toalha, sabonete líquido, copos, sacos de lixo e produtos de limpeza encontrados no catálogo.'],
+};
+let escola = { linhas: [], editando: null };
+
+async function desenharEscola() {
+  const root = $('souzinhaEscola');
+  if (!$('szSalvar')) {
+    root.innerHTML = `<div class="sz-school-head"><div><h3>🎓 Escola do Souzinha</h3><p>Ensine o Souzinha a atender, sugerir produtos e montar listas por segmento. Cada orientação ativa é usada nas próximas conversas.</p></div><button class="tool" id="szReload">↻ Atualizar</button></div>
+      <div class="sz-school-grid"><section class="panel sz-school-form">
+        <h3 id="szFormTitle">Novo ensinamento</h3><p class="hint">Escreva como se estivesse treinando um vendedor da Souza Ribeiro.</p>
+        <label>Exemplo (opcional)</label><select id="szTemplate" class="inp"><option value="">Escrever meu ensinamento</option><option value="academia">Academia</option><option value="clinica">Clínica</option><option value="restaurante">Restaurante</option><option value="escritorio">Escritório</option></select>
+        <label>Assunto</label><input class="inp" id="szTitulo" maxlength="100" placeholder="Ex.: Produtos para academias">
+        <label>Tipo de conhecimento</label><select id="szCategoria" class="inp"><option value="segmento">Segmento de cliente</option><option value="produto">Conhecimento de produto</option><option value="atendimento">Como atender</option><option value="geral">Geral</option></select>
+        <label>O que ele deve aprender?</label><textarea class="inp" id="szConteudo" rows="8" maxlength="3000" placeholder="Quando o cliente disser..., o Souzinha deve..." style="resize:vertical;min-height:150px;width:100%"></textarea>
+        <label class="sz-check"><input type="checkbox" id="szAtivo" checked> Ativo nos próximos atendimentos</label>
+        <p class="hint">Nunca ensine senhas, preços de custo, dados pessoais ou informações sigilosas.</p>
+        <div class="row"><button class="btn pri" id="szSalvar">💾 Salvar ensinamento</button><button class="btn sec" id="szCancelar">Limpar</button></div>
+        <p id="szStatus" role="status" aria-live="polite"></p>
+      </section><section class="panel sz-school-saved"><div class="sz-school-list-head"><h3>Ensinamentos</h3><span id="szCount"></span></div><div id="szSchoolList" aria-live="polite"></div></section></div>`;
+    const limpar = () => { escola.editando = null; $('szFormTitle').textContent = 'Novo ensinamento'; $('szTemplate').value = ''; $('szTitulo').value = ''; $('szConteudo').value = ''; $('szCategoria').value = 'segmento'; $('szAtivo').checked = true; };
+    const status = (t, ruim) => { $('szStatus').textContent = t; $('szStatus').style.color = ruim ? '#ff9999' : '#b2e04a'; };
+    const salvar = async (x) => {
+      $('szSalvar').disabled = true;
+      try { await painel('ensinos_salvar', x); limpar(); status('✓ Salvo! O Souzinha usa a orientação nas próximas conversas.'); await desenharEscola(); }
+      catch (e) { status(e.message, true); } finally { $('szSalvar').disabled = false; }
+    };
+    $('szTemplate').onchange = () => { const m = MODELOS[$('szTemplate').value]; if (m) { $('szTitulo').value = m[0]; $('szCategoria').value = m[1]; $('szConteudo').value = m[2]; } };
+    $('szCancelar').onclick = () => { limpar(); status(''); };
+    $('szReload').onclick = () => desenharEscola();
+    $('szSalvar').onclick = () => {
+      const x = { id: escola.editando, categoria: $('szCategoria').value, titulo: $('szTitulo').value.trim(), conteudo: $('szConteudo').value.trim(), ativo: $('szAtivo').checked };
+      if (x.titulo.length < 3 || x.conteudo.length < 10) { status('Preencha assunto e orientação (mínimo 10 caracteres).', true); return; }
+      salvar(x);
+    };
+    $('szSchoolList').onclick = async (e) => {
+      const b = e.target.closest('[data-school]'); if (!b) return;
+      const x = escola.linhas.find((v) => v.id === b.dataset.id); if (!x) return;
+      if (b.dataset.school === 'edit') {
+        escola.editando = x.id; $('szFormTitle').textContent = 'Editar ensinamento'; $('szTitulo').value = x.titulo; $('szConteudo').value = x.conteudo; $('szCategoria').value = x.categoria; $('szAtivo').checked = x.ativo;
+        root.querySelector('.sz-school-form').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return;
+      }
+      if (b.dataset.school === 'toggle') { salvar({ ...x, ativo: !x.ativo }); return; }
+      if (b.dataset.school === 'remove') {
+        if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = 'Confirmar exclusão'; return; }
+        try { await painel('ensinos_apagar', { id: x.id }); await desenharEscola(); } catch (err) { status(err.message, true); }
+      }
+    };
+  }
+  $('szSchoolList').textContent = 'Carregando…';
+  try { escola.linhas = (await painel('ensinos_listar')).dados || []; } catch (e) { $('szSchoolList').textContent = e.message; return; }
+  $('szCount').textContent = `${escola.linhas.filter((x) => x.ativo).length} ativos / ${escola.linhas.length} no total`;
+  $('szSchoolList').innerHTML = escola.linhas.length ? escola.linhas.map((x) => `<article class="sz-school-item"><div class="sz-school-item-top"><b>${esc(x.titulo)}</b><span class="sz-school-pill${x.ativo ? '' : ' off'}">${x.ativo ? 'Ativo' : 'Pausado'}</span></div>
+    <small>${esc(x.categoria)}</small><p>${esc(x.conteudo)}</p><div class="row">
+    <button class="tool" data-school="edit" data-id="${esc(x.id)}">Editar</button><button class="tool" data-school="toggle" data-id="${esc(x.id)}">${x.ativo ? 'Desativar' : 'Ativar'}</button><button class="tool" data-school="remove" data-id="${esc(x.id)}">Excluir</button></div></article>`).join('')
+    : '<p class="hint">Nenhum ensinamento salvo ainda.</p>';
 }
 
 /* ---------------- Inteligência: desempenho do portal ---------------- */

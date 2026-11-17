@@ -230,6 +230,28 @@ async function executar(acao: string, d: Record<string, unknown>): Promise<[numb
     if (error) throw error;
     return [200, { dados: (data ?? []).map((r) => Number(r.produto_id)) }];
   }
+  if (acao === "ensinos_listar") {
+    const { data, error } = await admin.from("portal_souzinha_ensinos").select("id, categoria, titulo, conteudo, ativo, atualizado_em").eq("loja", loja).order("criado_em");
+    if (error) throw error;
+    return [200, { dados: data }];
+  }
+  if (acao === "ensinos_salvar") {
+    const cat = ["segmento", "produto", "atendimento", "geral"].includes(String(d.categoria)) ? String(d.categoria) : "geral";
+    const linha = { loja, categoria: cat, titulo: texto(d.titulo, 100), conteudo: texto(d.conteudo, 3000), ativo: d.ativo !== false, atualizado_em: new Date().toISOString() };
+    if (linha.titulo.length < 3 || linha.conteudo.length < 10) return [400, { mensagem: "Preencha assunto e orientação (mínimo 10 caracteres)." }];
+    const id = texto(d.id, 40);
+    const q = /^[0-9a-f-]{36}$/.test(id) ? admin.from("portal_souzinha_ensinos").update(linha).eq("id", id).eq("loja", loja) : admin.from("portal_souzinha_ensinos").insert(linha);
+    const { error } = await q;
+    if (error) throw error;
+    return [200, { ok: true }];
+  }
+  if (acao === "ensinos_apagar") {
+    const id = texto(d.id, 40);
+    if (!/^[0-9a-f-]{36}$/.test(id)) return [400, { mensagem: "Ensinamento inválido." }];
+    const { error } = await admin.from("portal_souzinha_ensinos").delete().eq("id", id).eq("loja", loja);
+    if (error) throw error;
+    return [200, { ok: true }];
+  }
   return [400, { mensagem: "Ação desconhecida." }];
 }
 
