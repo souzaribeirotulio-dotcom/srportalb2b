@@ -130,6 +130,10 @@ function ligar() {
   $('clSt').innerHTML = '<option value="">Todos</option><option value="pendente">Aguardando aprovação</option><option value="aprovado">Aprovados</option><option value="recusado">Reprovados</option>';
   $('clNovo').textContent = '+ Novo cliente';
   $('clNovo').addEventListener('click', () => abrirFicha(null));
+  // Roteiro da Movimento: CNPJ → ficha do G360 (alterar cadastro, liberar acesso, link), direto, sem ficha do portal.
+  $('clNovo').insertAdjacentHTML('beforebegin', '<button class="btn sec" id="clG360" type="button" style="height:36px">📋 Ficha no G360 pelo CNPJ</button>');
+  $('clG360').addEventListener('click', fichaPeloCnpj);
+  $('clQ').addEventListener('keydown', (e) => { if (e.key === 'Enter' && docLimpo($('clQ').value).length >= 11) { e.preventDefault(); fichaPeloCnpj(); } });
   $('clQ').addEventListener('input', adiar(() => desenharCadastros(false), 200));
   $('clSt').addEventListener('change', () => desenharCadastros(false));
 
@@ -957,6 +961,20 @@ async function abrirFicha(k) {
       $('kE').textContent = e.message;
     }
   };
+}
+
+async function fichaPeloCnpj() {
+  const doc = docLimpo($('clQ').value);
+  if (doc.length < 11) { toast('Digite o CNPJ (ou CPF) completo na busca e clique de novo.'); $('clQ').focus(); return; }
+  const b = $('clG360'); b.disabled = true; b.textContent = 'Consultando no G360…';
+  try {
+    const c = await consultarClienteOperador(op.token, doc);
+    abrirFichaG360(c.codigo, opcoesFichaG360());
+  } catch (e) {
+    if (e.status === 401) { encerrarOperador(e.message); return; }
+    const alvo = $('clCad'); alvo.insertAdjacentHTML('afterbegin', '<div class="g360-erro" id="clG360Err" style="margin:12px 18px"></div>');
+    mostrarMensagemErro($('clG360Err'), e);
+  } finally { b.disabled = false; b.textContent = '📋 Ficha no G360 pelo CNPJ'; }
 }
 
 function opcoesFichaG360() {

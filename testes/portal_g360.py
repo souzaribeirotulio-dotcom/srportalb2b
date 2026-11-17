@@ -491,6 +491,10 @@ with sync_playwright() as pw:
     checar(any(c[0] == 'PONTE' and c[1] == 'pedir_link' and c[3].get('documento') == '99999999000199' for c in sim.chamadas), 'link de primeiro acesso pela ficha')
     pg.click('#gBloq'); checar('Confirmar bloqueio' in n.tc('#gBloq'), 'bloqueio pede confirmação')
     pg.click('#gX')
+    pg.fill('#clQ', '44.444.444/0001-44'); pg.click('#clG360'); pg.wait_for_selector('#clG360Err')
+    checar('não localizado' in n.tc('#clG360Err').lower(), 'CNPJ fora do G360 mostra a mensagem da API')
+    pg.fill('#clQ', '11.111.111/0001-11'); pg.click('#clG360'); pg.wait_for_selector('#mAdm.open #gSalvar')
+    checar('Ficha do cliente no G360' in n.tc('#admBox'), 'ficha aberta direto pelo CNPJ'); pg.click('#gX'); pg.fill('#clQ', '')
     pg.click('[data-at="cfg"]'); pg.wait_for_selector('#cfEst'); pg.check('#cfEst'); pg.fill('#cfMg', '22'); pg.click('#cfCatSalvar'); pg.wait_for_timeout(400)
     checar(sim.config.get('so_estoque') is True and float(sim.config.get('margem_minima')) == 22 and float(sim.config.get('estoque_minimo')) == 0, f'configuração salva: {sim.config}')
     sim.config['so_estoque'] = False
