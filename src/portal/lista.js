@@ -4,6 +4,7 @@
    e disponibilidade de agora (filtro ids, todas as páginas). Preço guardado
    nunca vai para a tela. Quantidades → carrinho ou pedido direto.
    ===================================================================== */
+import { carregarExibicao, apresentar } from '../catalogo/exibicao.js';
 import { produtosPorIds, consultarHistoricoCompras, listarPedidos, consultarPedido } from '../api/g360.js';
 import { sessao } from '../estado/sessao.js';
 import { carregarIds, removerDaLista, ErroLista } from '../estado/minha-lista.js';
@@ -49,7 +50,7 @@ export async function desenharMinhaLista(ctx) {
     return;
   }
   let achados;
-  try { achados = await produtosPorIds(sessao.token, ids); } catch (e) {
+  try { await carregarExibicao(); achados = new Map([...(await produtosPorIds(sessao.token, ids))].map(([k, v]) => [k, apresentar(v)])); } catch (e) {
     painel.innerHTML = '<div style="padding:16px" id="lErr"></div>';
     mostrarMensagemErro($('lErr'), e, { aoTentarDeNovo: () => desenharMinhaLista(ctx) });
     return;

@@ -4,7 +4,8 @@
    A lógica (API, sessão, envio, Minha Lista, ocorrências) vem dos módulos
    já testados; aqui só a tela.
    ===================================================================== */
-import { listarProdutos, listarGrupos, listarMarcas } from '../api/g360.js';
+import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar } from '../catalogo/exibicao.js';
+import { listarProdutos, buscarProdutos, listarMarcas } from '../api/g360.js';
 import { sessao, entrar, sair, trocarSenha } from '../estado/sessao.js';
 import { adicionar, linhasCarrinho, alterarQuantidade, remover, aoMudarCarrinho, quantidadeLinhas } from '../estado/carrinho.js';
 import { carregarIds, incluirNaLista, removerDaLista, idsCarregados } from '../estado/minha-lista.js';
@@ -138,7 +139,9 @@ function desenharHero() {
 
 async function carregarClassificacoes() {
   if (classificacoes && classificacoes.token === sessao.token) return classificacoes;
-  const [grupos, marcas] = await Promise.all([listarGrupos(sessao.token), listarMarcas(sessao.token)]);
+  const [marcas] = await Promise.all([listarMarcas(sessao.token), carregarExibicao()]);
+  // Categorias definidas pela equipe no painel (não vêm do G360).
+  const grupos = categoriasPortal().map((nome) => ({ codigo: nome, nome, quantidade: nome === 'Outros' ? '' : codigosDaCategoria(nome).length || '' }));
   classificacoes = { token: sessao.token, grupos, marcas, total: null };
   $('marca').innerHTML = '<option value="">Todas as marcas</option>' + marcas.map((m) => `<option value="${Number(m.codigo)}">${esc(m.nome)}</option>`).join('');
   $('marca').value = filtros.marca;
@@ -150,8 +153,8 @@ function desenharChips() {
   const el = $('cats');
   if (!sessao.ativa) { el.innerHTML = ''; return; }
   if (!classificacoes) { carregarClassificacoes().then(desenharChips).catch(() => { el.innerHTML = ''; }); return; }
-  const grupos = [...classificacoes.grupos].sort((a, b) => b.quantidade - a.quantidade);
-  const total = classificacoes.total ?? grupos.reduce((s, g) => s + Number(g.quantidade || 0), 0);
+  const grupos = classificacoes.grupos.filter((g) => g.quantidade);
+  const total = classificacoes.total ?? '';
   el.innerHTML = [['', 'Todos', total], ...grupos.map((g) => [String(g.codigo), g.nome, g.quantidade])]
     .map(([c, n, q]) => `<button type="button" class="chip ${c === String(filtros.grupo) ? 'on' : ''}" data-c="${esc(c)}">${esc(n)}<span>${Number(q) || ''}</span></button>`).join('');
 }
@@ -177,9 +180,17 @@ export async function desenharCatalogo() {
   grid.innerHTML = '<div class="empty">Carregando produtos…</div>';
   if (sessao.supabaseOk && idsCarregados() === null) { try { await carregarIds(); } catch { /* sem lista: sem botão */ } }
   try {
-    const { dados, paginacao } = await listarProdutos(sessao.token, {
-      q: filtros.q || undefined, grupo: filtros.grupo || undefined, marca: filtros.marca || undefined, pagina: filtros.pagina, limite: LIMITE,
-    });
+    await carregarExibicao();
+    let r;
+    if (filtros.grupo) {
+      // Categoria do portal: filtra pelos códigos que a equipe colocou nela.
+      const codigos = codigosDaCategoria(filtros.grupo);
+      r = codigos.length ? await buscarProdutos(sessao.token, { codigos, q: filtros.q || undefined, marca: filtros.marca ? Number(filtros.marca) : undefined, pagina: filtros.pagina, limite: LIMITE })
+        : { dados: [], paginacao: { total: 0 } };
+    } else {
+      r = await listarProdutos(sessao.token, { q: filtros.q || undefined, marca: filtros.marca || undefined, pagina: filtros.pagina, limite: LIMITE });
+    }
+    const dados = r.dados.map(apresentar); const { paginacao } = r;
     if (meu !== buscaN) return;
     const total = paginacao?.total || 0;
     if (!filtros.q && !filtros.grupo && !filtros.marca) {

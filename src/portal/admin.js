@@ -16,6 +16,8 @@ import { definirEncerramentoOperador, definirAtividadeOperador } from '../estado
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { dinheiro, numeroPainel, dataBr } from '../ui/formato.js';
 import { $, esc, toast, abrirModal, fecharModal, adiar } from './comum.js';
+import { carregarExibicao, categorias, registro, nomeExibicao, categoriaExibicao, codigosDaCategoria, aplicarLocal, definirCategoriasLocal } from '../catalogo/exibicao.js';
+import { nomeEcommerce, categoriaPeloNome } from '../catalogo/nomes.js';
 
 const op = { token: null, expira: 0, ultima: 0, minutos: 8, aviso: null };
 let ctx = null;            // { loja, ir }
@@ -99,8 +101,12 @@ function ligar() {
   });
 
   // Produtos
-  $('aSt').innerHTML = '<option value="">Todos os produtos</option><option value="baixa">Margem abaixo do mínimo</option><option value="semcusto">Sem custo cadastrado</option>';
+  $('aSt').innerHTML = '<option value="">Todos os produtos</option><option value="auto">Nome automático (revisar)</option><option value="semcat">Sem categoria definida</option><option value="baixa">Margem abaixo do mínimo</option><option value="semcusto">Sem custo cadastrado</option>';
   $('aCat').innerHTML = '<option value="">Todas as categorias</option>';
+  $('aPanel').insertAdjacentHTML('beforebegin', `<div class="afil" style="align-items:center;margin-top:-4px"><button class="btn sec" id="aGerar" style="height:36px">✨ Gerar nomes e categorias</button>
+    <span class="hint" id="aGerarInfo" style="margin:0">Passa por todos os produtos do G360 e cria o nome no padrão de e-commerce e a categoria. Não mexe no que a equipe já ajustou nem nos nomes do portal antigo.</span></div>`);
+  $('aGerar').addEventListener('click', gerarTudo);
+  $('aPanel').addEventListener('change', salvarLinhaProduto);
   const buscarProd = adiar(() => { prod.pagina = 1; desenharProdutos(); }, 450);
   $('aQ').addEventListener('input', buscarProd);
   $('aQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); prod.pagina = 1; desenharProdutos(); } });
@@ -197,7 +203,7 @@ function telaLogin() {
 
 /* ---------------- abas ---------------- */
 
-const PARTE = { intel: ['Inteligência', 4], neg: ['Negociações', 3], souzinha: ['Escola do Souzinha', 2], cfg: ['Configurações', 5] };
+const PARTE = { intel: ['Inteligência', 4], neg: ['Negociações', 3], souzinha: ['Escola do Souzinha', 2] };
 
 function desenharAba() {
   document.querySelectorAll('#vAdm [data-at]').forEach((b) => b.classList.toggle('on', b.dataset.at === aba));
@@ -208,6 +214,7 @@ function desenharAba() {
   else if (aba === 'cong') desenharCong();
   else if (aba === 'mrg') desenharMargens(!mrg.carregado);
   else if (aba === 'ocor') desenharOcorrencias();
+  else if (aba === 'cfg') desenharConfig();
   else emPreparacao(aba);
 }
 
@@ -227,25 +234,34 @@ async function desenharProdutos(buscar = true) {
     alvo.innerHTML = carregandoHtml('Buscando produtos no G360…');
     const q = $('aQ').value.trim();
     try {
-      const { dados, paginacao } = await buscarProdutosOperador(op.token, { q: q || undefined, grupo: $('aCat').value ? Number($('aCat').value) : undefined, pagina: prod.pagina, limite: 20 });
-      prod.lista = dados; prod.total = paginacao?.total || 0;
-      dados.forEach((p) => { if (p.grupo?.codigo !== undefined) prod.grupos.set(String(p.grupo.codigo), p.grupo.nome); });
+      await carregarExibicao();
       preencherGrupos();
+      const cat = $('aCat').value;
+      const codigos = cat ? codigosDaCategoria(cat) : null;
+      if (codigos && !codigos.length) { prod.lista = []; prod.total = 0; }
+      else {
+        const { dados, paginacao } = await buscarProdutosOperador(op.token, { q: q || undefined, codigos: codigos || undefined, pagina: prod.pagina, limite: 20 });
+        prod.lista = dados; prod.total = paginacao?.total || 0;
+      }
     } catch (e) { erroEm(alvo, e, () => desenharProdutos()); return; }
   }
   const st = $('aSt').value;
   const L = (prod.lista || []).filter((p) => !st
+    || (st === 'auto' && (!registro(p) || registro(p).origem === 'automatico'))
+    || (st === 'semcat' && !registro(p)?.categoria)
     || (st === 'baixa' && p.custo_visivel && p.margem_percentual !== null && p.margem_percentual < limiteMargem())
     || (st === 'semcusto' && p.custo_visivel && p.custo === null));
   const paginas = Math.max(1, Math.ceil(prod.total / 20));
-  alvo.innerHTML = `<div class="arow h"><div></div><div>Produto (${prod.total})</div><div>Preço de tabela</div><div>Unidade</div><div>Custo</div><div></div></div>`
-    + (L.length ? L.map((p) => `<div class="arow" data-id="${Number(p.id)}" data-nome="${esc(p.nome)}" data-cod="${esc(p.codigo)}">
+  const cats = categorias();
+  alvo.innerHTML = `<div class="arow h"><div></div><div>Nome no portal (${prod.total})</div><div>Preço de tabela</div><div>Categoria</div><div>Custo</div><div></div></div>`
+    + (L.length ? L.map((p) => { const r = registro(p); const cat = categoriaExibicao(p); return `<div class="arow" data-id="${Number(p.id)}" data-nome="${esc(nomeExibicao(p))}" data-cod="${esc(p.codigo)}" data-g360="${esc(p.nome)}">
       <div class="amini g360-mini" data-foto="${Number(p.id)}" title="Fotos"><span>…</span></div>
-      <div class="nm">${esc(p.nome)}<small>Cód. ${esc(p.codigo)}${p.marca ? ` · ${esc(p.marca.nome)}` : ''}${p.grupo ? ` · ${esc(p.grupo.nome)}` : ''} · ${margemHtml(p)}</small></div>
+      <div class="nm"><input class="inp pnome" value="${esc(nomeExibicao(p))}" maxlength="160" aria-label="Nome no portal" style="width:100%;font-weight:600">
+        <small>G360: ${esc(p.nome)} · Cód. ${esc(p.codigo)} · ${esc(p.unidade || '—')} · ${margemHtml(p)} · <span class="org">${!r ? 'nome automático (não salvo)' : r.origem === 'automatico' ? 'nome automático' : r.origem === 'legado' ? 'portal antigo' : 'ajustado pela equipe'}</span></small></div>
       <div class="num"><b>${esc(dinheiro(p.preco))}</b>${p.origem_preco ? `<small style="display:block;color:var(--tx3);font-size:11px">${esc(p.origem_preco)}</small>` : ''}</div>
-      <div class="uns">${esc(p.unidade || '—')}</div>
+      <div><select class="inp pcat" aria-label="Categoria">${cats.map((c) => `<option ${c === cat ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>${r?.categoria ? '' : '<small style="display:block;color:var(--tx3);font-size:11px">sugerida pelo nome</small>'}</div>
       <div class="uns">${p.custo_visivel ? (p.custo === null ? '—' : `R$ ${esc(numeroPainel(p.custo, 2))}`) : 'sem acesso'}</div>
-      <div class="ab2"><button class="tool ab" data-ed>🖼 Fotos</button><button class="tool ab" data-cg>❄ Congelar</button></div></div>`).join('')
+      <div class="ab2"><button class="tool ab" data-ed>🖼 Fotos</button><button class="tool ab" data-cg>❄ Congelar</button></div></div>`; }).join('')
       : vazio('Nenhum produto encontrado. Tente outro nome ou código.'))
     + (paginas > 1 ? `<nav class="g360-pag" style="margin:14px auto"><button class="tool" id="apA" ${prod.pagina <= 1 ? 'disabled' : ''}>‹ Anterior</button><span>Página ${prod.pagina} de ${paginas}</span><button class="tool" id="apP" ${prod.pagina >= paginas ? 'disabled' : ''}>Próxima ›</button></nav>` : '');
   $('apA')?.addEventListener('click', () => { prod.pagina -= 1; desenharProdutos(); });
@@ -255,8 +271,55 @@ async function desenharProdutos(buscar = true) {
 
 function preencherGrupos() {
   const sel = $('aCat'); const atual = sel.value;
-  sel.innerHTML = '<option value="">Todas as categorias</option>' + [...prod.grupos.entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt'))
-    .map(([id, nome]) => `<option value="${esc(id)}" ${id === atual ? 'selected' : ''}>${esc(nome)}</option>`).join('');
+  sel.innerHTML = '<option value="">Todas as categorias</option>' + categorias().map((c) => `<option ${c === atual ? 'selected' : ''}>${esc(c)}</option>`).join('');
+}
+
+/** Nome ou categoria mudou numa linha: grava como ajuste da equipe. */
+async function salvarLinhaProduto(e) {
+  if (!e.target.matches('.pnome, .pcat')) return;
+  const r = e.target.closest('.arow'); const nome = r.querySelector('.pnome').value.trim().replace(/\s+/g, ' ');
+  if (nome.length < 2) { toast('O nome precisa ter pelo menos 2 letras.'); return; }
+  const linha = { codigo: r.dataset.cod, produto_id: Number(r.dataset.id), nome, categoria: r.querySelector('.pcat').value, origem: 'equipe', nome_g360: r.dataset.g360 };
+  e.target.disabled = true;
+  try {
+    await painel('exibicao_salvar', { linhas: [linha] });
+    aplicarLocal([linha]); r.dataset.nome = nome;
+    r.querySelector('.org').textContent = 'ajustado pela equipe';
+    toast('Salvo ✓ — o cliente já vê assim no catálogo');
+  } catch (err) { toast(err.message); } finally { e.target.disabled = false; }
+}
+
+/** Passa por todo o catálogo do G360 e grava nome e categoria automáticos (sem mexer no que já foi ajustado). */
+async function gerarTudo() {
+  const b = $('aGerar'); const info = $('aGerarInfo');
+  if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = 'Confirmar: gerar para todos'; return; }
+  b.dataset.confirmar = ''; b.disabled = true;
+  await carregarExibicao();
+  let pagina = 1; let paginas = 1; let gravados = 0; let vistos = 0;
+  try {
+    do {
+      info.textContent = `Lendo o G360… página ${pagina} de ${paginas}`;
+      const { dados, paginacao } = await buscarProdutosOperador(op.token, { pagina, limite: 50 });
+      paginas = Math.max(1, Math.ceil((paginacao?.total || 0) / 50));
+      vistos += dados.length;
+      const linhas = dados.map((p) => {
+        const r = registro(p);
+        const nome = r && r.origem !== 'automatico' ? r.nome : nomeEcommerce(p.nome, p.marca?.nome || '');
+        return { codigo: String(p.codigo), produto_id: Number(p.id), nome, categoria: r?.categoria || categoriaPeloNome(nome), origem: 'automatico', nome_g360: p.nome };
+      });
+      if (linhas.length) {
+        const res = await painel('exibicao_salvar', { linhas, preservar: true });
+        gravados += res.gravados || 0;
+        aplicarLocal(linhas.filter((l) => { const r = registro({ codigo: l.codigo }); return !r || r.origem === 'automatico'; }));
+      }
+      pagina += 1;
+    } while (pagina <= paginas);
+    await carregarExibicao(true);
+    info.textContent = `Pronto: ${vistos} produtos conferidos, ${gravados} com nome e categoria automáticos. Use o filtro "Nome automático (revisar)" para conferir.`;
+    toast('Nomes e categorias gerados ✓');
+    desenharProdutos();
+  } catch (e) { info.textContent = `Parou na página ${pagina}: ${e.message}. Clique de novo para continuar do começo (o que já foi gravado fica).`; }
+  finally { b.disabled = false; b.textContent = '✨ Gerar nomes e categorias'; }
 }
 
 /** Capa de cada produto visível (galeria + foto), com cache; falha vira espaço reservado. */
@@ -642,6 +705,43 @@ async function desenharMargens(carregarMais = false) {
     const r = b.closest('.mrow'); aba = 'cong'; cong.produto = { id: Number(r.dataset.id), rotulo: `${r.dataset.cod} · ${r.dataset.nome}` }; desenharAba();
   }));
   carregarMiniaturas(alvo);
+}
+
+/* ---------------- Configurações: categorias do portal ---------------- */
+
+async function desenharConfig() {
+  const alvo = $('cfgPanel');
+  alvo.innerHTML = carregandoHtml('Carregando categorias…');
+  await carregarExibicao();
+  let lista = categorias().map((c) => ({ de: c, para: c }));
+  const pintar = () => {
+    alvo.innerHTML = `<div class="ci2" style="display:block"><b>Categorias do catálogo</b><small>Definidas pela Souza Ribeiro (não vêm do G360). A ordem aqui é a ordem dos botões no catálogo. Para pôr um produto numa categoria, use a aba Produtos.</small>
+      <div id="cfCats" style="margin-top:10px;display:grid;gap:6px">${lista.map((c, i) => `<div class="fxurl" data-i="${i}" style="margin:0">
+        <input value="${esc(c.para)}" maxlength="40" aria-label="Nome da categoria"><button class="tool" data-up ${i ? '' : 'disabled'} aria-label="Subir">↑</button><button class="tool" data-dn ${i < lista.length - 1 ? '' : 'disabled'} aria-label="Descer">↓</button><button class="tool" data-rm style="color:#ff8a8a" aria-label="Remover">×</button></div>`).join('')}</div>
+      <div class="fxurl" style="margin-top:10px"><input id="cfNova" maxlength="40" placeholder="Nova categoria (ex.: Hotelaria)"><button class="btn sec" id="cfAdd">Adicionar</button></div>
+      <div class="row" style="margin-top:12px"><button class="btn pri" id="cfSalvar">Salvar categorias</button><span class="hint" id="cfRes" style="margin:0 0 0 10px"></span></div></div>
+      <div class="ci2"><div><b>Outras configurações</b><small>Margem mínima, sinônimos de busca e o restante do painel antigo voltam na parte 5.</small></div></div>`;
+    alvo.querySelectorAll('#cfCats input').forEach((inp) => inp.addEventListener('input', () => { lista[Number(inp.parentElement.dataset.i)].para = inp.value; }));
+    alvo.querySelectorAll('#cfCats button').forEach((b) => b.addEventListener('click', () => {
+      const i = Number(b.parentElement.dataset.i);
+      if (b.hasAttribute('data-up')) [lista[i - 1], lista[i]] = [lista[i], lista[i - 1]];
+      if (b.hasAttribute('data-dn')) [lista[i + 1], lista[i]] = [lista[i], lista[i + 1]];
+      if (b.hasAttribute('data-rm')) lista.splice(i, 1);
+      pintar();
+    }));
+    $('cfAdd').onclick = () => { const v = $('cfNova').value.trim(); if (v) { lista.push({ de: null, para: v }); pintar(); } };
+    $('cfSalvar').onclick = async () => {
+      const nomes = lista.map((c) => c.para.trim()).filter(Boolean);
+      if (new Set(nomes).size !== nomes.length) { $('cfRes').textContent = 'Há categorias com o mesmo nome.'; return; }
+      $('cfSalvar').disabled = true;
+      try {
+        await painel('categorias_salvar', { categorias: nomes, renomear: lista.filter((c) => c.de && c.de !== c.para.trim()).map((c) => ({ de: c.de, para: c.para.trim() })) });
+        definirCategoriasLocal(nomes); await carregarExibicao(true);
+        lista = nomes.map((c) => ({ de: c, para: c })); pintar(); toast('Categorias salvas ✓');
+      } catch (e) { $('cfRes').textContent = e.message; $('cfSalvar').disabled = false; }
+    };
+  };
+  pintar();
 }
 
 /* ---------------- Ocorrências ---------------- */

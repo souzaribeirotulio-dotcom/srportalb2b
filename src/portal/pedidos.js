@@ -1,5 +1,6 @@
 /* Meus Pedidos no layout original: GET pedidos (paginado) e GET pedidos/{id}
    ao abrir "Ver itens". A situação vem do G360. Sem número = aguardando aprovação. */
+import { nomeDoItem } from '../catalogo/exibicao.js';
 import { listarPedidos, consultarPedido } from '../api/g360.js';
 import { sessao } from '../estado/sessao.js';
 import { dinheiro, quantidade, dataBr } from '../ui/formato.js';
@@ -54,7 +55,7 @@ async function detalhe(ctx, d) {
     const p = await consultarPedido(sessao.token, id);
     detalhes.set(id, p);
     const end = p.entrega?.endereco;
-    alvo.innerHTML = `<div class="rv">${p.itens.map((i) => `<div><span>${esc(quantidade(i.quantidade))} ${esc(String(i.unidade || '').toLowerCase())} · ${esc(i.nome)}<br><small style="color:var(--tx3)">${esc(dinheiro(i.preco_unitario))} cada${i.seu_preco ? ' <span class="tagcg">Seu preço</span>' : ''}</small></span><b>${esc(dinheiro(i.total))}</b></div>`).join('')}</div>
+    alvo.innerHTML = `<div class="rv">${p.itens.map((i) => `<div><span>${esc(quantidade(i.quantidade))} ${esc(String(i.unidade || '').toLowerCase())} · ${esc(nomeDoItem(i))}<br><small style="color:var(--tx3)">${esc(dinheiro(i.preco_unitario))} cada${i.seu_preco ? ' <span class="tagcg">Seu preço</span>' : ''}</small></span><b>${esc(dinheiro(i.total))}</b></div>`).join('')}</div>
       <div class="rv-tot"><div><span>Subtotal</span><span>${esc(dinheiro(p.subtotal))}</span></div>
         <div><span>Frete</span><span>${p.frete?.situacao === 'a_combinar' ? 'A combinar' : p.frete?.situacao === 'nao_aplicavel' ? '—' : esc(dinheiro(p.frete?.valor || '0.00'))}</span></div>
         ${p.taxa_pagamento && p.taxa_pagamento !== '0.00' ? `<div><span>Taxa de pagamento</span><span>${esc(dinheiro(p.taxa_pagamento))}</span></div>` : ''}

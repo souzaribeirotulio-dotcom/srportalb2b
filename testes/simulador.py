@@ -57,6 +57,8 @@ class Sim:
         self.vinculo_segundos = 300
         self.fotos_pedidas = []
         self.cadastros = []
+        self.categorias = ['Limpeza', 'Descartáveis', 'Embalagens', 'Copa & Alimentos', 'Higiene', 'Utensílios & EPI', 'Papelaria', 'Outros']
+        self.exibicao = {'P-103': {'codigo': 'P-103', 'produto_id': None, 'nome': 'Copo Descartável Exemplo 200ml (Pacote c/ 100 un)', 'categoria': 'Descartáveis', 'origem': 'legado'}}
 
     # ---------- utilidades ----------
     def comprador_json(self, doc):
@@ -86,6 +88,7 @@ class Sim:
         if f.get('grupo') not in (None, ''): res = [p for p in res if p['grupo']['codigo'] == int(f['grupo'])]
         if f.get('marca') not in (None, ''): res = [p for p in res if p['marca_detalhe']['codigo'] == int(f['marca'])]
         if f.get('ids'): ids = {int(x) for x in f['ids']}; res = [p for p in res if p['id'] in ids]
+        if f.get('codigos'): cs = set(f['codigos'] if isinstance(f['codigos'], list) else f['codigos'].split(',')); res = [p for p in res if p['codigo'] in cs]
         pag, lim = int(f.get('pagina') or 1), int(f.get('limite') or 20)
         return res[(pag - 1) * lim: pag * lim], {'pagina': pag, 'limite': lim, 'total': len(res)}
 
@@ -312,6 +315,15 @@ class Sim:
             res = lambda st, b: route.fulfill(status=st, headers=cab, content_type='application/json', body=json.dumps(b))
             if corpo.get('token') not in self.op_tokens: return res(401, {'mensagem': 'Sua sessão do painel terminou. Entre novamente.'})
             ac = corpo.get('acao'); d = corpo.get('dados') or {}
+            if ac == 'exibicao_salvar':
+                n = 0
+                for l in d.get('linhas', []):
+                    atual = self.exibicao.get(l['codigo'])
+                    if d.get('preservar') and atual and atual['origem'] != 'automatico': continue
+                    self.exibicao[l['codigo']] = {k: l.get(k) for k in ('codigo', 'produto_id', 'nome', 'categoria', 'origem')}; n += 1
+                self.chamadas.append(('PAINEL', ac, n))
+                return res(200, {'gravados': n})
+            if ac == 'categorias_salvar': self.categorias = d['categorias']; return res(200, {'ok': True})
             if ac == 'ocorrencias_listar': return res(200, {'dados': list(reversed(self.ocorrencias))})
             if ac == 'cadastros_listar':
                 for i, c in enumerate(self.cadastros):
@@ -361,6 +373,10 @@ class Sim:
             if m == 'DELETE':
                 pid = int(q['produto_id'][0].replace('eq.', ''))
                 self.lista.get(s['codigo'], set()).discard(pid); return route.fulfill(status=204, headers=cab, body='')
+        if tabela == 'portal_categorias':
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps([{'nome': c, 'ordem': i} for i, c in enumerate(self.categorias)]))
+        if tabela == 'portal_produtos_exibicao':
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps(list(self.exibicao.values())))
         if tabela == 'ocorrencias_g360':
             if m == 'POST':
                 if not valido: return route.fulfill(status=403, headers=cab, content_type='application/json', body='{"code":"42501"}')

@@ -178,7 +178,10 @@ with sync_playwright() as pw:
     pg.fill('#q', 'P-121'); pg.press('#q', 'Enter'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('1 produto')")
     pg.fill('#q', 'nada-existe'); pg.press('#q', 'Enter'); pg.wait_for_selector('#gLimpar')
     pg.click('#gLimpar'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('45')")
-    pg.click('.chip[data-c="2"]'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('15')")
+    pg.click('.chip[data-c="Descartáveis"]'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('1 produto')")
+    checar('Copo Descartável Exemplo 200ml' in n.tc('#grid') and 'Descartáveis' in n.tc('#grid .cat'), 'categoria e nome do portal no catálogo')
+    q = [x for x in sim.chamadas if x[0] == 'POST' and x[1].endswith('produtos/busca')][-1][3]
+    checar(q.get('codigos') == ['P-103'], f'filtro da categoria pelos códigos: {q}')
     pg.click('.chip[data-c=""]'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('45')")
     c110 = pg.locator('.card[data-id="110"]')
     c110.locator('.qty input').fill('abc'); c110.locator('.add').click()
@@ -343,6 +346,14 @@ with sync_playwright() as pw:
     pg.fill('#aUsu', 'vendedor'); pg.fill('#aSen', 'senha2'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="prod"].on')
     pg.click('[data-at="prod"]'); pg.fill('#aQ', 'P-104'); pg.press('#aQ', 'Enter'); pg.wait_for_selector('.arow[data-id="104"]')
     checar('sem acesso' in n.tc('#aPanel'), 'custo para operador sem acesso')
+    # nome e categoria do portal pelo painel
+    pg.fill('#aQ', 'P-101'); pg.press('#aQ', 'Enter'); pg.wait_for_selector('.arow[data-id="101"] .pnome')
+    pg.fill('.arow[data-id="101"] .pnome', 'Detergente Exemplo 500ml'); pg.press('.arow[data-id="101"] .pnome', 'Tab'); pg.wait_for_timeout(600)
+    checar(sim.exibicao.get('P-101', {}).get('nome') == 'Detergente Exemplo 500ml' and sim.exibicao['P-101']['origem'] == 'equipe', f"nome salvo: {sim.exibicao.get('P-101')}")
+    pg.click('#aGerar'); pg.click('#aGerar'); pg.wait_for_function("document.getElementById('aGerarInfo').textContent.startsWith('Pronto')", timeout=60000)
+    checar(sim.exibicao['P-101']['nome'] == 'Detergente Exemplo 500ml' and sim.exibicao['P-103']['origem'] == 'legado' and len(sim.exibicao) >= 45, 'gerar não passou por cima do que foi ajustado')
+    pg.click('[data-at="cfg"]'); pg.wait_for_selector('#cfCats'); pg.fill('#cfNova', 'Hotelaria'); pg.click('#cfAdd'); pg.click('#cfSalvar'); pg.wait_for_timeout(600)
+    checar('Hotelaria' in sim.categorias, 'categoria nova salva')
     etapa[0] = 'Etapa 11'
     pg.click('[data-at="cli"]'); pg.wait_for_selector('#clCad .empty2, #clCad .crow2[data-id]')
     if sim.cadastros:

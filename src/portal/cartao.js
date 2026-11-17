@@ -41,13 +41,13 @@ export function htmlCartao(p, { naLista = null } = {}) {
   const ops = opcoesUnidade(p);
   return `
   <article class="card" data-id="${Number(p.id)}" data-un="">
-    <div class="img">${p.grupo?.nome ? `<span class="cat">${esc(p.grupo.nome)}</span>` : ''}
+    <div class="img">${p.categoria ? `<span class="cat">${esc(p.categoria)}</span>` : ''}
       ${htmlFoto(p, 'g360-foto')}
       ${naLista === null ? '' : `<button type="button" class="fav ${naLista ? 'on' : ''}" aria-pressed="${naLista}" title="Minha Lista">${naLista ? '⭐ Na lista' : '☆ Lista'}</button>`}
     </div>
     <div class="info">
       <div class="brand">${esc(p.marca || '')}${ops.length > 1 ? `<span class="tagcx">${esc(ops[1].nome)} disponível</span>` : ''}</div>
-      <div class="name" title="${esc(p.nome)}">${esc(p.nome)}</div>
+      <div class="name" title="${esc(p.nome_g360 || p.nome)}">${esc(p.nome)}</div>
       <div class="meta">Cód. ${esc(p.codigo)} · ${esc(p.unidade || '')}</div>
       <div class="price">${htmlPreco(ops[0])}</div>
       ${htmlEstoque(p)}

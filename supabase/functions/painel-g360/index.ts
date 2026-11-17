@@ -33,7 +33,7 @@ const conferidos = new Map<string, number>();
 const CONFERENCIA_MS = 60_000;
 
 async function resumo(t: string): Promise<string> {
-  return new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t))).toHex();
+  return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t))), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /** true = token do operador válido nesta loja; false = recusado; lança se a API não respondeu. */
@@ -90,6 +90,54 @@ async function executar(acao: string, d: Record<string, unknown>): Promise<[numb
     if (error) throw error;
     return [200, { dados: data }];
   }
+  if (acao === "exibicao_salvar") {
+    // Nome e categoria do produto no portal (até 500 por chamada).
+    const linhas = Array.isArray(d.linhas) ? d.linhas.slice(0, 500) : [];
+    const ok = linhas.map((l) => l as Record<string, unknown>).map((l) => ({
+      loja,
+      codigo: texto(l.codigo, 40),
+      produto_id: Number.isSafeInteger(l.produto_id) && (l.produto_id as number) > 0 ? l.produto_id : null,
+      nome: texto(l.nome, 160),
+      categoria: texto(l.categoria, 40) || null,
+      origem: ["automatico", "equipe"].includes(String(l.origem)) ? String(l.origem) : "equipe",
+      nome_g360: texto(l.nome_g360, 200) || null,
+      atualizado_em: new Date().toISOString(),
+    })).filter((l) => l.codigo && l.nome.length >= 2);
+    if (!ok.length) return [400, { mensagem: "Nada para gravar." }];
+    // "Gerar automático" não passa por cima do que a equipe (ou o portal antigo) já definiu.
+    let linhasFinais = ok;
+    if (d.preservar === true) {
+      const { data: exist, error: e1 } = await admin.from("portal_produtos_exibicao").select("codigo, origem").eq("loja", loja).in("codigo", ok.map((l) => l.codigo));
+      if (e1) throw e1;
+      const travados = new Set((exist ?? []).filter((x) => x.origem !== "automatico").map((x) => x.codigo));
+      linhasFinais = ok.filter((l) => !travados.has(l.codigo));
+      // Mesmo travado, guarda o id do produto (ajuda a achar pelo id).
+      for (const l of ok.filter((x) => travados.has(x.codigo) && x.produto_id)) {
+        await admin.from("portal_produtos_exibicao").update({ produto_id: l.produto_id, nome_g360: l.nome_g360 }).eq("loja", loja).eq("codigo", l.codigo);
+      }
+    }
+    if (linhasFinais.length) {
+      const { error } = await admin.from("portal_produtos_exibicao").upsert(linhasFinais, { onConflict: "loja,codigo" });
+      if (error) throw error;
+    }
+    return [200, { gravados: linhasFinais.length }];
+  }
+  if (acao === "categorias_salvar") {
+    const lista = Array.isArray(d.categorias) ? d.categorias.map((c) => texto(c, 40)).filter(Boolean).slice(0, 60) : [];
+    if (!lista.length || new Set(lista).size !== lista.length) return [400, { mensagem: "Informe categorias sem repetir nomes." }];
+    const renomear = Array.isArray(d.renomear) ? d.renomear as Array<Record<string, unknown>> : [];
+    for (const r of renomear) {
+      const de = texto(r.de, 40); const para = texto(r.para, 40);
+      if (de && para && de !== para) await admin.from("portal_produtos_exibicao").update({ categoria: para }).eq("loja", loja).eq("categoria", de);
+    }
+    const { error: e1 } = await admin.from("portal_categorias").delete().eq("loja", loja);
+    if (e1) throw e1;
+    const { error } = await admin.from("portal_categorias").insert(lista.map((nome, ordem) => ({ loja, nome, ordem })));
+    if (error) throw error;
+    // Produtos de categoria apagada vão para "sem categoria" (o portal usa a categoria pelo nome).
+    await admin.from("portal_produtos_exibicao").update({ categoria: null }).eq("loja", loja).not("categoria", "in", `(${lista.map((c) => `"${c.replace(/"/g, '')}"`).join(",")})`);
+    return [200, { ok: true }];
+  }
   return [400, { mensagem: "Ação desconhecida." }];
 }
 
@@ -108,7 +156,7 @@ Deno.serve(async (req) => {
   let corpo: Record<string, unknown>;
   try {
     const t = await req.text();
-    if (t.length > 4096) return json(413, { mensagem: "Pedido grande demais." });
+    if (t.length > 300_000) return json(413, { mensagem: "Pedido grande demais." });
     corpo = JSON.parse(t);
   } catch { return json(400, { mensagem: "Pedido inválido." }); }
   const token = typeof corpo.token === "string" ? corpo.token : "";

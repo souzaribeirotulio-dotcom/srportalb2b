@@ -4,6 +4,7 @@
    - Envio sem duplicar: estado/envio.js (matriz da seção 9).
    - Pendências do fornecedor viram ocorrência (estado/ocorrencias.js).
    ===================================================================== */
+import { nomeDoItem } from '../catalogo/exibicao.js';
 import { consultarOpcoes, revisarPedido } from '../api/g360.js';
 import { sessao } from '../estado/sessao.js';
 import { itensParaApi, linhasCarrinho, esvaziar, versaoCarrinho } from '../estado/carrinho.js';
@@ -155,7 +156,7 @@ function desenharResumo() {
   const freteValor = r.frete.situacao === 'definido' ? dinheiro(r.frete.valor) : r.frete.situacao === 'gratis' ? 'Grátis' : r.frete.situacao === 'a_combinar' ? 'A combinar' : '—';
   const soFornecedor = (r.pendencias || []).length && r.pendencias.every((p) => p.responsavel === 'fornecedor');
   $('cResumo').innerHTML = `
-    <div class="rv">${r.itens.map((i) => `<div class="rv-item"><div class="linha1"><span>${esc(quantidade(i.quantidade))} ${esc(String(i.unidade || '').toLowerCase())} · ${esc(i.nome)}</span><b>${i.total ? esc(dinheiro(i.total)) : '—'}</b></div>
+    <div class="rv">${r.itens.map((i) => `<div class="rv-item"><div class="linha1"><span>${esc(quantidade(i.quantidade))} ${esc(String(i.unidade || '').toLowerCase())} · ${esc(nomeDoItem(i))}</span><b>${i.total ? esc(dinheiro(i.total)) : '—'}</b></div>
       <small>${i.preco_unitario ? `${esc(dinheiro(i.preco_unitario))} por ${esc(String(i.unidade || '').toLowerCase())}` : 'Sem preço'}${i.seu_preco ? ' <span class="tagcg">Seu preço</span>' : ''}</small>
       ${i.aviso ? `<small class="rv-pend">⚠ ${esc(i.aviso)}</small>` : ''}${i.pendencia ? `<small class="rv-pend">⚠ ${esc(i.pendencia)}</small>` : ''}</div>`).join('')}</div>
     <div class="rv-tot">
