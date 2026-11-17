@@ -84,3 +84,7 @@ Nada aqui é contrato oficial. Os nomes de operação são os da interface do fr
 30. Lista de clientes com acesso ao portal: o painel só sabe quem já entrou pelo menos uma vez. Pedir uma operação do operador que liste os clientes com "Acesso à API dos sistemas externos" marcado (código, nome, CNPJ, situação), paginada.
 
 31. Pedido mínimo: resolvido pelo contrato atual — `pedido_minimo` vem na condição de pagamento e a revisão devolve a pendência PEDIDO_MINIMO (o portal já mostra e bloqueia o envio). Não precisa de campo novo em GET loja.
+
+## Atualização 17/11 (contrato 2026-11-17)
+- Item 2 (catálogo para visitantes): RESOLVIDO pela vitrine (`GET vitrine/produtos`, `vitrine/grupos`, `vitrine/marcas`, fotos sem Bearer). Implantado no portal. Confirmar com a Movimento que o "Catálogo aberto para visitantes" está ligado na loja de homologação e que a origem https://sr-portal-b2b-homologacao.vercel.app está cadastrada também para a vitrine.
+- Itens 12/31 (pedido mínimo): `GET loja` agora traz `pedido_minimo` e a revisão devolve `PEDIDO_MINIMO_LOJA`. O carrinho mostra o mínimo; o envio é decidido pela revisão.

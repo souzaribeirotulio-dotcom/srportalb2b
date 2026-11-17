@@ -1,5 +1,5 @@
 """Simulador da API do G360, da ponte-g360 e do Supabase para os testes do portal.
-Só dados fictícios. Segue o contrato api-sistemas-externos-2026-11-16.yaml."""
+Só dados fictícios. Segue o contrato api-sistemas-externos-2026-11-17.yaml."""
 import json, re, base64, hashlib, time, uuid
 from decimal import Decimal
 from urllib.parse import urlparse, parse_qs
@@ -25,7 +25,8 @@ def produto(i, **k):
 
 class Sim:
     def __init__(self, sessao_minutos=8, troca_senha=True):
-        self.loja = {'nome': 'Loja Exemplo Fictícia', 'troca_senha': troca_senha, 'sessao_minutos': sessao_minutos, 'imagens': None}
+        self.loja = {'nome': 'Loja Exemplo Fictícia', 'troca_senha': troca_senha, 'sessao_minutos': sessao_minutos, 'imagens': None, 'pedido_minimo': '150.00'}
+        self.vitrine_aberta = True; self.vitrine_chamadas = []
         self.compradores = {
             '11.111.111/0001-11': {'senha': 'Teste12', 'codigo': 1165, 'nome': 'Comprador Fictício Um LTDA', 'fantasia': 'Fictício Um', 'bloq': False},
             '22.222.222/0001-22': {'senha': 'Teste34', 'codigo': 1919, 'nome': 'Comprador Fictício Dois LTDA', 'fantasia': 'Fictício Dois', 'bloq': False},
@@ -156,6 +157,20 @@ class Sim:
             self.tokens[t] = corpo['usuario']
             return self.ok(route, {'token': t, 'tipo': 'Bearer', 'expira_em': '2099-01-01T00:00:00Z', 'comprador': self.comprador_json(corpo['usuario']), 'loja': self.loja}, 201)
         if caminho.startswith('operadores/'): return self.operador(route, caminho, m, corpo, q)
+        if caminho.startswith('vitrine/'):
+            self.vitrine_chamadas.append((caminho, dict(req.headers)))
+            if not self.vitrine_aberta: return route.abort()   # vitrine fechada aparece como falha de rede/CORS
+            if caminho == 'vitrine/produtos':
+                f = {k: (v if k == 'termos[]' else v[0]) for k, v in q.items()}
+                if f.get('ids'): f['ids'] = f['ids'].split(',')
+                dados, pag = self.filtrar(f)
+                pub = [{'id': p['id'], 'codigo': p['codigo'], 'nome': p['nome'], 'marca': p.get('marca'), 'grupo': p.get('grupo'), 'unidade': p.get('unidade'),
+                        'aplicacao': None, 'imagem': (f"vitrine/produtos/{p['id']}/fotos/{p['fotos'][0]}" if p.get('fotos') else None), 'fotos': p.get('fotos', []),
+                        'unidades': [{'id': u['id'], 'nome': u['nome'], 'descricao': u.get('descricao', '')} for u in p.get('unidades', [])], 'kit': False} for p in dados]
+                return self.ok(route, pub, extra={'paginacao': pag})
+            if caminho == 'vitrine/grupos': return self.ok(route, [{'codigo': 1, 'nome': 'Grupo Um', 'quantidade': 30}])
+            if caminho == 'vitrine/marcas': return self.ok(route, [{'codigo': 10, 'nome': 'Marca Exemplo', 'quantidade': 23}, {'codigo': 20, 'nome': 'Outra Marca', 'quantidade': 22}])
+            if re.match(r'vitrine/produtos/\d+/fotos/\d+$', caminho): return route.fulfill(status=200, headers={**CORS, 'Content-Type': 'image/gif'}, body=GIF)
         if not doc: return self.sem_sessao(route)
         cod = self.compradores[doc]['codigo']
         if caminho == 'me': return self.ok(route, {'comprador': self.comprador_json(doc), 'loja': self.loja, 'expira_em': '2099-01-01T00:00:00Z'})

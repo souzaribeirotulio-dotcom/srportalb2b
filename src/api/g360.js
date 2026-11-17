@@ -1,6 +1,6 @@
 /* =====================================================================
    Módulo ÚNICO de chamadas à API dos sistemas externos (G360).
-   Contrato: docs/g360/api-sistemas-externos-2026-11-16.yaml
+   Contrato: docs/g360/api-sistemas-externos-2026-11-17.yaml
    Nenhuma tela chama fetch direto: tudo passa por aqui, inclusive o
    tratamento de erro (seção 10 do CLAUDE.md).
    Endereço = VITE_G360_BASE_URL + /b2b/v1/lojas/ + VITE_G360_LOJA + /caminho
@@ -73,7 +73,7 @@ function montarConsulta(consulta) {
  * Falha → lança ErroApi (envelope de erro, falha de rede ou tempo esgotado).
  * Não registra token, senha nem corpo em log.
  */
-export async function requisitar(metodo, modelo, { parametros, consulta, token = null, corpo, cabecalhos = {}, binario = false, semGanchos = false } = {}) {
+export async function requisitar(metodo, modelo, { parametros, consulta, token = null, corpo, cabecalhos = {}, binario = false, semGanchos = false, cacheModo = 'no-store' } = {}) {
   const operacao = `${metodo} ${modelo}`;
   const escopo = !token ? 'publico' : (modelo.startsWith('operadores/') ? 'operador' : 'comprador');
   const avisarAtividade = () => {
@@ -98,7 +98,7 @@ export async function requisitar(metodo, modelo, { parametros, consulta, token =
       body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
       signal: controle.signal,
       credentials: 'omit',
-      cache: 'no-store',
+      cache: cacheModo,
     });
   } catch (e) {
     // Falha de rede ou de CORS não tem envelope nem request_id.
@@ -393,3 +393,32 @@ export async function ordenarFotosOperador(token, id, itens) {
 export async function removerFotoOperador(token, id, item) {
   return (await requisitar('DELETE', 'operadores/produtos/{id}/fotos/{item}', { token, parametros: { id, item } })).dados;
 }
+
+/* ---------------- Catálogo aberto para visitantes (vitrine, sem sessão) ----------------
+   GET simples, sem cabeçalhos de sessão nem de revalidação manual (o navegador cuida do cache).
+   Sem preço, estoque, disponibilidade ou dados do comprador. Limite: 30 chamadas/min por IP
+   para produtos, grupos e marcas somados — por isso a tela guarda as respostas e espera a digitação. */
+
+/** GET vitrine/produtos — filtros iguais aos de GET produtos. */
+export async function listarVitrine(filtros = {}) {
+  const r = await requisitar('GET', 'vitrine/produtos', {
+    cacheModo: 'default',
+    consulta: {
+      q: filtros.q, grupo: filtros.grupo, marca: filtros.marca,
+      codigos: filtros.codigos?.length ? filtros.codigos.join(',') : undefined,
+      ids: filtros.ids?.length ? filtros.ids.join(',') : undefined,
+      'termos[]': filtros.termos?.length ? filtros.termos : undefined,
+      pagina: filtros.pagina, limite: filtros.limite,
+    },
+  });
+  return { dados: r.dados, paginacao: r.paginacao };
+}
+export async function listarGruposVitrine() { return (await requisitar('GET', 'vitrine/grupos', { cacheModo: 'default' })).dados; }
+export async function listarMarcasVitrine() { return (await requisitar('GET', 'vitrine/marcas', { cacheModo: 'default' })).dados; }
+
+/** Endereço público de uma foto da vitrine (sem Bearer): prefixo da loja + caminho. */
+export function urlVitrine(caminho) {
+  const c = String(caminho || '').replace(/^\/+/, '');
+  return /^vitrine\/produtos\/\d+\/fotos\/\d+$/.test(c) ? `${BASE_URL}/b2b/v1/lojas/${LOJA}/${c}` : '';
+}
+export function urlFotoVitrine(id, item) { return urlVitrine(`vitrine/produtos/${Number(id)}/fotos/${Number(item)}`); }

@@ -86,7 +86,7 @@ Exemplos, testes e capturas usam só dados fictícios: CNPJ inventado, nomes inv
 Mesmo que pareçam resolver um erro, não faça:
 
 - `mode: "no-cors"` no `fetch`, proxy público de CORS ou extensão que desliga o CORS;
-- cabeçalho que o contrato não prevê (o preflight da API só aceita `Authorization`, `Content-Type` e `Idempotency-Key`);
+- cabeçalho que o contrato não prevê. Nas rotas com preflight, os permitidos são `Authorization`, `Content-Type` e `Idempotency-Key`;
 - desligar a validação de certificado, forçar `http` em `https` ou trocar a URL-base;
 - repetir chamada em laço sem espera, que esgota o limite e trava o login;
 - calcular preço, desconto, frete, parcela ou total no navegador e mandar para a API, que não aceita valor vindo da tela;
@@ -138,7 +138,16 @@ Datas vêm como `AAAA-MM-DD`, e os horários de expiração, em UTC.
 7. Mande `{"token": "...", "senha_nova": "..."}` para `POST acessos/senha`. No 204, leve ao login.
 8. Em `LINK_INVALIDO`, ofereça pedir outro link.
 
+### Catálogo para visitantes
+
+- Enquanto a pessoa estiver sem sessão, use só `GET vitrine/produtos`, `GET vitrine/grupos` e `GET vitrine/marcas`. Mostre nome, foto, categoria (`grupo`) e **Entre para ver os preços**, com link para entrar. O contrato da vitrine não traz preço, estoque, disponibilidade nem dados do comprador.
+- Monte a URL da capa com o prefixo da loja e `imagem`. As fotos de `vitrine/produtos/{id}/fotos/{item}` dispensam o Bearer. Use carregamento sob demanda para as imagens e evite disparar a mesma busca a cada tecla.
+- Com a sessão confirmada, substitua os dados da vitrine pelos de `GET produtos` ou `POST produtos/busca` e das rotas autenticadas de grupos, marcas e fotos. Nunca misture as duas respostas na mesma tela. Ao sair ou perder a sessão, limpe os dados privados antes de voltar à vitrine.
+- Se a vitrine não estiver disponível, apresente a opção de entrar. Em homologação, confirme com a Movimento que o parâmetro está ligado e que a origem do portal está cadastrada.
+
 ## 8. Compra
+
+Mostre no carrinho o valor de `pedido_minimo` recebido de `GET loja` quando estiver preenchido. Use a pendência `PEDIDO_MINIMO_LOJA` da revisão para bloquear o envio.
 
 As chamadas, na ordem:
 
@@ -218,7 +227,7 @@ A API só responde ao navegador nos endereços (origens) que a Movimento cadastr
 
 Em desenvolvimento, use `http://localhost:5173`. Fixe a porta no Vite (`server.port: 5173` com `strictPort: true`), porque ele pula para outra porta sem avisar, e abra sempre `localhost`, nunca `127.0.0.1`.
 
-Erro de CORS ao chamar a API quer dizer que o código está certo e falta cadastrar a origem. Diga à equipe o endereço exato para mandar à Movimento: esquema, host em minúsculas e porta, se não for a padrão. Um slug errado também aparece assim.
+Se houver erro de CORS, confira o slug e a origem cadastrada. Diga à equipe o endereço exato para mandar à Movimento, com esquema, host em minúsculas e porta quando não for a padrão. Na vitrine, faça GET sem cabeçalhos de sessão ou de revalidação manual. Vitrine fechada também pode aparecer como erro de CORS. Nesse caso, mostre a opção de entrar.
 
 Erro de CORS ao chamar a função `ponte-g360` é configuração do Supabase da Souza Ribeiro. Confira se a origem está em `PORTAL_ORIGENS`, se todos os segredos da função estão preenchidos e se a verificação de JWT está desligada para ela.
 

@@ -19,6 +19,7 @@ import { $, esc, toast, abrirModal, fecharModal, saudacao, passoQuantidade, adia
 import { htmlCartao, htmlPreco, unidadeEscolhida, linhaCarrinho } from './cartao.js';
 import { abrirDetalhe, ligarDetalhe } from './detalhe.js';
 import { iniciarSouzinha } from './souzinha.js';
+import { resultadoPublico, htmlCartaoPublico, chipsPublicos, marcasPublicas, limparVisitante } from './visitante.js';
 import { abrirCheckout } from './checkout.js';
 import { desenharMinhaLista } from './lista.js';
 import { desenharPedidos } from './pedidos.js';
@@ -32,6 +33,7 @@ let montado = false;
 let buscaN = 0;
 
 export function limparLoja() {
+  limparVisitante();
   Object.assign(filtros, { q: '', grupo: '', marca: '', pagina: 1 });
   classificacoes = null;
   vitrine = null; busca = null;
@@ -65,13 +67,15 @@ function montar() {
   const q = $('q');
   // Só busca de novo quando o texto mudou de verdade (evita redesenhar a grade à toa).
   const buscar = adiar(() => { const v = q.value.trim(); if (v === filtros.q) return; filtros.q = v; filtros.pagina = 1; if (ctx.rota === 'cat') desenharCatalogo(); else ctx.ir('/catalogo'); }, 250);
-  q.addEventListener('input', () => { if (sessao.ativa) buscar(); });
+  // Visitante (vitrine pública): espera mais a digitação, porque a vitrine aceita 30 chamadas por minuto.
+  const buscarPublico = adiar(() => { const v = q.value.trim(); if (v === filtros.q) return; filtros.q = v; filtros.pagina = 1; if (ctx.rota === 'cat') desenharCatalogo(); else ctx.ir('/catalogo'); }, 700);
+  q.addEventListener('input', () => { if (sessao.ativa) buscar(); else buscarPublico(); });
   // Como no portal antigo: ao começar a digitar, rola até os resultados (uma vez por busca), sem tirar o foco do campo.
   let rolou = false; let tRolar = null;
   q.addEventListener('input', () => {
     clearTimeout(tRolar);
     if (!q.value.trim()) { rolou = false; return; }
-    if (rolou || !sessao.ativa) return;
+    if (rolou) return;
     tRolar = setTimeout(() => {
       if (rolou || !q.value.trim() || $('vCat').hidden) return;
       const topo = (document.querySelector('header')?.getBoundingClientRect().height || 0) + 12;
@@ -80,8 +84,7 @@ function montar() {
       rolou = true;
     }, 120);
   });
-  q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (sessao.ativa) { filtros.q = q.value.trim(); filtros.pagina = 1; if (ctx.rota === 'cat') desenharCatalogo(); else ctx.ir('/catalogo'); } else abrirLogin(); } });
-  q.addEventListener('focus', () => { if (!sessao.ativa) abrirLogin(); });
+  q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (q.value.trim() === filtros.q && ctx.rota === 'cat') return; filtros.q = q.value.trim(); filtros.pagina = 1; if (ctx.rota === 'cat') desenharCatalogo(); else ctx.ir('/catalogo'); } });
   $('marca').addEventListener('change', () => { filtros.marca = $('marca').value; filtros.pagina = 1; desenharCatalogo(); });
   $('cats').addEventListener('click', (e) => {
     const b = e.target.closest('.chip'); if (!b) return;
@@ -177,7 +180,19 @@ async function carregarClassificacoes() {
 
 function desenharChips() {
   const el = $('cats');
-  if (!sessao.ativa) { el.innerHTML = ''; return; }
+  if (!sessao.ativa) {
+    chipsPublicos().then((grupos) => {
+      if (sessao.ativa) return;
+      el.innerHTML = [['', 'Todos', ''], ...grupos.filter((g) => g.quantidade).map((g) => [g.codigo, g.nome, g.quantidade])]
+        .map(([c, n, qt]) => `<button type="button" class="chip ${c === String(filtros.grupo) ? 'on' : ''}" data-c="${esc(c)}">${esc(n)}<span>${Number(qt) || ''}</span></button>`).join('');
+    }).catch(() => { el.innerHTML = ''; });
+    marcasPublicas().then((ms) => {
+      if (sessao.ativa) return;
+      $('marca').innerHTML = '<option value="">Todas as marcas</option>' + ms.map((m) => `<option value="${Number(m.codigo)}">${esc(m.nome)}</option>`).join('');
+      $('marca').value = filtros.marca; $('nMarcas').textContent = ms.length;
+    }).catch(() => {});
+    return;
+  }
   if (!classificacoes) { carregarClassificacoes().then(desenharChips).catch(() => { el.innerHTML = ''; }); return; }
   const grupos = classificacoes.grupos.filter((g) => g.quantidade);
   const total = classificacoes.total ?? '';
@@ -267,21 +282,47 @@ async function resultadoBusca() {
   return { itens: busca.itens.slice(ini, ini + POR_PAGINA), total: busca.itens.length, semEstoque: busca.semEstoque, temMais: false, paginas: Math.max(1, Math.ceil(busca.itens.length / POR_PAGINA)) };
 }
 
+function conviteEntrar(grid, extra = '') {
+  grid.innerHTML = `<div class="empty g360-convite">${extra}<b>Entre para ver o catálogo e os seus preços.</b>
+    <p>O portal é exclusivo para empresas clientes da Souza Ribeiro.</p>
+    <div class="act" style="justify-content:center"><button type="button" class="btn pri" id="gEntrar">Entrar</button><button type="button" class="btn out" id="gPrimeiro">Primeiro acesso</button><button type="button" class="btn out" id="gCadastro">Quero ser cliente</button></div></div>`;
+  $('gCadastro').onclick = () => abrirCadastro(ctx);
+  $('gEntrar').onclick = () => abrirLogin();
+  $('gPrimeiro').onclick = () => ctx.ir('/primeiro-acesso');
+  if (ctx.loja.troca_senha !== true) $('gPrimeiro').style.display = 'none';
+}
+
+/** Visitante: catálogo aberto (vitrine) com "Entre para ver os preços". Vitrine fechada → convite para entrar. */
+async function desenharCatalogoPublico(grid, pag) {
+  const meu = ++buscaN;
+  grid.innerHTML = '<div class="empty">Carregando produtos…</div>';
+  try {
+    const r = await resultadoPublico(filtros);
+    if (meu !== buscaN || sessao.ativa) return;
+    if (r.totalCatalogo != null) $('tot').textContent = Number(r.totalCatalogo).toLocaleString('pt-BR');
+    $('cnt').innerHTML = filtros.q ? `<b>${r.total.toLocaleString('pt-BR')}</b> resultado${r.total === 1 ? '' : 's'} para “${esc(filtros.q)}” · entre para ver os preços`
+      : `<b>${r.total.toLocaleString('pt-BR')}</b> produto${r.total === 1 ? '' : 's'}${filtros.grupo ? ` em ${esc(filtros.grupo)}` : ''} · entre para ver os preços`;
+    grid.innerHTML = r.itens.length ? r.itens.map(htmlCartaoPublico).join('')
+      : `<div class="empty">${filtros.q ? `Nada encontrado para “${esc(filtros.q)}”. Tente outra palavra ou o código do produto.` : 'Nenhum produto nesta seleção.'}</div>`;
+    if (r.paginas > 1) {
+      pag.innerHTML = `<button type="button" class="tool" id="gAnt" ${filtros.pagina <= 1 ? 'disabled' : ''}>‹ Anterior</button><span>Página <b>${filtros.pagina}</b> de ${r.paginas}</span><button type="button" class="tool" id="gProx" ${filtros.pagina >= r.paginas ? 'disabled' : ''}>Próxima ›</button>`;
+      const mudar = (d) => { filtros.pagina += d; desenharCatalogo(); document.querySelector('.bar')?.scrollIntoView({ behavior: 'smooth' }); };
+      $('gAnt').onclick = () => mudar(-1); $('gProx').onclick = () => mudar(1);
+    }
+  } catch {
+    if (meu !== buscaN || sessao.ativa) return;
+    // Vitrine fechada ou indisponível (às vezes aparece como erro de CORS): oferece o login.
+    $('cnt').innerHTML = '';
+    document.querySelector('.bar').style.display = 'none';
+    conviteEntrar(grid);
+  }
+}
+
 export async function desenharCatalogo() {
   const grid = $('grid'); const pag = $('g360Pag');
   pag.innerHTML = '';
-  document.querySelector('.bar').style.display = sessao.ativa ? '' : 'none';
-  if (!sessao.ativa) {
-    $('cnt').innerHTML = '';
-    grid.innerHTML = `<div class="empty g360-convite"><b>Entre para ver o catálogo e os seus preços.</b>
-      <p>O portal é exclusivo para empresas clientes da Souza Ribeiro.</p>
-      <div class="act" style="justify-content:center"><button type="button" class="btn pri" id="gEntrar">Entrar</button><button type="button" class="btn out" id="gPrimeiro">Primeiro acesso</button><button type="button" class="btn out" id="gCadastro">Quero ser cliente</button></div></div>`;
-    $('gCadastro').onclick = () => abrirCadastro(ctx);
-    $('gEntrar').onclick = () => abrirLogin();
-    $('gPrimeiro').onclick = () => ctx.ir('/primeiro-acesso');
-    if (ctx.loja.troca_senha !== true) $('gPrimeiro').style.display = 'none';
-    return;
-  }
+  document.querySelector('.bar').style.display = '';
+  if (!sessao.ativa) { await desenharCatalogoPublico(grid, pag); return; }
   const meu = ++buscaN;
   grid.innerHTML = '<div class="empty">Carregando produtos…</div>';
   if (sessao.supabaseOk && idsCarregados() === null) { try { await carregarIds(); } catch { /* sem lista: sem botão */ } }
@@ -317,6 +358,7 @@ export async function desenharCatalogo() {
 
 async function cliqueCartao(e) {
   const card = e.target.closest('.card'); if (!card) return;
+  if (card.classList.contains('publico')) { abrirLogin(); return; }
   const p = produtosDaTela.get(Number(card.dataset.id)); if (!p) return;
   const un = e.target.closest('.unsel [data-un]');
   if (un) {
@@ -385,6 +427,10 @@ function desenharCarrinho() {
   $('dTot').textContent = dinheiro(est.total);
   const rot = document.querySelector('.df .t span'); if (rot) rot.textContent = 'Total estimado';
   if (!$('dEst')) document.querySelector('.df .t').insertAdjacentHTML('afterend', '<p class="hint" id="dEst" style="margin:-8px 0 12px">Os valores que valem aparecem na revisão do pedido.</p>');
+  // Pedido mínimo da loja (GET loja). Quem decide se pode enviar é a revisão (pendência PEDIDO_MINIMO_LOJA).
+  const minimo = ctx?.loja?.pedido_minimo;
+  if (!$('dMin')) $('dEst').insertAdjacentHTML('afterend', '<p class="hint" id="dMin" style="margin:-6px 0 12px"></p>');
+  $('dMin').innerHTML = minimo ? `Pedido mínimo: <b>${esc(dinheiro(minimo))}</b> em produtos (sem frete).` : '';
   $('dGo').disabled = !it.length;
   $('dGo').textContent = 'Revisar pedido';
   ligarFotos($('dBody'));
