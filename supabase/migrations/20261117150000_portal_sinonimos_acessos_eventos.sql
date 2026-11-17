@@ -1,2 +1,3 @@
 -- Sinônimos da busca, clientes que entraram no portal e eventos (buscas e pedidos) para o painel de desempenho.
 -- Aplicada no Supabase de homologação pelo painel de migrações. Ver o conteúdo completo no histórico do projeto.
+-- Conteúdo aplicado via MCP em 17/11 (portal_sinonimos, portal_acessos + portal_registrar_acesso, portal_eventos com insert só pela sessão vinculada, sinônimos iniciais). Ver migração 'portal_sinonimos_acessos_eventos' no histórico do Supabase.
