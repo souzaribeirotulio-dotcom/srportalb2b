@@ -5,9 +5,11 @@ import { esc } from './util.js';
 import { dinheiro } from './formato.js';
 import { htmlFoto } from './fotos.js';
 
+// Rótulo da disponibilidade. "sob_consulta" com compravel = sem estoque, mas a loja aceita vender:
+// a disponibilidade fica a confirmar (não é preço sob consulta).
 const DISP = {
   disponivel: ['disp-ok', 'Disponível'],
-  sob_consulta: ['disp-consulta', 'Sob consulta'],
+  sob_consulta: ['disp-consulta', 'Disponibilidade a confirmar'],
   indisponivel: ['disp-fora', 'Indisponível'],
 };
 
@@ -17,15 +19,9 @@ export function opcoesUnidade(p) {
   return [base, ...(p.unidades || []).map((u) => ({ id: u.id, nome: u.nome, descricao: u.descricao, preco: u.preco, seu_preco: u.seu_preco ?? null }))];
 }
 
+/** Quem decide a compra é o campo compravel. Falso: o motivo vem em aviso, mostrado como veio. */
 export function podeComprar(p) {
-  return p.compravel === true && p.disponibilidade === 'disponivel' && p.preco !== null && p.preco !== undefined;
-}
-
-function motivoSemCompra(p) {
-  if (p.disponibilidade === 'sob_consulta') return 'Sob consulta: fale com o seu vendedor.';
-  if (p.disponibilidade === 'indisponivel') return 'Indisponível no momento.';
-  if (p.preco === null || p.preco === undefined) return 'Sem preço para compra.';
-  return 'Não disponível para compra pelo portal.';
+  return p.compravel === true && p.preco !== null && p.preco !== undefined;
 }
 
 export function htmlPreco(op) {
@@ -37,9 +33,10 @@ export function htmlPreco(op) {
  */
 export function htmlCartao(p, extras = {}) {
   const ops = opcoesUnidade(p);
-  const [cls, nomeDisp] = DISP[p.disponibilidade] || ['disp-fora', 'Indisponível'];
   const comprar = podeComprar(p);
-  const faixa = p.faixa_disponibilidade === 'ultimas_unidades' && p.disponibilidade === 'disponivel' ? ' · Últimas unidades' : '';
+  // Sem compra (compravel falso), o rótulo de disponibilidade sai: o motivo é o aviso da API.
+  const [cls, nomeDisp] = comprar ? (DISP[p.disponibilidade] || ['disp-fora', 'Indisponível']) : ['', ''];
+  const faixa = comprar && p.faixa_disponibilidade === 'ultimas_unidades' && p.disponibilidade === 'disponivel' ? ' · Últimas unidades' : '';
   const idU = `u${p.id}`;
   return `
   <article class="cartao-produto" data-id="${Number(p.id)}">
@@ -51,15 +48,14 @@ export function htmlCartao(p, extras = {}) {
       ${ops.length > 1 ? `<label class="cp-rotulo" for="${idU}">Embalagem</label>
         <select id="${idU}" class="cp-unidade">${ops.map((o, i) => `<option value="${esc(o.id)}" data-i="${i}">${esc(o.nome)}${o.descricao ? ` — ${esc(o.descricao)}` : ''}</option>`).join('')}</select>`
         : `<p class="cp-unidade-fixa">Vendido por ${esc(ops[0].nome)}</p>`}
-      <div class="cp-preco" aria-live="polite">${htmlPreco(ops[0])}</div>
-      <p class="cp-disp ${cls}">${nomeDisp}${faixa}</p>
+      ${ops[0].preco !== null && ops[0].preco !== undefined ? `<div class="cp-preco" aria-live="polite">${htmlPreco(ops[0])}</div>` : ''}
+      ${nomeDisp ? `<p class="cp-disp ${cls}">${nomeDisp}${faixa}</p>` : ''}
       ${p.aviso ? `<p class="cp-aviso">${esc(p.aviso)}</p>` : ''}
-      ${comprar ? `
-        <div class="cp-comprar">
-          <label class="sr" for="q${p.id}">Quantidade</label>
-          <input id="q${p.id}" class="cp-qtd" type="text" inputmode="decimal" value="${esc(extras.quantidadeSugerida || '1')}" maxlength="13" aria-label="Quantidade">
-          <button type="button" class="g360-btn pri cp-add">Adicionar</button>
-        </div>` : `<p class="cp-sem">${esc(motivoSemCompra(p))}</p>`}
+      <div class="cp-comprar">
+        <label class="sr" for="q${p.id}">Quantidade</label>
+        <input id="q${p.id}" class="cp-qtd" type="text" inputmode="decimal" value="${esc(extras.quantidadeSugerida || '1')}" maxlength="13" aria-label="Quantidade" ${comprar ? '' : 'disabled'}>
+        <button type="button" class="g360-btn pri cp-add" ${comprar ? '' : 'disabled aria-disabled="true"'}>Adicionar</button>
+      </div>
       <p class="cp-retorno" aria-live="polite"></p>
       ${extras.naLista === null || extras.naLista === undefined ? '' : `<button type="button" class="app-link cp-lista" aria-pressed="${extras.naLista ? 'true' : 'false'}">${extras.naLista ? '♥ Na Minha Lista' : '♡ Salvar na Minha Lista'}</button>`}
       ${extras.rodape || ''}

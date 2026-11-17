@@ -71,7 +71,7 @@ select option { background: var(--n900); color: var(--tx); }
 .preco { font-size: 20px; font-weight: 800; color: var(--tx); }
 .selo-seu-preco { display: inline-block; font-size: 11px; font-weight: 700; color: #132c09; background: var(--lima); border-radius: 999px; padding: 2px 8px; }
 .cp-disp { font-size: 12px; margin: 0; font-weight: 600; }
-.cp-disp.disp-ok { color: var(--lima); } .cp-disp.disp-consulta { color: #ffe08a; } .cp-disp.disp-fora { color: #ffb4ab; }
+.cp-disp.disp-ok { color: var(--lima); } .cp-disp.disp-consulta { color: var(--tx2); font-weight: 500; } .cp-disp.disp-fora { color: #ffb4ab; }
 .cp-aviso { font-size: 12px; color: #ffe08a; margin: 0; }
 .cp-comprar { display: grid; grid-template-columns: 90px 1fr; gap: 8px; margin-top: auto; }
 .cp-qtd { min-height: 44px; border-radius: 10px; border: 1px solid var(--linha2); background: rgba(0, 0, 0, .25); color: var(--tx); font: inherit; font-size: 16px; padding: 0 10px; width: 100%; box-sizing: border-box; }
@@ -154,3 +154,4 @@ select option { background: var(--n900); color: var(--tx); }
 .fotos-galeria .linha-botoes { margin: 0 4px 6px; gap: 0; }
 
 @media (max-width: 600px) { .app-topo { position: static; padding: 10px 12px; } .app-nav { padding: 8px 12px; } .app-conteudo { padding: 12px; } }
+.cp-add:disabled, .cp-qtd:disabled { opacity: .45; cursor: not-allowed; }

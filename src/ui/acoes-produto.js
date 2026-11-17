@@ -11,7 +11,7 @@ export function ligarCartoes(raiz, produtos, { aoMudarLista } = {}) {
     ligarUnidade(cartao, p);
     const retorno = cartao.querySelector('.cp-retorno');
     const add = cartao.querySelector('.cp-add');
-    if (add) {
+    if (add && !add.disabled) {
       const campo = cartao.querySelector('.cp-qtd');
       const fazer = () => {
         const q = normalizarQuantidade(campo.value);

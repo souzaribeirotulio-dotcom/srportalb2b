@@ -34,7 +34,8 @@ class Sim:
         self.produtos = [produto(i) for i in range(101, 146)]
         P = {p['id']: p for p in self.produtos}
         P[101].update(preco='11.50', seu_preco='11.50', unidades=[{'id': 'CX12', 'nome': 'CX', 'descricao': 'Caixa com 12', 'preco': '125.00', 'seu_preco': '125.00'}])
-        P[102].update(disponibilidade='sob_consulta', compravel=False)
+        P[102].update(disponibilidade='sob_consulta', compravel=False, aviso='Preço sob consulta. Fale com o seu vendedor.')
+        P[108].update(disponibilidade='sob_consulta', compravel=True, faixa_disponibilidade='indisponivel')
         P[103].update(disponibilidade='indisponivel', compravel=False, faixa_disponibilidade='indisponivel', aviso='Há uma venda em andamento com este produto no fornecedor. Tente de novo em instantes.')
         P[104].update(fotos=[1, 2], imagem='produtos/104/fotos/1')
         P[105].update(fotos=[1])  # foto que falha (404)
