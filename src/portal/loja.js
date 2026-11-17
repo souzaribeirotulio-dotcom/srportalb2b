@@ -4,6 +4,7 @@
    A lógica (API, sessão, envio, Minha Lista, ocorrências) vem dos módulos
    já testados; aqui só a tela.
    ===================================================================== */
+import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
 import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar } from '../catalogo/exibicao.js';
 import { buscarLocal, temEstoque, variacoes } from '../catalogo/busca.js';
@@ -45,7 +46,7 @@ function montar() {
   montado = true;
   document.body.classList.add('g360-legado');
   // O que ainda não está ligado à API fica escondido (volta na fase dos recursos do portal antigo).
-  $('ord').innerHTML = '<option value="nome">Ordenar: Nome A–Z</option>';
+  $('ord').addEventListener('change', () => { filtros.pagina = 1; desenharCatalogo(); });
 
   document.querySelectorAll('.hb[data-v],.tabbar [data-v]').forEach((b) => b.addEventListener('click', () => {
     const v = b.dataset.v;
@@ -63,8 +64,22 @@ function montar() {
   // Busca do topo: a API procura por nome, código e aplicação.
   const q = $('q');
   // Só busca de novo quando o texto mudou de verdade (evita redesenhar a grade à toa).
-  const buscar = adiar(() => { const v = q.value.trim(); if (v === filtros.q) return; filtros.q = v; filtros.pagina = 1; if (ctx.rota === 'cat') desenharCatalogo(); else ctx.ir('/catalogo'); }, 450);
+  const buscar = adiar(() => { const v = q.value.trim(); if (v === filtros.q) return; filtros.q = v; filtros.pagina = 1; if (ctx.rota === 'cat') desenharCatalogo(); else ctx.ir('/catalogo'); }, 250);
   q.addEventListener('input', () => { if (sessao.ativa) buscar(); });
+  // Como no portal antigo: ao começar a digitar, rola até os resultados (uma vez por busca), sem tirar o foco do campo.
+  let rolou = false; let tRolar = null;
+  q.addEventListener('input', () => {
+    clearTimeout(tRolar);
+    if (!q.value.trim()) { rolou = false; return; }
+    if (rolou || !sessao.ativa) return;
+    tRolar = setTimeout(() => {
+      if (rolou || !q.value.trim() || $('vCat').hidden) return;
+      const topo = (document.querySelector('header')?.getBoundingClientRect().height || 0) + 12;
+      const destino = Math.max(0, window.scrollY + $('grid').getBoundingClientRect().top - topo - 60);
+      if (destino > window.scrollY + 40) window.scrollTo({ top: destino, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      rolou = true;
+    }, 120);
+  });
   q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (sessao.ativa) { filtros.q = q.value.trim(); filtros.pagina = 1; if (ctx.rota === 'cat') desenharCatalogo(); else ctx.ir('/catalogo'); } else abrirLogin(); } });
   q.addEventListener('focus', () => { if (!sessao.ativa) abrirLogin(); });
   $('marca').addEventListener('change', () => { filtros.marca = $('marca').value; filtros.pagina = 1; desenharCatalogo(); });
@@ -152,7 +167,7 @@ async function carregarClassificacoes() {
   if (classificacoes && classificacoes.token === sessao.token) return classificacoes;
   const [marcas] = await Promise.all([listarMarcas(sessao.token), carregarExibicao()]);
   // Categorias definidas pela equipe no painel (não vêm do G360).
-  const grupos = categoriasPortal().map((nome) => ({ codigo: nome, nome, quantidade: nome === 'Outros' ? '' : codigosDaCategoria(nome).length || '' }));
+  const grupos = categoriasPortal().map((nome) => ({ codigo: nome, nome, quantidade: codigosDaCategoria(nome, Infinity).length || '' }));
   classificacoes = { token: sessao.token, grupos, marcas, total: null };
   $('marca').innerHTML = '<option value="">Todas as marcas</option>' + marcas.map((m) => `<option value="${Number(m.codigo)}">${esc(m.nome)}</option>`).join('');
   $('marca').value = filtros.marca;
@@ -177,25 +192,42 @@ const POR_PAGINA = 24;
 let vitrine = null;   // { chave, apiPagina, apiPaginas, itens, fim }
 let busca = null;     // { chave, itens, semEstoque }
 
+/** Ordem escolhida em "Ordenar": por nome, ou pelo preço que a API mandou (só para exibir; com estoque primeiro). */
+function ordenar(lista) {
+  const o = $('ord').value;
+  const preco = (p) => { try { return new Decimal(p.preco ?? (o === 'menor' ? '1e15' : '-1')); } catch { return new Decimal(0); } };
+  lista.sort((a, b) => (temEstoque(b) - temEstoque(a))
+    || (o === 'menor' ? preco(a).cmp(preco(b)) : o === 'maior' ? preco(b).cmp(preco(a)) : a.nome.localeCompare(b.nome, 'pt')));
+  return lista;
+}
+
 /** Lê o catálogo em blocos de 50 e guarda só o que tem estoque, até encher a página pedida. */
 async function resultadoVitrine() {
-  const chave = `${sessao.token}|${filtros.grupo}|${filtros.marca}`;
+  const chave = `${sessao.token}|${filtros.grupo}|${filtros.marca}|${$('ord').value}`;
   if (!vitrine || vitrine.chave !== chave) vitrine = { chave, apiPagina: 0, apiPaginas: 1, itens: [], fim: false };
   const precisa = filtros.pagina * POR_PAGINA + 1;
-  const codigos = filtros.grupo ? codigosDaCategoria(filtros.grupo) : null;
+  // Categoria do portal: a API aceita até 500 códigos por consulta, então vai em blocos de 500.
+  const codigos = filtros.grupo ? codigosDaCategoria(filtros.grupo, Infinity) : null;
+  const blocos = codigos ? Array.from({ length: Math.ceil(codigos.length / 500) }, (_, i) => codigos.slice(i * 500, i * 500 + 500)) : [null];
   if (codigos && !codigos.length) vitrine.fim = true;
+  vitrine.bloco ??= 0;
   let lidas = 0;
   while (!vitrine.fim && vitrine.itens.length < precisa && lidas < 8) {
     const pagina = vitrine.apiPagina + 1;
     const marca = filtros.marca ? Number(filtros.marca) : undefined;
-    const { dados, paginacao } = codigos
-      ? await buscarProdutos(sessao.token, { codigos, marca, pagina, limite: 50 })
+    const bloco = blocos[vitrine.bloco];
+    const { dados, paginacao } = bloco
+      ? await buscarProdutos(sessao.token, { codigos: bloco, marca, pagina, limite: 50 })
       : await listarProdutos(sessao.token, { marca, pagina, limite: 50 });
     vitrine.apiPagina = pagina; lidas += 1;
     vitrine.apiPaginas = Math.max(1, Math.ceil((paginacao?.total || 0) / 50));
+    if (!filtros.grupo && !filtros.marca && pagina === 1) $('tot').textContent = Number(paginacao?.total || 0).toLocaleString('pt-BR');
     vitrine.itens.push(...dados.map(apresentar).filter(temEstoque));
-    if (pagina >= vitrine.apiPaginas) vitrine.fim = true;
+    if (pagina >= vitrine.apiPaginas) {
+      if (vitrine.bloco + 1 < blocos.length) { vitrine.bloco += 1; vitrine.apiPagina = 0; } else vitrine.fim = true;
+    }
   }
+  ordenar(vitrine.itens);
   const ini = (filtros.pagina - 1) * POR_PAGINA;
   const itens = vitrine.itens.slice(ini, ini + POR_PAGINA);
   const temMais = !vitrine.fim || vitrine.itens.length > ini + POR_PAGINA;
@@ -226,9 +258,10 @@ async function resultadoBusca() {
     } catch (e) { if (!achados.size) throw e; }
     const todos = [...achados.values()].sort((a, b) => (temEstoque(b) - temEstoque(a))
       || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
-    busca = { chave, itens: todos, semEstoque: todos.filter((p) => !temEstoque(p)).length };
+    busca = { chave, itens: todos, semEstoque: todos.filter((p) => !temEstoque(p)).length, ordem: '' };
     registrarBusca(filtros.q, todos.length);
   }
+  if (busca.ordem !== $('ord').value) { busca.ordem = $('ord').value; if (busca.ordem !== 'nome') ordenar(busca.itens); }
   const ini = (filtros.pagina - 1) * POR_PAGINA;
   return { itens: busca.itens.slice(ini, ini + POR_PAGINA), total: busca.itens.length, semEstoque: busca.semEstoque, temMais: false, paginas: Math.max(1, Math.ceil(busca.itens.length / POR_PAGINA)) };
 }

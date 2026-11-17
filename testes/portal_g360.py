@@ -149,7 +149,7 @@ with sync_playwright() as pw:
     n.entrar(U1, S1)
     checar(pg.locator('#grid .card').count() == 24, f"vitrine sem 24 produtos: {pg.locator('#grid .card').count()}")
     checar('42 produtos com estoque' in n.tc('#cnt'), f'contagem: {n.tc("#cnt")}')
-    checar(n.tc('#nMarcas') == '2', 'contadores da página inicial')
+    checar(n.tc('#nMarcas') == '2' and n.tc('#tot') == '45', f"contadores da página inicial: {n.tc('#tot')}")
     pg.wait_for_selector('#souzinha-widget .sz-fab'); checar(pg.locator('#souzinha-widget .sz-fab').is_visible(), 'Souzinha no portal')
     checar(pg.locator('.card[data-id="102"], .card[data-id="103"], .card[data-id="108"]').count() == 0, 'sem estoque na vitrine')
     c = pg.locator('.card[data-id="101"]')
