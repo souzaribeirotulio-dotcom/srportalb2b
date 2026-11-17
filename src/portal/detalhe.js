@@ -39,7 +39,7 @@ function desenhar() {
       <div class="meta">Cód. ${esc(p.codigo)}${ficha.ean ? ` · EAN ${esc(ficha.ean)}` : ''}</div>
       <div class="dprice">${comprar ? htmlPreco(unidadeEscolhida(p, atual.un)) : ''}</div>
       ${htmlEstoque(p)}
-      ${htmlDisponivel(p, atual.un)}
+      ${htmlDisponivel(p)}
       ${htmlUnidades(p, atual.un, 'lg')}
       <div class="dbuy"><div class="qty"><button type="button" data-d="-1" aria-label="Diminuir" ${comprar ? '' : 'disabled'}>−</button><input id="dQ" type="text" inputmode="decimal" value="1" maxlength="13" aria-label="Quantidade" ${comprar ? '' : 'disabled'}><button type="button" data-d="1" aria-label="Aumentar" ${comprar ? '' : 'disabled'}>+</button></div>
         <button type="button" class="add" id="dAdd" ${comprar ? '' : 'disabled aria-disabled="true"'}><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Adicionar ao carrinho</button>

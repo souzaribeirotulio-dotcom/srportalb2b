@@ -155,3 +155,4 @@ body.g360-painel #souzinha-widget, body.g360:not(.g360-legado) #souzinha-widget 
 /* Quantidade disponível (API). */
 .stk.disp { color: var(--lima); font-weight: 600; }
 .stk.disp.out { color: #ff8a8a; }
+.stk.disp.baixo { color: #ffd45c; }

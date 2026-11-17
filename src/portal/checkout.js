@@ -159,7 +159,7 @@ function desenharResumo() {
   $('cResumo').innerHTML = `
     <div class="rv">${r.itens.map((i) => `<div class="rv-item"><div class="linha1"><span>${esc(quantidade(i.quantidade))} ${esc(String(i.unidade || '').toLowerCase())} · ${esc(nomeDoItem(i))}</span><b>${i.total ? esc(dinheiro(i.total)) : '—'}</b></div>
       <small>${i.preco_unitario ? `${esc(dinheiro(i.preco_unitario))} por ${esc(String(i.unidade || '').toLowerCase())}` : 'Sem preço'}${i.seu_preco ? ' <span class="tagcg">Seu preço</span>' : ''}</small>
-      ${i.aviso ? `<small class="rv-pend">⚠ ${esc(i.aviso)}</small>` : ''}${i.pendencia ? `<small class="rv-pend">⚠ ${esc(i.pendencia)}${i.quantidade_disponivel !== null && i.quantidade_disponivel !== undefined ? ` Disponível: ${esc(quantidade(i.quantidade_disponivel))} ${esc(String(i.unidade || '').toUpperCase())}.` : ''}</small>` : ''}</div>`).join('')}</div>
+      ${i.aviso ? `<small class="rv-pend">⚠ ${esc(i.aviso)}</small>` : ''}${i.pendencia ? `<small class="rv-pend">⚠ ${esc(i.pendencia)}</small>` : ''}</div>`).join('')}</div>
     <div class="rv-tot">
       <div><span>Subtotal dos produtos</span><span>${esc(dinheiro(r.subtotal))}</span></div>
       <div><span>${esc(FRETE[r.frete.situacao] || 'Frete')}</span><span>${esc(freteValor)}</span></div>

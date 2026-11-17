@@ -55,7 +55,7 @@ export function htmlCartao(p, { naLista = null } = {}) {
       <div class="meta">Cód. ${esc(p.codigo)} · ${esc(p.unidade || '')}</div>
       <div class="price">${htmlPreco(ops[0])}</div>
       ${htmlEstoque(p)}
-      <div class="dispw">${htmlDisponivel(p, '')}</div>
+      <div class="dispw">${htmlDisponivel(p)}</div>
       ${htmlUnidades(p)}
       <div class="buy">
         <div class="qty"><button type="button" data-d="-1" aria-label="Diminuir" ${comprar ? '' : 'disabled'}>−</button><input type="text" inputmode="decimal" value="1" maxlength="13" aria-label="Quantidade" ${comprar ? '' : 'disabled'}><button type="button" data-d="1" aria-label="Aumentar" ${comprar ? '' : 'disabled'}>+</button></div>

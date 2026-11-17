@@ -93,7 +93,7 @@ export async function desenharClips(abrirId, op = {}) {
         <div><button type="button" class="cbtn" data-a="ver" aria-label="Ver detalhes">👁</button><small>Detalhes</small></div></div>
       ${c.titulo ? `<div class="cttl">${esc(c.titulo)}</div>` : ''}
       <div class="ccard">${sessao.ativa ? `<div class="cimgw" data-a="ver">${htmlFoto(p, 'g360-foto')}</div>` : (capa ? `<img src="${esc(capa)}" alt="" referrerpolicy="no-referrer" data-a="ver">` : '<div class="cimgw" data-a="ver"></div>')}
-        <div><div class="cn" data-a="ver">${esc(p.nome)}</div>${comprar ? `<div class="cp">${htmlPreco(opcoesUnidade(p)[0])}</div>` : ''}${sessao.ativa ? htmlEstoque(p) + htmlDisponivel(p, '') : ''}</div>
+        <div><div class="cn" data-a="ver">${esc(p.nome)}</div>${comprar ? `<div class="cp">${htmlPreco(opcoesUnidade(p)[0])}</div>` : ''}${sessao.ativa ? htmlEstoque(p) + htmlDisponivel(p) : ''}</div>
         ${sessao.ativa
     ? `<div class="cb"><div class="qty"><button type="button" data-d="-1" ${comprar ? '' : 'disabled'} aria-label="Diminuir">−</button><input type="text" inputmode="decimal" value="1" maxlength="13" aria-label="Quantidade" ${comprar ? '' : 'disabled'}><button type="button" data-d="1" ${comprar ? '' : 'disabled'} aria-label="Aumentar">+</button></div>
             <button type="button" class="add" data-a="add" ${comprar ? '' : 'disabled'}><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button></div>`

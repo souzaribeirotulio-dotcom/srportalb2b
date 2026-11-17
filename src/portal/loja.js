@@ -272,7 +272,7 @@ async function resultadoVitrine() {
 let contagem = null;
 async function contarComEstoque(totalCatalogo) {
   const rotulo = $('tot').nextElementSibling;
-  const chave = `sr-estoque-${LOJA}-${sessao.comprador?.codigo || ''}`;
+  const chave = `sr-estoque2-${LOJA}-${sessao.comprador?.codigo || ''}`;
   const mostrar = (t, r) => { $('tot').textContent = t; if (rotulo) rotulo.textContent = r; };
   try {
     const salvo = JSON.parse(localStorage.getItem(chave) || 'null');
@@ -444,7 +444,6 @@ async function cliqueCartao(e) {
     card.dataset.un = un.dataset.un;
     card.querySelectorAll('.unsel button').forEach((b) => b.classList.toggle('on', b === un));
     card.querySelector('.price').innerHTML = htmlPreco(unidadeEscolhida(p, un.dataset.un));
-    card.querySelector('.dispw').innerHTML = htmlDisponivel(p, un.dataset.un);
     return;
   }
   const d = e.target.closest('[data-d]');
@@ -520,7 +519,7 @@ function limiteLinha(pid, uni, q) {
   if (sessao.loja?.bloqueia_sem_estoque !== true) return null;
   const l = linhasCarrinho().find((x) => Number(x.produto_id) === pid && String(x.unidade ?? '') === String(uni || ''));
   if (!l || l.disponivel === null || l.disponivel === undefined) return null;
-  return Number(q) > Number(l.disponivel) ? `Só há ${String(l.disponivel).replace('.', ',')} ${String(l.unidadeNome || '').toUpperCase()} disponíveis.` : null;
+  return Number(q) > Number(l.disponivel) ? 'Quantidade acima do estoque disponível.' : null;
 }
 
 function cliqueCarrinho(e) {
