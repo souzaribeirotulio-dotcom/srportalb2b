@@ -72,8 +72,7 @@ body.g360-legado #srBoot { display: none; }
 .lrow .fora { color: var(--tx3); font-size: 12px; }
 :focus-visible { outline: 3px solid var(--lima); outline-offset: 2px; }
 /* Minha Lista: a foto é um bloco (não <img>), então recebe a mesma área do layout original */
-.lrow .g360-mini { grid-area: img; }
-.lrow > div:empty { min-width: 0; }
-.lrow .nm, .lrow .pr { min-width: 0; overflow-wrap: anywhere; }
+.lrow .nm, .lrow .pr { min-width: 0; overflow-wrap: break-word; }
 .lrow .unsel.sm { max-width: 100%; }
-@media (max-width: 640px) { .lrow .g360-mini { width: 56px; height: 56px; } .lrow .pr { font-size: 14px; } }
+/* Só no celular o layout original usa áreas nomeadas (img / nm / pr / qty / sub). */
+@media (max-width: 640px) { .lrow .g360-mini { grid-area: img; width: 56px; height: 56px; } .lrow .pr { font-size: 14px; } }

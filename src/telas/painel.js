@@ -21,7 +21,7 @@ import { esc } from '../ui/util.js';
 const op = { token: null, expira: 0, ultima: 0, minutos: 8, aviso: null };
 let relogio = null;
 let redesenhar = () => {};
-let aba = 'clientes';
+let aba = 'cadastros';
 let cliente = null;
 let urlsGaleria = [];
 
@@ -67,7 +67,7 @@ export function telaPainel({ loja, raiz, ir, logo }) {
       <div class="app-conta"><button type="button" class="app-link" id="pSair">Sair do painel</button></div>
     </header>
     <nav class="app-nav" aria-label="Seções do painel">
-      ${[['clientes', 'Clientes e preços'], ['produtos', 'Produtos e fotos'], ['ocorrencias', 'Ocorrências']].map(([id, nome]) =>
+      ${[['cadastros', 'Cadastros novos'], ['clientes', 'Clientes e preços'], ['produtos', 'Produtos e fotos'], ['ocorrencias', 'Ocorrências']].map(([id, nome]) =>
         `<button type="button" data-aba="${id}" class="${aba === id ? 'ativo' : ''}" ${aba === id ? 'aria-current="page"' : ''}>${nome}</button>`).join('')}
     </nav>
     <p class="app-aviso suave">A vaga do G360 usada pelo painel pode vencer depois de 3 minutos sem uso. Se isso acontecer, é só entrar de novo.</p>
@@ -81,6 +81,7 @@ export function telaPainel({ loja, raiz, ir, logo }) {
   const c = raiz.querySelector('#pConteudo');
   if (aba === 'clientes') abaClientes(c);
   else if (aba === 'produtos') abaProdutos(c);
+  else if (aba === 'cadastros') abaCadastros(c);
   else abaOcorrencias(c);
 }
 
@@ -352,6 +353,82 @@ async function galeria(alvo, id, nome) {
 }
 
 /* ---------------- Ocorrências (leitura pelo Supabase do painel) ---------------- */
+
+/** Conta do painel no Supabase (Cadastros e Ocorrências): pede e-mail e senha uma vez por abertura. */
+function comContaPainel(alvo, titulo, aoEntrar) {
+  if (!supabaseConfigurado()) { vazia(alvo, 'Supabase não configurado.', 'Confira as variáveis públicas do site.'); return null; }
+  const sb = supabasePainel();
+  const login = (mensagem = '') => {
+    alvo.innerHTML = `<section class="resumo"><h3>${esc(titulo)}</h3>
+      <p class="g360-mini">Use a conta do painel criada no Supabase da Souza Ribeiro (é diferente do usuário do G360).</p>
+      ${mensagem ? `<div class="g360-msg g360-msg-corrigir" role="alert"><p>${esc(mensagem)}</p></div>` : ''}
+      <form class="g360-form" id="oLogin" novalidate>
+        <label for="oEmail">E-mail</label><input id="oEmail" type="email" autocomplete="username">
+        <label for="oSenha">Senha</label><input id="oSenha" type="password" autocomplete="current-password">
+        <button type="submit" class="g360-btn pri">Entrar</button></form></section>`;
+    alvo.querySelector('#oLogin').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const b = ev.target.querySelector('button'); b.disabled = true;
+      const sn = alvo.querySelector('#oSenha');
+      const { error } = await sb.auth.signInWithPassword({ email: alvo.querySelector('#oEmail').value.trim(), password: sn.value });
+      sn.value = '';
+      if (error) { login('E-mail ou senha incorretos, ou conta sem acesso.'); return; }
+      aoEntrar();
+    });
+  };
+  sb.auth.getSession().then(({ data }) => { if (data.session) aoEntrar(); else login(); });
+  return { sb, login };
+}
+
+const SIT = { pendente: 'Aguardando análise', aprovado: 'Aprovado', recusado: 'Recusado' };
+let filtroCadastro = 'pendente';
+
+function abaCadastros(c) {
+  c.innerHTML = `<div class="app-titulo"><h2>Cadastros novos</h2><p>Empresas que pediram para ser clientes pelo portal. Depois de aprovar, cadastre a empresa no G360 e marque "Acesso à API dos sistemas externos" em Gestão comercial; aí ela usa "Primeiro acesso" para criar a senha.</p></div><div id="pCad"></div>`;
+  const alvo = c.querySelector('#pCad');
+  const conta = comContaPainel(alvo, 'Entrar para ver os cadastros', listar);
+  if (!conta) return;
+  const { sb } = conta;
+  async function listar() {
+    carregando(alvo, 'Carregando cadastros…');
+    let q = sb.from('portal_cadastros').select('*').order('criado_em', { ascending: false }).limit(200);
+    if (filtroCadastro) q = q.eq('status', filtroCadastro);
+    const { data, error } = await q;
+    if (error) { alvo.innerHTML = ''; mostrarMensagemErro(alvo, null); return; }
+    alvo.innerHTML = `<div class="linha-botoes">${[['pendente', 'Aguardando'], ['aprovado', 'Aprovados'], ['recusado', 'Recusados'], ['', 'Todos']].map(([v, n]) =>
+      `<button type="button" class="g360-btn ${filtroCadastro === v ? 'pri' : 'sec'}" data-f="${v}">${n}</button>`).join('')}
+      <button type="button" class="app-link" id="kSair">Sair da conta do painel</button></div>
+      ${data.length ? data.map((k) => `<section class="resumo" data-id="${esc(k.id)}">
+        <h3>${esc(k.razao_social)}${k.fantasia ? ` · <span style="font-weight:500">${esc(k.fantasia)}</span>` : ''}</h3>
+        <p class="g360-mini">${esc(SIT[k.status])} · enviado em ${esc(new Date(k.criado_em).toLocaleString('pt-BR'))}${k.decidido_por ? ` · decidido por ${esc(k.decidido_por)}` : ''}</p>
+        <dl>
+          <div><dt>CPF/CNPJ</dt><dd class="mono">${esc(k.documento)}</dd></div>
+          ${k.inscricao_estadual ? `<div><dt>Inscrição estadual</dt><dd>${esc(k.inscricao_estadual)}</dd></div>` : ''}
+          <div><dt>Responsável</dt><dd>${esc(k.responsavel)}</dd></div>
+          <div><dt>WhatsApp</dt><dd>${esc(k.whats || '—')}</dd></div>
+          ${k.telefone ? `<div><dt>Telefone</dt><dd>${esc(k.telefone)}</dd></div>` : ''}
+          <div><dt>E-mail</dt><dd>${esc(k.email)}</dd></div>
+          <div><dt>Endereço</dt><dd>${esc([k.logradouro, k.numero, k.complemento].filter(Boolean).join(', '))} — ${esc(k.bairro || '')}, ${esc(k.cidade || '')}/${esc(k.uf || '')} · CEP ${esc(k.cep || '')}</dd></div>
+          ${k.origem ? `<div><dt>Como conheceu</dt><dd>${esc(k.origem)}</dd></div>` : ''}
+          ${k.observacao_equipe ? `<div><dt>Observação da equipe</dt><dd>${esc(k.observacao_equipe)}</dd></div>` : ''}
+        </dl>
+        <form class="g360-form" novalidate><label for="ob${esc(k.id)}">Observação (opcional)</label><input id="ob${esc(k.id)}" maxlength="500" value="${esc(k.observacao_equipe || '')}">
+          <div class="linha-botoes">${k.status !== 'aprovado' ? '<button type="button" class="g360-btn pri" data-d="aprovado">Aprovar</button>' : ''}
+            ${k.status !== 'recusado' ? '<button type="button" class="g360-btn sec" data-d="recusado">Recusar</button>' : ''}
+            ${k.status !== 'pendente' ? '<button type="button" class="app-link" data-d="pendente">Voltar para análise</button>' : ''}</div>
+          <div class="kRes" aria-live="polite"></div></form>
+      </section>`).join('') : '<div class="estado-tela vazia"><strong>Nenhum cadastro aqui.</strong><p>Os pedidos feitos em "Quero ser cliente" aparecem nesta aba.</p></div>'}`;
+    alvo.querySelectorAll('[data-f]').forEach((b) => b.addEventListener('click', () => { filtroCadastro = b.dataset.f; listar(); }));
+    alvo.querySelector('#kSair').addEventListener('click', async () => { await sb.auth.signOut({ scope: 'local' }); conta.login(); });
+    alvo.querySelectorAll('section[data-id] [data-d]').forEach((b) => b.addEventListener('click', async () => {
+      const sec = b.closest('section'); const res = sec.querySelector('.kRes');
+      b.disabled = true;
+      const { error: e } = await sb.rpc('portal_cadastro_decidir', { p_id: sec.dataset.id, p_status: b.dataset.d, p_observacao: sec.querySelector('input').value });
+      if (e) { b.disabled = false; res.innerHTML = `<div class="g360-msg g360-msg-corrigir"><p>${esc(e.message || 'Não foi possível gravar.')}</p></div>`; return; }
+      listar();
+    }));
+  }
+}
 
 function abaOcorrencias(c) {
   c.innerHTML = `<div class="app-titulo"><h2>Ocorrências</h2><p>Casos em que o portal recebeu um aviso que depende de ajuste da Souza Ribeiro no G360.</p></div><div id="pOcorr"></div>`;

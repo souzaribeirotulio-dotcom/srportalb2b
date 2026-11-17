@@ -16,6 +16,7 @@ import { htmlCartao, htmlPreco, unidadeEscolhida, linhaCarrinho } from './cartao
 import { abrirCheckout } from './checkout.js';
 import { desenharMinhaLista } from './lista.js';
 import { desenharPedidos } from './pedidos.js';
+import { abrirCadastro } from './cadastro.js';
 
 const LIMITE = 20;
 const filtros = { q: '', grupo: '', marca: '', pagina: 1 };
@@ -156,7 +157,8 @@ export async function desenharCatalogo() {
     $('cnt').innerHTML = '';
     grid.innerHTML = `<div class="empty g360-convite"><b>Entre para ver o catálogo e os seus preços.</b>
       <p>O portal é exclusivo para empresas clientes da Souza Ribeiro.</p>
-      <div class="act" style="justify-content:center"><button type="button" class="btn pri" id="gEntrar">Entrar</button><button type="button" class="btn out" id="gPrimeiro">Primeiro acesso</button></div></div>`;
+      <div class="act" style="justify-content:center"><button type="button" class="btn pri" id="gEntrar">Entrar</button><button type="button" class="btn out" id="gPrimeiro">Primeiro acesso</button><button type="button" class="btn out" id="gCadastro">Quero ser cliente</button></div></div>`;
+    $('gCadastro').onclick = () => abrirCadastro(ctx);
     $('gEntrar').onclick = () => abrirLogin();
     $('gPrimeiro').onclick = () => ctx.ir('/primeiro-acesso');
     if (ctx.loja.troca_senha !== true) $('gPrimeiro').style.display = 'none';
@@ -282,9 +284,10 @@ function mudancaCarrinho(e) {
 let depoisDoLogin = null;
 
 function ligarLogin() {
-  $('lgCad').textContent = 'Primeiro acesso';
-  $('lgCad').onclick = () => { fecharModal('mLogin'); ctx.ir('/primeiro-acesso'); };
-  $('lgEsqL').onclick = () => { fecharModal('mLogin'); ctx.ir('/esqueci-senha'); };
+  $('lgCad').textContent = 'Quero ser cliente';
+  $('lgCad').onclick = () => { fecharModal('mLogin'); abrirCadastro(ctx); };
+  $('lgEsqL').textContent = 'Primeiro acesso ou esqueci minha senha';
+  $('lgEsqL').onclick = () => { fecharModal('mLogin'); ctx.ir('/primeiro-acesso'); };
   $('lgAdm').textContent = 'Acesso da equipe Souza Ribeiro';
   $('lgAdm').onclick = () => { fecharModal('mLogin'); ctx.ir('/painel'); };
   $('lgVolta').hidden = true; $('lgEsq').hidden = true; $('lgAdmT').hidden = true;
@@ -325,7 +328,6 @@ export function abrirLogin(depois = null, mensagemErro = null, mensagemOk = null
   const min = Number(ctx?.loja?.sessao_minutos);
   $('lgSessao').textContent = Number.isFinite(min) ? `Por segurança, a sessão encerra após ${min} minuto${min === 1 ? '' : 's'} sem uso.` : '';
   const semTroca = ctx?.loja?.troca_senha !== true;
-  $('lgCad').style.display = semTroca ? 'none' : '';
   $('lgEsqL').style.display = semTroca ? 'none' : '';
   abrirModal('mLogin');
   setTimeout(() => $('lgC').focus(), 50);

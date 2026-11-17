@@ -64,6 +64,17 @@ with sync_playwright() as pw:
     n.abrir_login()
     checar('8 minutos sem uso' in n.tc('#lgSessao'), 'tempo de sessão no login')
     n.pg.screenshot(path=f'{OUT}/portal_visitante_390.png')
+    # Quero ser cliente: cadastro de quem ainda não é cliente
+    n.pg.click('#lgX'); n.pg.click('#gCadastro'); n.pg.wait_for_selector('#mCad.open #kDoc')
+    n.pg.click('#kEnviar')
+    checar('CNPJ' in n.tc('#kDocErr') and 'WhatsApp' in n.tc('#kWhatsErr'), 'cadastro vazio sem avisos por campo')
+    for i, v in [('kDoc', '12.ABC.345/01DE-35'), ('kRazao', 'Empresa Fictícia LTDA'), ('kResp', 'Pessoa Fictícia'), ('kWhats', '(34) 99999-0000'),
+                 ('kEmail', 'compras@example.invalid'), ('kRua', 'Rua Exemplo'), ('kNum', '10'), ('kCidade', 'Cidade Exemplo'), ('kBairro', 'Centro')]:
+        n.pg.fill('#' + i, v)
+    n.pg.fill('#kCep', '38400000')
+    n.pg.click('#kEnviar'); n.pg.wait_for_selector('#cadBox .ok')
+    checar(len(sim.cadastros) == 1 and sim.cadastros[0]['documento'] == '12ABC34501DE35' and sim.cadastros[0]['loja'] == '96da1e99a3f327f0', f'cadastro não chegou: {sim.cadastros}')
+    n.pg.screenshot(path=f'{OUT}/portal_cadastro_enviado_390.png')
     n.fechar()
     sim = Sim(); sim.cenario['loja'] = {'falhar': (503, 'INDISPONIVEL', 'Serviço temporariamente indisponível.', 'tentar_de_novo')}
     n = N(pw, sim)
@@ -311,7 +322,7 @@ with sync_playwright() as pw:
     pg.fill('#pUsuario', 'operador'); pg.fill('#pSenha', 'errada'); pg.click('#pLogin button')
     pg.wait_for_selector('#pResultado .g360-msg'); checar('Usuário ou senha inválidos.' in n.tc('#pResultado'), 'login operador errado')
     pg.fill('#pUsuario', 'semlicenca'); pg.fill('#pSenha', 'x'); pg.click('#pLogin button'); pg.wait_for_selector('text=Confira a disponibilidade da sua licença no G360.')
-    pg.fill('#pUsuario', 'operador'); pg.fill('#pSenha', 'senha1'); pg.click('#pLogin button'); pg.wait_for_selector('#pFormCliente')
+    pg.fill('#pUsuario', 'operador'); pg.fill('#pSenha', 'senha1'); pg.click('#pLogin button'); pg.wait_for_selector('[data-aba="clientes"]'); pg.click('[data-aba="clientes"]'); pg.wait_for_selector('#pFormCliente')
     pg.fill('#pCnpj', '11.111.111/0001-11'); pg.click('#pFormCliente button'); pg.wait_for_selector('text=Liberado')
     pg.fill('#pBuscaPreco', 'P-101'); pg.click('#pFormPrecos button'); pg.wait_for_selector('#pTabelaPrecos table')
     t = n.tc('#pTabelaPrecos'); checar('R$ 5,1234' in t and '45,50%' in t and 'R$ 9,90' in t, 'preço/custo/margem/congelado')
@@ -321,7 +332,7 @@ with sync_playwright() as pw:
     pg.click('[data-aba="produtos"]'); pg.fill('#pBuscaProd', 'P-104'); pg.click('#pFormProd button'); pg.click('[data-fotos="104"]'); pg.wait_for_selector('.fotos-galeria img')
     sim.op_tokens.clear(); pg.click('[data-aba="clientes"]'); pg.wait_for_selector('#pLogin')
     checar('Sua sessão terminou.' in n.tc('#g360Entrada'), '401 do painel')
-    pg.fill('#pUsuario', 'vendedor'); pg.fill('#pSenha', 'senha2'); pg.click('#pLogin button'); pg.wait_for_selector('#pFormCliente')
+    pg.fill('#pUsuario', 'vendedor'); pg.fill('#pSenha', 'senha2'); pg.click('#pLogin button'); pg.wait_for_selector('[data-aba="produtos"]')
     pg.click('[data-aba="produtos"]'); pg.fill('#pBuscaProd', 'P-104'); pg.click('#pFormProd button'); pg.wait_for_selector('[data-fotos="104"]')
     checar('sem acesso' in n.tc('#pProdutos'), 'custo para operador sem acesso')
     etapa[0] = 'Etapa 11'

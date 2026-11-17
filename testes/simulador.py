@@ -56,6 +56,7 @@ class Sim:
         self.capas = {104: 1}
         self.vinculo_segundos = 300
         self.fotos_pedidas = []
+        self.cadastros = []
 
     # ---------- utilidades ----------
     def comprador_json(self, doc):
@@ -306,6 +307,13 @@ class Sim:
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({
                 'sessao': {'access_token': at, 'refresh_token': 'r' + uuid.uuid4().hex}, 'api_expira_em': '2099-01-01T00:00:00.000Z',
                 'api_inatividade_minutos': self.loja['sessao_minutos'], 'api_vinculo_expira_em': iso(exp)}))
+        if p == '/rest/v1/rpc/portal_cadastro_solicitar':
+            corpo = json.loads(req.post_data or '{}'); d = corpo.get('d', {})
+            doc = re.sub(r'[^A-Za-z0-9]', '', d.get('documento', '')).upper()
+            if any(c['documento'] == doc for c in self.cadastros):
+                return route.fulfill(status=400, headers=cab, content_type='application/json', body=json.dumps({'code': 'P0001', 'message': 'Já recebemos um cadastro com este documento. A equipe da Souza Ribeiro vai entrar em contato.'}))
+            self.cadastros.append({**d, 'documento': doc, 'loja': corpo.get('p_loja')})
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body='{"status":"pendente"}')
         a = (req.headers.get('authorization') or '')[7:]
         s = self.supa.get(a)
         if p == '/auth/v1/user':

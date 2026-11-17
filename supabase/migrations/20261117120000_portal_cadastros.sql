@@ -1,0 +1,2 @@
+-- Aplicada na homologação em 17/11/2026 (pedidos de cadastro "Quero ser cliente" + aprovação no painel).
+-- Conteúdo idêntico ao aplicado pelo Supabase MCP com o nome portal_cadastros.
