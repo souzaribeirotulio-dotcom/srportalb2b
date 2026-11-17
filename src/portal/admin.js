@@ -2,8 +2,8 @@
    Painel do administrador no layout original (parte 1 da volta do portal antigo).
    Duas sessões, separadas das do comprador:
    - API do G360: POST operadores/sessoes; token só em memória; 401 encerra só o painel.
-   - Supabase: conta do painel (criada pelo administrador), para Clientes
-     (cadastros pelo portal) e Ocorrências; cliente com storageKey próprio.
+   - Cadastros e Ocorrências (Supabase) pela função painel-g360, com o mesmo
+     token do G360: não existe conta separada do painel.
    Preço, custo e margem vêm da API; nada é calculado aqui.
    ===================================================================== */
 import {
@@ -11,7 +11,7 @@ import {
   listarPrecosCongelados, incluirPrecoCongelado, alterarPrecoCongelado, encerrarPrecoCongelado,
   listarFotosOperador, obterFotoOperador, incluirFotoOperador, definirCapaOperador, ordenarFotosOperador, removerFotoOperador,
 } from '../api/g360.js';
-import { supabasePainel, supabaseConfigurado } from '../api/supabase.js';
+import { chamarPainel } from '../api/painel.js';
 import { definirEncerramentoOperador, definirAtividadeOperador } from '../estado/sessao.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { dinheiro, numeroPainel, dataBr } from '../ui/formato.js';
@@ -95,7 +95,6 @@ function ligar() {
   $('aSair').addEventListener('click', async () => {
     const t = op.token;
     try { await sairOperador(t); } catch { /* sai localmente de qualquer jeito */ }
-    try { await supabasePainel()?.auth.signOut({ scope: 'local' }); } catch { /* idem */ }
     encerrarOperador('Você saiu do painel.');
   });
 
@@ -439,30 +438,10 @@ function mostrarClienteG360() {
   alvo.querySelector('[data-ircg]').onclick = () => { aba = 'cong'; cong.cliente = { codigo: c.codigo, nome: c.nome, cnpj: c.cnpj }; desenharAba(); };
 }
 
-/* Conta do painel no Supabase (Clientes e Ocorrências): login uma vez por abertura. */
-function comContaPainel(alvo, titulo, aoEntrar) {
-  if (!supabaseConfigurado()) { alvo.innerHTML = vazio('Supabase não configurado. Confira as variáveis públicas do site.'); return null; }
-  const sb = supabasePainel();
-  const login = (mensagem = '') => {
-    alvo.innerHTML = `<div style="padding:16px 18px"><b>${esc(titulo)}</b>
-      <p class="hint" style="margin:4px 0 10px">Use a conta do painel criada no Supabase da Souza Ribeiro (é diferente do usuário do G360).</p>
-      ${mensagem ? `<div class="rv-aviso bad">${esc(mensagem)}</div>` : ''}
-      <form class="sbl" novalidate style="display:grid;gap:8px;max-width:420px">
-        <label>E-mail<input class="inp" type="email" autocomplete="username" data-e></label>
-        <label>Senha<input class="inp" type="password" autocomplete="current-password" data-s></label>
-        <div><button type="submit" class="btn pri">Entrar</button></div></form></div>`;
-    alvo.querySelector('form').onsubmit = async (ev) => {
-      ev.preventDefault();
-      const b = ev.target.querySelector('button'); b.disabled = true;
-      const s = alvo.querySelector('[data-s]');
-      const { error } = await sb.auth.signInWithPassword({ email: alvo.querySelector('[data-e]').value.trim(), password: s.value });
-      s.value = '';
-      if (error) { login('E-mail ou senha incorretos, ou conta sem acesso.'); return; }
-      aoEntrar();
-    };
-  };
-  sb.auth.getSession().then(({ data }) => { if (data.session) aoEntrar(); else login(); });
-  return { sb, login };
+/* Dados do Supabase pelo mesmo login do G360 (função painel-g360). 401 encerra o painel. */
+async function painel(acao, dados) {
+  try { return await chamarPainel(op.token, acao, dados); }
+  catch (e) { if (e.status === 401) encerrarOperador(e.message); throw e; }
 }
 
 const SIT = { pendente: 'Aguardando', aprovado: 'Aprovado', recusado: 'Reprovado' };
@@ -471,12 +450,12 @@ let cadastros = null;
 function desenharCadastros(recarregar = true) {
   const alvo = $('clCad'); if (!alvo) return;
   if (!recarregar && cadastros) { pintarCadastros(); return; }
-  const conta = comContaPainel(alvo, 'Cadastros feitos pelo portal ("Quero ser cliente")', listar);
+  listar();
   async function listar() {
     alvo.innerHTML = carregandoHtml('Carregando cadastros…');
-    const { data, error } = await conta.sb.from('portal_cadastros').select('*').order('criado_em', { ascending: false }).limit(300);
-    if (error) { alvo.innerHTML = vazio('Não foi possível carregar os cadastros. Confira se esta conta tem o acesso do painel.'); return; }
-    cadastros = data; pintarCadastros();
+    try { cadastros = (await painel('cadastros_listar')).dados || []; }
+    catch (e) { alvo.innerHTML = vazio(esc(e.message)); return; }
+    pintarCadastros();
   }
   function pintarCadastros() {
     const st = $('clSt').value; const q = $('clQ').value.trim().toLowerCase();
@@ -503,15 +482,15 @@ function desenharCadastros(recarregar = true) {
         r.querySelector('.nm').insertAdjacentHTML('beforeend', `<div class="kobs fxurl" style="margin-top:6px"><input maxlength="500" value="${esc(obs)}" placeholder="Observação da equipe"><button class="btn sec" type="button">Salvar</button></div>`);
         const caixa = r.querySelector('.kobs'); caixa.querySelector('input').focus();
         caixa.querySelector('button').onclick = async () => {
-          const { error: e2 } = await supabasePainel().rpc('portal_cadastro_decidir', { p_id: k.id, p_status: k.status, p_observacao: caixa.querySelector('input').value });
-          if (e2) { toast(e2.message || 'Não foi possível gravar.'); return; }
+          try { await painel('cadastro_decidir', { id: k.id, status: k.status, observacao: caixa.querySelector('input').value }); }
+          catch (e2) { toast(e2.message); return; }
           toast('Observação salva ✓'); desenharCadastros();
         };
         return;
       }
       b.disabled = true;
-      const { error: e } = await supabasePainel().rpc('portal_cadastro_decidir', { p_id: k.id, p_status: b.dataset.d || k.status, p_observacao: obs });
-      if (e) { b.disabled = false; toast(e.message || 'Não foi possível gravar.'); return; }
+      try { await painel('cadastro_decidir', { id: k.id, status: b.dataset.d || k.status, observacao: obs }); }
+      catch (e) { b.disabled = false; toast(e.message); return; }
       toast(b.dataset.d === 'aprovado' ? 'Cadastro aprovado ✓ — avise o cliente.' : 'Cadastro atualizado ✓');
       desenharCadastros();
     }));
@@ -669,17 +648,17 @@ async function desenharMargens(carregarMais = false) {
 
 function desenharOcorrencias() {
   const alvo = $('ocPanel');
-  const conta = comContaPainel(alvo, 'Ocorrências: avisos que dependem de ajuste da Souza Ribeiro no G360', listar);
+  listar();
   async function listar() {
     alvo.innerHTML = carregandoHtml('Carregando ocorrências…');
-    const { data, error } = await conta.sb.from('ocorrencias_g360').select('registrada_em, codigo, operacao, comprador_codigo, request_id')
-      .order('registrada_em', { ascending: false }).limit(200);
-    if (error) { alvo.innerHTML = vazio('Não foi possível carregar as ocorrências. Confira se esta conta tem o acesso do painel.'); return; }
+    let data;
+    try { data = (await painel('ocorrencias_listar')).dados || []; }
+    catch (e) { alvo.innerHTML = vazio(esc(e.message)); return; }
     alvo.innerHTML = `<div style="padding:14px 18px 0" class="row"><button class="tool" id="ocAt">↻ Atualizar</button></div>`
       + (data.length ? `<div class="mrow h" style="grid-template-columns:150px 1fr 1fr 90px 1.2fr"><div>Quando</div><div>Código</div><div>Operação</div><div>Cliente</div><div>Código para o suporte</div></div>`
         + data.map((o) => `<div class="mrow" style="grid-template-columns:150px 1fr 1fr 90px 1.2fr"><div class="sm">${esc(new Date(o.registrada_em).toLocaleString('pt-BR'))}</div><div><b>${esc(o.codigo)}</b></div>
           <div class="sm">${esc(o.operacao)}</div><div class="sm">${esc(o.comprador_codigo ?? '—')}</div><div class="sm" style="font-family:monospace;font-size:11px;word-break:break-all">${esc(o.request_id)}</div></div>`).join('')
-        : vazio('Nenhuma ocorrência registrada. Se esperava ver alguma, confira se esta conta tem o acesso do painel (g360_painel_loja).'));
+        : vazio('Nenhuma ocorrência registrada.'));
     $('ocAt').onclick = listar;
   }
 }

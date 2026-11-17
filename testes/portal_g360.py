@@ -344,7 +344,12 @@ with sync_playwright() as pw:
     pg.click('[data-at="prod"]'); pg.fill('#aQ', 'P-104'); pg.press('#aQ', 'Enter'); pg.wait_for_selector('.arow[data-id="104"]')
     checar('sem acesso' in n.tc('#aPanel'), 'custo para operador sem acesso')
     etapa[0] = 'Etapa 11'
-    pg.click('[data-at="ocor"]'); pg.fill('#ocPanel [data-e]', 'painel@example.invalid'); pg.fill('#ocPanel [data-s]', 'SenhaPainel1'); pg.click('#ocPanel form button'); pg.wait_for_selector('#ocPanel .mrow:not(.h)')
+    pg.click('[data-at="cli"]'); pg.wait_for_selector('#clCad .empty2, #clCad .crow2[data-id]')
+    if sim.cadastros:
+        pg.select_option('#clSt', ''); pg.wait_for_selector('#clCad .crow2[data-id]')
+        pg.click('#clCad .crow2[data-id] [data-d="aprovado"]'); pg.wait_for_timeout(800)
+        checar(sim.cadastros[-1]['status'] == 'aprovado', 'aprovar cadastro com o login do G360')
+    pg.click('[data-at="ocor"]'); pg.wait_for_selector('#ocPanel .mrow:not(.h)')
     t = n.tc('#ocPanel'); checar('FRETE_A_COMBINAR' in t and 'LOJA_INDISPONIVEL' in t, 'ocorrências no painel')
     n.fechar()
 

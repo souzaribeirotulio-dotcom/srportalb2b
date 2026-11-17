@@ -307,6 +307,21 @@ class Sim:
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({
                 'sessao': {'access_token': at, 'refresh_token': 'r' + uuid.uuid4().hex}, 'api_expira_em': '2099-01-01T00:00:00.000Z',
                 'api_inatividade_minutos': self.loja['sessao_minutos'], 'api_vinculo_expira_em': iso(exp)}))
+        if p == '/functions/v1/painel-g360':
+            corpo = json.loads(req.post_data or '{}')
+            res = lambda st, b: route.fulfill(status=st, headers=cab, content_type='application/json', body=json.dumps(b))
+            if corpo.get('token') not in self.op_tokens: return res(401, {'mensagem': 'Sua sessão do painel terminou. Entre novamente.'})
+            ac = corpo.get('acao'); d = corpo.get('dados') or {}
+            if ac == 'ocorrencias_listar': return res(200, {'dados': list(reversed(self.ocorrencias))})
+            if ac == 'cadastros_listar':
+                for i, c in enumerate(self.cadastros):
+                    c.setdefault('id', str(uuid.UUID(int=i + 1))); c.setdefault('status', 'pendente'); c.setdefault('criado_em', '2026-11-17T12:00:00+00:00')
+                return res(200, {'dados': list(reversed(self.cadastros))})
+            if ac == 'cadastro_decidir':
+                for c in self.cadastros:
+                    if c.get('id') == d.get('id'): c['status'] = d['status']; c['observacao_equipe'] = d.get('observacao') or None; return res(200, {'ok': True})
+                return res(404, {'mensagem': 'Cadastro não encontrado.'})
+            return res(400, {'mensagem': 'Ação desconhecida.'})
         if p == '/rest/v1/rpc/portal_cadastro_solicitar':
             corpo = json.loads(req.post_data or '{}'); d = corpo.get('d', {})
             doc = re.sub(r'[^A-Za-z0-9]', '', d.get('documento', '')).upper()
