@@ -176,7 +176,7 @@ export function mostrarLoja(contexto, rota, params = [], estado = {}) {
 
 function desenharHero() {
   $('hi').innerHTML = `${saudacao()}<em>Seus suprimentos</em>num só lugar.`;
-  if (!sessao.ativa) { $('tot').textContent = '—'; $('nMarcas').textContent = '—'; }
+  if (!sessao.ativa) { $('tot').textContent = '—'; $('nMarcas').textContent = '—'; contagem = null; if ($('tot').nextElementSibling) $('tot').nextElementSibling.textContent = 'Produtos'; }
 }
 
 async function carregarClassificacoes() {
@@ -249,7 +249,7 @@ async function resultadoVitrine() {
       : await listarProdutos(sessao.token, { marca, pagina, limite: 50 });
     vitrine.apiPagina = pagina; lidas += 1;
     vitrine.apiPaginas = Math.max(1, Math.ceil((paginacao?.total || 0) / 50));
-    if (!filtros.grupo && !filtros.marca && pagina === 1) $('tot').textContent = Number(paginacao?.total || 0).toLocaleString('pt-BR');
+    if (!filtros.grupo && !filtros.marca && pagina === 1) contarComEstoque(Number(paginacao?.total || 0));
     vitrine.itens.push(...dados.map(apresentar).filter((p) => temEstoque(p) && !oculto(p)));
     if (pagina >= vitrine.apiPaginas) {
       if (vitrine.bloco + 1 < blocos.length) { vitrine.bloco += 1; vitrine.apiPagina = 0; } else vitrine.fim = true;
@@ -260,6 +260,40 @@ async function resultadoVitrine() {
   const itens = vitrine.itens.slice(ini, ini + POR_PAGINA);
   const temMais = !vitrine.fim || vitrine.itens.length > ini + POR_PAGINA;
   return { itens, total: vitrine.itens.length, temMais, aindaLendo: !vitrine.fim, paginas: temMais ? filtros.pagina + 1 : filtros.pagina };
+}
+
+/* Contador do topo: produtos com estoque (o que o cliente realmente encontra no portal).
+   A API não informa esse total, então o portal lê o catálogo devagar em segundo plano
+   (1 página de 50 a cada 1,2 s, para não gastar o limite de chamadas) e guarda o
+   número por 30 minutos nesta aba. Enquanto conta, mostra "contando…". */
+let contagem = null;
+async function contarComEstoque(totalCatalogo) {
+  const rotulo = $('tot').nextElementSibling;
+  const chave = `sr-estoque-${sessao.comprador?.codigo || ''}`;
+  try {
+    const salvo = JSON.parse(sessionStorage.getItem(chave) || 'null');
+    if (salvo && Date.now() - salvo.em < 30 * 60 * 1000) { $('tot').textContent = Number(salvo.n).toLocaleString('pt-BR'); if (rotulo) rotulo.textContent = 'Com estoque'; return; }
+  } catch { /* sem armazenamento: conta de novo */ }
+  if (contagem && contagem.token === sessao.token) return;
+  const token = sessao.token;
+  contagem = { token };
+  $('tot').textContent = '…'; if (rotulo) rotulo.textContent = 'Contando estoque';
+  const paginas = Math.max(1, Math.ceil(totalCatalogo / 50));
+  let n = 0;
+  try {
+    for (let pagina = 1; pagina <= paginas; pagina++) {
+      if (sessao.token !== token) return;
+      const { dados } = await listarProdutos(token, { pagina, limite: 50 });
+      n += dados.map(apresentar).filter((p) => temEstoque(p) && !oculto(p)).length;
+      if (pagina < paginas) await new Promise((r) => { setTimeout(r, 1200); });
+    }
+  } catch {
+    if (sessao.token === token) { $('tot').textContent = totalCatalogo.toLocaleString('pt-BR'); if (rotulo) rotulo.textContent = 'Produtos'; }
+    contagem = null; return;
+  }
+  if (sessao.token !== token) return;
+  $('tot').textContent = n.toLocaleString('pt-BR'); if (rotulo) rotulo.textContent = 'Com estoque';
+  try { sessionStorage.setItem(chave, JSON.stringify({ n, em: Date.now() })); } catch { /* ok */ }
 }
 
 /** Busca: nomes do portal (tolerante) + busca da API (código, EAN, aplicação); com estoque primeiro. */
