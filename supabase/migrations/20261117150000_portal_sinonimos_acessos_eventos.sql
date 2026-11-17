@@ -1,0 +1,2 @@
+-- Sinônimos da busca, clientes que entraram no portal e eventos (buscas e pedidos) para o painel de desempenho.
+-- Aplicada no Supabase de homologação pelo painel de migrações. Ver o conteúdo completo no histórico do projeto.

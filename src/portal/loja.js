@@ -4,8 +4,9 @@
    A lógica (API, sessão, envio, Minha Lista, ocorrências) vem dos módulos
    já testados; aqui só a tela.
    ===================================================================== */
+import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
 import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar } from '../catalogo/exibicao.js';
-import { buscarLocal, temEstoque } from '../catalogo/busca.js';
+import { buscarLocal, temEstoque, variacoes } from '../catalogo/busca.js';
 import { listarProdutos, buscarProdutos, listarMarcas } from '../api/g360.js';
 import { sessao, entrar, sair, trocarSenha } from '../estado/sessao.js';
 import { adicionar, linhasCarrinho, alterarQuantidade, remover, aoMudarCarrinho, quantidadeLinhas } from '../estado/carrinho.js';
@@ -208,13 +209,16 @@ async function resultadoBusca() {
     }
     // 2) A busca do G360 (pega código de barras, aplicação e o que ainda não tem nome no portal).
     try {
-      const { dados } = await listarProdutos(sessao.token, { q: filtros.q, marca, limite: 50 });
+      // Termos alternativos: a busca digitada e as variações pelos sinônimos (basta um bater).
+      const vs = variacoes(filtros.q);
+      const { dados } = await listarProdutos(sessao.token, vs.length > 1 ? { termos: [filtros.q, ...vs.slice(1)], marca, limite: 50 } : { q: filtros.q, marca, limite: 50 });
       dados.map(apresentar).filter((p) => !filtros.grupo || p.categoria === filtros.grupo)
         .forEach((p) => { if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); if (!pontos.has(String(p.codigo))) pontos.set(String(p.codigo), 100); } });
     } catch (e) { if (!achados.size) throw e; }
     const todos = [...achados.values()].sort((a, b) => (temEstoque(b) - temEstoque(a))
       || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
     busca = { chave, itens: todos, semEstoque: todos.filter((p) => !temEstoque(p)).length };
+    registrarBusca(filtros.q, todos.length);
   }
   const ini = (filtros.pagina - 1) * POR_PAGINA;
   return { itens: busca.itens.slice(ini, ini + POR_PAGINA), total: busca.itens.length, semEstoque: busca.semEstoque, temMais: false, paginas: Math.max(1, Math.ceil(busca.itens.length / POR_PAGINA)) };
@@ -379,6 +383,7 @@ function ligarLogin() {
       $('lgS').value = '';
       fecharModal('mLogin');
       ctx.aoEntrar();
+      limparEventosSessao(); registrarAcesso();
       toast(`Bem-vindo, ${sessao.comprador?.fantasia || sessao.comprador?.nome || ''}!`);
       const f = depoisDoLogin; depoisDoLogin = null; if (f) f();
     } catch (e) {

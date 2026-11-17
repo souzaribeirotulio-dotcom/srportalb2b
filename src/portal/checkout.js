@@ -4,6 +4,7 @@
    - Envio sem duplicar: estado/envio.js (matriz da seção 9).
    - Pendências do fornecedor viram ocorrência (estado/ocorrencias.js).
    ===================================================================== */
+import { registrarPedido } from '../estado/eventos.js';
 import { nomeDoItem } from '../catalogo/exibicao.js';
 import { consultarOpcoes, revisarPedido } from '../api/g360.js';
 import { sessao } from '../estado/sessao.js';
@@ -247,6 +248,7 @@ async function rodarEnvio(opcoesEnvio = {}) {
 }
 
 function sucesso(p) {
+  registrarPedido(p);
   $('chkBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>Pedido enviado!</h3>
     <p>${p.numero ? `Pedido nº <b>${esc(p.numero)}</b>` : '<b>Aguardando aprovação</b>'} · ${esc(p.situacao_nome || '')}<br>Total de <b>${esc(dinheiro(p.total))}</b>${p.data ? `<br>${esc(dataBr(p.data))}${p.hora ? ` às ${esc(p.hora)}` : ''}` : ''}</p></div>
     <div class="act" style="justify-content:center"><button type="button" class="btn sec" id="okP">Ver meus pedidos</button><button type="button" class="btn pri" id="okC">Continuar comprando</button></div>`;

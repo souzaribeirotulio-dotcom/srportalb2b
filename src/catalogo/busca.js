@@ -40,6 +40,34 @@ const SINONIMOS = {
   bombril: ['palha', 'la'], durex: ['fita'], maizena: ['amido'], gilete: ['lamina', 'aparelho'], cotonete: ['haste'],
 };
 
+// Sinônimos cadastrados pela equipe (painel → Configurações). Palavra → formas; frase → frases.
+let EXTRA = new Map();
+let FRASES = [];
+/** linhas: [{ termo, equivalentes: [] }]. Vale nos dois sentidos. */
+export function definirSinonimos(linhas) {
+  EXTRA = new Map(); FRASES = [];
+  const liga = (a, b) => {
+    if (!a || !b || a === b) return;
+    if (a.includes(' ') || b.includes(' ')) FRASES.push([a, b]);
+    else EXTRA.set(a, [...new Set([...(EXTRA.get(a) || []), b])]);
+  };
+  for (const l of linhas || []) {
+    const t = normalizar(l.termo).split(' ').map(singular).join(' ');
+    for (const e of l.equivalentes || []) {
+      const q = normalizar(e).split(' ').map(singular).join(' ');
+      liga(t, q); liga(q, t);
+    }
+  }
+}
+
+/** A busca e as variações dela pelos sinônimos de frase ("papel de mao" → "papel toalha"). */
+export function variacoes(consulta) {
+  const base = normalizar(consulta).split(' ').map(singular).join(' ');
+  const out = new Set([base]);
+  for (const [de, para] of FRASES) if (` ${base} `.includes(` ${de} `)) out.add(` ${base} `.replace(` ${de} `, ` ${para} `).trim());
+  return [...out].slice(0, 6);
+}
+
 function tokens(texto) {
   return normalizar(texto).split(' ').filter((w) => w && !PARADAS.has(w)).map(singular);
 }
@@ -58,7 +86,7 @@ function quase(a, b) {
 
 /** Quanto uma palavra da busca bate com as palavras do produto (0 = não bate). */
 function pontoPalavra(q, palavras) {
-  const formas = [q, ...(SINONIMOS[q] || [])];
+  const formas = [q, ...(SINONIMOS[q] || []), ...(EXTRA.get(q) || [])];
   let melhor = 0;
   for (const w of palavras) {
     for (const f of formas) {
@@ -87,7 +115,13 @@ export function indexado() { return !!indice; }
  * Busca local. Devolve [{ codigo, produto_id, pontos }] do mais ao menos relevante.
  * Todas as palavras precisam bater; se nada bater, aceita quem bate na maioria.
  */
-export function buscarLocal(consulta, { categoria = '', max = 150 } = {}) {
+export function buscarLocal(consulta, opcoes = {}) {
+  const melhor = new Map();
+  for (const v of variacoes(consulta)) for (const r of buscarUma(v, opcoes)) if (!melhor.has(r.codigo) || melhor.get(r.codigo).pontos < r.pontos) melhor.set(r.codigo, r);
+  return [...melhor.values()].sort((a, b) => b.pontos - a.pontos || a.nome.localeCompare(b.nome, 'pt')).slice(0, opcoes.max || 150);
+}
+
+function buscarUma(consulta, { categoria = '', max = 150 } = {}) {
   if (!indice) return [];
   const qs = tokens(consulta);
   if (!qs.length) return [];

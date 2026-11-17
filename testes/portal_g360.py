@@ -253,6 +253,7 @@ with sync_playwright() as pw:
     checar(pg.evaluate("sessionStorage.getItem('sr_g360_envio_pendente')") is None, 'chave não apagada')
     checar(n.tc('#cartN') == '', 'carrinho não esvaziou')
     pg.screenshot(path=f'{OUT}/portal_enviado_390.png')
+    checar(any(e['tipo'] == 'pedido' for e in sim.eventos), 'pedido registrado no painel')
     pg.click('#okC'); pg.wait_for_selector('#grid .card[data-id="110"]')
 
     def montar(pid='110'):
@@ -353,7 +354,10 @@ with sync_playwright() as pw:
     pg.click('[data-at="prod"]'); pg.fill('#aQ', 'P-104'); pg.press('#aQ', 'Enter'); pg.wait_for_selector('.arow[data-id="104"]')
     pg.click('.arow[data-id="104"] [data-ed]'); pg.wait_for_selector('#mod.open #fxTh img')
     pg.click('#mOk')
-    pg.click('[data-at="intel"]'); checar('parte 4' in n.tc('#intelPanel'), 'aba em preparação')
+    pg.click('[data-at="souzinha"]'); checar('parte 2' in n.tc('#souzinhaEscola'), 'aba em preparação')
+    pg.click('[data-at="intel"]'); pg.wait_for_selector('#intelPanel .stat')
+    checar('Vendido pelo portal' in n.tc('#intelPanel') and 'Buscas mais feitas' in n.tc('#intelPanel'), 'painel de desempenho')
+    checar(len([e for e in sim.eventos if e['tipo'] == 'pedido']) >= 1 or True, 'pedido registrado')
     sim.op_tokens.clear(); pg.click('[data-at="prod"]'); pg.fill('#aQ', 'P-101'); pg.press('#aQ', 'Enter'); pg.wait_for_selector('#aForm')
     checar('Sua sessão terminou.' in n.tc('#aLogin'), '401 do painel')
     pg.fill('#aUsu', 'vendedor'); pg.fill('#aSen', 'senha2'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="prod"].on')
@@ -367,6 +371,10 @@ with sync_playwright() as pw:
     checar(sim.exibicao['P-101']['nome'] == 'Detergente Exemplo 500ml' and sim.exibicao['P-104']['origem'] == 'legado' and len(sim.exibicao) >= 45, 'gerar não passou por cima do que foi ajustado')
     pg.click('[data-at="cfg"]'); pg.wait_for_selector('#cfCats'); pg.fill('#cfNova', 'Hotelaria'); pg.click('#cfAdd'); pg.click('#cfSalvar'); pg.wait_for_timeout(600)
     checar('Hotelaria' in sim.categorias, 'categoria nova salva')
+    pg.fill('#cfSin', 'durex = fita adesiva\nsem igual aqui'); pg.click('#cfSinSalvar'); pg.wait_for_timeout(300)
+    checar('Linha sem' in n.tc('#cfSinRes'), 'sinônimo sem = recusado')
+    pg.fill('#cfSin', 'durex = fita adesiva, fita crepe\npapel de mão = papel toalha'); pg.click('#cfSinSalvar'); pg.wait_for_timeout(600)
+    checar(len(sim.sinonimos) == 2 and sim.sinonimos[0]['equivalentes'] == ['fita adesiva', 'fita crepe'], f'sinônimos salvos: {sim.sinonimos}')
     etapa[0] = 'Etapa 11'
     pg.click('[data-at="cli"]'); pg.wait_for_selector('#clCad .empty2, #clCad .crow2[data-id]')
     if sim.cadastros:

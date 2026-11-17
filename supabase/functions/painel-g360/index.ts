@@ -138,6 +138,78 @@ async function executar(acao: string, d: Record<string, unknown>): Promise<[numb
     await admin.from("portal_produtos_exibicao").update({ categoria: null }).eq("loja", loja).not("categoria", "in", `(${lista.map((c) => `"${c.replace(/"/g, '')}"`).join(",")})`);
     return [200, { ok: true }];
   }
+  if (acao === "sinonimos_salvar") {
+    // Lista completa: [{ termo, equivalentes: [] }] (substitui a anterior).
+    const lista = (Array.isArray(d.sinonimos) ? d.sinonimos : []).slice(0, 2000).map((x) => x as Record<string, unknown>)
+      .map((x) => ({ loja, termo: texto(x.termo, 60).toLowerCase(), equivalentes: (Array.isArray(x.equivalentes) ? x.equivalentes : []).map((e) => texto(e, 60).toLowerCase()).filter(Boolean).slice(0, 20), atualizado_em: new Date().toISOString() }))
+      .filter((x) => x.termo && x.equivalentes.length);
+    const { error: e1 } = await admin.from("portal_sinonimos").delete().eq("loja", loja);
+    if (e1) throw e1;
+    if (lista.length) { const { error } = await admin.from("portal_sinonimos").upsert(lista, { onConflict: "loja,termo" }); if (error) throw error; }
+    return [200, { gravados: lista.length }];
+  }
+  if (acao === "clientes_listar") {
+    // Quem já entrou no portal: contas abertas pela ponte (app_metadata) + nome e acessos gravados no login.
+    const contas = new Map<number, { criado: string; ultimo: string | null }>();
+    for (let pagina = 1; pagina <= 50; pagina++) {
+      const { data, error } = await admin.auth.admin.listUsers({ page: pagina, perPage: 1000 });
+      if (error) throw error;
+      for (const u of data.users) {
+        const m = u.app_metadata ?? {};
+        if (m.g360_loja !== loja || m.g360_comprador == null) continue;
+        const cod = Number(m.g360_comprador);
+        const atual = contas.get(cod);
+        const ultimo = u.last_sign_in_at ?? null;
+        if (!atual) contas.set(cod, { criado: u.created_at, ultimo });
+        else { if (u.created_at < atual.criado) atual.criado = u.created_at; if (ultimo && (!atual.ultimo || ultimo > atual.ultimo)) atual.ultimo = ultimo; }
+      }
+      if (data.users.length < 1000) break;
+    }
+    const { data: acessos } = await admin.from("portal_acessos").select("comprador_codigo, nome, primeiro_em, ultimo_em, acessos").eq("loja", loja);
+    const { data: peds } = await admin.from("portal_eventos").select("comprador_codigo, valor").eq("loja", loja).eq("tipo", "pedido").limit(20000);
+    const porCod = new Map<number, Record<string, unknown>>();
+    for (const [cod, c] of contas) porCod.set(cod, { codigo: cod, nome: null, primeiro_em: c.criado, ultimo_em: c.ultimo, acessos: null, pedidos: 0, valor: 0 });
+    for (const a of acessos ?? []) {
+      const cod = Number(a.comprador_codigo); const r = porCod.get(cod) ?? { codigo: cod, pedidos: 0, valor: 0 };
+      porCod.set(cod, { ...r, nome: a.nome, primeiro_em: r.primeiro_em && r.primeiro_em < a.primeiro_em ? r.primeiro_em : a.primeiro_em, ultimo_em: r.ultimo_em && r.ultimo_em > a.ultimo_em ? r.ultimo_em : a.ultimo_em, acessos: a.acessos });
+    }
+    for (const p of peds ?? []) { const r = porCod.get(Number(p.comprador_codigo)); if (r) { r.pedidos = (r.pedidos as number) + 1; r.valor = Math.round(((r.valor as number) + Number(p.valor || 0)) * 100) / 100; } }
+    return [200, { dados: [...porCod.values()].sort((a, b) => String(b.ultimo_em ?? "").localeCompare(String(a.ultimo_em ?? ""))) }];
+  }
+  if (acao === "inteligencia") {
+    const dias = [7, 30, 90].includes(Number(d.dias)) ? Number(d.dias) : 30;
+    const desde = new Date(Date.now() - dias * 86400000).toISOString();
+    const { data: ev, error } = await admin.from("portal_eventos").select("tipo, comprador_codigo, termo, resultados, valor, itens, criado_em, pedido_numero")
+      .eq("loja", loja).gte("criado_em", desde).order("criado_em", { ascending: false }).limit(20000);
+    if (error) throw error;
+    const { data: acessos } = await admin.from("portal_acessos").select("comprador_codigo, nome, ultimo_em").eq("loja", loja);
+    const nomes = new Map((acessos ?? []).map((a) => [Number(a.comprador_codigo), a.nome]));
+    const pedidos = (ev ?? []).filter((e) => e.tipo === "pedido");
+    const buscas = (ev ?? []).filter((e) => e.tipo === "busca");
+    const soma = pedidos.reduce((s, p) => s + Number(p.valor || 0), 0);
+    const conta = <T,>(lista: T[], chave: (x: T) => string) => { const m = new Map<string, number>(); lista.forEach((x) => m.set(chave(x), (m.get(chave(x)) ?? 0) + 1)); return m; };
+    const topBuscas = [...conta(buscas, (b) => b.termo ?? "")].sort((a, b) => b[1] - a[1]).slice(0, 20).map(([termo, vezes]) => ({ termo, vezes }));
+    const semResultado = [...conta(buscas.filter((b) => !b.resultados), (b) => b.termo ?? "")].sort((a, b) => b[1] - a[1]).slice(0, 20).map(([termo, vezes]) => ({ termo, vezes }));
+    const prod = new Map<string, { codigo: string; nome: string; pedidos: number; total: number }>();
+    for (const p of pedidos) for (const i of (p.itens ?? []) as Array<Record<string, unknown>>) {
+      const k = String(i.codigo ?? i.produto_id); const r = prod.get(k) ?? { codigo: k, nome: String(i.nome ?? ""), pedidos: 0, total: 0 };
+      r.pedidos += 1; r.total = Math.round((r.total + Number(i.total || 0)) * 100) / 100; prod.set(k, r);
+    }
+    const cli = new Map<number, { codigo: number; nome: string | null; pedidos: number; total: number }>();
+    for (const p of pedidos) { const c = Number(p.comprador_codigo); const r = cli.get(c) ?? { codigo: c, nome: nomes.get(c) ?? null, pedidos: 0, total: 0 }; r.pedidos += 1; r.total = Math.round((r.total + Number(p.valor || 0)) * 100) / 100; cli.set(c, r); }
+    const ativos = (acessos ?? []).filter((a) => a.ultimo_em >= desde).length;
+    const porDia = new Map<string, { pedidos: number; valor: number }>();
+    for (const p of pedidos) { const dia = String(p.criado_em).slice(0, 10); const r = porDia.get(dia) ?? { pedidos: 0, valor: 0 }; r.pedidos += 1; r.valor = Math.round((r.valor + Number(p.valor || 0)) * 100) / 100; porDia.set(dia, r); }
+    return [200, { dados: {
+      dias, pedidos: pedidos.length, valor: Math.round(soma * 100) / 100, ticket: pedidos.length ? Math.round((soma / pedidos.length) * 100) / 100 : 0,
+      clientes_compraram: cli.size, clientes_entraram: ativos, buscas: buscas.length, buscas_sem_resultado: buscas.filter((b) => !b.resultados).length,
+      top_buscas: topBuscas, sem_resultado: semResultado,
+      top_produtos: [...prod.values()].sort((a, b) => b.total - a.total).slice(0, 15),
+      top_clientes: [...cli.values()].sort((a, b) => b.total - a.total).slice(0, 15),
+      por_dia: [...porDia.entries()].sort().map(([dia, v]) => ({ dia, ...v })),
+      ultimos_pedidos: pedidos.slice(0, 10).map((p) => ({ quando: p.criado_em, cliente: nomes.get(Number(p.comprador_codigo)) ?? p.comprador_codigo, numero: p.pedido_numero, valor: p.valor })),
+    } }];
+  }
   return [400, { mensagem: "Ação desconhecida." }];
 }
 

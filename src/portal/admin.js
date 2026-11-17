@@ -16,7 +16,7 @@ import { definirEncerramentoOperador, definirAtividadeOperador } from '../estado
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { dinheiro, numeroPainel, dataBr } from '../ui/formato.js';
 import { $, esc, toast, abrirModal, fecharModal, adiar } from './comum.js';
-import { carregarExibicao, categorias, registro, nomeExibicao, categoriaExibicao, codigosDaCategoria, aplicarLocal, definirCategoriasLocal } from '../catalogo/exibicao.js';
+import { carregarExibicao, sinonimos as sinonimosPortal, categorias, registro, nomeExibicao, categoriaExibicao, codigosDaCategoria, aplicarLocal, definirCategoriasLocal } from '../catalogo/exibicao.js';
 import { nomeEcommerce, categoriaPeloNome } from '../catalogo/nomes.js';
 
 const op = { token: null, expira: 0, ultima: 0, minutos: 8, aviso: null };
@@ -203,7 +203,7 @@ function telaLogin() {
 
 /* ---------------- abas ---------------- */
 
-const PARTE = { intel: ['Inteligência', 4], neg: ['Negociações', 3], souzinha: ['Escola do Souzinha', 2] };
+const PARTE = { neg: ['Negociações', 3], souzinha: ['Escola do Souzinha', 2] };
 
 function desenharAba() {
   document.querySelectorAll('#vAdm [data-at]').forEach((b) => b.classList.toggle('on', b.dataset.at === aba));
@@ -215,6 +215,7 @@ function desenharAba() {
   else if (aba === 'mrg') desenharMargens(!mrg.carregado);
   else if (aba === 'ocor') desenharOcorrencias();
   else if (aba === 'cfg') desenharConfig();
+  else if (aba === 'intel') desenharInteligencia();
   else emPreparacao(aba);
 }
 
@@ -474,8 +475,9 @@ let clienteG360 = null;
 
 function desenharClientes() {
   const p = $('clPanel');
-  if (!$('clG360')) p.innerHTML = '<div id="clG360"></div><div id="clCad"></div>';
+  if (!$('clG360')) p.innerHTML = '<div id="clG360"></div><div id="clPortal"></div><div id="clCad"></div>';
   mostrarClienteG360();
+  desenharClientesPortal();
   desenharCadastros();
 }
 
@@ -499,6 +501,22 @@ function mostrarClienteG360() {
       <div class="ab2"><button data-ircg>❄ Preços congelados</button></div></div>
     ${c.acesso_portal ? '' : '<div class="hint" style="padding:0 18px 12px">Para liberar, marque "Acesso à API dos sistemas externos" no cadastro do cliente no G360 (Gestão comercial).</div>'}`;
   alvo.querySelector('[data-ircg]').onclick = () => { aba = 'cong'; cong.cliente = { codigo: c.codigo, nome: c.nome, cnpj: c.cnpj }; desenharAba(); };
+}
+
+/** Clientes que já entraram no portal (contas abertas pela ponte + nome gravado no login). */
+async function desenharClientesPortal() {
+  const alvo = $('clPortal');
+  alvo.innerHTML = carregandoHtml('Carregando clientes do portal…');
+  let lista;
+  try { lista = (await painel('clientes_listar')).dados || []; } catch (e) { alvo.innerHTML = vazio(esc(e.message)); return; }
+  const dt = (t) => (t ? new Date(t).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
+  const brl = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  alvo.innerHTML = `<div class="crow2 h"><div>Clientes que já entraram no portal (${lista.length})</div><div>Cód. G360</div><div>Último acesso</div><div>Pedidos pelo portal</div><div></div></div>`
+    + (lista.length ? lista.map((c) => `<div class="crow2"><div class="nm"><b>${esc(c.nome || 'Nome aparece no próximo acesso')}</b><small>Primeiro acesso: ${esc(dt(c.primeiro_em))}${c.acessos ? ` · ${c.acessos} acesso${c.acessos === 1 ? '' : 's'}` : ''}</small></div>
+        <div class="sm sm2">${esc(c.codigo)}</div><div class="sm">${esc(dt(c.ultimo_em))}</div>
+        <div class="sm">${c.pedidos ? `<b>${c.pedidos}</b> · ${esc(brl(c.valor))}` : '—'}</div><div></div></div>`).join('')
+      : vazio('Nenhum cliente entrou no portal ainda.'))
+    + '<div class="hint" style="padding:10px 18px">A lista mostra quem já entrou pelo menos uma vez. Quem tem acesso liberado no G360 mas nunca entrou ainda não aparece (pedido feito à Movimento).</div>';
 }
 
 /* Dados do Supabase pelo mesmo login do G360 (função painel-g360). 401 encerra o painel. */
@@ -720,7 +738,10 @@ async function desenharConfig() {
         <input value="${esc(c.para)}" maxlength="40" aria-label="Nome da categoria"><button class="tool" data-up ${i ? '' : 'disabled'} aria-label="Subir">↑</button><button class="tool" data-dn ${i < lista.length - 1 ? '' : 'disabled'} aria-label="Descer">↓</button><button class="tool" data-rm style="color:#ff8a8a" aria-label="Remover">×</button></div>`).join('')}</div>
       <div class="fxurl" style="margin-top:10px"><input id="cfNova" maxlength="40" placeholder="Nova categoria (ex.: Hotelaria)"><button class="btn sec" id="cfAdd">Adicionar</button></div>
       <div class="row" style="margin-top:12px"><button class="btn pri" id="cfSalvar">Salvar categorias</button><span class="hint" id="cfRes" style="margin:0 0 0 10px"></span></div></div>
-      <div class="ci2"><div><b>Outras configurações</b><small>Margem mínima, sinônimos de busca e o restante do painel antigo voltam na parte 5.</small></div></div>`;
+      <div class="ci2" style="display:block"><b>Sinônimos da busca</b><small>Uma linha por palavra: o que o cliente digita = como o produto aparece no cadastro (separe vários com vírgula). Vale nos dois sentidos.<br>Ex.: <code>durex = fita adesiva</code> · <code>papel de mão = papel toalha</code> · <code>bombril = palha de aço, lã de aço</code></small>
+        <textarea id="cfSin" rows="12" class="inp" style="width:100%;margin-top:10px;font-family:var(--mono);font-size:12.5px" spellcheck="false">${esc(sinonimosPortal().map((x) => `${x.termo} = ${x.equivalentes.join(', ')}`).join('\n'))}</textarea>
+        <div class="row" style="margin-top:10px"><button class="btn pri" id="cfSinSalvar">Salvar sinônimos</button><span class="hint" id="cfSinRes" style="margin:0 0 0 10px"></span></div></div>
+      <div class="ci2"><div><b>Outras configurações</b><small>Margem mínima e o restante do painel antigo voltam na parte 5.</small></div></div>`;
     alvo.querySelectorAll('#cfCats input').forEach((inp) => inp.addEventListener('input', () => { lista[Number(inp.parentElement.dataset.i)].para = inp.value; }));
     alvo.querySelectorAll('#cfCats button').forEach((b) => b.addEventListener('click', () => {
       const i = Number(b.parentElement.dataset.i);
@@ -729,6 +750,15 @@ async function desenharConfig() {
       if (b.hasAttribute('data-rm')) lista.splice(i, 1);
       pintar();
     }));
+    $('cfSinSalvar').onclick = async () => {
+      const linhas = $('cfSin').value.split('\n').map((l) => l.trim()).filter(Boolean);
+      const ruins = linhas.filter((l) => !/^[^=]{1,60}=\s*\S/.test(l));
+      if (ruins.length) { $('cfSinRes').textContent = `Linha sem "=": ${ruins[0].slice(0, 40)}`; return; }
+      const lista = linhas.map((l) => { const [t, ...r] = l.split('='); return { termo: t.trim(), equivalentes: r.join('=').split(',').map((x) => x.trim()).filter(Boolean) }; });
+      $('cfSinSalvar').disabled = true;
+      try { const r = await painel('sinonimos_salvar', { sinonimos: lista }); await carregarExibicao(true); $('cfSinRes').textContent = `${r.gravados} sinônimos salvos ✓ — a busca já usa`; toast('Sinônimos salvos ✓'); }
+      catch (e) { $('cfSinRes').textContent = e.message; } finally { $('cfSinSalvar').disabled = false; }
+    };
     $('cfAdd').onclick = () => { const v = $('cfNova').value.trim(); if (v) { lista.push({ de: null, para: v }); pintar(); } };
     $('cfSalvar').onclick = async () => {
       const nomes = lista.map((c) => c.para.trim()).filter(Boolean);
@@ -742,6 +772,43 @@ async function desenharConfig() {
     };
   };
   pintar();
+}
+
+/* ---------------- Inteligência: desempenho do portal ---------------- */
+
+let intelLigado = false;
+async function desenharInteligencia() {
+  const alvo = $('intelPanel');
+  if (!intelLigado) {
+    intelLigado = true;
+    $('intelPeriodo').innerHTML = '<option value="7">Últimos 7 dias</option><option value="30" selected>Últimos 30 dias</option><option value="90">Últimos 90 dias</option>';
+    $('intelPeriodo').onchange = desenharInteligencia; $('intelAtualizar').onclick = desenharInteligencia;
+  }
+  alvo.innerHTML = `<div class="panel">${carregandoHtml('Calculando…')}</div>`;
+  let d;
+  try { d = (await painel('inteligencia', { dias: Number($('intelPeriodo').value) })).dados; } catch (e) { alvo.innerHTML = `<div class="panel">${vazio(esc(e.message))}</div>`; return; }
+  const brl = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const tab = (titulo, cab, linhas, vaziaTxt) => `<div class="panel" style="margin-top:14px"><div style="padding:14px 18px 6px"><b>${titulo}</b></div>
+    ${linhas.length ? `<div class="mrow h" style="grid-template-columns:${cab.map((c) => c[1]).join(' ')}">${cab.map((c) => `<div>${c[0]}</div>`).join('')}</div>${linhas.join('')}` : vazio(vaziaTxt)}</div>`;
+  const linha = (cols, tam) => `<div class="mrow" style="grid-template-columns:${tam}">${cols.map((c) => `<div class="sm">${c}</div>`).join('')}</div>`;
+  const maxDia = Math.max(1, ...d.por_dia.map((x) => x.valor));
+  alvo.innerHTML = `<div class="panel"><div style="padding:16px 18px" class="mgsum">
+      <div class="stat"><b>${esc(brl(d.valor))}</b><span>Vendido pelo portal</span></div>
+      <div class="stat"><b>${d.pedidos}</b><span>Pedidos</span></div>
+      <div class="stat"><b>${esc(brl(d.ticket))}</b><span>Ticket médio</span></div>
+      <div class="stat"><b>${d.clientes_compraram}</b><span>Clientes que compraram</span></div>
+      <div class="stat"><b>${d.clientes_entraram}</b><span>Clientes que entraram</span></div>
+      <div class="stat"><b>${d.buscas}</b><span>Buscas</span></div>
+      <div class="stat ${d.buscas_sem_resultado ? 'bad' : ''}"><b>${d.buscas_sem_resultado}</b><span>Buscas sem resultado</span></div></div>
+      ${d.por_dia.length ? `<div style="padding:0 18px 16px"><div class="hint" style="margin:0 0 6px">Vendas por dia</div><div style="display:flex;align-items:flex-end;gap:4px;height:90px">${d.por_dia.map((x) => `<div title="${esc(x.dia.split('-').reverse().join('/'))}: ${esc(brl(x.valor))} · ${x.pedidos} pedido(s)" style="flex:1;min-width:6px;background:var(--lima);border-radius:4px 4px 0 0;height:${Math.max(4, Math.round((x.valor / maxDia) * 86))}px"></div>`).join('')}</div></div>` : ''}
+      <div class="hint" style="padding:0 18px 14px">Os números contam a partir de 17/11/2026, quando o portal passou a registrar. Valores como o G360 devolveu em cada pedido.</div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:0 14px">
+    ${tab('Buscas mais feitas', [['Busca', '1fr'], ['Vezes', '70px']], d.top_buscas.map((b) => linha([esc(b.termo), b.vezes], '1fr 70px')), 'Nenhuma busca no período.')}
+    ${tab('Buscas sem resultado <small class="hint" style="margin:0">— cadastre sinônimo ou produto</small>', [['Busca', '1fr'], ['Vezes', '70px']], d.sem_resultado.map((b) => linha([esc(b.termo), b.vezes], '1fr 70px')), 'Nenhuma busca ficou sem resultado. 👏')}
+    ${tab('Produtos mais vendidos', [['Produto', '1fr'], ['Pedidos', '70px'], ['Total', '110px']], d.top_produtos.map((p) => linha([`${esc(p.nome)}<br><small>Cód. ${esc(p.codigo)}</small>`, p.pedidos, esc(brl(p.total))], '1fr 70px 110px')), 'Nenhum pedido no período.')}
+    ${tab('Clientes que mais compraram', [['Cliente', '1fr'], ['Pedidos', '70px'], ['Total', '110px']], d.top_clientes.map((c) => linha([`${esc(c.nome || '—')}<br><small>Cód. ${esc(c.codigo)}</small>`, c.pedidos, esc(brl(c.total))], '1fr 70px 110px')), 'Nenhum pedido no período.')}
+    </div>
+    ${tab('Últimos pedidos', [['Quando', '150px'], ['Cliente', '1fr'], ['Número', '110px'], ['Valor', '110px']], d.ultimos_pedidos.map((p) => linha([esc(new Date(p.quando).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })), esc(p.cliente), esc(p.numero || 'aguardando aprovação'), esc(brl(p.valor))], '150px 1fr 110px 110px')), 'Nenhum pedido no período.')}`;
 }
 
 /* ---------------- Ocorrências ---------------- */

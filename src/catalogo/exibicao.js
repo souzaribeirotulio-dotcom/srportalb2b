@@ -5,7 +5,7 @@
    ===================================================================== */
 import { supabaseComprador, supabaseConfigurado, LOJA } from '../api/supabase.js';
 import { nomeEcommerce, categoriaPeloNome } from './nomes.js';
-import { indexar } from './busca.js';
+import { indexar, definirSinonimos } from './busca.js';
 
 const estado = { carregado: false, carregando: null, porCodigo: new Map(), porId: new Map(), categorias: [] };
 
@@ -21,6 +21,8 @@ export function carregarExibicao(forcar = false) {
     try {
       const { data: cats } = await sb.from('portal_categorias').select('nome, ordem').eq('loja', LOJA).order('ordem');
       estado.categorias = cats?.length ? cats.map((c) => c.nome) : CATEGORIAS_PADRAO;
+      const { data: sin } = await sb.from('portal_sinonimos').select('termo, equivalentes').eq('loja', LOJA);
+      estado.sinonimos = sin || []; definirSinonimos(estado.sinonimos);
       const porCodigo = new Map(); const porId = new Map();
       for (let de = 0; de < 20000; de += 1000) {
         const { data, error } = await sb.from('portal_produtos_exibicao').select('codigo, produto_id, nome, categoria, origem, nome_g360')
@@ -37,6 +39,8 @@ export function carregarExibicao(forcar = false) {
   })();
   return estado.carregando;
 }
+
+export function sinonimos() { return estado.sinonimos || []; }
 
 export function categorias() { return estado.categorias.length ? estado.categorias : CATEGORIAS_PADRAO; }
 

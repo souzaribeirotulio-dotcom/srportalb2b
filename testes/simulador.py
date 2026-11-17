@@ -57,6 +57,8 @@ class Sim:
         self.vinculo_segundos = 300
         self.fotos_pedidas = []
         self.cadastros = []
+        self.sinonimos = [{'termo': 'durex', 'equivalentes': ['fita adesiva']}]
+        self.eventos = []; self.acessos = {}
         self.categorias = ['Limpeza', 'Descartáveis', 'Embalagens', 'Copa & Alimentos', 'Higiene', 'Utensílios & EPI', 'Papelaria', 'Outros']
         self.exibicao = {'P-104': {'codigo': 'P-104', 'produto_id': None, 'nome': 'Copo Descartável Exemplo 200ml (Pacote c/ 100 un)', 'categoria': 'Descartáveis', 'origem': 'legado'}}
 
@@ -323,6 +325,13 @@ class Sim:
                     self.exibicao[l['codigo']] = {k: l.get(k) for k in ('codigo', 'produto_id', 'nome', 'categoria', 'origem')}; n += 1
                 self.chamadas.append(('PAINEL', ac, n))
                 return res(200, {'gravados': n})
+            if ac == 'sinonimos_salvar': self.sinonimos = d['sinonimos']; return res(200, {'gravados': len(d['sinonimos'])})
+            if ac == 'clientes_listar': return res(200, {'dados': [{'codigo': c, 'nome': n, 'primeiro_em': '2026-11-17T12:00:00Z', 'ultimo_em': '2026-11-17T12:00:00Z', 'acessos': 1, 'pedidos': 0, 'valor': 0} for c, n in self.acessos.items()]})
+            if ac == 'inteligencia':
+                peds = [e for e in self.eventos if e['tipo'] == 'pedido']; bus = [e for e in self.eventos if e['tipo'] == 'busca']
+                return res(200, {'dados': {'dias': d.get('dias', 30), 'pedidos': len(peds), 'valor': sum(float(e.get('valor') or 0) for e in peds), 'ticket': 0, 'clientes_compraram': len({e['comprador_codigo'] for e in peds}), 'clientes_entraram': len(self.acessos),
+                    'buscas': len(bus), 'buscas_sem_resultado': len([b for b in bus if not b.get('resultados')]), 'top_buscas': [{'termo': b['termo'], 'vezes': 1} for b in bus], 'sem_resultado': [{'termo': b['termo'], 'vezes': 1} for b in bus if not b.get('resultados')],
+                    'top_produtos': [], 'top_clientes': [], 'por_dia': [], 'ultimos_pedidos': [{'quando': '2026-11-17T12:00:00Z', 'cliente': 'x', 'numero': e.get('pedido_numero'), 'valor': e.get('valor')} for e in peds]}})
             if ac == 'categorias_salvar': self.categorias = d['categorias']; return res(200, {'ok': True})
             if ac == 'ocorrencias_listar': return res(200, {'dados': list(reversed(self.ocorrencias))})
             if ac == 'cadastros_listar':
@@ -373,6 +382,16 @@ class Sim:
             if m == 'DELETE':
                 pid = int(q['produto_id'][0].replace('eq.', ''))
                 self.lista.get(s['codigo'], set()).discard(pid); return route.fulfill(status=204, headers=cab, body='')
+        if tabela == 'portal_sinonimos':
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps(self.sinonimos))
+        if tabela == 'portal_eventos' and m == 'POST':
+            if not valido: return route.fulfill(status=403, headers=cab, content_type='application/json', body='{"code":"42501"}')
+            r = json.loads(req.post_data)
+            if r.get('comprador_codigo') != s['codigo']: return route.fulfill(status=403, headers=cab, body='{"code":"42501"}')
+            self.eventos.append(r); return route.fulfill(status=201, headers=cab, body='')
+        if tabela == 'rpc/portal_registrar_acesso':
+            if valido: self.acessos[s['codigo']] = json.loads(req.post_data).get('p_nome')
+            return route.fulfill(status=204, headers=cab, body='')
         if tabela == 'portal_categorias':
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps([{'nome': c, 'ordem': i} for i, c in enumerate(self.categorias)]))
         if tabela == 'portal_produtos_exibicao':
