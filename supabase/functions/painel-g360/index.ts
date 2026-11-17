@@ -48,15 +48,16 @@ async function conferir(token: string): Promise<boolean> {
     redirect: "error",
     signal: AbortSignal.timeout(10_000),
   });
-  await r.body?.cancel();
-  // 403 = sessão válida sem a permissão de produtos: o operador está autenticado.
-  if (r.ok || r.status === 403) {
+  let codigo = "";
+  if (!r.ok) { try { codigo = String((await r.json())?.erro?.codigo ?? ""); } catch { /* sem corpo */ } } else await r.body?.cancel();
+  // OPERADOR_SEM_ACESSO = sessão válida sem a permissão de produtos: o operador está autenticado.
+  if (r.ok || (r.status === 403 && codigo === "OPERADOR_SEM_ACESSO")) {
     conferidos.set(h, Date.now() + CONFERENCIA_MS);
     if (conferidos.size > 500) for (const [k, v] of conferidos) if (v < Date.now()) conferidos.delete(k);
     return true;
   }
   if (r.status === 401) { conferidos.delete(h); return false; }
-  throw new Error(`api ${r.status}`);
+  throw new Error(`api ${r.status} ${codigo}`);
 }
 
 const SITUACOES = new Set(["pendente", "aprovado", "recusado"]);
@@ -114,8 +115,8 @@ Deno.serve(async (req) => {
   if (!tokenOperador.test(token)) return json(401, { mensagem: "Sua sessão do painel terminou. Entre novamente." });
   try {
     if (!(await conferir(token))) return json(401, { mensagem: "Sua sessão do painel terminou. Entre novamente." });
-  } catch {
-    console.warn("painel-g360: API indisponível na conferência");
+  } catch (e) {
+    console.warn("painel-g360: conferência falhou:", String((e as Error)?.message ?? e).slice(0, 120));
     return json(503, { mensagem: "Não foi possível conferir o acesso agora. Tente de novo em instantes." });
   }
   try {
