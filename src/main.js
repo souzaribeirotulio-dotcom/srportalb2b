@@ -22,6 +22,9 @@ import { mostrarAdmin, sairDaTelaAdmin } from './portal/admin.js';
 import { mostrarLoja, limparLoja, fecharTudo, prepararCasca } from './portal/loja.js';
 import { limparCheckout } from './portal/checkout.js';
 import { limparListaTela } from './portal/lista.js';
+
+// Versão publicada no rodapé (para conferir se o navegador está com a versão nova).
+try { document.getElementById('versao').textContent = `· versão ${__VERSAO__}`; } catch { /* sem rodapé */ }
 import { limparPedidosTela } from './portal/pedidos.js';
 
 const ATIVO = window.SR_ADAPTADOR !== 'mock';

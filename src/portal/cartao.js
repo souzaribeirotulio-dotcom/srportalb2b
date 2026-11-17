@@ -1,6 +1,9 @@
-/* Cartão de produto no layout original. Regras da API (seção 6 do CLAUDE.md):
-   - quem decide a compra é "compravel"; sem compra, o motivo é o "aviso", como veio;
-   - "sob_consulta" com compravel = disponibilidade a confirmar (deixa comprar);
+/* Cartão de produto no layout original.
+   REGRA ÚNICA de compra (vale para catálogo, Minha Lista e qualquer tela que use estas funções):
+   - compravel: true  → mostra o preço e libera o botão. Se disponibilidade = "sob_consulta",
+                        só o selo discreto "Disponibilidade a confirmar";
+   - compravel: false → botão desligado e o "aviso" exatamente como veio da API;
+   - nenhum texto próprio para esses casos e nada derivado de faixa_disponibilidade (só informativa).
    - "seu_preco" preenchido = selo "Seu preço", sem preço riscado;
    - fotos só pela lista fotos[] (vazia = espaço reservado). */
 import { esc } from './comum.js';
@@ -13,7 +16,7 @@ export function opcoesUnidade(p) {
 }
 
 export function podeComprar(p) {
-  return p.compravel === true && p.preco !== null && p.preco !== undefined;
+  return p?.compravel === true;
 }
 
 export function htmlPreco(op) {
@@ -21,11 +24,10 @@ export function htmlPreco(op) {
   return `<b>${esc(dinheiro(op.preco))}</b><small>/ ${esc(String(op.nome).toLowerCase())}</small>${op.seu_preco ? '<span class="tagcg">Seu preço</span>' : ''}`;
 }
 
+/** Selo e aviso da regra única: selo só para comprável sob consulta; aviso só para não comprável, como veio. */
 export function htmlEstoque(p) {
-  if (!podeComprar(p)) return '';
-  if (p.disponibilidade === 'sob_consulta') return '<div class="stk low">Disponibilidade a confirmar</div>';
-  if (p.disponibilidade === 'indisponivel') return '<div class="stk no">Indisponível</div>';
-  return p.faixa_disponibilidade === 'ultimas_unidades' ? '<div class="stk low">Últimas unidades</div>' : '<div class="stk ok">Em estoque</div>';
+  if (podeComprar(p)) return p.disponibilidade === 'sob_consulta' ? '<div class="stk low">Disponibilidade a confirmar</div>' : '';
+  return p?.aviso ? `<div class="warn">${esc(p.aviso)}</div>` : '';
 }
 
 export function htmlUnidades(p, sel = '', cls = '') {
@@ -51,7 +53,6 @@ export function htmlCartao(p, { naLista = null } = {}) {
       <div class="meta">Cód. ${esc(p.codigo)} · ${esc(p.unidade || '')}</div>
       <div class="price">${htmlPreco(ops[0])}</div>
       ${htmlEstoque(p)}
-      ${p.aviso ? `<div class="warn">${esc(p.aviso)}</div>` : ''}
       ${htmlUnidades(p)}
       <div class="buy">
         <div class="qty"><button type="button" data-d="-1" aria-label="Diminuir" ${comprar ? '' : 'disabled'}>−</button><input type="text" inputmode="decimal" value="1" maxlength="13" aria-label="Quantidade" ${comprar ? '' : 'disabled'}><button type="button" data-d="1" aria-label="Aumentar" ${comprar ? '' : 'disabled'}>+</button></div>

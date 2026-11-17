@@ -95,7 +95,7 @@ function htmlLinha(x) {
   const sub = est.q && op.preco ? dinheiro(estimar([{ precoTexto: op.preco, quantidade: normalizarQuantidade(est.q) || '0' }]).total) : '—';
   return `<div class="lrow ${est.q ? 'sel' : ''}" data-id="${p.id}">
     ${htmlFoto(p, 'g360-mini')}
-    <div class="nm">${esc(p.nome)}<small>Cód. ${esc(p.codigo)} · ${esc(p.marca || '')}</small>${htmlEstoque(p)}${p.aviso ? `<div class="warn">${esc(p.aviso)}</div>` : ''}${htmlUnidades(p, est.un, 'sm')}
+    <div class="nm">${esc(p.nome)}<small>Cód. ${esc(p.codigo)} · ${esc(p.marca || '')}</small>${htmlEstoque(p)}${htmlUnidades(p, est.un, 'sm')}
       ${x.salvo ? '<button type="button" class="rm" data-rm>Remover da lista</button>' : ''}</div>
     <div class="hist">${hist}</div>
     <div class="pr">${op.preco ? esc(dinheiro(op.preco)) : '—'}<small>/ ${esc(String(op.nome).toLowerCase())}</small>${op.seu_preco ? '<span class="tagcg">Seu preço</span>' : ''}</div>
