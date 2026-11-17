@@ -58,6 +58,7 @@ class Sim:
         self.vinculo_segundos = 300
         self.fotos_pedidas = []
         self.cadastros = []
+        self.vendedores = []
         self.sinonimos = [{'termo': 'durex', 'equivalentes': ['fita adesiva']}]
         self.eventos = []; self.acessos = {}; self.ensinos = []
         self.categorias = ['Limpeza', 'Descartáveis', 'Embalagens', 'Copa & Alimentos', 'Higiene', 'Utensílios & EPI', 'Papelaria', 'Outros']
@@ -270,7 +271,7 @@ class Sim:
         custo = self.op_tokens[tok]
         if caminho == 'operadores/sessao': self.op_tokens.pop(tok, None); return route.fulfill(status=204, headers=CORS, body='')
         if caminho == 'operadores/clientes/consulta':
-            if corpo['cnpj'] == '11.111.111/0001-11': return self.ok(route, {'codigo': 1165, 'nome': 'Comprador Fictício Um LTDA', 'acesso_portal': True, 'segmento': {'codigo': 1, 'descricao': 'Varejo'}})
+            if re.sub(r'[^0-9A-Za-z]', '', corpo['cnpj']) == '11111111000111': return self.ok(route, {'codigo': 1165, 'nome': 'Comprador Fictício Um LTDA', 'acesso_portal': True, 'segmento': {'codigo': 1, 'descricao': 'Varejo'}})
             return self.erro(route, 404, 'CLIENTE_NAO_LOCALIZADO', 'Cliente não localizado.', 'usuario')
         def prod_op(p, cliente=False):
             return {'id': p['id'], 'codigo': p['codigo'], 'nome': p['nome'], 'grupo': p['grupo'], 'marca': p['marca_detalhe'], 'unidade': p['unidade'],
@@ -363,6 +364,19 @@ class Sim:
                 for i, c in enumerate(self.cadastros):
                     c.setdefault('id', str(uuid.UUID(int=i + 1))); c.setdefault('status', 'pendente'); c.setdefault('criado_em', '2026-11-17T12:00:00+00:00')
                 return res(200, {'dados': list(reversed(self.cadastros))})
+            if ac == 'vendedores_listar': return res(200, {'dados': list(self.vendedores)})
+            if ac == 'vendedores_salvar': self.vendedores = [v.strip() for v in d.get('vendedores', []) if v.strip()]; return res(200, {'dados': list(self.vendedores)})
+            if ac == 'cliente_salvar':
+                c = dict(d.get('cliente') or {}); doc = re.sub(r'[^A-Za-z0-9]', '', c.get('documento', '')).upper()
+                igual = [x for x in self.cadastros if x['documento'] == doc and x.get('id') != c.get('id')]
+                if igual: return res(409, {'mensagem': 'Já existe uma ficha com este CNPJ. Abrimos a ficha existente.', 'id': igual[0].get('id')})
+                c['documento'] = doc; c['codigo_g360'] = int(c['codigo_g360']) if c.get('codigo_g360') else None
+                if c.get('id'):
+                    for x in self.cadastros:
+                        if x.get('id') == c['id']: x.update(c); return res(200, {'dados': x})
+                    return res(404, {'mensagem': 'Ficha não encontrada.'})
+                c.update({'id': str(uuid.uuid4()), 'criado_por': 'equipe', 'criado_em': '2026-11-17T13:00:00+00:00', 'loja': '96da1e99a3f327f0'}); self.cadastros.append(c)
+                return res(200, {'dados': c})
             if ac == 'cadastro_decidir':
                 for c in self.cadastros:
                     if c.get('id') == d.get('id'): c['status'] = d['status']; c['observacao_equipe'] = d.get('observacao') or None; return res(200, {'ok': True})

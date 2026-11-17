@@ -12,6 +12,8 @@ import {
   listarFotosOperador, obterFotoOperador, incluirFotoOperador, definirCapaOperador, ordenarFotosOperador, removerFotoOperador,
 } from '../api/g360.js';
 import { chamarPainel } from '../api/painel.js';
+import { pedirLink } from '../api/ponte.js';
+import { consultarCnpj } from './cadastro.js';
 import { definirEncerramentoOperador, definirAtividadeOperador } from '../estado/sessao.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { dinheiro, numeroPainel, dataBr } from '../ui/formato.js';
@@ -119,14 +121,13 @@ function ligar() {
     if (e.target.closest('[data-cg]')) { aba = 'cong'; cong.produto = { id: Number(r.dataset.id), rotulo: `${r.dataset.cod} · ${r.dataset.nome}` }; desenharAba(); }
   });
 
-  // Clientes
-  $('clQ').placeholder = 'CNPJ do cliente (consulta no G360) ou nome/CNPJ dos cadastros…';
-  $('clSt').innerHTML = '<option value="pendente">Aguardando aprovação</option><option value="aprovado">Aprovados</option><option value="recusado">Reprovados</option><option value="">Todos</option>';
-  $('clNovo').textContent = 'Consultar no G360';
-  $('clNovo').addEventListener('click', consultarCliente);
-  $('clQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); consultarCliente(); } });
-  $('clQ').addEventListener('input', adiar(() => desenharCadastros(false), 300));
-  $('clSt').addEventListener('change', () => desenharCadastros());
+  // Clientes (fichas do portal, como no painel antigo)
+  $('clQ').placeholder = 'Buscar por nome, CNPJ, código ou cidade…';
+  $('clSt').innerHTML = '<option value="">Todos</option><option value="pendente">Aguardando aprovação</option><option value="aprovado">Aprovados</option><option value="recusado">Reprovados</option>';
+  $('clNovo').textContent = '+ Novo cliente';
+  $('clNovo').addEventListener('click', () => abrirFicha(null));
+  $('clQ').addEventListener('input', adiar(() => desenharCadastros(false), 200));
+  $('clSt').addEventListener('change', () => desenharCadastros(false));
 
   // Preços congelados: o cliente é escolhido pelo CNPJ (a API não lista clientes).
   const cgFil = $('cgCli').parentElement;
@@ -473,38 +474,11 @@ async function enviarArquivos(lista) {
 
 /* ---------------- Clientes ---------------- */
 
-let clienteG360 = null;
-
 function desenharClientes() {
   const p = $('clPanel');
-  if (!$('clG360')) p.innerHTML = '<div id="clG360"></div><div id="clPortal"></div><div id="clCad"></div>';
-  mostrarClienteG360();
-  desenharClientesPortal();
+  if (!$('clCad')) p.innerHTML = '<div id="clLista"></div><div id="clCad"></div><div id="clPortal"></div>';
   desenharCadastros();
-}
-
-async function consultarCliente() {
-  const cnpj = $('clQ').value.trim();
-  if (cnpj.replace(/[^0-9A-Za-z]/g, '').length < 11) { desenharCadastros(false); toast('Digite o CNPJ completo para consultar no G360.'); return; }
-  const alvo = $('clG360');
-  alvo.innerHTML = carregandoHtml('Consultando o cliente no G360…');
-  try { clienteG360 = { ...(await consultarClienteOperador(op.token, cnpj)), cnpj }; mostrarClienteG360(); }
-  catch (e) { clienteG360 = null; erroEm(alvo, e); }
-}
-
-function mostrarClienteG360() {
-  const alvo = $('clG360');
-  if (!clienteG360) { alvo.innerHTML = ''; return; }
-  const c = clienteG360;
-  alvo.innerHTML = `<div class="crow2 h"><div>Cliente no G360</div><div>Cód. G360</div><div>Segmento</div><div>Portal</div><div></div></div>
-    <div class="crow2"><div class="nm"><b>${esc(c.nome)}</b><small>${esc(c.cnpj)}</small></div>
-      <div class="sm sm2">${esc(c.codigo)}</div><div class="sm">${esc(c.segmento?.descricao || '—')}</div>
-      <div class="stw"><span class="stt ${c.acesso_portal ? 'aprovado' : 'bloqueado'}">${c.acesso_portal ? 'Liberado' : 'Sem acesso'}</span></div>
-      <div class="ab2"><button data-lista>📋 Montar Minha Lista</button><button data-ircg>❄ Preços congelados</button></div></div>
-    <div id="clLista"></div>
-    ${c.acesso_portal ? '' : '<div class="hint" style="padding:0 18px 12px">Para liberar, marque "Acesso à API dos sistemas externos" no cadastro do cliente no G360 (Gestão comercial).</div>'}`;
-  alvo.querySelector('[data-lista]').onclick = () => montarLista(c);
-  alvo.querySelector('[data-ircg]').onclick = () => { aba = 'cong'; cong.cliente = { codigo: c.codigo, nome: c.nome, cnpj: c.cnpj }; desenharAba(); };
+  desenharClientesPortal();
 }
 
 /** Minha Lista do cliente montada pela equipe: ele já encontra pronta no login. */
@@ -512,10 +486,11 @@ async function montarLista(c) {
   const alvo = $('clLista');
   let ids = [];
   const pintar = async () => {
-    alvo.innerHTML = `<div class="panel" style="margin:12px 18px 16px"><div style="padding:14px 16px 4px"><b>Minha Lista de ${esc(c.nome)}</b>
+    alvo.innerHTML = `<div class="panel" style="margin:12px 18px 16px"><div style="padding:14px 16px 4px;position:relative"><button class="fxx" data-fechar style="position:absolute;right:12px;top:10px" title="Fechar">×</button><b>Minha Lista de ${esc(c.nome)}</b>
       <small class="hint" style="display:block;margin:2px 0 0">O cliente vê esta lista ao entrar, com preço e estoque do momento. Ele pode tirar ou pôr produtos depois.</small></div>
       <div class="fxurl" style="margin:10px 16px"><input id="mlQ" placeholder="Buscar produto para adicionar (nome ou código)" aria-label="Buscar produto"><button class="btn sec" id="mlBuscar">Buscar</button></div>
       <div id="mlRes"></div><div id="mlItens">${carregandoHtml('Carregando a lista…')}</div></div>`;
+    alvo.querySelector('[data-fechar]').onclick = () => { alvo.innerHTML = ''; };
     $('mlBuscar').onclick = buscar; $('mlQ').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); buscar(); } };
     $('mlQ').addEventListener('input', adiar(() => { if ($('mlQ').value.trim().length >= 3) buscar(); }, 450));
     await itens();
@@ -594,55 +569,219 @@ async function painel(acao, dados) {
 
 const SIT = { pendente: 'Aguardando', aprovado: 'Aprovado', recusado: 'Reprovado' };
 let cadastros = null;
+let vendedores = null;
+
+async function carregarVendedores(recarregar = false) {
+  if (vendedores && !recarregar) return vendedores;
+  try { vendedores = (await painel('vendedores_listar')).dados || []; } catch { vendedores = vendedores || []; }
+  return vendedores;
+}
+
+const soNum = (t) => String(t || '').replace(/\D/g, '');
+const docLimpo = (t) => String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+function fmtDoc(t) {
+  const d = docLimpo(t);
+  if (d.length === 14) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+  if (d.length === 11) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+  return d;
+}
+const fmtTel = (t) => { const d = soNum(t); return d.length >= 10 ? `(${d.slice(0, 2)}) ${d.slice(2, -4)}-${d.slice(-4)}` : d; };
+const semAcento = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 function desenharCadastros(recarregar = true) {
   const alvo = $('clCad'); if (!alvo) return;
   if (!recarregar && cadastros) { pintarCadastros(); return; }
   listar();
   async function listar() {
-    alvo.innerHTML = carregandoHtml('Carregando cadastros…');
+    alvo.innerHTML = carregandoHtml('Carregando clientes…');
     try { cadastros = (await painel('cadastros_listar')).dados || []; }
     catch (e) { alvo.innerHTML = vazio(esc(e.message)); return; }
     pintarCadastros();
   }
-  function pintarCadastros() {
-    const st = $('clSt').value; const q = $('clQ').value.trim().toLowerCase();
-    const L = cadastros.filter((k) => (!st || k.status === st) && (!q || [k.razao_social, k.fantasia, k.documento, k.cidade].join(' ').toLowerCase().includes(q)));
-    $('cliN').textContent = cadastros.filter((k) => k.status === 'pendente').length || '';
-    alvo.innerHTML = `<div class="crow2 h"><div>Cadastros pelo portal (${L.length})</div><div>Responsável</div><div>Cidade</div><div>Situação</div><div></div></div>`
-      + (L.length ? L.map((k) => `<div class="crow2" data-id="${esc(k.id)}">
-        <div class="nm"><b>${esc(k.fantasia || k.razao_social)}</b><small>${esc(k.documento)} · ${esc(k.razao_social)}</small>
-          <small>IE: ${esc(k.inscricao_estadual || 'não informada')} · ${esc(k.email)}</small>
-          <small>${esc(k.origem || '')}${k.whats ? ` · WhatsApp ${esc(k.whats)}` : ''}${k.telefone ? ` · ${esc(k.telefone)}` : ''} · enviado em ${esc(new Date(k.criado_em).toLocaleString('pt-BR'))}</small>
-          <small>${esc([k.logradouro, k.numero, k.complemento].filter(Boolean).join(', '))} — ${esc(k.bairro || '')} · CEP ${esc(k.cep || '')}</small>
-          ${k.observacao_equipe ? `<small>Obs.: ${esc(k.observacao_equipe)}</small>` : ''}${k.decidido_por ? `<small>Decidido por ${esc(k.decidido_por)}</small>` : ''}</div>
-        <div class="sm sm2">${esc(k.responsavel)}</div><div class="sm">${esc(k.cidade || '')}${k.uf ? `/${esc(k.uf)}` : ''}</div>
-        <div class="stw"><span class="stt ${k.status === 'recusado' ? 'reprovado' : esc(k.status)}">${SIT[k.status] || esc(k.status)}</span></div>
-        <div class="ab2">${k.status !== 'aprovado' ? '<button class="ap" data-d="aprovado">Aprovar</button>' : ''}${k.status !== 'recusado' ? '<button class="rp" data-d="recusado">Reprovar</button>' : ''}${k.status !== 'pendente' ? '<button data-d="pendente">Voltar p/ análise</button>' : ''}<button data-obs>Observação</button></div></div>`).join('')
-        : vazio('Nenhum cadastro nesta situação. Os pedidos feitos em "Quero ser cliente" aparecem aqui.'))
-      + '<div class="hint" style="padding:10px 18px">Depois de aprovar, cadastre a empresa no G360 e marque "Acesso à API dos sistemas externos" em Gestão comercial. Aí ela usa "Primeiro acesso" no portal para criar a senha.</div>';
-    alvo.querySelectorAll('.crow2[data-id] button').forEach((b) => b.addEventListener('click', async () => {
-      const r = b.closest('.crow2'); const k = cadastros.find((x) => String(x.id) === r.dataset.id);
-      let obs = k.observacao_equipe || '';
-      if (b.dataset.obs !== undefined) {
-        // Observação: campo na própria linha, gravado com a situação atual.
-        if (r.querySelector('.kobs')) return;
-        r.querySelector('.nm').insertAdjacentHTML('beforeend', `<div class="kobs fxurl" style="margin-top:6px"><input maxlength="500" value="${esc(obs)}" placeholder="Observação da equipe"><button class="btn sec" type="button">Salvar</button></div>`);
-        const caixa = r.querySelector('.kobs'); caixa.querySelector('input').focus();
-        caixa.querySelector('button').onclick = async () => {
-          try { await painel('cadastro_decidir', { id: k.id, status: k.status, observacao: caixa.querySelector('input').value }); }
-          catch (e2) { toast(e2.message); return; }
-          toast('Observação salva ✓'); desenharCadastros();
-        };
+}
+
+function pintarCadastros() {
+  const alvo = $('clCad'); if (!alvo || !cadastros) return;
+  const st = $('clSt').value; const q = semAcento($('clQ').value.trim()); const qd = docLimpo(q);
+  const L = cadastros
+    .filter((k) => (!st || k.status === st) && (!q || semAcento([k.razao_social, k.fantasia, k.documento, fmtDoc(k.documento), k.codigo_g360, k.cidade, k.vendedor, k.responsavel].join(' ')).includes(q) || (qd.length >= 4 && k.documento.includes(qd))))
+    .sort((a, b) => (a.status === 'pendente' ? 0 : 1) - (b.status === 'pendente' ? 0 : 1) || String(b.criado_em).localeCompare(String(a.criado_em)));
+  $('cliN').textContent = cadastros.filter((k) => k.status === 'pendente').length || '';
+  alvo.innerHTML = `<div class="crow2 h"><div>Cliente (${L.length})</div><div>Cód. G360</div><div>Cidade</div><div>Situação</div><div></div></div>`
+    + (L.length ? L.map((k) => `<div class="crow2" data-id="${esc(k.id)}">
+      <div class="nm"><b>${esc(k.fantasia || k.razao_social)}</b><small>${esc(fmtDoc(k.documento))} · ${esc(k.razao_social)}</small>
+        <small>IE: ${esc(k.inscricao_estadual || 'não informada')}${k.email ? ` · ${esc(k.email)}` : ''}</small>
+        <small>${esc(k.origem || (k.criado_por === 'equipe' ? 'Cadastrado pela equipe' : 'Quero ser cliente'))}${k.whats ? ` · ${esc(fmtTel(k.whats))}` : ''}${k.vendedor ? ` · Vendedor: ${esc(k.vendedor)}` : ''}</small>
+        ${k.observacao_equipe ? `<small>Obs.: ${esc(k.observacao_equipe)}</small>` : ''}</div>
+      <div class="sm sm2">${k.codigo_g360 ? esc(k.codigo_g360) : '<span style="color:var(--tx3)">—</span>'}</div>
+      <div class="sm">${esc(k.cidade || '')}${k.uf ? `/${esc(k.uf)}` : ''}${k.codigo_g360 ? `<span class="som"> · cód. ${esc(k.codigo_g360)}</span>` : ''}</div>
+      <div class="stw"><span class="stt ${k.status === 'recusado' ? 'reprovado' : esc(k.status)}">${SIT[k.status] || esc(k.status)}</span></div>
+      <div class="ab2">${k.status === 'pendente' ? '<button class="ap" data-d="aprovado">Aprovar</button><button class="rp" data-d="recusado">Reprovar</button>' : ''}<button data-lista ${k.codigo_g360 ? '' : 'disabled title="Coloque o código do G360 na ficha (Editar → Buscar dados)"'}>⭐ Minha Lista</button><button data-ed>Editar</button></div></div>`).join('')
+      : vazio(cadastros.length ? 'Nenhum cliente encontrado com essa busca.' : 'Nenhum cliente ainda. Clique em "+ Novo cliente" ou aguarde os pedidos de "Quero ser cliente".'))
+    + '<div class="hint" style="padding:10px 18px">A ficha é do portal: preço, condições de pagamento, crédito e endereços de entrega continuam vindo do G360. Para o cliente entrar, ele precisa estar no G360 com "Acesso à API dos sistemas externos" marcado.</div>';
+  alvo.querySelectorAll('.crow2[data-id] button').forEach((b) => b.addEventListener('click', async () => {
+    const k = cadastros.find((x) => String(x.id) === b.closest('.crow2').dataset.id);
+    if (b.hasAttribute('data-ed')) { abrirFicha(k); return; }
+    if (b.hasAttribute('data-lista')) { montarLista({ codigo: k.codigo_g360, nome: k.fantasia || k.razao_social }); return; }
+    b.disabled = true;
+    try { await painel('cadastro_decidir', { id: k.id, status: b.dataset.d, observacao: k.observacao_equipe || '' }); }
+    catch (e) { b.disabled = false; toast(e.message); return; }
+    toast(b.dataset.d === 'aprovado' ? 'Cliente aprovado ✓ — avise o cliente.' : 'Cadastro reprovado');
+    desenharCadastros();
+  }));
+}
+
+const UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
+
+/** Novo / Editar cliente (mesmo formulário do painel antigo). Não altera nada no G360. */
+async function abrirFicha(k) {
+  const d = k || { status: 'aprovado' };
+  const vend = await carregarVendedores();
+  const origens = [...vend.map((v) => `Vendedor: ${v}`), 'Instagram', 'Google', 'Indicação de outro cliente', 'Outro'];
+  if (d.origem && !origens.includes(d.origem)) origens.push(d.origem);
+  const vendOpc = [...vend]; if (d.vendedor && !vendOpc.includes(d.vendedor)) vendOpc.push(d.vendedor);
+  const isento = String(d.inscricao_estadual || '').toUpperCase() === 'ISENTO';
+  const req = ' <span class="req">*</span>';
+  const inp = (id, v = '', extra = '') => `<input class="inp" id="${id}" value="${esc(v ?? '')}" ${extra}>`;
+  $('admBox').innerHTML = `<div class="fxh"><div><h3>${k ? 'Editar cliente' : 'Novo cliente'}</h3><div class="sub">${k ? `Cadastrado em ${esc(new Date(k.criado_em).toLocaleDateString('pt-BR'))}${k.criado_por === 'equipe' ? ' pela equipe' : ' pelo "Quero ser cliente"'}` : 'Cadastro feito pela equipe já entra aprovado.'}</div></div><button class="fxx" id="kX" title="Fechar">×</button></div>
+    <div class="csec">Empresa</div>
+    <label for="kCnpj">CNPJ${req}</label>
+    <div class="cnpjrow">${inp('kCnpj', d.documento ? fmtDoc(d.documento) : '', 'maxlength="18" autocapitalize="characters" spellcheck="false" placeholder="00.000.000/0000-00"')}<button class="btn sec" id="kBusca" type="button">Buscar dados</button></div>
+    <div class="okmsg" id="kCnpjM" aria-live="polite">${d.documento ? '' : 'Digite o CNPJ e clique em Buscar dados: o código vem do G360 e o resto da Receita.'}</div>
+    <div class="fgrid"><div class="full"><label for="kRaz">Razão social${req}</label>${inp('kRaz', d.razao_social, 'maxlength="200"')}</div>
+      <div class="full"><label for="kFan">Nome fantasia</label>${inp('kFan', d.fantasia, 'maxlength="200"')}</div>
+      <div class="full"><label for="kIE">Inscrição estadual${req}</label>
+        <div class="cnpjrow">${inp('kIE', isento ? '' : d.inscricao_estadual, `maxlength="30" ${isento ? 'disabled' : ''}`)}<label class="isen"><input type="checkbox" id="kIsento" ${isento ? 'checked' : ''}> Isento</label></div></div></div>
+    <div class="csec">Endereço da empresa</div>
+    <div class="fgrid"><div><label for="kCep">CEP${req}</label>${inp('kCep', d.cep, 'inputmode="numeric" maxlength="9"')}<div class="okmsg" id="kCepM"></div></div>
+      <div><label for="kNum">Número${req}</label>${inp('kNum', d.numero, 'maxlength="20"')}</div>
+      <div class="full"><label for="kLog">Rua / avenida${req}</label>${inp('kLog', d.logradouro, 'maxlength="200"')}</div>
+      <div><label for="kCom">Complemento</label>${inp('kCom', d.complemento, 'maxlength="120"')}</div>
+      <div><label for="kBai">Bairro${req}</label>${inp('kBai', d.bairro, 'maxlength="120"')}</div>
+      <div><label for="kCid">Cidade${req}</label>${inp('kCid', d.cidade, 'maxlength="120"')}</div>
+      <div><label for="kUf">UF${req}</label><select class="inp" id="kUf"><option value="">—</option>${UFS.map((u) => `<option ${u === d.uf ? 'selected' : ''}>${u}</option>`).join('')}</select></div></div>
+    <div class="okmsg" style="color:var(--tx3)">Só para consulta da equipe. O pedido usa os endereços de entrega cadastrados no G360.</div>
+    <div class="csec">Contato</div>
+    <div class="fgrid"><div class="full"><label for="kResp">Nome do responsável pelas compras${req}</label>${inp('kResp', d.responsavel, 'maxlength="120"')}</div>
+      <div><label for="kWa">WhatsApp${req}</label>${inp('kWa', soNum(d.whats), 'inputmode="numeric" maxlength="11" placeholder="DDD + número"')}</div>
+      <div><label for="kTel">Telefone da empresa</label>${inp('kTel', soNum(d.telefone), 'inputmode="numeric" maxlength="11"')}</div>
+      <div class="full"><label for="kEm">E-mail${req}</label>${inp('kEm', d.email, 'type="email" maxlength="160"')}</div>
+      <div class="full"><label for="kOri">Como conheceu a Souza Ribeiro?${req}</label><select class="inp" id="kOri"><option value="">Selecione…</option>${origens.map((o) => `<option ${o === d.origem ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div></div>
+    <div class="csec">Liberação (admin)</div>
+    <div class="fgrid"><div><label for="kCod">Código do cliente no G360</label>${inp('kCod', d.codigo_g360 || '', 'inputmode="numeric" maxlength="9" placeholder="Vem pelo Buscar dados"')}</div>
+      <div><label for="kSt">Situação</label><select class="inp" id="kSt">${Object.entries({ pendente: 'Aguardando aprovação', aprovado: 'Aprovado', recusado: 'Reprovado' }).map(([v, t]) => `<option value="${v}" ${v === d.status ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+      <div class="full"><div class="okmsg" id="kG360M" aria-live="polite"></div></div>
+      <div class="full"><label for="kVend">Vendedor responsável</label><select class="inp" id="kVend"><option value="">—</option>${vendOpc.map((v) => `<option ${v === d.vendedor ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
+        ${vend.length ? '' : '<div class="okmsg" style="color:var(--tx3)">Cadastre os vendedores em Configurações.</div>'}</div></div>
+    <div class="ci2" style="display:block;margin-top:12px"><b>Formas de pagamento, preço e crédito</b><small>São configurados no cadastro do cliente no G360. O portal mostra para o cliente o que o G360 liberar.</small></div>
+    <div class="csec">Acesso</div>
+    <div class="ci2" style="display:block"><small>A senha é criada pelo próprio cliente. O botão abaixo envia o link de acesso para o e-mail cadastrado <b>no G360</b> (vale 30 minutos e só uma vez). O cliente também pode usar "Primeiro acesso" no portal.</small>
+      <div class="row" style="margin-top:10px"><button class="btn sec" id="kLink" type="button">✉ Enviar link de acesso</button><span class="hint" id="kLinkM" style="margin:0 0 0 10px" aria-live="polite"></span></div></div>
+    <div class="err" id="kE" aria-live="polite"></div>
+    <div class="act"><button class="btn sec" id="kC" type="button">Cancelar</button><button class="btn pri" id="kOk" type="button">Salvar cliente</button></div>`;
+  abrirModal('mAdm');
+  const fechar = () => fecharModal('mAdm');
+  $('kX').onclick = fechar; $('kC').onclick = fechar;
+  $('mAdm').onclick = (e) => { if (e.target.id === 'mAdm') fechar(); };
+  setTimeout(() => (k ? $('kRaz') : $('kCnpj')).focus(), 60);
+
+  ['kWa', 'kTel'].forEach((id) => $(id).addEventListener('input', (e) => { e.target.value = soNum(e.target.value).slice(0, 11); }));
+  $('kCod').addEventListener('input', (e) => { e.target.value = soNum(e.target.value).slice(0, 9); });
+  $('kIsento').onchange = () => { $('kIE').disabled = $('kIsento').checked; if ($('kIsento').checked) $('kIE').value = ''; };
+  $('kCnpj').addEventListener('input', () => { const c = docLimpo($('kCnpj').value); if (c.length === 14) $('kCnpj').value = fmtDoc(c); });
+
+  const pre = (id, v) => { if (v && !$(id).value.trim()) $(id).value = String(v).trim(); };
+  $('kCep').addEventListener('input', async () => {
+    const c = soNum($('kCep').value).slice(0, 8); $('kCep').value = c;
+    if (c.length !== 8) { $('kCepM').textContent = ''; return; }
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${c}/json/`, { credentials: 'omit', referrerPolicy: 'no-referrer' });
+      const j = await r.json();
+      if (j.erro) { $('kCepM').className = 'okmsg bad'; $('kCepM').textContent = 'CEP não encontrado.'; return; }
+      pre('kLog', j.logradouro); pre('kBai', j.bairro); pre('kCid', j.localidade); if (j.uf && !$('kUf').value) $('kUf').value = j.uf;
+      $('kCepM').className = 'okmsg'; $('kCepM').textContent = '✓ Endereço encontrado';
+    } catch { $('kCepM').textContent = ''; }
+  });
+
+  $('kBusca').onclick = async () => {
+    const c = docLimpo($('kCnpj').value); const m = $('kCnpjM'); const g = $('kG360M');
+    if (c.length !== 14) { m.className = 'okmsg bad'; m.textContent = 'Digite o CNPJ completo (14 caracteres).'; return; }
+    const ja = cadastros?.find((x) => x.documento === c && x.id !== d.id);
+    if (ja) { m.className = 'okmsg bad'; m.textContent = 'Já existe uma ficha com este CNPJ. Abrindo a ficha existente…'; setTimeout(() => abrirFicha(ja), 900); return; }
+    $('kBusca').disabled = true;
+    m.className = 'okmsg'; m.textContent = 'Buscando no G360 e na Receita…'; g.textContent = '';
+    const [r360, rec] = await Promise.allSettled([consultarClienteOperador(op.token, c), consultarCnpj(c)]);
+    $('kBusca').disabled = false;
+    if (r360.status === 'fulfilled') {
+      const cli = r360.value; $('kCod').value = cli.codigo;
+      g.className = cli.acesso_portal ? 'okmsg' : 'okmsg bad';
+      g.textContent = cli.acesso_portal ? `✓ Cliente ${cli.codigo} no G360 (${cli.nome}) com acesso ao portal liberado.`
+        : `Cliente ${cli.codigo} no G360 (${cli.nome}), mas falta marcar "Acesso à API dos sistemas externos" no G360. Sem isso ele não consegue entrar.`;
+      pre('kRaz', cli.nome);
+    } else {
+      const e = r360.reason;
+      if (e?.status === 401) { encerrarOperador(e.message); return; }
+      g.className = 'okmsg bad';
+      g.textContent = e?.codigo === 'CLIENTE_NAO_LOCALIZADO' || e?.status === 404
+        ? 'Cliente não encontrado no G360 (ou inativo). Cadastre no G360 primeiro e clique em Buscar dados de novo. A ficha pode ficar como "Aguardando aprovação".'
+        : `G360: ${e?.message || 'não foi possível consultar agora.'}`;
+      if (!k && !$('kCod').value) $('kSt').value = 'pendente';
+    }
+    const j = rec.status === 'fulfilled' ? rec.value : null;
+    if (j) {
+      pre('kRaz', j.razao); pre('kFan', j.fantasia); if (j.ie && !$('kIsento').checked) pre('kIE', j.ie);
+      pre('kCep', j.cep); pre('kLog', j.rua); pre('kNum', j.numero); pre('kCom', j.complemento); pre('kBai', j.bairro);
+      pre('kCid', j.cidade); if (j.uf && !$('kUf').value) $('kUf').value = j.uf; pre('kTel', soNum(j.telefone)); pre('kEm', j.email);
+      m.className = j.situacao && !/ativa/i.test(j.situacao) ? 'okmsg bad' : 'okmsg';
+      m.textContent = `✓ ${j.situacao ? `Situação na Receita: ${j.situacao}` : 'Dados encontrados'} — confira e complete.`;
+    } else { m.className = 'okmsg bad'; m.textContent = 'Consulta da Receita indisponível agora. Preencha manualmente.'; }
+  };
+
+  $('kLink').onclick = async () => {
+    const c = docLimpo($('kCnpj').value);
+    if (c.length < 11) { $('kLinkM').textContent = 'Digite o CNPJ primeiro.'; return; }
+    $('kLink').disabled = true; $('kLinkM').textContent = 'Enviando…';
+    try { $('kLinkM').textContent = await pedirLink(c); }
+    catch (e) { $('kLinkM').textContent = e.message; }
+    finally { $('kLink').disabled = false; }
+  };
+
+  $('kOk').onclick = async () => {
+    const v = (id) => $(id).value.trim();
+    const n = {
+      id: d.id || null, documento: docLimpo(v('kCnpj')), razao_social: v('kRaz'), fantasia: v('kFan'),
+      inscricao_estadual: $('kIsento').checked ? 'ISENTO' : v('kIE'), cep: soNum(v('kCep')), numero: v('kNum'), logradouro: v('kLog'),
+      complemento: v('kCom'), bairro: v('kBai'), cidade: v('kCid'), uf: $('kUf').value, responsavel: v('kResp'), whats: soNum(v('kWa')),
+      telefone: soNum(v('kTel')), email: v('kEm'), origem: $('kOri').value, codigo_g360: v('kCod') || null, status: $('kSt').value, vendedor: $('kVend').value,
+    };
+    const falta = [];
+    if (!/^[A-Z0-9]{14}$/.test(n.documento) && !/^[0-9]{11}$/.test(n.documento)) falta.push('CNPJ completo');
+    if (n.razao_social.length < 2) falta.push('razão social');
+    if (!n.inscricao_estadual) falta.push('inscrição estadual (ou marque Isento)');
+    if (n.cep.length !== 8 || !n.numero || !n.logradouro || !n.bairro || !n.cidade || !n.uf) falta.push('endereço completo');
+    if (n.responsavel.length < 2) falta.push('responsável');
+    if (!/^[0-9]{10,11}$/.test(n.whats)) falta.push('WhatsApp com DDD');
+    if (n.telefone && !/^[0-9]{10,11}$/.test(n.telefone)) falta.push('telefone com DDD');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(n.email)) falta.push('e-mail válido');
+    if (!n.origem) falta.push('como nos conheceu');
+    if (falta.length) { $('kE').textContent = `Falta preencher: ${falta.join(', ')}.`; return; }
+    $('kE').textContent = ''; $('kOk').disabled = true; $('kOk').textContent = 'Salvando…';
+    try {
+      const salvo = (await painel('cliente_salvar', { cliente: n })).dados;
+      const i = cadastros ? cadastros.findIndex((x) => x.id === salvo.id) : -1;
+      if (cadastros) { if (i >= 0) cadastros[i] = salvo; else cadastros.unshift(salvo); }
+      fechar(); pintarCadastros(); toast('Cliente salvo ✓');
+    } catch (e) {
+      $('kOk').disabled = false; $('kOk').textContent = 'Salvar cliente';
+      if (e.status === 409 && e.corpo?.id) {
+        $('kE').textContent = e.message;
+        await desenharCadastros(); const ja = cadastros?.find((x) => x.id === e.corpo.id);
+        if (ja) setTimeout(() => abrirFicha(ja), 1200);
         return;
       }
-      b.disabled = true;
-      try { await painel('cadastro_decidir', { id: k.id, status: b.dataset.d || k.status, observacao: obs }); }
-      catch (e) { b.disabled = false; toast(e.message); return; }
-      toast(b.dataset.d === 'aprovado' ? 'Cadastro aprovado ✓ — avise o cliente.' : 'Cadastro atualizado ✓');
-      desenharCadastros();
-    }));
-  }
+      $('kE').textContent = e.message;
+    }
+  };
 }
 
 /* ---------------- Preços congelados ---------------- */
@@ -797,7 +936,7 @@ async function desenharMargens(carregarMais = false) {
 async function desenharConfig() {
   const alvo = $('cfgPanel');
   alvo.innerHTML = carregandoHtml('Carregando categorias…');
-  await carregarExibicao();
+  await Promise.all([carregarExibicao(), carregarVendedores(true)]);
   let lista = categorias().map((c) => ({ de: c, para: c }));
   const pintar = () => {
     alvo.innerHTML = `<div class="ci2" style="display:block"><b>Categorias do catálogo</b><small>Definidas pela Souza Ribeiro (não vêm do G360). A ordem aqui é a ordem dos botões no catálogo. Para pôr um produto numa categoria, use a aba Produtos.</small>
@@ -808,6 +947,9 @@ async function desenharConfig() {
       <div class="ci2" style="display:block"><b>Sinônimos da busca</b><small>Uma linha por palavra: o que o cliente digita = como o produto aparece no cadastro (separe vários com vírgula). Vale nos dois sentidos.<br>Ex.: <code>durex = fita adesiva</code> · <code>papel de mão = papel toalha</code> · <code>bombril = palha de aço, lã de aço</code></small>
         <textarea id="cfSin" rows="12" class="inp" style="width:100%;margin-top:10px;font-family:var(--mono);font-size:12.5px" spellcheck="false">${esc(sinonimosPortal().map((x) => `${x.termo} = ${x.equivalentes.join(', ')}`).join('\n'))}</textarea>
         <div class="row" style="margin-top:10px"><button class="btn pri" id="cfSinSalvar">Salvar sinônimos</button><span class="hint" id="cfSinRes" style="margin:0 0 0 10px"></span></div></div>
+      <div class="ci2" style="display:block"><b>Vendedores</b><small>Um por linha. Aparecem no cadastro do cliente em "Vendedor responsável" e em "Como conheceu a Souza Ribeiro?".</small>
+        <textarea id="cfVend" rows="5" class="inp" style="width:100%;margin-top:10px" spellcheck="false">${esc((vendedores || []).join('\n'))}</textarea>
+        <div class="row" style="margin-top:10px"><button class="btn pri" id="cfVendSalvar">Salvar vendedores</button><span class="hint" id="cfVendRes" style="margin:0 0 0 10px"></span></div></div>
       <div class="ci2"><div><b>Outras configurações</b><small>Margem mínima e o restante do painel antigo voltam na parte 5.</small></div></div>`;
     alvo.querySelectorAll('#cfCats input').forEach((inp) => inp.addEventListener('input', () => { lista[Number(inp.parentElement.dataset.i)].para = inp.value; }));
     alvo.querySelectorAll('#cfCats button').forEach((b) => b.addEventListener('click', () => {
@@ -825,6 +967,12 @@ async function desenharConfig() {
       $('cfSinSalvar').disabled = true;
       try { const r = await painel('sinonimos_salvar', { sinonimos: lista }); await carregarExibicao(true); $('cfSinRes').textContent = `${r.gravados} sinônimos salvos ✓ — a busca já usa`; toast('Sinônimos salvos ✓'); }
       catch (e) { $('cfSinRes').textContent = e.message; } finally { $('cfSinSalvar').disabled = false; }
+    };
+    $('cfVendSalvar').onclick = async () => {
+      const nomes = $('cfVend').value.split('\n').map((l) => l.trim()).filter(Boolean);
+      $('cfVendSalvar').disabled = true;
+      try { vendedores = (await painel('vendedores_salvar', { vendedores: nomes })).dados; $('cfVendRes').textContent = `${vendedores.length} vendedor${vendedores.length === 1 ? '' : 'es'} salvo${vendedores.length === 1 ? '' : 's'} ✓`; }
+      catch (e) { $('cfVendRes').textContent = e.message; } finally { $('cfVendSalvar').disabled = false; }
     };
     $('cfAdd').onclick = () => { const v = $('cfNova').value.trim(); if (v) { lista.push({ de: null, para: v }); pintar(); } };
     $('cfSalvar').onclick = async () => {

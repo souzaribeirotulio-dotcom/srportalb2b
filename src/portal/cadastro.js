@@ -16,7 +16,7 @@ function campo(id, rotulo, extra = '', obrig = false) {
 }
 
 /** Consulta pública do CNPJ: CNPJ.ws (usada pelo portal antigo) e, se falhar, BrasilAPI. */
-async function consultarCnpj(d) {
+export async function consultarCnpj(d) {
   const tentar = async (url) => {
     const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 8000);
     try { const r = await fetch(url, { credentials: 'omit', referrerPolicy: 'no-referrer', signal: ctl.signal }); return r.ok ? await r.json() : null; }

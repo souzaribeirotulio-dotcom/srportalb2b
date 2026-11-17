@@ -83,6 +83,78 @@ async function executar(acao: string, d: Record<string, unknown>): Promise<[numb
     if (!data?.length) return [404, { mensagem: "Cadastro não encontrado." }];
     return [200, { ok: true }];
   }
+  if (acao === "cliente_salvar") {
+    // Ficha do cliente no portal (Novo/Editar cliente). Não toca no G360.
+    const c = (d.cliente ?? {}) as Record<string, unknown>;
+    const id = texto(c.id, 40);
+    const so = (v: unknown, max: number) => texto(v, max).replace(/\D/g, "");
+    const documento = texto(c.documento, 32).toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const status = texto(c.status, 12) || "aprovado";
+    const codigo = c.codigo_g360 === null || c.codigo_g360 === "" || c.codigo_g360 === undefined ? null : Number(c.codigo_g360);
+    const ficha = {
+      documento,
+      razao_social: texto(c.razao_social, 200),
+      fantasia: texto(c.fantasia, 200) || null,
+      inscricao_estadual: texto(c.inscricao_estadual, 30).toUpperCase() || null,
+      responsavel: texto(c.responsavel, 120),
+      whats: so(c.whats, 16) || null,
+      telefone: so(c.telefone, 16) || null,
+      email: texto(c.email, 160).toLowerCase(),
+      cep: so(c.cep, 9) || null,
+      logradouro: texto(c.logradouro, 200) || null,
+      numero: texto(c.numero, 20) || null,
+      complemento: texto(c.complemento, 120) || null,
+      bairro: texto(c.bairro, 120) || null,
+      cidade: texto(c.cidade, 120) || null,
+      uf: texto(c.uf, 2).toUpperCase() || null,
+      origem: texto(c.origem, 120) || null,
+      vendedor: texto(c.vendedor, 80) || null,
+      codigo_g360: codigo,
+      status,
+      atualizado_em: new Date().toISOString(),
+    };
+    if (!/^[A-Z0-9]{11,14}$/.test(documento)) return [400, { mensagem: "Digite o CNPJ ou CPF completo." }];
+    if (!SITUACOES.has(status)) return [400, { mensagem: "Situação inválida." }];
+    if (codigo !== null && !(Number.isSafeInteger(codigo) && codigo > 0)) return [400, { mensagem: "O código do G360 tem de ser um número." }];
+    if (ficha.razao_social.length < 2) return [400, { mensagem: "Digite a razão social." }];
+    if (ficha.responsavel.length < 2) return [400, { mensagem: "Digite o nome do responsável." }];
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ficha.email)) return [400, { mensagem: "Digite um e-mail válido." }];
+    if (ficha.whats && !/^[0-9]{10,11}$/.test(ficha.whats)) return [400, { mensagem: "WhatsApp com DDD (10 ou 11 números)." }];
+    if (ficha.telefone && !/^[0-9]{10,11}$/.test(ficha.telefone)) return [400, { mensagem: "Telefone com DDD (10 ou 11 números)." }];
+    if (ficha.cep && !/^[0-9]{8}$/.test(ficha.cep)) return [400, { mensagem: "CEP com 8 números." }];
+    if (ficha.uf && !/^[A-Z]{2}$/.test(ficha.uf)) return [400, { mensagem: "UF com 2 letras." }];
+    // Mesmo CNPJ em outra ficha: devolve a existente em vez de duplicar.
+    const { data: igual, error: e0 } = await admin.from("portal_cadastros").select("id").eq("loja", loja).eq("documento", documento).limit(1);
+    if (e0) throw e0;
+    if (igual?.length && igual[0].id !== id) return [409, { mensagem: "Já existe uma ficha com este CNPJ. Abrimos a ficha existente.", id: igual[0].id }];
+    if (id) {
+      if (!/^[0-9a-f-]{36}$/.test(id)) return [400, { mensagem: "Dados inválidos." }];
+      const { data, error } = await admin.from("portal_cadastros").update({ ...ficha, decidido_por: "Equipe (usuário do G360)" })
+        .eq("id", id).eq("loja", loja).select("*");
+      if (error) throw error;
+      if (!data?.length) return [404, { mensagem: "Ficha não encontrada." }];
+      return [200, { dados: data[0] }];
+    }
+    const { data, error } = await admin.from("portal_cadastros")
+      .insert({ ...ficha, loja, criado_por: "equipe", decidido_por: "Equipe (usuário do G360)" }).select("*");
+    if (error) throw error;
+    return [200, { dados: data[0] }];
+  }
+  if (acao === "vendedores_listar") {
+    const { data, error } = await admin.from("portal_vendedores").select("nome").eq("loja", loja).order("ordem");
+    if (error) throw error;
+    return [200, { dados: (data ?? []).map((v) => v.nome) }];
+  }
+  if (acao === "vendedores_salvar") {
+    const nomes = [...new Set((Array.isArray(d.vendedores) ? d.vendedores : []).map((v) => texto(v, 80)).filter(Boolean))].slice(0, 100);
+    const { error: e1 } = await admin.from("portal_vendedores").delete().eq("loja", loja);
+    if (e1) throw e1;
+    if (nomes.length) {
+      const { error } = await admin.from("portal_vendedores").insert(nomes.map((nome, ordem) => ({ loja, nome, ordem })));
+      if (error) throw error;
+    }
+    return [200, { dados: nomes }];
+  }
   if (acao === "ocorrencias_listar") {
     const { data, error } = await admin.from("ocorrencias_g360")
       .select("registrada_em, codigo, operacao, comprador_codigo, request_id").eq("loja", loja)

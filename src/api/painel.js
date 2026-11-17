@@ -10,7 +10,7 @@ const PAINEL_URL = String(import.meta.env.VITE_PONTE_URL || '').trim().replace(/
 const TEMPO_LIMITE_MS = 20000;
 
 export class ErroPainel extends Error {
-  constructor(mensagem, status = 0) { super(mensagem); this.name = 'ErroPainel'; this.status = status; }
+  constructor(mensagem, status = 0, corpo = {}) { super(mensagem); this.name = 'ErroPainel'; this.status = status; this.corpo = corpo; }
 }
 
 export async function chamarPainel(token, acao, dados = {}) {
@@ -26,6 +26,6 @@ export async function chamarPainel(token, acao, dados = {}) {
   } catch { throw new ErroPainel(MENSAGEM_REDE); } finally { clearTimeout(relogio); }
   let corpo = {};
   try { corpo = await resp.json(); } catch { /* sem corpo */ }
-  if (!resp.ok) throw new ErroPainel(corpo.mensagem || 'Não foi possível concluir agora. Tente de novo em instantes.', resp.status);
+  if (!resp.ok) throw new ErroPainel(corpo.mensagem || 'Não foi possível concluir agora. Tente de novo em instantes.', resp.status, corpo);
   return corpo;
 }
