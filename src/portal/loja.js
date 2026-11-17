@@ -16,6 +16,7 @@ import { ligarFotos, liberarFotosDaTela, htmlFoto } from '../ui/fotos.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { $, esc, toast, abrirModal, fecharModal, saudacao, passoQuantidade, adiar } from './comum.js';
 import { htmlCartao, htmlPreco, unidadeEscolhida, linhaCarrinho } from './cartao.js';
+import { abrirDetalhe, ligarDetalhe } from './detalhe.js';
 import { abrirCheckout } from './checkout.js';
 import { desenharMinhaLista } from './lista.js';
 import { desenharPedidos } from './pedidos.js';
@@ -71,6 +72,7 @@ function montar() {
     filtros.grupo = b.dataset.c; filtros.pagina = 1; desenharChips(); desenharCatalogo();
   });
   $('grid').addEventListener('click', cliqueCartao);
+  ligarDetalhe();
   $('grid').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('.qty input')) { e.preventDefault(); e.target.closest('.card').querySelector('.add')?.click(); } });
   $('dBody').addEventListener('click', cliqueCarrinho);
   $('dBody').addEventListener('change', mudancaCarrinho);
@@ -292,6 +294,21 @@ async function cliqueCartao(e) {
     if (r === 'limite') { toast('O carrinho aceita até 100 linhas. Envie este pedido ou remova itens.'); return; }
     campo.value = '1';
     toast(`${r === 'somado' ? 'Quantidade somada' : 'Adicionado'} · ${p.nome.slice(0, 40)}${p.nome.length > 40 ? '…' : ''}`);
+    return;
+  }
+  // Foto ou nome: abre o detalhe do produto.
+  if (!e.target.closest('.fav') && (e.target.closest('.img') || e.target.closest('.name'))) {
+    const lista = idsCarregados();
+    abrirDetalhe(p, {
+      naLista: lista ? lista.has(Number(p.id)) : null,
+      aoFavoritar: async (prod, estava) => {
+        if (estava) await removerDaLista(prod.id); else await incluirNaLista(prod.id);
+        const f = card.querySelector('.fav');
+        if (f) { f.classList.toggle('on', !estava); f.setAttribute('aria-pressed', String(!estava)); f.textContent = estava ? '☆ Lista' : '⭐ Na lista'; }
+        toast(estava ? 'Removido da Minha Lista' : 'Adicionado à Minha Lista ⭐');
+        return !estava;
+      },
+    });
     return;
   }
   const fav = e.target.closest('.fav');
