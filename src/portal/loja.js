@@ -5,6 +5,7 @@
    já testados; aqui só a tela.
    ===================================================================== */
 import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar } from '../catalogo/exibicao.js';
+import { buscarLocal, temEstoque } from '../catalogo/busca.js';
 import { listarProdutos, buscarProdutos, listarMarcas } from '../api/g360.js';
 import { sessao, entrar, sair, trocarSenha } from '../estado/sessao.js';
 import { adicionar, linhasCarrinho, alterarQuantidade, remover, aoMudarCarrinho, quantidadeLinhas } from '../estado/carrinho.js';
@@ -19,7 +20,6 @@ import { desenharMinhaLista } from './lista.js';
 import { desenharPedidos } from './pedidos.js';
 import { abrirCadastro } from './cadastro.js';
 
-const LIMITE = 20;
 const filtros = { q: '', grupo: '', marca: '', pagina: 1 };
 let classificacoes = null;
 let produtosDaTela = new Map();
@@ -30,6 +30,7 @@ let buscaN = 0;
 export function limparLoja() {
   Object.assign(filtros, { q: '', grupo: '', marca: '', pagina: 1 });
   classificacoes = null;
+  vitrine = null; busca = null;
   produtosDaTela = new Map();
   const q = $('q'); if (q) q.value = '';
 }
@@ -161,6 +162,64 @@ function desenharChips() {
 
 /* ---------------- catálogo ---------------- */
 
+/* ---------- vitrine (sem busca): só produtos com estoque ---------- */
+const POR_PAGINA = 24;
+let vitrine = null;   // { chave, apiPagina, apiPaginas, itens, fim }
+let busca = null;     // { chave, itens, semEstoque }
+
+/** Lê o catálogo em blocos de 50 e guarda só o que tem estoque, até encher a página pedida. */
+async function resultadoVitrine() {
+  const chave = `${sessao.token}|${filtros.grupo}|${filtros.marca}`;
+  if (!vitrine || vitrine.chave !== chave) vitrine = { chave, apiPagina: 0, apiPaginas: 1, itens: [], fim: false };
+  const precisa = filtros.pagina * POR_PAGINA + 1;
+  const codigos = filtros.grupo ? codigosDaCategoria(filtros.grupo) : null;
+  if (codigos && !codigos.length) vitrine.fim = true;
+  let lidas = 0;
+  while (!vitrine.fim && vitrine.itens.length < precisa && lidas < 8) {
+    const pagina = vitrine.apiPagina + 1;
+    const marca = filtros.marca ? Number(filtros.marca) : undefined;
+    const { dados, paginacao } = codigos
+      ? await buscarProdutos(sessao.token, { codigos, marca, pagina, limite: 50 })
+      : await listarProdutos(sessao.token, { marca, pagina, limite: 50 });
+    vitrine.apiPagina = pagina; lidas += 1;
+    vitrine.apiPaginas = Math.max(1, Math.ceil((paginacao?.total || 0) / 50));
+    vitrine.itens.push(...dados.map(apresentar).filter(temEstoque));
+    if (pagina >= vitrine.apiPaginas) vitrine.fim = true;
+  }
+  const ini = (filtros.pagina - 1) * POR_PAGINA;
+  const itens = vitrine.itens.slice(ini, ini + POR_PAGINA);
+  const temMais = !vitrine.fim || vitrine.itens.length > ini + POR_PAGINA;
+  return { itens, total: vitrine.itens.length, temMais, aindaLendo: !vitrine.fim, paginas: temMais ? filtros.pagina + 1 : filtros.pagina };
+}
+
+/** Busca: nomes do portal (tolerante) + busca da API (código, EAN, aplicação); com estoque primeiro. */
+async function resultadoBusca() {
+  const chave = `${sessao.token}|${filtros.q}|${filtros.grupo}|${filtros.marca}`;
+  if (!busca || busca.chave !== chave) {
+    const marca = filtros.marca ? Number(filtros.marca) : undefined;
+    const locais = buscarLocal(filtros.q, { categoria: filtros.grupo, max: 150 });
+    const pontos = new Map(locais.map((l, i) => [l.codigo, 1000 - i]));
+    const achados = new Map();
+    // 1) Os mais relevantes pelo nome do portal, em blocos de 50 códigos.
+    const cods = locais.map((l) => l.codigo);
+    for (let i = 0; i < cods.length; i += 50) {
+      const { dados } = await buscarProdutos(sessao.token, { codigos: cods.slice(i, i + 50), marca, limite: 50 });
+      dados.forEach((p) => achados.set(Number(p.id), apresentar(p)));
+    }
+    // 2) A busca do G360 (pega código de barras, aplicação e o que ainda não tem nome no portal).
+    try {
+      const { dados } = await listarProdutos(sessao.token, { q: filtros.q, marca, limite: 50 });
+      dados.map(apresentar).filter((p) => !filtros.grupo || p.categoria === filtros.grupo)
+        .forEach((p) => { if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); if (!pontos.has(String(p.codigo))) pontos.set(String(p.codigo), 100); } });
+    } catch (e) { if (!achados.size) throw e; }
+    const todos = [...achados.values()].sort((a, b) => (temEstoque(b) - temEstoque(a))
+      || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
+    busca = { chave, itens: todos, semEstoque: todos.filter((p) => !temEstoque(p)).length };
+  }
+  const ini = (filtros.pagina - 1) * POR_PAGINA;
+  return { itens: busca.itens.slice(ini, ini + POR_PAGINA), total: busca.itens.length, semEstoque: busca.semEstoque, temMais: false, paginas: Math.max(1, Math.ceil(busca.itens.length / POR_PAGINA)) };
+}
+
 export async function desenharCatalogo() {
   const grid = $('grid'); const pag = $('g360Pag');
   pag.innerHTML = '';
@@ -181,34 +240,24 @@ export async function desenharCatalogo() {
   if (sessao.supabaseOk && idsCarregados() === null) { try { await carregarIds(); } catch { /* sem lista: sem botão */ } }
   try {
     await carregarExibicao();
-    let r;
-    if (filtros.grupo) {
-      // Categoria do portal: filtra pelos códigos que a equipe colocou nela.
-      const codigos = codigosDaCategoria(filtros.grupo);
-      r = codigos.length ? await buscarProdutos(sessao.token, { codigos, q: filtros.q || undefined, marca: filtros.marca ? Number(filtros.marca) : undefined, pagina: filtros.pagina, limite: LIMITE })
-        : { dados: [], paginacao: { total: 0 } };
-    } else {
-      r = await listarProdutos(sessao.token, { q: filtros.q || undefined, marca: filtros.marca || undefined, pagina: filtros.pagina, limite: LIMITE });
-    }
-    const dados = r.dados.map(apresentar); const { paginacao } = r;
+    const r = filtros.q ? await resultadoBusca() : await resultadoVitrine();
     if (meu !== buscaN) return;
-    const total = paginacao?.total || 0;
-    if (!filtros.q && !filtros.grupo && !filtros.marca) {
-      $('tot').textContent = total.toLocaleString('pt-BR');
-      if (classificacoes && classificacoes.total === null) { classificacoes.total = total; desenharChips(); }
-    }
-    const paginas = Math.max(1, Math.ceil(total / LIMITE));
-    $('cnt').innerHTML = `<b>${total.toLocaleString('pt-BR')}</b> produto${total === 1 ? '' : 's'}${paginas > 1 ? ` · página ${filtros.pagina} de ${paginas}` : ''}`;
+    const dados = r.itens;
+    if (!filtros.q && !filtros.grupo && !filtros.marca && classificacoes && classificacoes.total === null) { classificacoes.total = ''; }
+    $('cnt').innerHTML = filtros.q
+      ? `<b>${r.total.toLocaleString('pt-BR')}</b> resultado${r.total === 1 ? '' : 's'} para “${esc(filtros.q)}”${r.semEstoque ? ` · ${r.semEstoque} sem estoque no fim da lista` : ''}`
+      : `<b>${r.total.toLocaleString('pt-BR')}${r.aindaLendo ? '+' : ''}</b> produto${r.total === 1 ? '' : 's'} com estoque${filtros.grupo ? ` em ${esc(filtros.grupo)}` : ''}`;
     produtosDaTela = new Map(dados.map((p) => [Number(p.id), p]));
     const lista = idsCarregados();
     grid.innerHTML = dados.length ? dados.map((p) => htmlCartao(p, { naLista: lista ? lista.has(Number(p.id)) : null })).join('')
-      : `<div class="empty">Nenhum produto encontrado.${filtros.q || filtros.grupo || filtros.marca ? '<br><button type="button" class="tool" id="gLimpar" style="margin-top:12px">Limpar busca e filtros</button>' : ''}</div>`;
+      : `<div class="empty">${filtros.q ? `Nada encontrado para “${esc(filtros.q)}”. Tente outra palavra, o código do produto ou menos palavras.` : 'Nenhum produto com estoque nesta seleção.'}${filtros.q || filtros.grupo || filtros.marca ? '<br><button type="button" class="tool" id="gLimpar" style="margin-top:12px">Limpar busca e filtros</button>' : ''}</div>`;
     $('gLimpar')?.addEventListener('click', () => { limparLoja(); desenharChips(); $('marca').value = ''; desenharCatalogo(); });
     ligarFotos(grid);
-    if (paginas > 1) {
+    const paginas = r.paginas;
+    if (paginas > 1 || r.temMais) {
       pag.innerHTML = `<button type="button" class="tool" id="gAnt" ${filtros.pagina <= 1 ? 'disabled' : ''}>‹ Anterior</button>
-        <span>Página <b>${filtros.pagina}</b> de ${paginas}</span>
-        <button type="button" class="tool" id="gProx" ${filtros.pagina >= paginas ? 'disabled' : ''}>Próxima ›</button>`;
+        <span>Página <b>${filtros.pagina}</b>${r.temMais ? '' : ` de ${paginas}`}</span>
+        <button type="button" class="tool" id="gProx" ${filtros.pagina >= paginas && !r.temMais ? 'disabled' : ''}>Próxima ›</button>`;
       const mudar = (d) => { filtros.pagina += d; desenharCatalogo(); document.querySelector('.bar')?.scrollIntoView({ behavior: 'smooth' }); };
       $('gAnt').onclick = () => mudar(-1); $('gProx').onclick = () => mudar(1);
     }

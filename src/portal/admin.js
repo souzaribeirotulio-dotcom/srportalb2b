@@ -305,7 +305,7 @@ async function gerarTudo() {
       const linhas = dados.map((p) => {
         const r = registro(p);
         const nome = r && r.origem !== 'automatico' ? r.nome : nomeEcommerce(p.nome, p.marca?.nome || '');
-        return { codigo: String(p.codigo), produto_id: Number(p.id), nome, categoria: r?.categoria || categoriaPeloNome(nome), origem: 'automatico', nome_g360: p.nome };
+        return { codigo: String(p.codigo), produto_id: Number(p.id), nome, categoria: r && r.origem !== 'automatico' && r.categoria ? r.categoria : categoriaPeloNome(p.nome, nome), origem: 'automatico', nome_g360: p.nome };
       });
       if (linhas.length) {
         const res = await painel('exibicao_salvar', { linhas, preservar: true });

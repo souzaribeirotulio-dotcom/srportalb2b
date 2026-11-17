@@ -58,7 +58,7 @@ class Sim:
         self.fotos_pedidas = []
         self.cadastros = []
         self.categorias = ['Limpeza', 'Descartáveis', 'Embalagens', 'Copa & Alimentos', 'Higiene', 'Utensílios & EPI', 'Papelaria', 'Outros']
-        self.exibicao = {'P-103': {'codigo': 'P-103', 'produto_id': None, 'nome': 'Copo Descartável Exemplo 200ml (Pacote c/ 100 un)', 'categoria': 'Descartáveis', 'origem': 'legado'}}
+        self.exibicao = {'P-104': {'codigo': 'P-104', 'produto_id': None, 'nome': 'Copo Descartável Exemplo 200ml (Pacote c/ 100 un)', 'categoria': 'Descartáveis', 'origem': 'legado'}}
 
     # ---------- utilidades ----------
     def comprador_json(self, doc):
