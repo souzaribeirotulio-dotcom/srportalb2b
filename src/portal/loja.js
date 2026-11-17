@@ -285,6 +285,7 @@ async function contarComEstoque(totalCatalogo) {
       if (sessao.token !== token) return;
       const { dados } = await listarProdutos(token, { pagina, limite: 50 });
       n += dados.map(apresentar).filter((p) => temEstoque(p) && !oculto(p)).length;
+      if (sessao.token === token && pagina < paginas) { $('tot').textContent = `${n.toLocaleString('pt-BR')}…`; if (rotulo) rotulo.textContent = `Contando estoque ${Math.round((pagina / paginas) * 100)}%`; }
       if (pagina < paginas) await new Promise((r) => { setTimeout(r, 1200); });
     }
   } catch {
