@@ -15,6 +15,35 @@ function campo(id, rotulo, extra = '', obrig = false) {
   return `<label for="${id}">${rotulo}${obrig ? '' : ' <span style="text-transform:none;font-weight:400">(opcional)</span>'}</label><input class="inp" id="${id}" ${extra}><div class="err" id="${id}Err"></div>`;
 }
 
+/** Consulta pública do CNPJ: CNPJ.ws (usada pelo portal antigo) e, se falhar, BrasilAPI. */
+async function consultarCnpj(d) {
+  const tentar = async (url) => {
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 8000);
+    try { const r = await fetch(url, { credentials: 'omit', referrerPolicy: 'no-referrer', signal: ctl.signal }); return r.ok ? await r.json() : null; }
+    catch { return null; } finally { clearTimeout(t); }
+  };
+  const w = await tentar(`https://publica.cnpj.ws/cnpj/${d}`);
+  if (w && w.razao_social) {
+    const e = w.estabelecimento || {};
+    const ie = (e.inscricoes_estaduais || []).find((x) => x.ativo && x.estado?.sigla === e.estado?.sigla) || (e.inscricoes_estaduais || []).find((x) => x.ativo);
+    return {
+      razao: w.razao_social, fantasia: e.nome_fantasia, ie: ie?.inscricao_estadual, email: (e.email || '').toLowerCase(),
+      cep: so(e.cep), rua: [e.tipo_logradouro, e.logradouro].filter(Boolean).join(' '), numero: e.numero, complemento: e.complemento,
+      bairro: e.bairro, cidade: e.cidade?.nome, uf: e.estado?.sigla, telefone: e.ddd1 && e.telefone1 ? `${e.ddd1}${e.telefone1}` : '',
+      situacao: e.situacao_cadastral,
+    };
+  }
+  const b = await tentar(`https://brasilapi.com.br/api/cnpj/v1/${d}`);
+  if (b && b.razao_social) {
+    return {
+      razao: b.razao_social, fantasia: b.nome_fantasia, ie: '', email: (b.email || '').toLowerCase(), cep: so(b.cep),
+      rua: [b.descricao_tipo_de_logradouro, b.logradouro].filter(Boolean).join(' '), numero: b.numero, complemento: b.complemento,
+      bairro: b.bairro, cidade: b.municipio, uf: b.uf, telefone: so(b.ddd_telefone_1), situacao: b.descricao_situacao_cadastral,
+    };
+  }
+  return null;
+}
+
 export function abrirCadastro(ctx) {
   $('cadBox').innerHTML = `<h3>Quero ser cliente</h3>
     <div class="sub">Preencha os dados da sua empresa. A equipe da Souza Ribeiro analisa e, depois de aprovado, você cria a sua senha em "Primeiro acesso".</div>
@@ -49,18 +78,14 @@ export function abrirCadastro(ctx) {
     const d = so(doc.value);
     if (d.length !== 14 || /[A-Za-z]/.test(doc.value)) { $('kDocSt').textContent = ''; return; }
     $('kDocSt').textContent = 'Procurando o CNPJ…';
-    try {
-      const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${d}`, { credentials: 'omit', referrerPolicy: 'no-referrer' });
-      if (!r.ok) { $('kDocSt').textContent = 'Não achamos o CNPJ na consulta pública. Preencha os dados abaixo.'; return; }
-      const j = await r.json();
-      const pre = (id, v) => { if (v && !$(id).value) $(id).value = String(v).trim(); };
-      pre('kRazao', j.razao_social); pre('kFantasia', j.nome_fantasia); pre('kEmail', (j.email || '').toLowerCase());
-      pre('kCep', j.cep ? `${so(j.cep).slice(0, 5)}-${so(j.cep).slice(5)}` : ''); pre('kRua', [j.descricao_tipo_de_logradouro, j.logradouro].filter(Boolean).join(' '));
-      pre('kNum', j.numero); pre('kComp', j.complemento); pre('kBairro', j.bairro); pre('kCidade', j.municipio);
-      pre('kTel', j.ddd_telefone_1);
-      if (j.uf) $('kUf').value = j.uf;
-      $('kDocSt').textContent = `${j.descricao_situacao_cadastral ? `Situação na Receita: ${j.descricao_situacao_cadastral}. ` : ''}Confira os dados preenchidos.`;
-    } catch { $('kDocSt').textContent = 'Não deu para consultar o CNPJ agora. Preencha os dados abaixo.'; }
+    const dados = await consultarCnpj(d);
+    if (!dados) { $('kDocSt').textContent = 'Não achamos o CNPJ na consulta pública agora. Preencha os dados abaixo.'; return; }
+    const pre = (id, v) => { if (v && !$(id).value) $(id).value = String(v).trim(); };
+    pre('kRazao', dados.razao); pre('kFantasia', dados.fantasia); pre('kIe', dados.ie); pre('kEmail', dados.email);
+    pre('kCep', dados.cep ? `${dados.cep.slice(0, 5)}-${dados.cep.slice(5)}` : ''); pre('kRua', dados.rua);
+    pre('kNum', dados.numero); pre('kComp', dados.complemento); pre('kBairro', dados.bairro); pre('kCidade', dados.cidade); pre('kTel', dados.telefone);
+    if (dados.uf) $('kUf').value = dados.uf;
+    $('kDocSt').textContent = `${dados.situacao ? `Situação na Receita: ${dados.situacao}. ` : ''}Confira os dados preenchidos.`;
   });
   const cep = $('kCep');
   cep.addEventListener('input', async () => {
