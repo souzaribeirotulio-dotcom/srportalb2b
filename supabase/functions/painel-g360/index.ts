@@ -210,6 +210,26 @@ async function executar(acao: string, d: Record<string, unknown>): Promise<[numb
       ultimos_pedidos: pedidos.slice(0, 10).map((p) => ({ quando: p.criado_em, cliente: nomes.get(Number(p.comprador_codigo)) ?? p.comprador_codigo, numero: p.pedido_numero, valor: p.valor })),
     } }];
   }
+  if (acao === "lista_ler" || acao === "lista_incluir" || acao === "lista_remover") {
+    // Minha Lista montada pela equipe para um cliente (código do G360). Mesma tabela que o cliente vê.
+    const comprador = Number(d.comprador);
+    if (!Number.isSafeInteger(comprador) || comprador <= 0) return [400, { mensagem: "Cliente inválido." }];
+    if (acao === "lista_incluir") {
+      const ids = (Array.isArray(d.produto_ids) ? d.produto_ids : []).map(Number).filter((n) => Number.isSafeInteger(n) && n > 0).slice(0, 500);
+      if (!ids.length) return [400, { mensagem: "Escolha um produto." }];
+      const { error } = await admin.from("minha_lista").upsert(ids.map((produto_id) => ({ loja, comprador_codigo: comprador, produto_id })), { onConflict: "loja,comprador_codigo,produto_id", ignoreDuplicates: true });
+      if (error) throw error;
+    }
+    if (acao === "lista_remover") {
+      const id = Number(d.produto_id);
+      if (!Number.isSafeInteger(id)) return [400, { mensagem: "Produto inválido." }];
+      const { error } = await admin.from("minha_lista").delete().eq("loja", loja).eq("comprador_codigo", comprador).eq("produto_id", id);
+      if (error) throw error;
+    }
+    const { data, error } = await admin.from("minha_lista").select("produto_id").eq("loja", loja).eq("comprador_codigo", comprador).limit(2000);
+    if (error) throw error;
+    return [200, { dados: (data ?? []).map((r) => Number(r.produto_id)) }];
+  }
   return [400, { mensagem: "Ação desconhecida." }];
 }
 

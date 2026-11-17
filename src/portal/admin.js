@@ -18,6 +18,7 @@ import { dinheiro, numeroPainel, dataBr } from '../ui/formato.js';
 import { $, esc, toast, abrirModal, fecharModal, adiar } from './comum.js';
 import { carregarExibicao, sinonimos as sinonimosPortal, categorias, registro, nomeExibicao, categoriaExibicao, codigosDaCategoria, aplicarLocal, definirCategoriasLocal } from '../catalogo/exibicao.js';
 import { nomeEcommerce, categoriaPeloNome } from '../catalogo/nomes.js';
+import { buscarLocal } from '../catalogo/busca.js';
 
 const op = { token: null, expira: 0, ultima: 0, minutos: 8, aviso: null };
 let ctx = null;            // { loja, ir }
@@ -498,9 +499,74 @@ function mostrarClienteG360() {
     <div class="crow2"><div class="nm"><b>${esc(c.nome)}</b><small>${esc(c.cnpj)}</small></div>
       <div class="sm sm2">${esc(c.codigo)}</div><div class="sm">${esc(c.segmento?.descricao || '—')}</div>
       <div class="stw"><span class="stt ${c.acesso_portal ? 'aprovado' : 'bloqueado'}">${c.acesso_portal ? 'Liberado' : 'Sem acesso'}</span></div>
-      <div class="ab2"><button data-ircg>❄ Preços congelados</button></div></div>
+      <div class="ab2"><button data-lista>📋 Montar Minha Lista</button><button data-ircg>❄ Preços congelados</button></div></div>
+    <div id="clLista"></div>
     ${c.acesso_portal ? '' : '<div class="hint" style="padding:0 18px 12px">Para liberar, marque "Acesso à API dos sistemas externos" no cadastro do cliente no G360 (Gestão comercial).</div>'}`;
+  alvo.querySelector('[data-lista]').onclick = () => montarLista(c);
   alvo.querySelector('[data-ircg]').onclick = () => { aba = 'cong'; cong.cliente = { codigo: c.codigo, nome: c.nome, cnpj: c.cnpj }; desenharAba(); };
+}
+
+/** Minha Lista do cliente montada pela equipe: ele já encontra pronta no login. */
+async function montarLista(c) {
+  const alvo = $('clLista');
+  let ids = [];
+  const pintar = async () => {
+    alvo.innerHTML = `<div class="panel" style="margin:12px 18px 16px"><div style="padding:14px 16px 4px"><b>Minha Lista de ${esc(c.nome)}</b>
+      <small class="hint" style="display:block;margin:2px 0 0">O cliente vê esta lista ao entrar, com preço e estoque do momento. Ele pode tirar ou pôr produtos depois.</small></div>
+      <div class="fxurl" style="margin:10px 16px"><input id="mlQ" placeholder="Buscar produto para adicionar (nome ou código)" aria-label="Buscar produto"><button class="btn sec" id="mlBuscar">Buscar</button></div>
+      <div id="mlRes"></div><div id="mlItens">${carregandoHtml('Carregando a lista…')}</div></div>`;
+    $('mlBuscar').onclick = buscar; $('mlQ').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); buscar(); } };
+    $('mlQ').addEventListener('input', adiar(() => { if ($('mlQ').value.trim().length >= 3) buscar(); }, 450));
+    await itens();
+  };
+  async function itens() {
+    const box = $('mlItens');
+    if (!ids.length) { box.innerHTML = vazio('Lista vazia. Busque acima e clique em "+ Adicionar".'); return; }
+    let precos = [];
+    try { for (let i = 0; i < ids.length; i += 50) precos = precos.concat(await consultarPrecosOperador(op.token, c.codigo, ids.slice(i, i + 50))); }
+    catch (e) { erroEm(box, e, itens); return; }
+    const porId = new Map(precos.map((p) => [Number(p.id), p]));
+    box.innerHTML = `<div class="hint" style="padding:0 16px 6px">${ids.length} produto${ids.length === 1 ? '' : 's'} na lista</div>` + ids.map((id) => {
+      const p = porId.get(id);
+      return `<div class="crow" data-id="${id}"><div class="g360-mini" data-foto="${id}"><span>…</span></div>
+        <div class="nm">${esc(p ? nomeExibicao(p) : `Produto ${id}`)}<small>Cód. ${esc(p?.codigo || id)}${p ? '' : ' · fora do catálogo deste cliente'}</small></div>
+        <div class="g">Preço do cliente<b>${p ? esc(dinheiro(p.preco)) : '—'}</b></div><div></div><div></div>
+        <button class="rm" data-rm title="Tirar da lista">×</button></div>`;
+    }).join('');
+    carregarMiniaturas(box);
+    box.querySelectorAll('[data-rm]').forEach((b) => b.onclick = async () => {
+      b.disabled = true;
+      try { ids = (await painel('lista_remover', { comprador: c.codigo, produto_id: Number(b.closest('.crow').dataset.id) })).dados; itens(); }
+      catch (e) { b.disabled = false; toast(e.message); }
+    });
+  }
+  async function buscar() {
+    const q = $('mlQ').value.trim(); const res = $('mlRes');
+    if (q.length < 2) return;
+    res.innerHTML = carregandoHtml('Buscando…');
+    try {
+      await carregarExibicao();
+      const locais = buscarLocal(q, { max: 20 });
+      const { dados } = locais.length ? await buscarProdutosOperador(op.token, { codigos: locais.map((l) => l.codigo), limite: 20 })
+        : await buscarProdutosOperador(op.token, { q, limite: 20 });
+      const ordem = new Map(locais.map((l, i) => [l.codigo, i]));
+      dados.sort((a, b) => (ordem.get(String(a.codigo)) ?? 99) - (ordem.get(String(b.codigo)) ?? 99));
+      res.innerHTML = dados.length ? dados.map((p) => `<div class="crow" data-id="${Number(p.id)}"><div class="g360-mini" data-foto="${Number(p.id)}"><span>…</span></div>
+          <div class="nm">${esc(nomeExibicao(p))}<small>Cód. ${esc(p.codigo)} · ${esc(p.unidade || '')}</small></div><div class="g">Tabela<b>${esc(dinheiro(p.preco))}</b></div><div></div>
+          <div></div><button class="btn ${ids.includes(Number(p.id)) ? 'sec' : 'pri'}" data-add style="height:34px;white-space:nowrap" ${ids.includes(Number(p.id)) ? 'disabled' : ''}>${ids.includes(Number(p.id)) ? 'Na lista ✓' : '+ Adicionar'}</button></div>`).join('')
+        : vazio('Nenhum produto encontrado.');
+      carregarMiniaturas(res);
+      res.querySelectorAll('[data-add]').forEach((b) => b.onclick = async () => {
+        b.disabled = true;
+        try { ids = (await painel('lista_incluir', { comprador: c.codigo, produto_ids: [Number(b.closest('.crow').dataset.id)] })).dados; b.textContent = 'Na lista ✓'; b.className = 'btn sec'; itens(); }
+        catch (e) { b.disabled = false; toast(e.message); }
+      });
+    } catch (e) { erroEm(res, e); }
+  }
+  alvo.innerHTML = carregandoHtml('Carregando a lista…');
+  try { ids = (await painel('lista_ler', { comprador: c.codigo })).dados; } catch (e) { alvo.innerHTML = vazio(esc(e.message)); return; }
+  await pintar();
+  alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 /** Clientes que já entraram no portal (contas abertas pela ponte + nome gravado no login). */

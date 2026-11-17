@@ -325,6 +325,11 @@ class Sim:
                     self.exibicao[l['codigo']] = {k: l.get(k) for k in ('codigo', 'produto_id', 'nome', 'categoria', 'origem')}; n += 1
                 self.chamadas.append(('PAINEL', ac, n))
                 return res(200, {'gravados': n})
+            if ac in ('lista_ler', 'lista_incluir', 'lista_remover'):
+                cod = int(d['comprador']); atual = self.lista.setdefault(cod, set())
+                if ac == 'lista_incluir': atual.update(int(i) for i in d['produto_ids'])
+                if ac == 'lista_remover': atual.discard(int(d['produto_id']))
+                return res(200, {'dados': sorted(atual)})
             if ac == 'sinonimos_salvar': self.sinonimos = d['sinonimos']; return res(200, {'gravados': len(d['sinonimos'])})
             if ac == 'clientes_listar': return res(200, {'dados': [{'codigo': c, 'nome': n, 'primeiro_em': '2026-11-17T12:00:00Z', 'ultimo_em': '2026-11-17T12:00:00Z', 'acessos': 1, 'pedidos': 0, 'valor': 0} for c, n in self.acessos.items()]})
             if ac == 'inteligencia':

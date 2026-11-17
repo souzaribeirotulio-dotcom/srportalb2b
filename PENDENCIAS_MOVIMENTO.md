@@ -82,3 +82,5 @@ Nada aqui é contrato oficial. Os nomes de operação são os da interface do fr
 28. Assistente Souzinha (IA): serviço e chave ficam fora do escopo da Movimento? *(mock: resposta simulada sem IA)*
 29. Edição de produto e de preço de tabela pelo painel (nome, descrição, preço, unidades alternativas, mostrar/ocultar no catálogo): o contrato 2026-11-16 só tem, para o operador, consulta de produtos/preços, preço congelado por cliente e fotos. A equipe informou em 17/11 que a API aceita editar produtos e preços: pedir à Movimento a versão do contrato OpenAPI com essas operações (rota, campos, permissões e erros) para o painel usar.
 30. Lista de clientes com acesso ao portal: o painel só sabe quem já entrou pelo menos uma vez. Pedir uma operação do operador que liste os clientes com "Acesso à API dos sistemas externos" marcado (código, nome, CNPJ, situação), paginada.
+
+31. Pedido mínimo: resolvido pelo contrato atual — `pedido_minimo` vem na condição de pagamento e a revisão devolve a pendência PEDIDO_MINIMO (o portal já mostra e bloqueia o envio). Não precisa de campo novo em GET loja.
