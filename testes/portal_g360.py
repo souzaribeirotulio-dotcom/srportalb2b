@@ -715,6 +715,15 @@ with sync_playwright() as pw:
     sim = Sim()
     n = N(pw, sim); pg = n.pg
     n.entrar(U1, S1)
+    # Card com mais de uma foto: passar o mouse mostra a 2ª e volta à capa ao sair
+    pg.set_viewport_size({'width': 1280, 'height': 900}); pg.wait_for_selector('#grid .card[data-id="104"] .foto img')
+    checar('produtos/104/fotos/2' not in sim.fotos_pedidas, '2ª foto só é buscada quando passa o mouse')
+    capa = pg.get_attribute('#grid .card[data-id="104"] .foto img', 'src')
+    pg.hover('#grid .card[data-id="104"]'); pg.wait_for_timeout(900)
+    checar('produtos/104/fotos/2' in sim.fotos_pedidas and pg.get_attribute('#grid .card[data-id="104"] .foto img', 'src') != capa, 'passar o mouse troca para a 2ª foto')
+    pg.mouse.move(5, 5); pg.wait_for_timeout(200)
+    checar(pg.get_attribute('#grid .card[data-id="104"] .foto img', 'src') == capa, 'tirar o mouse volta para a capa')
+    pg.set_viewport_size({'width': 390, 'height': 900})
     chave = pg.evaluate("Object.keys(sessionStorage).find(k => k.startsWith('sr-g360-comprador-'))")
     checar(chave and pg.evaluate(f"sessionStorage.getItem('{chave}')") in sim.tokens and not pg.evaluate('JSON.stringify(localStorage)').count(list(sim.tokens)[0]), 'token só no sessionStorage, na chave própria')
     logins = len([c for c in sim.chamadas if c[1] == 'sessoes'])

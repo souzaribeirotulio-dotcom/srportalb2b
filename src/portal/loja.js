@@ -14,7 +14,7 @@ import { sessao, entrar, sair, trocarSenha, garantirVinculo } from '../estado/se
 import { adicionar, linhasCarrinho, alterarQuantidade, remover, aoMudarCarrinho, quantidadeLinhas } from '../estado/carrinho.js';
 import { carregarIds, incluirNaLista, removerDaLista, idsCarregados } from '../estado/minha-lista.js';
 import { normalizarQuantidade, dinheiro, estimar } from '../ui/formato.js';
-import { ligarFotos, liberarFotosDaTela, htmlFoto } from '../ui/fotos.js';
+import { ligarTrocaFotos, ligarFotos, liberarFotosDaTela, htmlFoto } from '../ui/fotos.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { $, esc, toast, abrirModal, fecharModal, saudacao, passoQuantidade, adiar } from './comum.js';
 import { htmlCartao, htmlPreco, unidadeEscolhida, linhaCarrinho } from './cartao.js';
@@ -373,6 +373,7 @@ async function desenharCatalogoPublico(grid, pag) {
       : `<b>${r.total.toLocaleString('pt-BR')}</b> produto${r.total === 1 ? '' : 's'}${filtros.grupo ? ` em ${esc(filtros.grupo)}` : ''} · entre para ver os preços`;
     grid.innerHTML = r.itens.length ? r.itens.map(htmlCartaoPublico).join('')
       : `<div class="empty">${filtros.q ? `Nada encontrado para “${esc(filtros.q)}”. Tente outra palavra ou o código do produto.` : 'Nenhum produto nesta seleção.'}</div>`;
+    ligarTrocaFotos(grid);
     if (r.paginas > 1) {
       pag.innerHTML = `<button type="button" class="tool" id="gAnt" ${filtros.pagina <= 1 ? 'disabled' : ''}>‹ Anterior</button><span>Página <b>${filtros.pagina}</b> de ${r.paginas}</span><button type="button" class="tool" id="gProx" ${filtros.pagina >= r.paginas ? 'disabled' : ''}>Próxima ›</button>`;
       const mudar = (d) => { filtros.pagina += d; desenharCatalogo(); document.querySelector('.bar')?.scrollIntoView({ behavior: 'smooth' }); };

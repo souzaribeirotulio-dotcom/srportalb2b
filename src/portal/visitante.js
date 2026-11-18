@@ -100,7 +100,7 @@ export function htmlCartaoPublico(p) {
   return `
   <article class="card publico" data-id="${Number(p.id)}">
     <div class="img">${p.categoria ? `<span class="cat">${esc(p.categoria)}</span>` : ''}
-      ${capa ? `<div class="foto com-foto g360-foto"><img src="${esc(capa)}" alt="${esc(p.nome)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('vazia');this.replaceWith(Object.assign(document.createElement('span'),{textContent:'Sem foto'}))"></div>`
+      ${capa ? `<div class="foto com-foto g360-foto"${Array.isArray(p.fotos) && p.fotos.length > 1 ? ` data-publico data-produto="${Number(p.id)}" data-fotos="${p.fotos.slice(0, 3).map(Number).join(',')}"` : ''}><img src="${esc(capa)}" alt="${esc(p.nome)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('vazia');this.replaceWith(Object.assign(document.createElement('span'),{textContent:'Sem foto'}))"></div>`
         : '<div class="foto vazia g360-foto" aria-hidden="true"><span>Sem foto</span></div>'}
     </div>
     <div class="info">
