@@ -91,7 +91,9 @@ Deno.serve(criarPonte({
     const seguro = link.replace(/[&<>"']/g, (c) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string
     );
-    const resposta = await fetch(provedor, {
+    let resposta: Response;
+    try {
+    resposta = await fetch(provedor, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -121,6 +123,11 @@ Deno.serve(criarPonte({
       redirect: "error",
       signal: AbortSignal.timeout(8000),
     });
+    } catch (erro) {
+      // Rede, tempo esgotado ou redirecionamento: só o tipo do erro.
+      console.warn("Ponte de acesso", "provedor_email_rede", (erro as Error)?.name ?? "");
+      throw erro;
+    }
     if (!resposta.ok) {
       // Só o status e o tipo de erro do provedor: sem e-mail, link, token ou chave.
       const erro = await resposta.json().catch(() => null);
