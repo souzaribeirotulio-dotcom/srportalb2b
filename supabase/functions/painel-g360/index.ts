@@ -283,6 +283,33 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     if (!data?.length) return [409, { mensagem: "Esta negociação já foi respondida ou cancelada pelo cliente." }];
     return [200, { ok: true }];
   }
+  if (acao === "lotes_listar") {
+    const { data, error } = await admin.from("portal_lotes_fotos").select("id, numero, responsavel, codigos, criado_em").eq("loja", loja).order("numero", { ascending: false }).limit(500);
+    if (error) throw error;
+    return [200, { dados: data }];
+  }
+  if (acao === "lote_salvar") {
+    // Novo lote com o próximo número (tenta de novo se dois operadores gravarem juntos).
+    const codigos = [...new Set((Array.isArray(d.codigos) ? d.codigos : []).map((c) => texto(c, 40)).filter(Boolean))].slice(0, 500);
+    if (!codigos.length) return [400, { mensagem: "Lote sem produtos." }];
+    const responsavel = texto(d.responsavel, 80) || null;
+    for (let t = 0; t < 3; t++) {
+      const { data: ult, error: e0 } = await admin.from("portal_lotes_fotos").select("numero").eq("loja", loja).order("numero", { ascending: false }).limit(1);
+      if (e0) throw e0;
+      const numero = (ult?.[0]?.numero ?? 0) + 1;
+      const { data, error } = await admin.from("portal_lotes_fotos").insert({ loja, numero, responsavel, codigos }).select("id, numero, responsavel, codigos, criado_em");
+      if (!error) return [200, { dados: data?.[0] }];
+      if (error.code !== "23505") throw error;
+    }
+    return [409, { mensagem: "Outro lote foi gravado agora. Tente de novo." }];
+  }
+  if (acao === "lote_apagar") {
+    const id = texto(d.id, 40);
+    if (!/^[0-9a-f-]{36}$/.test(id)) return [400, { mensagem: "Lote inválido." }];
+    const { error } = await admin.from("portal_lotes_fotos").delete().eq("id", id).eq("loja", loja);
+    if (error) throw error;
+    return [200, { ok: true }];
+  }
   if (acao === "visiveis_ler") {
     // Lista de códigos com e sem estoque, gravada pelo portal na última contagem de um comprador.
     const { data, error } = await admin.from("portal_visiveis").select("visiveis, estoque_baixo, sem_estoque, estoque_minimo, atualizado_em").eq("loja", loja).maybeSingle();

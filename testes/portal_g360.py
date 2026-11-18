@@ -628,6 +628,21 @@ with sync_playwright() as pw:
     pg.select_option('#aSt', 'fora'); pg.wait_for_selector('.arow[data-id="103"]')
     t = n.tc('#aPanel')
     checar('Sem estoque' in t and 'Tirado pela equipe' in t and pg.locator('.arow[data-id="101"]').count() == 0, 'fora do portal com o motivo de cada um')
+    # Planilha para fotos: lotes sem foto, sem repetir produto entre lotes
+    import openpyxl
+    pg.select_option('#aSt', ''); pg.click('#aLotes'); pg.wait_for_selector('#mAdm.open #lfGerar')
+    pg.fill('#lfQtd', '5'); pg.fill('#lfResp', 'Maria Teste')
+    with pg.expect_download() as dl: pg.click('#lfGerar')
+    arq = dl.value; caminho = '/tmp/lote1.xlsx'; arq.save_as(caminho); wb1 = openpyxl.load_workbook(caminho).active
+    cods1 = [wb1.cell(r, 1).value for r in range(5, 10)]
+    checar(arq.suggested_filename == 'Fotos_Lote_01_Maria_Teste_5_produtos.xlsx', f'nome do arquivo: {arq.suggested_filename}')
+    checar([wb1.cell(4, c).value for c in (1, 2, 6, 8)] == ['Código', 'Descrição do produto', 'LINK DA FOTO (PREENCHER)', 'Nome capa'] and wb1['H5'].value == '=A5&"_capa.jpg"', 'cabeçalho e fórmulas no padrão da planilha de teste')
+    checar(len(cods1) == 5 and all(cods1) and 'P-104' not in cods1 and 'P-101' not in cods1 and 'P-102' not in cods1 and 'P-103' not in cods1, f'lote 1 sem os que já têm foto, ocultos ou fora do portal: {cods1}')
+    pg.wait_for_selector('#lfLista [data-baixar]')
+    with pg.expect_download() as dl: pg.click('#lfGerar')
+    dl.value.save_as('/tmp/lote2.xlsx'); cods2 = [openpyxl.load_workbook('/tmp/lote2.xlsx').active.cell(r, 1).value for r in range(5, 10)]
+    checar(len(cods2) == 5 and not set(cods1) & set(cods2), f'lote 2 não repete produtos do lote 1: {cods2}')
+    checar(len(sim.lotes) == 2 and 'Lote 2' in n.tc('#lfLista'), 'lotes gravados e listados')
     n.fechar()
 
 print('FALHAS:' if falhas else 'Portal (layout original) + Etapas 1, 2 e 5 a 14: todos os testes passaram.')

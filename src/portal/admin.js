@@ -18,6 +18,7 @@ import { abrirFichaG360 } from './fichag360.js';
 import { paraJpeg } from './jpeg.js';
 import { abrirImportacaoFotos } from './importarfotos.js';
 import { abrirNovoClienteG360 } from './novocliente.js';
+import { abrirLotesFotos } from './lotesfotos.js';
 import { definirEncerramentoOperador, definirAtividadeOperador } from '../estado/sessao.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { dinheiro, numeroPainel, dataBr } from '../ui/formato.js';
@@ -116,6 +117,8 @@ function ligar() {
     <span class="hint" id="aGerarInfo" style="margin:0">Passa por todos os produtos do G360 e cria o nome no padrão de e-commerce e a categoria. Não mexe no que a equipe já ajustou nem nos nomes do portal antigo.</span></div>`);
   $('aGerar').addEventListener('click', gerarTudo);
   $('aGerar').insertAdjacentHTML('afterend', '<button class="btn pri" id="aImpFotos" style="height:36px">📦 Importar imagens</button>');
+  $('aImpFotos').insertAdjacentHTML('afterend', '<button class="btn sec" id="aLotes" style="height:36px">📄 Planilha para fotos</button>');
+  $('aLotes').addEventListener('click', () => abrirLotesFotos({ token: () => op.token, painel, aoSessaoEncerrada: (e) => encerrarOperador(e.message) }));
   $('aImpFotos').addEventListener('click', () => abrirImportacaoFotos({
     token: () => op.token,
     aoSessaoEncerrada: (e) => encerrarOperador(e.message),

@@ -59,7 +59,7 @@ class Sim:
         self.vinculo_segundos = 300
         self.fotos_pedidas = []
         self.cadastros = []
-        self.inclusoes = []; self.chaves_cli = {}; self.visiveis = None
+        self.inclusoes = []; self.chaves_cli = {}; self.visiveis = None; self.lotes = []
         self.enderecos_post = []
         self.fichas = {1165: {'id': 1165, 'documento': '11111111000111', 'tipo_pessoa': 'juridica', 'nome': 'COMPRADOR FICTICIO UM LTDA', 'fantasia': 'Fictício Um', 'ie_rg': 'ISENTO', 'email': 'compras@example.invalid', 'telefone1': '34 99999-0000', 'telefone2': '', 'telefone3': '', 'contato': 'Fulano', 'endereco': {'cep': '38400100', 'logradouro': 'Avenida Exemplo', 'numero': '10', 'complemento': '', 'bairro': {'id': 5, 'nome': 'Centro'}, 'cidade': {'id': 9, 'nome': 'Cidade Exemplo'}, 'uf': 'MG', 'ibge': '3170206'}, 'acesso_liberado': False, 'revisao': 0, 'versao': 'a' * 64, 'pode_alterar': True, 'pode_alterar_acesso': True, 'ie_travada': False}}
         self.fichas_put = []
@@ -455,6 +455,11 @@ class Sim:
                 if 'oculto' in d: r['oculto'] = d['oculto'] is True
                 return res(200, {'ok': True})
             if ac == 'visiveis_ler': return res(200, {'dados': self.visiveis})
+            if ac == 'lotes_listar': return res(200, {'dados': sorted(self.lotes, key=lambda l: -l['numero'])})
+            if ac == 'lote_salvar':
+                l = {'id': str(uuid.uuid4()), 'numero': max([x['numero'] for x in self.lotes] or [0]) + 1, 'responsavel': d.get('responsavel') or None, 'codigos': d['codigos'], 'criado_em': '2026-11-18T13:00:00+00:00'}
+                self.lotes.append(l); return res(200, {'dados': l})
+            if ac == 'lote_apagar': self.lotes = [x for x in self.lotes if x['id'] != d['id']]; return res(200, {'ok': True})
             if ac == 'config_ler': return res(200, {'dados': dict(self.config)})
             if ac == 'config_salvar':
                 for k in ('so_estoque', 'margem_minima', 'estoque_minimo'):
