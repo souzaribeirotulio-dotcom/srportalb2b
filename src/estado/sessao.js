@@ -1,13 +1,19 @@
 /* =====================================================================
    Sessão do comprador (seção 7 do CLAUDE.md).
-   - Token da API só em memória (nada de storage, cookie ou URL).
+   - Token da API na memória e no sessionStorage da aba (chave só dele), para o F5
+     não derrubar a sessão. Fechar a aba ou abrir outra pede login. Nada de
+     localStorage, cookie ou URL. Ao recarregar: GET me e abrir_sessao de novo.
    - Inatividade contada a partir da última chamada autenticada aceita.
    - Vínculo do Supabase (Minha Lista, ocorrências) conferido antes de ler
      ou gravar; vencido, reabre pela ponte com o token em memória.
    ===================================================================== */
-import { entrar as entrarApi, sair as sairApi, trocarSenha as trocarSenhaApi, definirGancho } from '../api/g360.js';
+import { entrar as entrarApi, sair as sairApi, trocarSenha as trocarSenhaApi, consultarComprador, definirGancho, ErroApi } from '../api/g360.js';
 import { abrirSessaoPonte, ErroPonte } from '../api/ponte.js';
-import { supabaseComprador, supabaseConfigurado } from '../api/supabase.js';
+import { supabaseComprador, supabaseConfigurado, LOJA } from '../api/supabase.js';
+
+const CHAVE_TOKEN = `sr-g360-comprador-${LOJA}`;
+function guardarToken(t) { try { if (t) sessionStorage.setItem(CHAVE_TOKEN, t); else sessionStorage.removeItem(CHAVE_TOKEN); } catch { /* sem storage: vale só a memória */ } }
+function tokenGuardado() { try { return sessionStorage.getItem(CHAVE_TOKEN); } catch { return null; } }
 
 const MARGEM_VINCULO_MS = 15000;
 
@@ -37,6 +43,7 @@ export const sessao = {
 
 function limparEstado() {
   estado.token = null;
+  guardarToken(null);
   estado.comprador = null;
   estado.expiraEm = 0;
   estado.ultimaAtividade = 0;
@@ -126,6 +133,7 @@ export async function garantirVinculo() {
 export async function entrar(usuario, senha) {
   const d = await entrarApi(usuario, senha);
   estado.token = d.token;
+  guardarToken(d.token); // substitui o de outro comprador, se houver
   estado.comprador = d.comprador;
   estado.loja = d.loja;
   estado.expiraEm = Date.parse(d.expira_em) || 0;
@@ -146,6 +154,7 @@ export async function sair() {
 /** PUT senha: o token novo substitui o anterior; as sessões do Supabase são encerradas em todo lugar. */
 export async function trocarSenha(senhaAtual, senhaNova) {
   const d = await trocarSenhaApi(estado.token, senhaAtual, senhaNova);
+  guardarToken(d.token);
   const sb = supabaseComprador();
   if (sb) { try { await sb.auth.signOut({ scope: 'global' }); } catch { /* segue */ } }
   estado.token = d.token;
@@ -156,4 +165,26 @@ export async function trocarSenha(senhaAtual, senhaNova) {
   estado.vinculoExpira = 0;
   await abrirVinculo();
   return d;
+}
+
+/**
+ * Depois do F5: com um token guardado na aba, confere com GET me antes de mostrar qualquer tela privada.
+ * 200 → segue logado e reabre o vínculo do Supabase. 401 → apaga o token (a tela mostra o login).
+ * Falha de rede → segue sem sessão nesta carga, sem apagar o token.
+ */
+export async function restaurarSessao() {
+  const t = tokenGuardado();
+  if (!t || estado.token) return false;
+  let d;
+  try { d = await consultarComprador(t); }
+  catch (e) { if (e instanceof ErroApi && e.status === 401) guardarToken(null); return false; }
+  estado.token = t;
+  estado.comprador = d.comprador;
+  estado.loja = d.loja;
+  estado.expiraEm = Date.parse(d.expira_em) || 0;
+  estado.inatividadeMin = Number(d.loja?.sessao_minutos) || 8;
+  estado.ultimaAtividade = Date.now();
+  vigiar();
+  await abrirVinculo();
+  return !!estado.token;
 }

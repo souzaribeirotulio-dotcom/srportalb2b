@@ -1,7 +1,7 @@
 openapi: "3.1.0"
 info:
   title: "API dos sistemas externos"
-  version: "2026.11.17"
+  version: "2026.11.18"
   description: |-
     Contrato de integração com o G360. As operações usam a URL-base da instalação, seguida de /b2b/v1/lojas/{loja}. As rotas GET também aceitam HEAD. O CORS permite apenas as origens configuradas na loja. O preflight aceita GET, HEAD, POST, PUT, DELETE e OPTIONS, com Authorization, Content-Type e Idempotency-Key. A vitrine usa GET e HEAD simples, sem cabeçalhos que exijam preflight no navegador. Requisições sem Origin seguem a autenticação da operação. Recusas por método inexistente ou parâmetro de rota fora do padrão seguem o tratamento geral da aplicação.
 
@@ -9,7 +9,7 @@ info:
 
     A vitrine responde 429 MUITAS_TENTATIVAS quando a cota se esgota. Se a API não conseguir registrar a chamada da vitrine após uma breve espera, responde 503 INDISPONIVEL com Retry-After de 30 segundos.
 
-    Disponibilidade no catálogo: mostre a faixa de estoque e, quando a loja ligar Mostrar a quantidade disponível no G360, também o número para compradores autenticados. A vitrine nunca devolve o número.
+    Disponibilidade no catálogo: mostre a faixa de estoque e, quando a loja ligar Mostrar a quantidade disponível no G360, também o número para compradores autenticados. A vitrine nunca devolve o número. As consultas de produtos do operador trazem o número sempre.
 
     Login: em cada loja, 5 falhas por documento e IP, 40 por IP e 50 por documento em 15 minutos. Sessões têm limite absoluto de 12 horas e limite de inatividade configurável (padrão 8 minutos).
 
@@ -964,7 +964,7 @@ paths:
       tags: ["Operador"]
       operationId: "buscarProdutosOperador"
       summary: "Buscar produtos para o operador"
-      description: "Requer 01100. Inclui produtos que o comprador não vê por falta de publicação. Os demais recortes do catálogo para empresa, situação, tipo e venda são aplicados. Usa a tabela do cliente padrão da consulta e, sem ela, o cadastro. A consulta informa preço mesmo sem saldo. Custo e margem exigem 01110."
+      description: "Requer 01100. Inclui produtos que o comprador não vê por falta de publicação. Os demais recortes do catálogo para empresa, situação, tipo e venda são aplicados. Usa a tabela do cliente padrão da consulta e, sem ela, o cadastro. A consulta informa preço mesmo sem saldo. A quantidade disponível usa a natureza padrão da loja. Custo e margem exigem 01110."
       security:
         - SessaoOperador: []
       requestBody:
@@ -990,7 +990,7 @@ paths:
                       "$ref": "#/components/schemas/ProdutoOperador"
               example:
                 dados:
-                  - {id: 101, codigo: "PX-101", nome: "Produto exemplo", grupo: {codigo: 2, nome: "Conexões"}, marca: null, unidade: "UN", preco: "36.00", origem_preco: "tabela", custo_visivel: true, custo: 18.5, margem_percentual: 48.61}
+                  - {id: 101, codigo: "PX-101", nome: "Produto exemplo", grupo: {codigo: 2, nome: "Conexões"}, marca: null, unidade: "UN", quantidade_disponivel: "30", preco: "36.00", origem_preco: "tabela", custo_visivel: true, custo: 18.5, margem_percentual: 48.61}
                 paginacao: {pagina: 1, limite: 20, total: 1}
                 request_id: "0011223344556677"
         "400":
@@ -1020,7 +1020,7 @@ paths:
       tags: ["Operador"]
       operationId: "consultarPrecosOperador"
       summary: "Consultar preços para um cliente"
-      description: "Requer 01100 e 00500. Valida cliente ativo no recorte de empresa e vendedor. Calcula o preço atual na tabela e natureza aplicáveis ao cliente e segue a mesma política de estoque do comprador. Aceita de 1 a 50 IDs e retorna os produtos encontrados na ordem da lista, sem duplicar. Custo e margem exigem 01110."
+      description: "Requer 01100 e 00500. Valida cliente ativo no recorte de empresa e vendedor. Calcula o preço atual na tabela e natureza aplicáveis ao cliente e segue a mesma política de estoque do comprador. A quantidade disponível usa a natureza do cliente ou, sem uma ativa, a padrão da loja. Aceita de 1 a 50 IDs e retorna os produtos encontrados na ordem da lista, sem duplicar. Custo e margem exigem 01110."
       security:
         - SessaoOperador: []
       requestBody:
@@ -1045,7 +1045,7 @@ paths:
                       "$ref": "#/components/schemas/ProdutoOperador"
               example:
                 dados:
-                  - {id: 101, codigo: "PX-101", nome: "Produto exemplo", grupo: {codigo: 2, nome: "Conexões"}, marca: null, unidade: "UN", preco: "36.00", origem_preco: "tabela", custo_visivel: true, custo: 18.5, margem_percentual: 48.61}
+                  - {id: 101, codigo: "PX-101", nome: "Produto exemplo", grupo: {codigo: 2, nome: "Conexões"}, marca: null, unidade: "UN", quantidade_disponivel: "30", preco: "36.00", origem_preco: "tabela", custo_visivel: true, custo: 18.5, margem_percentual: 48.61}
                 request_id: "0011223344556677"
         "400":
           "$ref": "#/components/responses/CorpoInvalido"
@@ -4258,7 +4258,7 @@ components:
         - type: "null"
     ProdutoOperador:
       type: "object"
-      required: ["id", "codigo", "nome", "grupo", "marca", "unidade", "preco", "origem_preco", "custo_visivel", "custo", "margem_percentual"]
+      required: ["id", "codigo", "nome", "grupo", "marca", "unidade", "quantidade_disponivel", "preco", "origem_preco", "custo_visivel", "custo", "margem_percentual"]
       properties:
         id: {type: "integer", minimum: 1}
         codigo: {type: "string"}
@@ -4272,6 +4272,11 @@ components:
             - "$ref": "#/components/schemas/ClassificacaoProduto"
             - type: "null"
         unidade: {type: ["string", "null"]}
+        quantidade_disponivel:
+          type: "string"
+          pattern: '^[0-9]+(?:\.[0-9]{1,4})?$'
+          examples: ["30", "30.237", "0"]
+          description: "Texto decimal não negativo. Saldo disponível na unidade base, com a mesma conta do catálogo do comprador: quantidade mais reservado nas empresas que a natureza da consulta considera, menos o que outras vendas do G360 em andamento reservaram quando a natureza movimenta estoque. Também vem nos produtos sem preço ou marcados para não aceitar vendas. Em kits, quantos kits completos os componentes permitem. Vem sempre preenchido para o operador, mesmo com Mostrar a quantidade disponível desligado, que vale só para o comprador."
         preco:
           anyOf:
             - "$ref": "#/components/schemas/PrecoUnitario"

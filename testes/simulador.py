@@ -1,5 +1,5 @@
 """Simulador da API do G360, da ponte-g360 e do Supabase para os testes do portal.
-Só dados fictícios. Segue o contrato api-sistemas-externos-2026-11-17.yaml."""
+Só dados fictícios. Segue o contrato api-sistemas-externos-2026-11-18.yaml."""
 import json, re, base64, hashlib, time, uuid
 from decimal import Decimal
 from urllib.parse import urlparse, parse_qs
@@ -358,7 +358,9 @@ class Sim:
             if re.sub(r'[^0-9A-Za-z]', '', corpo['cnpj']) == '11111111000111': return self.ok(route, {'codigo': 1165, 'nome': 'Comprador Fictício Um LTDA', 'acesso_portal': True, 'segmento': {'codigo': 1, 'descricao': 'Varejo'}})
             return self.erro(route, 404, 'CLIENTE_NAO_LOCALIZADO', 'Cliente não localizado.', 'usuario')
         def prod_op(p, cliente=False):
-            return {'id': p['id'], 'codigo': p['codigo'], 'nome': p['nome'], 'grupo': p['grupo'], 'marca': p['marca_detalhe'], 'unidade': p['unidade'],
+            q = p.get('quantidade_disponivel')
+            if q is None: q = '0' if p['disponibilidade'] == 'indisponivel' else '20'
+            return {'id': p['id'], 'codigo': p['codigo'], 'nome': p['nome'], 'grupo': p['grupo'], 'marca': p['marca_detalhe'], 'unidade': p['unidade'], 'quantidade_disponivel': q,
                     'preco': p['preco'], 'preco_congelado': '9.9000000' if cliente and p['id'] == 101 else None, 'origem_preco': 'tabela',
                     'custo_visivel': custo, 'custo': 5.1234 if custo else None, 'margem_percentual': 45.5 if custo else None}
         if caminho == 'operadores/produtos/busca':

@@ -110,3 +110,8 @@ Nada aqui é contrato oficial. Os nomes de operação são os da interface do fr
 - Sessão do comprador: a equipe pede que o portal **não deslogue tão rápido**. Hoje `loja.sessao_minutos` volta 8 minutos na homologação. Pedimos para aumentar esse parâmetro (sugestão: 120 minutos) e dizer se existe ou se está previsto um jeito de "manter conectado" (renovar o token sem pedir a senha de novo). Pelas regras do kit, o token não pode ser guardado no navegador, então recarregar a página pede login de novo.
 - Política de venda sem estoque para produção: a equipe decide entre liberar, avisar ou bloquear (resposta pendente da Souza Ribeiro).
 - Painel → Produtos: a equipe quer filtrar "aparecendo no portal" e "fora do portal". Hoje `POST operadores/produtos/busca` não traz `quantidade_disponivel`, então o painel não sabe quais produtos o portal esconde por estoque baixo (5 unidades ou menos). Pedimos incluir `quantidade_disponivel` (e, se possível, `disponibilidade`) na busca do operador.
+
+## Atualização 18/11 (tarde)
+- Resolvido: `quantidade_disponivel` na busca e no preço por cliente do operador. O painel mostra "Disponível: N" e usa o número no filtro "Aparecendo no portal".
+- Resolvido: sessão de 60 minutos na homologação e F5 sem perder o login (token no sessionStorage da aba, comprador e painel com chaves separadas; ao recarregar, `GET me` e `abrir_sessao`).
+- A responder pela Souza Ribeiro antes da produção: tempo de inatividade desejado na produção e a política de venda sem estoque (liberar, avisar ou bloquear).

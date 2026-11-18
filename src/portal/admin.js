@@ -28,7 +28,7 @@ import { carregarExibicao, codigosOcultos, sinonimos as sinonimosPortal, categor
 import { nomeEcommerce, categoriaPeloNome } from '../catalogo/nomes.js';
 import { buscarLocal } from '../catalogo/busca.js';
 import { fichaDoProduto, descricaoBasica } from '../catalogo/descricoes.js';
-import { supabaseComprador } from '../api/supabase.js';
+import { supabaseComprador, LOJA } from '../api/supabase.js';
 
 const op = { token: null, expira: 0, ultima: 0, minutos: 8, aviso: null };
 let ctx = null;            // { loja, ir }
@@ -40,8 +40,22 @@ const capas = new Map();   // id → url da capa | null (sem foto) — cache da 
 
 function liberarFotos() { urls.forEach((u) => URL.revokeObjectURL(u)); urls = []; capas.clear(); }
 
+/* Token do operador no sessionStorage da aba (chave própria, separada do comprador): o F5 não derruba o painel
+   nem ocupa outra vaga de licença. No primeiro 401 ele é apagado e o painel pede login. */
+const CHAVE_OP = `sr-g360-operador-${LOJA}`;
+function guardarOp() { try { if (op.token) sessionStorage.setItem(CHAVE_OP, JSON.stringify({ token: op.token, expira: op.expira })); else sessionStorage.removeItem(CHAVE_OP); } catch { /* só memória */ } }
+function restaurarOp() {
+  if (op.token) return;
+  try {
+    const g = JSON.parse(sessionStorage.getItem(CHAVE_OP) || 'null');
+    if (g?.token && (!g.expira || Date.now() < g.expira)) { op.token = g.token; op.expira = g.expira || 0; op.ultima = Date.now(); vigiar(); }
+    else sessionStorage.removeItem(CHAVE_OP);
+  } catch { /* nada guardado */ }
+}
+
 function encerrarOperador(mensagem) {
   op.token = null; op.expira = 0; op.aviso = mensagem || null;
+  guardarOp();
   document.body.classList.remove('g360-op');
   liberarFotos();
   fecharModal('mod');
@@ -79,6 +93,7 @@ function erroEm(alvo, e, tentar) { alvo.innerHTML = '<div class="g360-erro"></di
 export function mostrarAdmin(contexto) {
   ctx = contexto;
   op.minutos = Number(ctx.loja.sessao_minutos) || 8;
+  restaurarOp();
   document.body.classList.add('g360-painel');
   document.querySelectorAll('.view').forEach((el) => { el.hidden = el.id !== 'vAdm'; });
   window.scrollTo(0, 0);
@@ -223,6 +238,7 @@ function telaLogin() {
       const d = await entrarOperador(u, s.value);
       s.value = '';
       op.token = d.token; op.expira = Date.parse(d.expira_em) || 0; op.ultima = Date.now(); op.aviso = null;
+      guardarOp();
       vigiar();
       toast('Bem-vindo ao painel!');
       desenhar();
@@ -306,7 +322,7 @@ function pintarNegociacoes() {
       const mostrar = () => {
         const v = Number(valorPainel(el.querySelector('[data-v]')?.value) || 0);
         const mg = custo !== null && v > 0 ? ((v - custo) / v) * 100 : null;
-        box.innerHTML = `Tabela para o cliente: <b>${esc(dinheiro(p.preco))}</b>${p.preco_congelado ? ` · já congelado: ${esc(dinheiro(p.preco_congelado))}` : ''}${custo !== null ? ` · custo R$ ${esc(numeroPainel(custo, 2))}` : ' · custo sem acesso'}${mg !== null ? ` · margem no preço digitado: <b class="mg ${mg < limiteMargem() ? 'bad' : 'ok'}">${esc(numeroPainel(mg, 1))}%</b>${mg < limiteMargem() ? ' (abaixo do mínimo)' : ''}` : ''}`;
+        box.innerHTML = `Tabela para o cliente: <b>${esc(dinheiro(p.preco))}</b>${p.preco_congelado ? ` · já congelado: ${esc(dinheiro(p.preco_congelado))}` : ''}${custo !== null ? ` · custo R$ ${esc(numeroPainel(custo, 2))}` : ' · custo sem acesso'}${mg !== null ? ` · margem no preço digitado: <b class="mg ${mg < limiteMargem() ? 'bad' : 'ok'}">${esc(numeroPainel(mg, 1))}%</b>${mg < limiteMargem() ? ' (abaixo do mínimo)' : ''}` : ''}${dispPainel(p)}`;
       };
       mostrar(); el.querySelector('[data-v]')?.addEventListener('input', mostrar);
     } catch (e) { box.textContent = e.message; }
@@ -393,7 +409,7 @@ async function desenharProdutos(buscar = true) {
     + (L.length ? L.map((p) => { const r = registro(p); const cat = categoriaExibicao(p); return `<div class="arow" data-id="${Number(p.id)}" data-nome="${esc(nomeExibicao(p))}" data-cod="${esc(p.codigo)}" data-g360="${esc(p.nome)}">
       <div class="amini g360-mini" data-foto="${Number(p.id)}" title="Fotos"><span>…</span></div>
       <div class="nm"><input class="inp pnome" value="${esc(nomeExibicao(p))}" maxlength="160" aria-label="Nome no portal" style="width:100%;font-weight:600">
-        <small>G360: ${esc(p.nome)} · Cód. ${esc(p.codigo)} · ${esc(p.unidade || '—')}${r?.curva ? ` · <b style="color:var(--lima)">Curva ${esc(r.curva)}</b>` : ''} · ${margemHtml(p)} · ${(() => { const m = motivoFora(p); return m ? `<b style="color:#ff8a8a">${m}</b> · ` : (visAdm?.ok ? '<b style="color:var(--lima)">✅ no portal</b> · ' : ''); })()}${clipsAdm?.some((c) => Number(c.produto_id) === Number(p.id)) ? '▶ clip · ' : ''}<span class="org">${!r ? 'nome automático (não salvo)' : r.origem === 'automatico' ? 'nome automático' : r.origem === 'legado' ? 'portal antigo' : 'ajustado pela equipe'}</span></small></div>
+        <small>G360: ${esc(p.nome)} · Cód. ${esc(p.codigo)} · ${esc(p.unidade || '—')}${dispPainel(p)}${r?.curva ? ` · <b style="color:var(--lima)">Curva ${esc(r.curva)}</b>` : ''} · ${margemHtml(p)} · ${(() => { const m = motivoFora(p); return m ? `<b style="color:#ff8a8a">${m}</b> · ` : (visAdm?.ok ? '<b style="color:var(--lima)">✅ no portal</b> · ' : ''); })()}${clipsAdm?.some((c) => Number(c.produto_id) === Number(p.id)) ? '▶ clip · ' : ''}<span class="org">${!r ? 'nome automático (não salvo)' : r.origem === 'automatico' ? 'nome automático' : r.origem === 'legado' ? 'portal antigo' : 'ajustado pela equipe'}</span></small></div>
       <div class="num"><b>${esc(dinheiro(p.preco))}</b>${p.origem_preco ? `<small style="display:block;color:var(--tx3);font-size:11px">${esc(p.origem_preco)}</small>` : ''}</div>
       <div><select class="inp pcat" aria-label="Categoria">${cats.map((c) => `<option ${c === cat ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>${r?.categoria ? '' : '<small style="display:block;color:var(--tx3);font-size:11px">sugerida pelo nome</small>'}</div>
       <div class="uns">${p.custo_visivel ? (p.custo === null ? '—' : `R$ ${esc(numeroPainel(p.custo, 2))}`) : 'sem acesso'}</div>
@@ -408,6 +424,13 @@ async function desenharProdutos(buscar = true) {
 let clipsAdm = null;
 
 /** Abaixo da linha do produto: descrição do portal, ocultar do catálogo e clips (vídeos). */
+/** "Disponível: N" do G360 (unidade base), como veio da API, só trocando o ponto por vírgula. */
+function dispPainel(p) {
+  const q = p?.quantidade_disponivel;
+  if (q === undefined || q === null || q === '') return '';
+  return ` · <b style="color:${Number(q) > 0 ? 'var(--lima)' : '#ff8a8a'}">Disponível: ${esc(String(q).replace('.', ','))}</b>`;
+}
+
 /* Lista do que aparece no portal (gravada pelo portal na contagem de estoque de um cliente). */
 let visAdm = null;
 async function lerVisiveis() {
@@ -422,8 +445,16 @@ async function lerVisiveis() {
 /** null = aparece no portal; texto = motivo de estar fora. Sem a lista, só sabe dos tirados pela equipe. */
 function motivoFora(p) {
   if (registro(p)?.oculto) return '🙈 Tirado pela equipe';
+  // A busca do operador já traz a quantidade (pacote 18/11 tarde): vale o número do momento.
+  if (p.quantidade_disponivel !== undefined && p.quantidade_disponivel !== null) {
+    const n = Number(p.quantidade_disponivel); const min = Number(cfgLoja?.estoque_minimo ?? visAdm?.minimo) || 0;
+    if (!(n > 0)) return '⛔ Sem estoque';
+    if (min > 0 && n <= min) return `📉 Estoque baixo (${String(min).replace('.', ',')} un. ou menos)`;
+    if (!visAdm?.ok) return null;
+  }
   if (!visAdm?.ok) return null;
   const c = String(p.codigo);
+  if (p.quantidade_disponivel !== undefined && p.quantidade_disponivel !== null) return visAdm.set.visiveis.has(c) || visAdm.set.baixo.has(c) || visAdm.set.sem.has(c) ? null : '❔ Fora do catálogo dos clientes';
   if (visAdm.set.baixo.has(c)) return `📉 Estoque baixo (${visAdm.minimo} un. ou menos)`;
   if (visAdm.set.sem.has(c)) return '⛔ Sem estoque';
   if (!visAdm.set.visiveis.has(c)) return '❔ Fora do catálogo dos clientes';
@@ -723,7 +754,7 @@ async function montarLista(c) {
     box.innerHTML = `<div class="hint" style="padding:0 16px 6px">${ids.length} produto${ids.length === 1 ? '' : 's'} na lista</div>` + ids.map((id) => {
       const p = porId.get(id);
       return `<div class="crow" data-id="${id}"><div class="g360-mini" data-foto="${id}"><span>…</span></div>
-        <div class="nm">${esc(p ? nomeExibicao(p) : `Produto ${id}`)}<small>Cód. ${esc(p?.codigo || id)}${p ? '' : ' · fora do catálogo deste cliente'}</small></div>
+        <div class="nm">${esc(p ? nomeExibicao(p) : `Produto ${id}`)}<small>Cód. ${esc(p?.codigo || id)}${p ? dispPainel(p) : ' · fora do catálogo deste cliente'}</small></div>
         <div class="g">Preço do cliente<b>${p ? esc(dinheiro(p.preco)) : '—'}</b></div><div></div><div></div>
         <button class="rm" data-rm title="Tirar da lista">×</button></div>`;
     }).join('');
@@ -1136,7 +1167,7 @@ function pintarCongelados() {
   alvo.innerHTML = cong.itens.map((r) => {
     const p = cong.precos.get(Number(r.produto)); const ativo = r.situacao === 'ativo';
     return `<div class="crow" data-id="${Number(r.id)}" style="${ativo ? '' : 'opacity:.55'}"><div class="g360-mini" data-foto="${Number(r.produto)}"><span>…</span></div>
-      <div class="nm">${esc(p?.nome || `Produto ${r.produto}`)}<small>Cód. ${esc(p?.codigo || r.produto)} · ${esc(r.unidade_id || p?.unidade || 'unidade base')} · ${esc(dataBr(r.inicio))} a ${esc(dataBr(r.fim))}${ativo ? '' : ' · encerrado'}</small></div>
+      <div class="nm">${esc(p?.nome || `Produto ${r.produto}`)}<small>Cód. ${esc(p?.codigo || r.produto)} · ${esc(r.unidade_id || p?.unidade || 'unidade base')} · ${esc(dataBr(r.inicio))} a ${esc(dataBr(r.fim))}${ativo ? '' : ' · encerrado'}${dispPainel(p)}</small></div>
       <div class="g">Preço de tabela<b>${esc(dinheiro(p?.preco))}</b></div>
       <div class="pin"><span>R$</span><input value="${esc(valorTela(r.valor))}" inputmode="decimal" data-cg ${ativo ? '' : 'disabled'}></div>
       <div class="df2">${p ? margemHtml(p) : ''}<br><span style="font-size:11px;color:var(--tx3)">margem sobre a tabela</span></div>

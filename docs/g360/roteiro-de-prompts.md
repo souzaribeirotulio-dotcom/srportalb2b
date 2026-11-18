@@ -4,7 +4,7 @@ Versão de 16/11/2026.
 
 Colem um prompt por vez no Claude, na ordem, e só passem ao seguinte depois de conferir o atual. Cada etapa diz o que olhar no navegador e traz pelo menos um teste que tem de dar erro: se ele passar, tem algo errado. Quando alguma coisa não funcionar, usem o modelo do fim do arquivo.
 
-O Claude já precisa estar montado como explica o [LEIA-ME](LEIA-ME.md), com as instruções do projeto, o contrato OpenAPI, o `primeiros-passos.md` e a pasta `supabase/`.
+O Claude já precisa estar montado como explica o [LEIA-ME](<1 - LEIA-ME.md>), com as instruções do projeto, o contrato OpenAPI, o `primeiros-passos.md` e a pasta `supabase/`.
 
 ## Etapa 0. Leitura do projeto
 
@@ -138,13 +138,14 @@ Um aviso antes de testar: cada documento pode pedir no máximo 3 links a cada 15
 Crie o login do comprador (POST sessoes e depois abrir_sessao na função),
 o controle de inatividade pelo sessao_minutos da loja, a renovação do
 vínculo do Supabase, a saída e a troca de senha logado. Siga a seção 7 das
-instruções, com o token só em memória e o tratamento do 401.
+instruções, com o token no sessionStorage da aba e o tratamento do 401.
 ```
 
 1. Entrem com o comprador de teste. A tela mostra o nome dele.
 2. Entrem uma vez com a senha errada. Tem de aparecer "CNPJ/CPF ou senha inválidos." Não insistam muito: 5 erros em 15 minutos bloqueiam novas tentativas por um tempo.
-3. Fiquem parados mais que o tempo de inatividade da loja (8 minutos, se não avisarmos outro) e cliquem em qualquer coisa. O portal pede o login de novo.
-4. Saiam e usem o botão Voltar do navegador. Nenhum dado do comprador pode aparecer.
+3. Recarreguem a página (F5). O comprador continua logado. Depois fechem a aba e abram o portal numa aba nova: ele pede o login.
+4. Fiquem parados mais que o tempo de inatividade da loja (60 minutos na homologação, se não avisarmos outro) e cliquem em qualquer coisa. O portal pede o login de novo.
+5. Saiam e usem o botão Voltar do navegador. Nenhum dado do comprador pode aparecer, e recarregar a página não pode trazer a sessão de volta.
 
 ## Etapa 6. Catálogo
 
@@ -210,7 +211,7 @@ todas as páginas.
 ```text
 Crie o painel do operador, com login próprio (POST operadores/sessoes) e
 token separado do comprador: consulta de cliente por CNPJ, produtos com
-preço, custo e margem, galeria de fotos (incluir, remover, capa e ordem) e
+preço, custo, margem e quantidade disponível, galeria de fotos (incluir, remover, capa e ordem) e
 preço congelado. Siga a seção 11 das instruções. Ainda não crie a lista de
 ocorrências.
 ```
@@ -220,6 +221,7 @@ Combinem com a gente qual operador usar e o que dá para conferir na homologaç�
 1. Entrem com o operador de teste e consultem um cliente pelo CNPJ.
 2. Consultem o preço de dois produtos para um cliente sem preço negociado. O valor tem de ser o mesmo que ele vê no catálogo. Com preço negociado não dá para comparar assim: o catálogo mostra o menor dos dois valores, e o painel mostra cada um separado.
 3. Com o operador que não tem acesso ao custo, a busca de produtos não pode mostrar custo nem margem.
+4. Recarreguem o painel (F5). A equipe continua logada, sem login novo.
 
 ## Etapa 11. Ocorrências do fornecedor
 

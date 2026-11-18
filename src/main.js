@@ -10,7 +10,7 @@ import './portal.css';
 import { apresentarLoja } from './api/g360.js';
 import { mostrarMensagemErro } from './ui/mensagem.js';
 import { esc } from './ui/util.js';
-import { sessao, aoEncerrar } from './estado/sessao.js';
+import { sessao, aoEncerrar, restaurarSessao } from './estado/sessao.js';
 import { esvaziar } from './estado/carrinho.js';
 import { limparMinhaListaEstado } from './estado/minha-lista.js';
 import { descartarEnvioDeOutroComprador } from './estado/envio.js';
@@ -166,5 +166,6 @@ async function desenhar() {
 if (ATIVO) {
   montarRaiz();
   window.addEventListener('popstate', desenhar);
-  desenhar();
+  // F5 com sessão guardada na aba: confere com GET me antes de mostrar telas privadas.
+  restaurarSessao().catch(() => false).then(() => desenhar());
 }

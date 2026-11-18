@@ -37,9 +37,11 @@ class N:
     def ir(self, v): self.pg.click(f'.tabbar [data-v="{v}"]')
     def toast(self): return self.tc('#toast')
     def segredos_ok(self, extras=()):
-        armaz = self.pg.evaluate('JSON.stringify(localStorage)+JSON.stringify(sessionStorage)+document.cookie')
+        # Pacote 18/11 tarde: o token pode ficar só no sessionStorage, na chave própria dele. Fora dela, nada.
+        armaz = self.pg.evaluate("JSON.stringify(localStorage)+JSON.stringify(Object.fromEntries(Object.entries(sessionStorage).filter(([k]) => !/^sr-g360-(comprador|operador)-/.test(k))))+document.cookie")
+        tudo = self.pg.evaluate('JSON.stringify(localStorage)+JSON.stringify(sessionStorage)+document.cookie')
         toks = list(self.sim.tokens.keys())
-        return not any(t in armaz for t in toks) and not any(x in armaz for x in extras) and not any(any(t in c for t in toks) for c in self.console)
+        return not any(t in armaz for t in toks) and not any(x in tudo for x in extras) and not any(any(t in c for t in toks) for c in self.console)
     def sem_rolagem(self, nome):
         for w in (360, 390, 768, 1280, 1920):
             self.pg.set_viewport_size({'width': w, 'height': 900}); self.pg.wait_for_timeout(150)
@@ -642,7 +644,7 @@ with sync_playwright() as pw:
     with pg.expect_download() as dl: pg.click('#lfGerar')
     dl.value.save_as('/tmp/lote2.xlsx'); cods2 = [openpyxl.load_workbook('/tmp/lote2.xlsx').active.cell(r, 1).value for r in range(5, 10)]
     checar(len(cods2) == 5 and not set(cods1) & set(cods2), f'lote 2 não repete produtos do lote 1: {cods2}')
-    checar(len(sim.lotes) == 2 and 'Lote 2' in n.tc('#lfLista'), 'lotes gravados e listados')
+    pg.wait_for_function("document.getElementById('lfLista').textContent.includes('Lote 2')"); checar(len(sim.lotes) == 2, 'lotes gravados e listados')
     pg.click('#lfX')
     # Caça-capa: colar a foto, ajuste automático, Enter envia; "Não achei" grava no lote
     import io, base64
@@ -678,5 +680,44 @@ with sync_playwright() as pw:
     checar([x['descricao'] for x in sim.galeria.get(pid3, [])] == ['Capa'], 'capa colada com Ctrl+V enviada')
     n.fechar()
 
-print('FALHAS:' if falhas else 'Portal (layout original) + Etapas 1, 2 e 5 a 14: todos os testes passaram.')
+    # Etapa 5 passo 3 e Etapa 10 passo 4 (pacote 18/11 tarde): F5 mantém a sessão na aba; outra aba pede login
+    etapa[0] = 'Etapa 15 (F5)'
+    sim = Sim()
+    n = N(pw, sim); pg = n.pg
+    n.entrar(U1, S1)
+    chave = pg.evaluate("Object.keys(sessionStorage).find(k => k.startsWith('sr-g360-comprador-'))")
+    checar(chave and pg.evaluate(f"sessionStorage.getItem('{chave}')") in sim.tokens and not pg.evaluate('JSON.stringify(localStorage)').count(list(sim.tokens)[0]), 'token só no sessionStorage, na chave própria')
+    logins = len([c for c in sim.chamadas if c[1] == 'sessoes'])
+    pg.reload(); pg.wait_for_selector('#grid .card[data-id="101"] .price, #grid .card[data-id="101"]')
+    pg.wait_for_function("document.body.classList.contains('logged')")
+    mes = [c for c in sim.chamadas if c[0] == 'GET' and c[1] == 'me']
+    checar(len([c for c in sim.chamadas if c[1] == 'sessoes']) == logins and mes, 'F5 mantém o login (GET me, sem POST sessoes)')
+    checar(any(c[0] == 'PONTE' and c[1] == 'abrir_sessao' for c in sim.chamadas[-15:]), 'F5 reabre o vínculo do Supabase')
+    checar(n.segredos_ok([S1]), 'depois do F5, senha fora do storage e token só na chave dele')
+    outra = n.br.new_page(viewport={'width': 390, 'height': 900}); outra.route('**/*', sim.rota); outra.goto(BASE + '/')
+    outra.wait_for_selector('#grid .card, #grid .empty, #gEntrar'); outra.wait_for_timeout(500)
+    checar(not outra.evaluate("document.body.classList.contains('logged')"), 'outra aba pede login')
+    outra.close()
+    # token derrubado no servidor: o F5 cai no login e apaga o token
+    sim.tokens.clear(); pg.reload(); pg.wait_for_timeout(1200)
+    checar(not pg.evaluate("document.body.classList.contains('logged')") and not pg.evaluate(f"sessionStorage.getItem('{chave}')"), '401 depois do F5 apaga o token e mostra o login')
+    n.entrar(U1, S1)
+    pg.evaluate("document.getElementById('sair').click()"); pg.wait_for_function("!document.body.classList.contains('logged')")
+    pg.go_back(); pg.wait_for_timeout(500); pg.reload(); pg.wait_for_timeout(1200)
+    checar(not pg.evaluate("document.body.classList.contains('logged')") and not pg.evaluate(f"sessionStorage.getItem('{chave}')"), 'depois de sair, Voltar e F5 não trazem a sessão de volta')
+    n.fechar()
+    # Painel: F5 continua logado, sem novo login de operador
+    n = N(pw, sim, '/painel', largura=1280); pg = n.pg
+    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
+    pg.click('[data-at="prod"]'); pg.wait_for_selector('.arow[data-id="101"]')
+    checar('Disponível: 30' in n.tc('.arow[data-id="101"]') and 'Disponível: 0' in n.tc('.arow[data-id="103"]'), 'painel mostra Disponível: N de cada produto')
+    ops = len([c for c in sim.chamadas if c[1] == 'operadores/sessoes'])
+    pg.reload(); pg.wait_for_selector('#vAdm [data-at="cli"].on')
+    checar(len([c for c in sim.chamadas if c[1] == 'operadores/sessoes']) == ops, 'F5 no painel mantém o login do operador')
+    pg.click('#aSair'); pg.wait_for_selector('#aUsu')
+    checar(not pg.evaluate("Object.keys(sessionStorage).some(k => k.startsWith('sr-g360-operador-'))"), 'sair do painel apaga o token guardado')
+    pg.reload(); pg.wait_for_selector('#aUsu'); checar(True, 'depois de sair, o F5 não traz a sessão do painel de volta')
+    n.fechar()
+
+print('FALHAS:' if falhas else 'Portal (layout original) + Etapas 1, 2 e 5 a 15: todos os testes passaram.')
 for f in falhas: print(' -', f)

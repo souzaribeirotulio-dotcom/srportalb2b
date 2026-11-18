@@ -1,6 +1,6 @@
 /* =====================================================================
    Módulo ÚNICO de chamadas à API dos sistemas externos (G360).
-   Contrato: docs/g360/api-sistemas-externos-2026-11-17.yaml
+   Contrato: docs/g360/api-sistemas-externos-2026-11-18.yaml
    Nenhuma tela chama fetch direto: tudo passa por aqui, inclusive o
    tratamento de erro (seção 10 do CLAUDE.md).
    Endereço = VITE_G360_BASE_URL + /b2b/v1/lojas/ + VITE_G360_LOJA + /caminho

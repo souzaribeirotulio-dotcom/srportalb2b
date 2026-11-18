@@ -240,13 +240,15 @@ Use `operadores/produtos/{id}/fotos` com a sessão do operador. `GET` lista as f
 
 Para listar e abrir fotos vale 01100, 01101 ou 01102. Incluir e remover exigem 01101 ou 01102. Definir a capa e a ordem exige 01101. A API aceita até 12 fotos por produto. Se a base já tiver mais anexos de imagem, a listagem devolve os 12 primeiros e novas inclusões são recusadas enquanto não houver vaga. Uma referência de anexo cujo arquivo está indisponível pode retornar 404 na leitura. Antes de repetir um POST que perdeu a resposta, consulte a galeria.
 
-### Preço, custo e margem
+### Preço, custo, margem e quantidade
 
 `POST operadores/produtos/busca` aceita os filtros de `POST produtos/busca` e inclui produtos que ainda não foram publicados. Use 01100. A busca geral consulta a tabela padrão do G360 e pode mostrar preço mesmo sem saldo.
 
 `POST operadores/produtos/precos` recebe o código do cliente, por exemplo `{"cliente":42,"ids":[101,102]}`. Aceita de 1 a 50 IDs e devolve os produtos encontrados na ordem do pedido. Exige 01100 e 00500, com o recorte de empresa e vendedor do operador. Nessa consulta, o preço segue a tabela, a natureza e a política de estoque do catálogo do comprador. `origem_preco` informa `tabela`, `formula` ou `cadastro` quando há preço.
 
 Sem 01110, `custo_visivel` é falso e `custo` e `margem_percentual` são nulos. Com 01110, a margem é o percentual sobre o preço de venda. Se faltar a linha de custo, custo e margem são nulos. Se faltar preço, a margem é nula.
+
+As duas consultas trazem `quantidade_disponivel` em todos os produtos. É o saldo disponível na unidade base, com a mesma conta que o comprador vê, já descontado o que outras vendas do G360 em andamento reservaram quando a natureza movimenta estoque. Também vem nos produtos sem preço ou marcados para não aceitar vendas. Kits trazem quantos kits completos os componentes permitem. O número vem mesmo com **Mostrar a quantidade disponível** desligado, porque essa opção vale só para o comprador. A busca geral usa a natureza padrão da loja. A consulta por cliente usa a natureza do cliente ou, se ele não tiver uma ativa, a padrão.
 
 ### Preço congelado
 
