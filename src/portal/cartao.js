@@ -20,9 +20,10 @@ export function podeComprar(p) {
   return p?.compravel === true;
 }
 
-export function htmlPreco(op) {
+/** Preço da embalagem. A unidade ("/ un", "/ cx") só aparece quando o produto tem caixa ou pacote para escolher. */
+export function htmlPreco(op, mostrarUnidade = false) {
   if (op.preco === null || op.preco === undefined) return '';
-  return `<b>${esc(dinheiro(op.preco))}</b><small>/ ${esc(String(op.nome).toLowerCase())}</small>${op.seu_preco ? '<span class="tagcg">Seu preço</span>' : ''}`;
+  return `<b>${esc(dinheiro(op.preco))}</b>${mostrarUnidade ? `<small>/ ${esc(String(op.nome).toLowerCase())}</small>` : ''}${op.seu_preco ? '<span class="tagcg">Seu preço</span>' : ''}`;
 }
 
 /** Selo e aviso da regra única: selo só para comprável sob consulta; aviso só para não comprável, como veio. */
@@ -52,8 +53,8 @@ export function htmlCartao(p, { naLista = null } = {}) {
     <div class="info">
       <div class="brand">${esc(p.marca || '')}${ops.length > 1 ? `<span class="tagcx">${esc(ops[1].nome)} disponível</span>` : ''}</div>
       <div class="name" title="${esc(p.nome_g360 || p.nome)}">${esc(p.nome)}</div>
-      <div class="meta">Cód. ${esc(p.codigo)} · ${esc(p.unidade || '')}</div>
-      <div class="price">${htmlPreco(ops[0])}</div>
+      <div class="meta">Cód. ${esc(p.codigo)}</div>
+      <div class="price">${htmlPreco(ops[0], ops.length > 1)}</div>
       ${htmlEstoque(p)}
       <div class="dispw">${htmlDisponivel(p)}</div>
       ${htmlUnidades(p)}

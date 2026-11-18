@@ -66,7 +66,7 @@ with sync_playwright() as pw:
     n.pg.wait_for_selector('#grid .card.publico')
     checar('Entre para ver os preços' in n.tc('#grid') and 'R$' not in n.tc('#grid'), 'vitrine sem preço')
     checar(all('authorization' not in h for _, h in sim.vitrine_chamadas), 'vitrine sem Bearer')
-    checar(n.tc('#tot') == '45', f"total da vitrine: {n.tc('#tot')}")
+    checar(not n.pg.locator('#tot').count() and n.tc('#cnt') == 'Entre para ver os preços', f"vitrine sem total de produtos: {n.tc('#cnt')}")
     n.pg.fill('#q', 'P-110'); n.pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('1 resultado')")
     n.pg.click('#grid .card.publico .lockp'); n.pg.wait_for_selector('#mLogin.open'); n.pg.click('#lgX')
     n.fechar()
@@ -165,9 +165,14 @@ with sync_playwright() as pw:
     n = N(pw, sim); pg = n.pg
     n.entrar(U1, S1)
     checar(pg.locator('#grid .card').count() == 24, f"vitrine sem 24 produtos: {pg.locator('#grid .card').count()}")
-    checar('42 produtos com estoque' in n.tc('#cnt'), f'contagem: {n.tc("#cnt")}')
-    n.pg.wait_for_function("!document.getElementById('tot').textContent.includes('…')")
-    checar(n.tc('#nMarcas') == '2' and n.tc('#tot') == '42' and 'estoque' in n.tc('.stats'), f"contadores da página inicial (só com estoque): {n.tc('#tot')}")
+    checar(n.tc('#cnt') == '' and not pg.locator('#tot').count(), f'sem contagem de produtos na vitrine: {n.tc("#cnt")}')
+    checar(n.tc('#nMarcas') == '2' and 'estoque' not in n.tc('.stats').lower(), f"só o contador de marcas no topo: {n.tc('.stats')}")
+    lidas_antes = len([c for c in sim.chamadas if c[0] == 'GET' and c[1] == 'produtos'])
+    checar(lidas_antes <= 2, f'abrir o portal não lê o catálogo inteiro antes dos cards: {lidas_antes} páginas')
+    sem_cx = pg.eval_on_selector_all('#grid .card', "cs => cs.filter(c => !c.querySelector('.unsel')).map(c => c.querySelector('.info').innerText)")
+    com_cx = pg.eval_on_selector_all('#grid .card', "cs => cs.filter(c => c.querySelector('.unsel')).map(c => c.querySelector('.price').innerText)")
+    checar(sem_cx and not any(('/ un' in t.lower() or '· UN' in t or '/ pc' in t.lower()) for t in sem_cx), 'unidade base (UN, PC) não aparece no card sem caixa')
+    checar(com_cx and all('/' in t for t in com_cx), 'card com caixa mostra a unidade do preço')
     pg.wait_for_selector('#souzinha-widget .sz-fab'); checar(pg.locator('#souzinha-widget .sz-fab').is_visible(), 'Souzinha no portal')
     checar(pg.locator('.card[data-id="102"], .card[data-id="103"], .card[data-id="108"]').count() == 0, 'sem estoque na vitrine')
     c = pg.locator('.card[data-id="101"]')
@@ -197,7 +202,7 @@ with sync_playwright() as pw:
     pg.fill('#q', 'copos descartavel'); pg.press('#q', 'Enter'); pg.wait_for_selector('.card[data-id="104"]')
     checar('1 resultado' in n.tc('#cnt'), f'busca tolerante (plural, sem acento): {n.tc("#cnt")}')
     pg.fill('#q', 'copo descartaval'); pg.press('#q', 'Enter'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('1 resultado')")
-    pg.fill('#q', ''); pg.press('#q', 'Enter'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('42')")
+    pg.fill('#q', ''); pg.press('#q', 'Enter'); pg.wait_for_function("document.getElementById('cnt').textContent === '' && document.querySelectorAll('#grid .card').length === 24")
     t106 = pg.locator('.card[data-id="106"]').text_content()
     checar('Últimas unidades' not in t106 and 'Em estoque' not in t106, 'nada derivado da faixa_disponibilidade')
     pg.wait_for_timeout(600)
@@ -216,12 +221,12 @@ with sync_playwright() as pw:
     checar(sim.fotos_pedidas.count('produtos/105/fotos/1') == 1 and sim.fotos_pedidas.count('produtos/104/fotos/1') == 1, 'foto pedida de novo')
     pg.fill('#q', 'P-121'); pg.press('#q', 'Enter'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('1 resultado')")
     pg.fill('#q', 'nada-existe'); pg.press('#q', 'Enter'); pg.wait_for_selector('#gLimpar')
-    pg.click('#gLimpar'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('42')")
-    pg.click('.chip[data-c="Descartáveis"]'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('1 produto')")
+    pg.click('#gLimpar'); pg.wait_for_function("document.getElementById('cnt').textContent === '' && document.querySelectorAll('#grid .card').length === 24")
+    pg.click('.chip[data-c="Descartáveis"]'); pg.wait_for_function("document.querySelectorAll('#grid .card').length === 1")
     checar('Copo Descartável Exemplo 200ml' in n.tc('#grid') and 'Descartáveis' in n.tc('#grid .cat'), 'categoria e nome do portal no catálogo')
     q = [x for x in sim.chamadas if x[0] == 'POST' and x[1].endswith('produtos/busca')][-1][3]
     checar(q.get('codigos') == ['P-104'], f'filtro da categoria pelos códigos: {q}')
-    pg.click('.chip[data-c=""]'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('42')")
+    pg.click('.chip[data-c=""]'); pg.wait_for_function("document.getElementById('cnt').textContent === '' && document.querySelectorAll('#grid .card').length === 24")
     c110 = pg.locator('.card[data-id="110"]')
     c110.locator('.qty input').fill('abc'); c110.locator('.add').click()
     checar('Quantidade inválida' in n.toast(), 'quantidade inválida aceita')
@@ -704,7 +709,7 @@ with sync_playwright() as pw:
     etapa[0] = 'Etapa 16 (visitante só ativos)'
     sim = Sim()
     n = N(pw, sim); pg = n.pg
-    pg.wait_for_selector('#grid .card.publico'); total_sem_lista = n.tc('#tot')
+    pg.wait_for_selector('#grid .card.publico'); total_sem_lista = pg.locator('#grid .card.publico').count()
     n.fechar()
     sim.visiveis = {'visiveis': ['P-101', 'P-104', 'P-105', 'P-106'], 'estoque_baixo': [], 'sem_estoque': ['P-103'], 'estoque_minimo': 5, 'atualizado_em': '2026-11-18T12:00:00+00:00'}
     sim.exibicao.setdefault('P-106', {}).update({'oculto': True})
@@ -712,7 +717,6 @@ with sync_playwright() as pw:
     pg.wait_for_selector('#grid .card.publico')
     ids = sorted(int(x) for x in pg.eval_on_selector_all('#grid .card.publico', 'e => e.map(x => x.dataset.id)'))
     checar(ids == [101, 104, 105], f'visitante vê só os ativos, sem o tirado pela equipe: {ids} (sem lista: {total_sem_lista})')
-    checar(n.tc('#tot') == '3' and '3 produtos' in n.tc('#cnt'), f"contagem do visitante só dos ativos: {n.tc('#tot')} / {n.tc('#cnt')}")
     n.fechar()
 
     # Minha Lista: só salvos e ativos no portal; esvaziar; painel vê a lista do cliente e congela preço dali

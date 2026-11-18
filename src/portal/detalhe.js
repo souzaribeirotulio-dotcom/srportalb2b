@@ -37,7 +37,7 @@ function desenhar() {
       <div class="brand">${esc(typeof p.marca === 'object' ? p.marca?.nome || '' : p.marca || '')}</div>
       <h2>${esc(p.nome)}</h2>
       <div class="meta">Cód. ${esc(p.codigo)}${ficha.ean ? ` · EAN ${esc(ficha.ean)}` : ''}</div>
-      <div class="dprice">${comprar ? htmlPreco(unidadeEscolhida(p, atual.un)) : ''}</div>
+      <div class="dprice">${comprar ? htmlPreco(unidadeEscolhida(p, atual.un), opcoesUnidade(p).length > 1) : ''}</div>
       ${htmlEstoque(p)}
       ${htmlDisponivel(p)}
       ${htmlUnidades(p, atual.un, 'lg')}

@@ -96,7 +96,14 @@ definirGancho('aoSessaoEncerrada', (escopo, erro) => {
  * Abre o vínculo do Supabase pela ponte. Devolve true/false.
  * No 401 a sessão da API não vale mais: volta ao login. No 503 segue sem Supabase.
  */
-async function abrirVinculo() {
+/* Uma abertura de vínculo por vez: quem chega durante a abertura espera a mesma. */
+let abrindo = null;
+export function vinculoEmAndamento() { return !!abrindo; }
+function abrirVinculo() {
+  if (!abrindo) abrindo = abrirVinculoAgora().finally(() => { abrindo = null; });
+  return abrindo;
+}
+async function abrirVinculoAgora() {
   estado.supabaseOk = false;
   const sb = supabaseComprador();
   if (!sb || !estado.token) return false;
@@ -124,6 +131,7 @@ async function abrirVinculo() {
  */
 export async function garantirVinculo() {
   if (!estado.token || !supabaseConfigurado()) return false;
+  if (abrindo) await abrindo;
   if (estado.supabaseOk && Date.now() < estado.vinculoExpira - MARGEM_VINCULO_MS) return true;
   await encerrarSupabaseLocal();
   return abrirVinculo();
@@ -185,6 +193,7 @@ export async function restaurarSessao() {
   estado.inatividadeMin = Number(d.loja?.sessao_minutos) || 8;
   estado.ultimaAtividade = Date.now();
   vigiar();
-  await abrirVinculo();
+  // F5: os cards não esperam o vínculo do Supabase (só a Minha Lista precisa dele).
+  abrirVinculo().catch(() => false);
   return !!estado.token;
 }

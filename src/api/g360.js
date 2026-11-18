@@ -73,11 +73,12 @@ function montarConsulta(consulta) {
  * Falha → lança ErroApi (envelope de erro, falha de rede ou tempo esgotado).
  * Não registra token, senha nem corpo em log.
  */
-export async function requisitar(metodo, modelo, { parametros, consulta, token = null, corpo, cabecalhos = {}, binario = false, semGanchos = false, cacheModo = 'no-store' } = {}) {
+export async function requisitar(metodo, modelo, { parametros, consulta, token = null, corpo, cabecalhos = {}, binario = false, semGanchos = false, cacheModo = 'no-store', semAtividade = false } = {}) {
   const operacao = `${metodo} ${modelo}`;
   const escopo = !token ? 'publico' : (modelo.startsWith('operadores/') ? 'operador' : 'comprador');
   const avisarAtividade = () => {
-    if (escopo !== 'publico' && ganchos.aoAtividade) { try { ganchos.aoAtividade(escopo); } catch { /* nada */ } }
+    // Leitura em segundo plano (sem o cliente mexer) não conta como atividade dele.
+    if (escopo !== 'publico' && !semAtividade && ganchos.aoAtividade) { try { ganchos.aoAtividade(escopo); } catch { /* nada */ } }
   };
   const faltando = configuracaoValida();
   if (faltando.length) {
@@ -232,7 +233,7 @@ export async function listarProdutos(token, filtros = {}) {
     pagina: filtros.pagina,
     limite: filtros.limite,
   };
-  const r = await requisitar('GET', 'produtos', { token, consulta });
+  const r = await requisitar('GET', 'produtos', { token, consulta, semAtividade: filtros.segundoPlano === true });
   return { dados: r.dados, paginacao: r.paginacao };
 }
 

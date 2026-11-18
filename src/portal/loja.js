@@ -10,7 +10,7 @@ import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, a
 import { LOJA, supabaseComprador } from '../api/supabase.js';
 import { buscarLocal, temEstoque, variacoes } from '../catalogo/busca.js';
 import { listarProdutos, buscarProdutos, listarMarcas } from '../api/g360.js';
-import { sessao, entrar, sair, trocarSenha, garantirVinculo } from '../estado/sessao.js';
+import { sessao, entrar, sair, trocarSenha, garantirVinculo, vinculoEmAndamento } from '../estado/sessao.js';
 import { adicionar, linhasCarrinho, alterarQuantidade, remover, aoMudarCarrinho, quantidadeLinhas } from '../estado/carrinho.js';
 import { carregarIds, incluirNaLista, removerDaLista, idsCarregados } from '../estado/minha-lista.js';
 import { normalizarQuantidade, dinheiro, estimar } from '../ui/formato.js';
@@ -138,7 +138,7 @@ function desenharTopo() {
   document.querySelectorAll('.hb[data-v],.tabbar [data-v]').forEach((b) => b.classList.toggle('on', b.dataset.v === ctx.rota));
   const avisos = [];
   if (c?.compra_bloqueada) avisos.push('<div class="rv-aviso bad"><b>Compras bloqueadas.</b> Você pode consultar o catálogo, mas não pode enviar pedidos agora. Fale com o seu vendedor da Souza Ribeiro.</div>');
-  if (c && !sessao.supabaseOk) avisos.push('<div class="rv-aviso">A Minha Lista está indisponível no momento. O resto do portal funciona normalmente.</div>');
+  if (c && !sessao.supabaseOk && !vinculoEmAndamento()) avisos.push('<div class="rv-aviso">A Minha Lista está indisponível no momento. O resto do portal funciona normalmente.</div>');
   $('g360Avisos').innerHTML = avisos.join('');
 }
 
@@ -178,7 +178,7 @@ export function mostrarLoja(contexto, rota, params = [], estado = {}) {
 
 function desenharHero() {
   $('hi').innerHTML = `${saudacao()}<em>Seus suprimentos</em>num só lugar.`;
-  if (!sessao.ativa) { $('tot').textContent = '—'; $('nMarcas').textContent = '—'; contagem = null; if ($('tot').nextElementSibling) $('tot').nextElementSibling.textContent = 'Produtos'; }
+  if (!sessao.ativa) { $('nMarcas').textContent = '—'; contagem = null; }
 }
 
 async function carregarClassificacoes() {
@@ -251,7 +251,7 @@ async function resultadoVitrine() {
       : await listarProdutos(sessao.token, { marca, pagina, limite: 50 });
     vitrine.apiPagina = pagina; lidas += 1;
     vitrine.apiPaginas = Math.max(1, Math.ceil((paginacao?.total || 0) / 50));
-    if (!filtros.grupo && !filtros.marca && pagina === 1) contarComEstoque(Number(paginacao?.total || 0));
+    if (!filtros.grupo && !filtros.marca && pagina === 1) agendarLista(Number(paginacao?.total || 0));
     vitrine.itens.push(...dados.map(apresentar).filter((p) => temEstoque(p) && !oculto(p) && !abaixoDoMinimo(p)));
     if (pagina >= vitrine.apiPaginas) {
       if (vitrine.bloco + 1 < blocos.length) { vitrine.bloco += 1; vitrine.apiPagina = 0; } else vitrine.fim = true;
@@ -264,24 +264,27 @@ async function resultadoVitrine() {
   return { itens, total: vitrine.itens.length, temMais, aindaLendo: !vitrine.fim, paginas: temMais ? filtros.pagina + 1 : filtros.pagina };
 }
 
-/* Contador do topo: produtos com estoque (o que o cliente realmente encontra no portal).
-   A API não informa esse total, então o portal lê o catálogo em 5 consultas paralelas
-   (páginas de 50; cerca de 10 segundos para o catálogo todo) e guarda o número por
-   2 horas neste navegador, para as próximas aberturas serem instantâneas.
-   Se a API pedir para esperar (limite de chamadas), mostra o total do catálogo. */
+/* Lista do que aparece no portal (para o painel e para o visitante). Não aparece na tela.
+   A API não informa quais produtos têm estoque, então o portal lê o catálogo em segundo
+   plano, com 2 consultas por vez, só depois que os primeiros cards já apareceram e sem
+   disputar com a navegação do cliente. Feito no máximo a cada 2 horas por navegador. */
 let contagem = null;
+function agendarLista(totalCatalogo) {
+  const token = sessao.token;
+  setTimeout(() => {
+    const ocioso = window.requestIdleCallback || ((f) => setTimeout(f, 0));
+    ocioso(() => { if (sessao.token === token) contarComEstoque(totalCatalogo); });
+  }, 2500);
+}
 async function contarComEstoque(totalCatalogo) {
-  const rotulo = $('tot').nextElementSibling;
   const chave = `sr-estoque3-${LOJA}-${sessao.comprador?.codigo || ''}`;
-  const mostrar = (t, r) => { $('tot').textContent = t; if (rotulo) rotulo.textContent = r; };
   try {
     const salvo = JSON.parse(localStorage.getItem(chave) || 'null');
-    if (salvo && Date.now() - salvo.em < 2 * 60 * 60 * 1000) { mostrar(Number(salvo.n).toLocaleString('pt-BR'), 'Com estoque'); return; }
-  } catch { /* sem armazenamento: conta de novo */ }
+    if (salvo && Date.now() - salvo.em < 2 * 60 * 60 * 1000) return;
+  } catch { /* sem armazenamento: lê de novo */ }
   if (contagem && contagem.token === sessao.token) return;
   const token = sessao.token;
   contagem = { token };
-  mostrar('…', 'Contando estoque');
   const paginas = Math.max(1, Math.ceil(totalCatalogo / 50));
   let n = 0; let feitas = 0; let proxima = 1; let falhou = false;
   const lista = { visiveis: [], baixo: [], sem: [] }; // só códigos, para o painel saber o que aparece
@@ -289,7 +292,7 @@ async function contarComEstoque(totalCatalogo) {
     while (!falhou && proxima <= paginas && sessao.token === token) {
       const pagina = proxima++;
       try {
-        const { dados } = await listarProdutos(token, { pagina, limite: 50 });
+        const { dados } = await listarProdutos(token, { pagina, limite: 50, segundoPlano: true });
         for (const p of dados.map(apresentar)) {
           const tem = temEstoque(p); const baixo = tem && abaixoDoMinimo(p);
           (!tem ? lista.sem : baixo ? lista.baixo : lista.visiveis).push(String(p.codigo));
@@ -297,13 +300,11 @@ async function contarComEstoque(totalCatalogo) {
         }
       } catch { falhou = true; return; }
       feitas += 1;
-      if (sessao.token === token && feitas < paginas) mostrar(`${n.toLocaleString('pt-BR')}…`, `Contando estoque ${Math.round((feitas / paginas) * 100)}%`);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(5, paginas) }, trabalhador));
+  await Promise.all(Array.from({ length: Math.min(2, paginas) }, trabalhador));
   if (sessao.token !== token) return;
-  if (falhou) { mostrar(totalCatalogo.toLocaleString('pt-BR'), 'Produtos'); contagem = null; return; }
-  mostrar(n.toLocaleString('pt-BR'), 'Com estoque');
+  if (falhou) { contagem = null; return; }
   try { localStorage.setItem(chave, JSON.stringify({ n, em: Date.now() })); } catch { /* ok */ }
   enviarVisiveis(lista);
 }
@@ -368,9 +369,8 @@ async function desenharCatalogoPublico(grid, pag) {
   try {
     const r = await resultadoPublico(filtros);
     if (meu !== buscaN || sessao.ativa) return;
-    if (r.totalCatalogo != null) $('tot').textContent = Number(r.totalCatalogo).toLocaleString('pt-BR');
     $('cnt').innerHTML = filtros.q ? `<b>${r.total.toLocaleString('pt-BR')}</b> resultado${r.total === 1 ? '' : 's'} para “${esc(filtros.q)}” · entre para ver os preços`
-      : `<b>${r.total.toLocaleString('pt-BR')}</b> produto${r.total === 1 ? '' : 's'}${filtros.grupo ? ` em ${esc(filtros.grupo)}` : ''} · entre para ver os preços`;
+      : 'Entre para ver os preços';
     grid.innerHTML = r.itens.length ? r.itens.map(htmlCartaoPublico).join('')
       : `<div class="empty">${filtros.q ? `Nada encontrado para “${esc(filtros.q)}”. Tente outra palavra ou o código do produto.` : 'Nenhum produto nesta seleção.'}</div>`;
     ligarTrocaFotos(grid);
@@ -395,16 +395,18 @@ export async function desenharCatalogo() {
   if (!sessao.ativa) { await desenharCatalogoPublico(grid, pag); return; }
   const meu = ++buscaN;
   grid.innerHTML = '<div class="empty">Carregando produtos…</div>';
-  if (sessao.supabaseOk && idsCarregados() === null) { try { await carregarIds(); } catch { /* sem lista: sem botão */ } }
+  // Minha Lista em paralelo com os produtos (antes, um esperava o outro).
+  const idsP = idsCarregados() === null ? carregarIds().catch(() => null) : null;
   try {
     await carregarExibicao();
     const r = filtros.q ? await resultadoBusca() : await resultadoVitrine();
+    if (idsP) { await idsP; desenharTopo(); }
     if (meu !== buscaN) return;
     const dados = r.itens;
     if (!filtros.q && !filtros.grupo && !filtros.marca && classificacoes && classificacoes.total === null) { classificacoes.total = ''; }
     $('cnt').innerHTML = filtros.q
       ? `<b>${r.total.toLocaleString('pt-BR')}</b> resultado${r.total === 1 ? '' : 's'} para “${esc(filtros.q)}”${r.semEstoque ? ` · ${r.semEstoque} sem estoque no fim da lista` : ''}`
-      : `<b>${r.total.toLocaleString('pt-BR')}${r.aindaLendo ? '+' : ''}</b> produto${r.total === 1 ? '' : 's'} com estoque${filtros.grupo ? ` em ${esc(filtros.grupo)}` : ''}`;
+      : '';
     produtosDaTela = new Map(dados.map((p) => [Number(p.id), p]));
     const lista = idsCarregados();
     grid.innerHTML = dados.length ? dados.map((p) => htmlCartao(p, { naLista: lista ? lista.has(Number(p.id)) : null })).join('')
@@ -460,7 +462,7 @@ async function cliqueCartao(e) {
   if (un) {
     card.dataset.un = un.dataset.un;
     card.querySelectorAll('.unsel button').forEach((b) => b.classList.toggle('on', b === un));
-    card.querySelector('.price').innerHTML = htmlPreco(unidadeEscolhida(p, un.dataset.un));
+    card.querySelector('.price').innerHTML = htmlPreco(unidadeEscolhida(p, un.dataset.un), true);
     return;
   }
   const d = e.target.closest('[data-d]');
@@ -514,7 +516,7 @@ function desenharCarrinho() {
   const it = linhasCarrinho();
   $('dBody').innerHTML = it.length ? it.map((l) => `<div class="ci" data-k="${esc(`${l.produto_id}|${l.unidade ?? ''}`)}">
       ${htmlFoto({ id: l.produto_id, nome: l.nome, fotos: l.fotos }, 'g360-mini')}
-      <div class="n">${esc(l.nome)}<small>${l.precoTexto ? `${esc(dinheiro(l.precoTexto))} / ${esc(String(l.unidadeNome).toLowerCase())}` : esc(l.unidadeNome)}${l.seu_preco ? ' <span class="tagcg">Seu preço</span>' : ''}</small>
+      <div class="n">${esc(l.nome)}<small>${l.precoTexto ? `${esc(dinheiro(l.precoTexto))}${l.unidade ? ` / ${esc(String(l.unidadeNome).toLowerCase())}` : ''}` : (l.unidade ? esc(l.unidadeNome) : '')}${l.seu_preco ? ' <span class="tagcg">Seu preço</span>' : ''}</small>
         <div class="qty" style="margin-top:6px;width:max-content"><button type="button" data-d="-1" aria-label="Diminuir">−</button><input type="text" inputmode="decimal" value="${esc(String(l.quantidade).replace('.', ','))}" maxlength="13" aria-label="Quantidade"><button type="button" data-d="1" aria-label="Aumentar">+</button></div></div>
       <div class="r">${l.precoTexto ? esc(dinheiro(estimar([l]).total)) : '—'}<br><button type="button" class="x">Remover</button></div></div>`).join('')
     : '<div class="empty2">Seu carrinho está vazio.</div>';
