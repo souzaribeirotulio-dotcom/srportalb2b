@@ -179,6 +179,252 @@ paths:
           "$ref": "#/components/responses/LimiteRequisicoes"
         "503":
           "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/operadores/cadastro/cliente":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    get:
+      tags: ["Operador"]
+      operationId: "formularioInclusaoClienteOperador"
+      summary: "Consultar as regras do formulário Novo cliente"
+      description: "Exige 00501. Retorna os campos obrigatórios segundo o CFG e os acessos, os que podem ser preenchidos e os padrões adotados pelo servidor. Se faltar uma permissão para campo obrigatório sem padrão, peça o ajuste dos acessos no G360."
+      security:
+        - SessaoOperador: []
+      responses:
+        "200":
+          description: "Regras do formulário. telefone exige pelo menos um entre telefone1, telefone2 e telefone3. A exigência de rg_se_nao_contribuinte se aplica à pessoa física com IE marcada como NAO CONTRIBUINTE."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados: {"$ref": "#/components/schemas/FormularioInclusaoCliente"}
+        "401": {"$ref": "#/components/responses/SessaoInvalida"}
+        "403": {"$ref": "#/components/responses/ConsultaOperadorNegada"}
+        "404": {"$ref": "#/components/responses/ClienteOperadorNaoLocalizado"}
+        "423": {"$ref": "#/components/responses/LicencaOperadorIndisponivel"}
+        "429": {"$ref": "#/components/responses/LimiteRequisicoes"}
+        "503": {"$ref": "#/components/responses/Indisponivel"}
+  "/b2b/v1/lojas/{loja}/operadores/referencias":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    get:
+      tags: ["Operador"]
+      operationId: "referenciasInclusaoClienteOperador"
+      summary: "Listar opções para a inclusão de cliente"
+      description: "Exige 00501 e o acesso ao campo correspondente. Lista as opções oferecidas pelo G360 para o tipo, com recorte de vendedor quando aplicável."
+      security:
+        - SessaoOperador: []
+      parameters:
+        - name: "tipo"
+          in: "query"
+          required: true
+          schema: {type: "string", enum: ["categoria", "situacao", "regiao", "vendedor", "tabela_preco", "banco_cobranca"]}
+          example: "categoria"
+      responses:
+        "200":
+          description: "Opções de referência ordenadas pelo nome."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    type: "array"
+                    items: {"$ref": "#/components/schemas/ReferenciaInclusaoCliente"}
+        "401": {"$ref": "#/components/responses/SessaoInvalida"}
+        "403": {"$ref": "#/components/responses/ConsultaOperadorNegada"}
+        "404": {"$ref": "#/components/responses/ClienteOperadorNaoLocalizado"}
+        "422":
+          description: "Tipo de referência inválido."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo: {type: "string", enum: ["DADOS_INVALIDOS"]}
+        "423": {"$ref": "#/components/responses/LicencaOperadorIndisponivel"}
+        "429": {"$ref": "#/components/responses/LimiteRequisicoes"}
+        "503": {"$ref": "#/components/responses/Indisponivel"}
+  "/b2b/v1/lojas/{loja}/operadores/cadastro/cnpj":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    post:
+      tags: ["Operador"]
+      operationId: "preencherInclusaoClienteCnpj"
+      summary: "Consultar dados para preencher um novo cadastro pelo CNPJ"
+      description: "Exige 00501. O POST mantém o CNPJ no corpo. A consulta não cria cadastros nem referências. Primeiro procura o documento no G360. Se existir um único cadastro visível, informe o código para abrir a ficha. Fora do recorte ou com mais de um cadastro visível, cliente_id vem nulo. Para CNPJ novo, consulta Base Movimento, depois cnpj.ws comercial e, na indisponibilidade, fontes públicas. Situação diferente de ATIVA é informativa e prefixa o nome sugerido como no Desktop. A consulta pode ser pulada para continuar manualmente."
+      security:
+        - SessaoOperador: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              additionalProperties: false
+              required: ["cnpj"]
+              properties:
+                cnpj: {type: "string", minLength: 14, maxLength: 32}
+            example: {cnpj: "12.ABC.345/01DE-35"}
+      responses:
+        "200":
+          description: "Sugestão para o formulário ou indicação de cadastro existente."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    oneOf:
+                      - "$ref": "#/components/schemas/ClienteJaCadastrado"
+                      - "$ref": "#/components/schemas/SugestaoClienteCnpj"
+              example: {dados: {ja_existe: true, cliente_id: 42}, request_id: "0011223344556677"}
+        "400": {"$ref": "#/components/responses/CorpoInvalido"}
+        "401": {"$ref": "#/components/responses/SessaoInvalida"}
+        "403": {"$ref": "#/components/responses/ConsultaOperadorNegada"}
+        "404":
+          description: "Loja indisponível ou CNPJ não localizado na Receita. A equipe pode continuar manualmente."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo: {type: "string", enum: ["LOJA_INDISPONIVEL", "CNPJ_NAO_ENCONTRADO"]}
+        "409": {"$ref": "#/components/responses/AcessoEmAndamento"}
+        "413": {"$ref": "#/components/responses/CorpoGrande"}
+        "422": {"$ref": "#/components/responses/ConsultaOperadorInvalida"}
+        "423": {"$ref": "#/components/responses/LicencaOperadorIndisponivel"}
+        "429":
+          description: "Limite de chamadas. Para pré-preenchimentos sem cache, a cada minuto são até 5 por operador, 15 por loja e 60 na instalação. A loja também tem cota de 120 por janela de 24 horas. Retry-After indica a espera em segundos."
+          headers:
+            Retry-After:
+              schema: {type: "integer"}
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo: {type: "string", enum: ["MUITAS_TENTATIVAS", "LIMITE_CONSULTA_CNPJ"]}
+        "503":
+          description: "Consulta indisponível. Tente novamente ou continue manualmente."
+          headers:
+            Retry-After:
+              schema: {type: "integer"}
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo: {type: "string", enum: ["RECEITA_INDISPONIVEL", "INDISPONIVEL"]}
+  "/b2b/v1/lojas/{loja}/operadores/clientes":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    post:
+      tags: ["Operador"]
+      operationId: "incluirClienteOperador"
+      summary: "Incluir cliente com acesso bloqueado"
+      description: "Exige 00501. CPF ou CNPJ válido, nome e endereço completo sempre obrigatórios. Os campos adicionais seguem o CFG, os acessos e as opções das referências. A API atribui o código do cliente e devolve a ficha para a liberação com 00502. Campos fiscais da Receita vêm da consulta recente feita no servidor para este CNPJ da loja. Sem consulta, o painel pode incluir manualmente. Reenvie o mesmo corpo e a mesma chave após interrupção para obter a ficha atual do mesmo cliente, sujeita ao recorte atual."
+      security:
+        - SessaoOperador: []
+      parameters:
+        - name: "Idempotency-Key"
+          in: "header"
+          required: true
+          description: "Chave única por inclusão, entre 16 e 64 caracteres. Preserve a chave e o corpo ao reenviar após timeout."
+          schema: {type: "string", pattern: '^[A-Za-z0-9_-]{16,64}$'}
+          example: "cadastro-teste-chave-01"
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema: {"$ref": "#/components/schemas/InclusaoClienteOperador"}
+            example:
+              documento: "12.ABC.345/01DE-35"
+              nome: "Comércio Fictício"
+              ie_rg: "NAO CONTRIBUINTE"
+              telefone1: "11 90000-0000"
+              categoria_id: 1
+              endereco: {cep: "01234567", logradouro: "Rua de Teste", numero: "9", cidade_id: 100, bairro_id: 101, uf: "SP"}
+      responses:
+        "200":
+          description: "Reenvio idempotente. Ficha atual do cliente já incluído."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados: {"$ref": "#/components/schemas/FichaClienteOperador"}
+        "201":
+          description: "Cliente incluído. A ficha vem com acesso_liberado false, revisao 0 e a versao."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados: {"$ref": "#/components/schemas/FichaClienteOperador"}
+        "400":
+          description: "Corpo ou chave de envio inválida."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo: {type: "string", enum: ["SOLICITACAO_INVALIDA", "CHAVE_INVALIDA"]}
+        "401": {"$ref": "#/components/responses/SessaoInvalida"}
+        "403": {"$ref": "#/components/responses/ConsultaOperadorNegada"}
+        "404":
+          description: "Loja ou ficha indisponível, ou CEP não encontrado."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo: {type: "string", enum: ["LOJA_INDISPONIVEL", "CLIENTE_NAO_LOCALIZADO", "CEP_NAO_ENCONTRADO"]}
+        "409":
+          description: "Documento requer confirmação, chave já usada com outro corpo, inclusão em curso ou base precisa ser atualizada."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo: {type: "string", enum: ["DOCUMENTO_REPETIDO", "CHAVE_REUTILIZADA", "OPERACAO_EM_ANDAMENTO", "ACESSO_CADASTRO_INDISPONIVEL"]}
+        "413": {"$ref": "#/components/responses/CorpoGrande"}
+        "422":
+          description: "Dados inválidos, repetição de documento e IE ou RG, IE isenta sem confirmação, ou cadastro mantido no Desktop."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo: {type: "string", enum: ["DADOS_INVALIDOS", "DOCUMENTO_E_IE_REPETIDOS", "IE_ISENTO_SEM_CONFIRMACAO", "CADASTRO_SOMENTE_DESKTOP"]}
+        "423": {"$ref": "#/components/responses/LicencaOperadorIndisponivel"}
+        "429": {"$ref": "#/components/responses/LimiteRequisicoes"}
+        "503":
+          description: "API ou serviço de CEP indisponível. Tente novamente com a mesma chave ou informe o endereço pelos IDs."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo: {type: "string", enum: ["INDISPONIVEL", "CEP_INDISPONIVEL"]}
   "/b2b/v1/lojas/{loja}/operadores/clientes/{cliente}":
     parameters:
       - "$ref": "#/components/parameters/Loja"
@@ -4634,6 +4880,94 @@ components:
             bairro_id: {type: ["integer","null"], minimum: 1, maximum: 2147483647}
             cidade_id: {type: ["integer","null"], minimum: 1, maximum: 2147483647}
             uf: {type: ["string","null"], pattern: '^[A-Za-z]{2}$'}
+    ReferenciaInclusaoCliente:
+      type: "object"
+      required: ["id", "nome"]
+      properties:
+        id: {type: ["integer", "null"], minimum: 1}
+        nome: {type: "string"}
+    FormularioInclusaoCliente:
+      type: "object"
+      required: ["obrigatorios", "obrigatorios_pessoa_fisica", "editaveis", "padroes"]
+      properties:
+        obrigatorios: {type: "array", items: {type: "string"}}
+        obrigatorios_pessoa_fisica: {type: "array", items: {type: "string"}}
+        editaveis: {type: "array", items: {type: "string"}}
+        padroes:
+          type: "object"
+          properties:
+            categoria_id: {type: ["integer", "null"]}
+            situacao_id: {type: ["integer", "null"]}
+            vendedor_id: {type: ["integer", "null"]}
+    ClienteJaCadastrado:
+      type: "object"
+      required: ["ja_existe", "cliente_id"]
+      properties:
+        ja_existe: {type: "boolean", const: true}
+        cliente_id: {type: ["integer", "null"], minimum: 1}
+    SugestaoClienteCnpj:
+      type: "object"
+      required: ["ja_existe", "documento", "nome", "razao_social", "endereco", "situacao_irregular"]
+      properties:
+        ja_existe: {type: "boolean", const: false}
+        documento: {type: "string"}
+        razao_social: {type: "string"}
+        nome: {type: "string"}
+        fantasia: {type: "string"}
+        ie_rg: {type: "string"}
+        email: {type: "string"}
+        telefone1: {type: "string"}
+        situacao_receita: {type: "string"}
+        situacao_irregular: {type: "boolean"}
+        endereco:
+          type: "object"
+          properties:
+            cep: {type: "string"}
+            logradouro: {type: "string"}
+            numero: {type: "string"}
+            complemento: {type: "string"}
+            cidade: {"$ref": "#/components/schemas/ReferenciaInclusaoCliente"}
+            bairro: {"$ref": "#/components/schemas/ReferenciaInclusaoCliente"}
+            uf: {type: "string"}
+    InclusaoClienteOperador:
+      type: "object"
+      additionalProperties: false
+      required: ["documento", "nome", "ie_rg", "endereco"]
+      properties:
+        documento: {type: "string", maxLength: 32}
+        nome: {type: "string", maxLength: 90}
+        fantasia: {type: ["string", "null"], maxLength: 90}
+        ie_rg: {type: "string", maxLength: 26}
+        email: {type: ["string", "null"], maxLength: 200}
+        telefone1: {type: ["string", "null"], maxLength: 60}
+        telefone2: {type: ["string", "null"], maxLength: 60}
+        telefone3: {type: ["string", "null"], maxLength: 60}
+        contato: {type: ["string", "null"], maxLength: 50}
+        confirmar_documento_repetido: {type: "boolean", description: "True após confirmar a inclusão de outro cadastro com IE ou RG diferente."}
+        confirmar_isento: {type: "boolean", description: "True se a equipe confirmar que a pessoa jurídica é governo ou ONG com IE isenta. Caso contrário, informe NAO CONTRIBUINTE em ie_rg."}
+        categoria_id: {type: ["integer", "null"], minimum: 1, description: "Segue 05016 e 05017."}
+        situacao_id: {type: ["integer", "null"], minimum: 1, description: "Segue 05018 e acesso à aba de crédito."}
+        regiao_id: {type: ["integer", "null"], minimum: 1}
+        vendedor_id: {type: ["integer", "null"], minimum: 1}
+        tabela_preco_id: {type: ["integer", "null"], minimum: 1, description: "Segue 86718."}
+        banco_cobranca_id: {type: ["integer", "null"], minimum: 1}
+        limite_credito_mensal: {type: ["string", "null"], pattern: '^[0-9]{1,9}(\.[0-9]{1,2})?$', description: "Valor decimal permitido somente com 05001."}
+        nascimento: {type: ["string", "null"], format: "date", description: "Somente para pessoa física."}
+        nome_mae: {type: ["string", "null"], maxLength: 50, description: "Somente para pessoa física."}
+        rg: {type: ["string", "null"], maxLength: 26, description: "RG em campo próprio da pessoa física, quando exigido."}
+        endereco:
+          type: "object"
+          additionalProperties: false
+          required: ["cep", "numero"]
+          description: "Envie os IDs de cidade e bairro e o logradouro para preencher manualmente. Se omitir cidade_id, a API resolve o endereço pelo CEP como na ficha existente."
+          properties:
+            cep: {type: "string", pattern: '^[0-9]{5}-?[0-9]{3}$'}
+            logradouro: {type: ["string", "null"], maxLength: 90}
+            numero: {type: "string", maxLength: 10}
+            complemento: {type: ["string", "null"], maxLength: 60}
+            bairro_id: {type: ["integer", "null"], minimum: 1}
+            cidade_id: {type: "integer", minimum: 1}
+            uf: {type: ["string", "null"], pattern: '^[A-Za-z]{2}$'}
     AlteracaoAcessoClienteOperador:
       type: "object"
       additionalProperties: false

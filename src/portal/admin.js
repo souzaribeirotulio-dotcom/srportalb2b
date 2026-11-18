@@ -17,6 +17,7 @@ import { consultarCnpj } from './cadastro.js';
 import { abrirFichaG360 } from './fichag360.js';
 import { paraJpeg } from './jpeg.js';
 import { abrirImportacaoFotos } from './importarfotos.js';
+import { abrirNovoClienteG360 } from './novocliente.js';
 import { definirEncerramentoOperador, definirAtividadeOperador } from '../estado/sessao.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { dinheiro, numeroPainel, dataBr } from '../ui/formato.js';
@@ -142,7 +143,7 @@ function ligar() {
   $('clNovo').insertAdjacentHTML('beforebegin', '<button class="btn sec" id="clG360" type="button" style="height:36px">📋 Ficha no G360 pelo CNPJ</button>');
   $('clG360').addEventListener('click', fichaPeloCnpj);
   $('clQ').addEventListener('keydown', (e) => { if (e.key === 'Enter' && docLimpo($('clQ').value).length >= 11) { e.preventDefault(); fichaPeloCnpj(); } });
-  $('clQ').addEventListener('input', adiar(() => desenharCadastros(false), 200));
+  $('clQ').addEventListener('input', adiar(() => { $('clG360Err')?.remove(); desenharCadastros(false); }, 200));
   $('clSt').addEventListener('change', () => desenharCadastros(false));
 
   // Preços congelados: o cliente é escolhido pelo CNPJ (a API não lista clientes).
@@ -762,13 +763,14 @@ function pintarCadastros() {
       <div class="sm sm2">${k.codigo_g360 ? esc(k.codigo_g360) : '<span style="color:var(--tx3)">—</span>'}</div>
       <div class="sm">${esc(k.cidade || '')}${k.uf ? `/${esc(k.uf)}` : ''}${k.codigo_g360 ? `<span class="som"> · cód. ${esc(k.codigo_g360)}</span>` : ''}</div>
       <div class="stw"><span class="stt ${k.status === 'recusado' ? 'reprovado' : esc(k.status)}">${SIT[k.status] || esc(k.status)}</span></div>
-      <div class="ab2">${k.status === 'pendente' ? '<button class="ap" data-d="aprovado">Aprovar</button><button class="rp" data-d="recusado">Reprovar</button>' : ''}<button data-lista ${k.codigo_g360 ? '' : 'disabled title="Coloque o código do G360 na ficha (Editar → Buscar dados)"'}>⭐ Minha Lista</button>${k.codigo_g360 ? '<button data-g360>📋 Ficha G360</button>' : ''}<button data-ed>Editar</button></div></div>`).join('')
+      <div class="ab2">${k.status === 'pendente' ? '<button class="ap" data-d="aprovado">Aprovar</button><button class="rp" data-d="recusado">Reprovar</button>' : ''}${k.status === 'aprovado' && !k.codigo_g360 ? '<button class="ap" data-novo>➕ Cadastrar no G360</button>' : ''}<button data-lista ${k.codigo_g360 ? '' : 'disabled title="Cadastre no G360 primeiro (➕ Cadastrar no G360)"'}>⭐ Minha Lista</button>${k.codigo_g360 ? '<button data-g360>📋 Ficha G360</button>' : ''}<button data-ed>Editar</button></div></div>`).join('')
       : vazio(cadastros.length ? 'Nenhum cliente encontrado com essa busca.' : 'Nenhum cliente ainda. Clique em "+ Novo cliente" ou aguarde os pedidos de "Quero ser cliente".'))
     + '<div class="hint" style="padding:10px 18px">A ficha é do portal: preço, condições de pagamento, crédito e endereços de entrega continuam vindo do G360. Para o cliente entrar, ele precisa estar no G360 com "Acesso à API dos sistemas externos" marcado.</div>';
   alvo.querySelectorAll('.crow2[data-id] button').forEach((b) => b.addEventListener('click', async () => {
     const k = cadastros.find((x) => String(x.id) === b.closest('.crow2').dataset.id);
     if (b.hasAttribute('data-ed')) { abrirFicha(k); return; }
     if (b.hasAttribute('data-g360')) { abrirFichaG360(k.codigo_g360, opcoesFichaG360()); return; }
+    if (b.hasAttribute('data-novo')) { novoClienteG360(k); return; }
     if (b.hasAttribute('data-lista')) { montarLista({ codigo: k.codigo_g360, nome: k.fantasia || k.razao_social }); return; }
     b.disabled = true;
     try { await painel('cadastro_decidir', { id: k.id, status: b.dataset.d, observacao: k.observacao_equipe || '' }); }
@@ -779,6 +781,14 @@ function pintarCadastros() {
 }
 
 const UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
+
+/** DDD + número, sem +55 nem 0 na frente (o preenchimento automático costuma pôr). */
+function foneLimpo(t) {
+  let d = soNum(t);
+  if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2);
+  if ((d.length === 11 || d.length === 12) && d.startsWith('0')) d = d.slice(1);
+  return d;
+}
 
 /** Novo / Editar cliente (mesmo formulário do painel antigo). Não altera nada no G360. */
 async function abrirFicha(k) {
@@ -810,7 +820,7 @@ async function abrirFicha(k) {
     <div class="okmsg" style="color:var(--tx3)">Só para consulta da equipe. O pedido usa os endereços de entrega cadastrados no G360.</div>
     <div class="csec">Contato</div>
     <div class="fgrid"><div class="full"><label for="kResp">Nome do responsável pelas compras${req}</label>${inp('kResp', d.responsavel, 'maxlength="120"')}</div>
-      <div><label for="kWa">WhatsApp${req}</label>${inp('kWa', soNum(d.whats), 'inputmode="numeric" maxlength="11" placeholder="DDD + número"')}</div>
+      <div><label for="kWa">WhatsApp${req}</label>${inp('kWa', soNum(d.whats), 'inputmode="tel" maxlength="16" placeholder="DDD + número"')}</div>
       <div><label for="kTel">Telefone da empresa</label>${inp('kTel', soNum(d.telefone), 'inputmode="numeric" maxlength="11"')}</div>
       <div class="full"><label for="kEm">E-mail${req}</label>${inp('kEm', d.email, 'type="email" maxlength="160"')}</div>
       <div class="full"><label for="kOri">Como conheceu a Souza Ribeiro?${req}</label><select class="inp" id="kOri"><option value="">Selecione…</option>${origens.map((o) => `<option ${o === d.origem ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div></div>
@@ -832,7 +842,7 @@ async function abrirFicha(k) {
   $('mAdm').onclick = (e) => { if (e.target.id === 'mAdm') fechar(); };
   setTimeout(() => (k ? $('kRaz') : $('kCnpj')).focus(), 60);
 
-  ['kWa', 'kTel'].forEach((id) => $(id).addEventListener('input', (e) => { e.target.value = soNum(e.target.value).slice(0, 11); }));
+  ['kWa', 'kTel'].forEach((id) => $(id).addEventListener('input', (e) => { e.target.value = foneLimpo(e.target.value).slice(0, 11); }));
   $('kCod').addEventListener('input', (e) => { e.target.value = soNum(e.target.value).slice(0, 9); });
   $('kIsento').onchange = () => { $('kIE').disabled = $('kIsento').checked; if ($('kIsento').checked) $('kIE').value = ''; };
   $('kCnpj').addEventListener('input', () => { const c = docLimpo($('kCnpj').value); if (c.length === 14) $('kCnpj').value = fmtDoc(c); });
@@ -870,7 +880,7 @@ async function abrirFicha(k) {
         const fg = await consultarFichaClienteOperador(op.token, cli.codigo);
         const en = fg.endereco || {};
         pre('kRaz', fg.nome); pre('kFan', fg.fantasia); if (fg.ie_rg && /isento/i.test(fg.ie_rg)) $('kIsento').checked = true; else pre('kIE', fg.ie_rg);
-        pre('kEm', fg.email); pre('kResp', fg.contato); pre('kTel', soNum(fg.telefone1).slice(0, 11));
+        pre('kEm', fg.email); pre('kResp', fg.contato); pre('kTel', foneLimpo(fg.telefone1).slice(0, 11));
         pre('kCep', soNum(en.cep)); pre('kLog', en.logradouro); pre('kNum', en.numero); pre('kCom', en.complemento);
         pre('kBai', en.bairro?.nome); pre('kCid', en.cidade?.nome); if (en.uf && !$('kUf').value) $('kUf').value = en.uf;
         g.textContent += ' Dados do cadastro do G360 preenchidos.';
@@ -914,8 +924,8 @@ async function abrirFicha(k) {
     const n = {
       id: d.id || null, documento: docLimpo(v('kCnpj')), razao_social: v('kRaz'), fantasia: v('kFan'),
       inscricao_estadual: $('kIsento').checked ? 'ISENTO' : v('kIE'), cep: soNum(v('kCep')), numero: v('kNum'), logradouro: v('kLog'),
-      complemento: v('kCom'), bairro: v('kBai'), cidade: v('kCid'), uf: $('kUf').value, responsavel: v('kResp'), whats: soNum(v('kWa')),
-      telefone: soNum(v('kTel')), email: v('kEm'), origem: $('kOri').value, codigo_g360: v('kCod') || null, status: $('kSt').value, vendedor: $('kVend').value,
+      complemento: v('kCom'), bairro: v('kBai'), cidade: v('kCid'), uf: $('kUf').value, responsavel: v('kResp'), whats: foneLimpo(v('kWa')),
+      telefone: foneLimpo(v('kTel')), email: v('kEm'), origem: $('kOri').value, codigo_g360: v('kCod') || null, status: $('kSt').value, vendedor: $('kVend').value,
     };
     const falta = [];
     if (!/^[A-Z0-9]{14}$/.test(n.documento) && !/^[0-9]{11}$/.test(n.documento)) falta.push('CNPJ completo');
@@ -947,6 +957,20 @@ async function abrirFicha(k) {
   };
 }
 
+/** "Quero ser cliente" aprovado → cadastro no G360 (nasce bloqueado) → vincula o pedido ao código devolvido → ficha para liberar e mandar o link. */
+function novoClienteG360(k) {
+  abrirNovoClienteG360(k, {
+    token: () => op.token,
+    aoSessaoEncerrada: (e) => encerrarOperador(e.message),
+    vincular: async (codigo) => {
+      const r = (await painel('cadastro_vincular', { id: k.id, codigo_g360: codigo })).dados;
+      if (cadastros && r) { const i = cadastros.findIndex((x) => x.id === r.id); if (i >= 0) cadastros[i] = r; }
+      pintarCadastros();
+    },
+    abrirFicha: (codigo) => abrirFichaG360(codigo, opcoesFichaG360()),
+  });
+}
+
 async function fichaPeloCnpj() {
   const doc = docLimpo($('clQ').value);
   if (doc.length < 11) { toast('Digite o CNPJ (ou CPF) completo na busca e clique de novo.'); $('clQ').focus(); return; }
@@ -956,7 +980,8 @@ async function fichaPeloCnpj() {
     abrirFichaG360(c.codigo, opcoesFichaG360());
   } catch (e) {
     if (e.status === 401) { encerrarOperador(e.message); return; }
-    const alvo = $('clCad'); alvo.insertAdjacentHTML('afterbegin', '<div class="g360-erro" id="clG360Err" style="margin:12px 18px"></div>');
+    $('clG360Err')?.remove();
+    $('clCad').insertAdjacentHTML('beforebegin', '<div class="g360-erro" id="clG360Err" style="margin:12px 18px"></div>');
     mostrarMensagemErro($('clG360Err'), e);
   } finally { b.disabled = false; b.textContent = '📋 Ficha no G360 pelo CNPJ'; }
 }

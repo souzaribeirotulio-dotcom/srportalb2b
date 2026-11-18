@@ -10,6 +10,15 @@ import { $, esc, abrirModal, fecharModal } from './comum.js';
 
 const UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
 const so = (t) => String(t || '').replace(/\D/g, '');
+/** Telefone brasileiro só com DDD + número: tira +55 e o 0 de operadora/DDD que o preenchimento automático costuma pôr. */
+function fone(t) {
+  let d = so(t);
+  if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2);
+  if ((d.length === 11 || d.length === 12) && d.startsWith('0')) d = d.slice(1);
+  return d;
+}
+const foneOk = (t) => /^[1-9][0-9][0-9]{8,9}$/.test(fone(t));
+function foneBonito(t) { const d = fone(t); return d.length === 11 ? `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}` : d.length === 10 ? `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}` : t; }
 
 function campo(id, rotulo, extra = '', obrig = false) {
   return `<label for="${id}">${rotulo}${obrig ? '' : ' <span style="text-transform:none;font-weight:400">(opcional)</span>'}</label><input class="inp" id="${id}" ${extra}><div class="err" id="${id}Err"></div>`;
@@ -54,8 +63,8 @@ export function abrirCadastro(ctx) {
     ${campo('kIe', 'Inscrição estadual', 'maxlength="30"')}
     ${campo('kResp', 'Nome do responsável pelas compras', 'maxlength="120" autocomplete="name"', true)}
     <div class="end-form" style="background:none;border:none;padding:0;margin:0"><div class="grade2">
-      <div>${campo('kWhats', 'WhatsApp', 'inputmode="tel" maxlength="16" autocomplete="tel"', true)}</div>
-      <div>${campo('kTel', 'Telefone', 'inputmode="tel" maxlength="16"')}</div></div></div>
+      <div>${campo('kWhats', 'WhatsApp', 'inputmode="tel" maxlength="20" autocomplete="tel"', true)}</div>
+      <div>${campo('kTel', 'Telefone', 'inputmode="tel" maxlength="20"')}</div></div></div>
     ${campo('kEmail', 'E-mail', 'type="email" maxlength="160" autocomplete="email"', true)}
     ${campo('kCep', 'CEP', 'inputmode="numeric" maxlength="9" autocomplete="postal-code"', true)}
     <div class="hint" id="kCepSt" aria-live="polite"></div>
@@ -104,14 +113,18 @@ export function abrirCadastro(ctx) {
     } catch { $('kCepSt').textContent = ''; }
   });
 
+  ['kWhats', 'kTel'].forEach((id) => {
+    $(id).addEventListener('input', () => { $(`${id}Err`).textContent = ''; $(id).removeAttribute('aria-invalid'); });
+    $(id).addEventListener('blur', () => { if ($(id).value.trim() && foneOk($(id).value)) $(id).value = foneBonito($(id).value); });
+  });
   $('kEnviar').onclick = async () => {
     const v = (id) => $(id).value.trim();
     const erros = {};
     if (!/^[A-Za-z0-9]{11,14}$/.test(v('kDoc').replace(/[^A-Za-z0-9]/g, ''))) erros.kDoc = 'Digite o CNPJ (ou CPF) completo.';
     if (v('kRazao').length < 2) erros.kRazao = 'Digite a razão social.';
     if (v('kResp').length < 2) erros.kResp = 'Digite o nome do responsável.';
-    if (!/^[0-9]{10,11}$/.test(so(v('kWhats')))) erros.kWhats = 'WhatsApp com DDD (10 ou 11 números).';
-    if (v('kTel') && !/^[0-9]{10,11}$/.test(so(v('kTel')))) erros.kTel = 'Telefone com DDD (10 ou 11 números).';
+    if (!foneOk(v('kWhats'))) erros.kWhats = 'WhatsApp com DDD, por exemplo (64) 99999-7015.';
+    if (v('kTel') && !foneOk(v('kTel'))) erros.kTel = 'Telefone com DDD, por exemplo (34) 3227-0508.';
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v('kEmail'))) erros.kEmail = 'Digite um e-mail válido.';
     if (so(v('kCep')).length !== 8) erros.kCep = 'CEP com 8 números.';
     if (!v('kRua')) erros.kRua = 'Digite a rua ou avenida.';
@@ -127,7 +140,7 @@ export function abrirCadastro(ctx) {
     const b = $('kEnviar'); b.disabled = true; b.textContent = 'Enviando…';
     const d = {
       documento: v('kDoc'), razao_social: v('kRazao'), fantasia: v('kFantasia'), inscricao_estadual: v('kIe'), responsavel: v('kResp'),
-      whats: v('kWhats'), telefone: v('kTel'), email: v('kEmail'), cep: v('kCep'), logradouro: v('kRua'), numero: v('kNum'),
+      whats: fone(v('kWhats')), telefone: v('kTel') ? fone(v('kTel')) : '', email: v('kEmail'), cep: v('kCep'), logradouro: v('kRua'), numero: v('kNum'),
       complemento: v('kComp'), bairro: v('kBairro'), cidade: v('kCidade'), uf: $('kUf').value, origem: v('kOrigem'),
     };
     const sb = supabaseComprador();

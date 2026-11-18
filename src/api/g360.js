@@ -366,6 +366,25 @@ export async function buscarReferenciasOperador(token, tipo, q, uf) {
   return (await requisitar('GET', 'operadores/enderecos/referencias', { token, consulta: { tipo, q, uf } })).dados;
 }
 
+/* ---- Novo cliente pelo painel (pacote 18/11 manhã) ---- */
+/** GET operadores/cadastro/cliente — regras do formulário: { obrigatorios, obrigatorios_pessoa_fisica, editaveis, padroes }. */
+export async function formularioNovoClienteOperador(token) {
+  return (await requisitar('GET', 'operadores/cadastro/cliente', { token })).dados;
+}
+/** GET operadores/referencias?tipo=categoria|situacao|regiao|vendedor|tabela_preco|banco_cobranca — [{ id, nome }]. */
+export async function referenciasNovoClienteOperador(token, tipo) {
+  return (await requisitar('GET', 'operadores/referencias', { token, consulta: { tipo } })).dados;
+}
+/** POST operadores/cadastro/cnpj — { ja_existe: true, cliente_id } ou a sugestão da Receita. Não cria nada. */
+export async function preencherNovoClienteCnpj(token, cnpj) {
+  return (await requisitar('POST', 'operadores/cadastro/cnpj', { token, corpo: { cnpj } })).dados;
+}
+/** POST operadores/clientes com Idempotency-Key — { dados: ficha, status } (201 incluído, 200 reenvio da mesma chave). */
+export async function incluirClienteOperador(token, corpo, chave) {
+  const r = await requisitar('POST', 'operadores/clientes', { token, corpo, cabecalhos: { 'Idempotency-Key': chave } });
+  return { dados: r.dados, status: r.status };
+}
+
 /** POST operadores/produtos/busca — { dados, paginacao } com preço, custo e margem. */
 export async function buscarProdutosOperador(token, filtros = {}) {
   const corpo = {};

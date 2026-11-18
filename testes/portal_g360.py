@@ -83,7 +83,11 @@ with sync_playwright() as pw:
                  ('kEmail', 'compras@example.invalid'), ('kRua', 'Rua Exemplo'), ('kNum', '10'), ('kCidade', 'Cidade Exemplo'), ('kBairro', 'Centro')]:
         n.pg.fill('#' + i, v)
     n.pg.fill('#kCep', '38400000')
+    n.pg.fill('#kWhats', '6499'); n.pg.click('#kEnviar')
+    checar('DDD' in n.tc('#kWhatsErr'), 'WhatsApp incompleto recusado')
+    n.pg.fill('#kWhats', '+55 (64) 99997-015'); checar(n.tc('#kWhatsErr') == '', 'aviso some ao corrigir o WhatsApp')
     n.pg.click('#kEnviar'); n.pg.wait_for_selector('#cadBox .ok')
+    checar(sim.cadastros[0]['whats'] == '6499997015', f"WhatsApp com +55 aceito e gravado só com DDD + número: {sim.cadastros[0]['whats']}")
     checar(len(sim.cadastros) == 1 and sim.cadastros[0]['documento'] == '12ABC34501DE35' and sim.cadastros[0]['loja'] == '96da1e99a3f327f0', f'cadastro não chegou: {sim.cadastros}')
     n.pg.screenshot(path=f'{OUT}/portal_cadastro_enviado_390.png')
     n.fechar()
@@ -566,5 +570,44 @@ with sync_playwright() as pw:
     pg.click('#impX'); checar(not pg.is_visible('#ifImp'), 'fechar a importação')
     n.fechar()
 
-print('FALHAS:' if falhas else 'Portal (layout original) + Etapas 1, 2 e 5 a 13: todos os testes passaram.')
+    # Etapa 14: novo cliente no G360 a partir do "Quero ser cliente" aprovado
+    etapa[0] = 'Etapa 14'
+    sim.cadastros.append({'id': '00000000-0000-4000-8000-000000000014', 'loja': '96da1e99a3f327f0', 'documento': '44ABC55501FG66', 'razao_social': 'Pedido Fictício LTDA', 'fantasia': 'Pedido Fictício',
+                          'inscricao_estadual': '', 'responsavel': 'Pessoa Fictícia', 'whats': '34999990000', 'telefone': None, 'email': 'novo@example.invalid', 'cep': '38400200', 'numero': '50',
+                          'logradouro': 'Rua Nova', 'complemento': '', 'bairro': 'Bairro Dois', 'cidade': 'Cidade Exemplo', 'uf': 'MG', 'status': 'aprovado', 'codigo_g360': None, 'criado_por': 'portal', 'criado_em': '2026-11-18T10:00:00+00:00'})
+    n = N(pw, sim, '/painel', largura=1280); pg = n.pg
+    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
+    sel = '#clCad .crow2[data-id="00000000-0000-4000-8000-000000000014"]'
+    pg.wait_for_selector(f'{sel} [data-novo]'); pg.click(f'{sel} [data-novo]'); pg.wait_for_selector('#mAdm.open #nSalvar')
+    cnpjs = [x for x in sim.chamadas if x[1] == 'operadores/cadastro/cnpj']
+    checar(cnpjs and cnpjs[-1][3] == {'cnpj': '44ABC55501FG66'}, f'consulta do CNPJ só com o cnpj: {cnpjs[-1][3] if cnpjs else None}')
+    t = n.tc('#admBox')
+    checar('INAPTA' in t and pg.input_value('#nNome') == 'EMPRESA NOVA FICTICIA LTDA' and pg.input_value('#nEm') == 'novo@example.invalid', 'formulário preenchido pela Receita e pelo pedido, com aviso de situação irregular')
+    pg.wait_for_function("document.getElementById('nCepM').textContent.includes('encontrado')")
+    pg.fill('#nT1', ''); pg.click('#nSalvar')
+    checar('Falta preencher' in n.tc('#nErr') and 'telefone' in n.tc('#nErr') and 'categoria' in n.tc('#nErr') and not sim.inclusoes, f"obrigatórios do G360 conferidos antes de enviar: {n.tc('#nErr')}")
+    pg.fill('#nT1', '34 99999-0000'); pg.select_option('#n_categoria_id', '3'); pg.fill('#nIe', 'ISENTO'); pg.click('#nSalvar')
+    checar('Falta preencher' in n.tc('#nErr') and 'governo' in n.tc('#nErr') and not sim.inclusoes, 'ISENTO pede confirmação antes de enviar')
+    pg.click('[data-ie="NAO CONTRIBUINTE"]'); sim.cenario['incluir_cair'] = 1; pg.click('#nSalvar')
+    pg.wait_for_function("document.getElementById('nSalvar').textContent === 'Tentar de novo' && !document.getElementById('nSalvar').disabled")
+    checar(pg.is_disabled('#nNome'), 'resposta incerta trava o formulário')
+    pg.click('#nSalvar'); pg.wait_for_selector('#mAdm.open #gLib')
+    k1, c1 = sim.inclusoes[-2]; k2, c2 = sim.inclusoes[-1]
+    checar(k1 == k2 and c1 == c2 and len(k1) >= 16, 'reenvio com a mesma chave e o mesmo corpo')
+    checar(c2['categoria_id'] == 3 and c2['ie_rg'] == 'NAO CONTRIBUINTE' and 'cidade_id' not in c2['endereco'] and c2['endereco']['cep'] == '38400200' and 'situacao_id' not in c2, f'corpo da inclusão: {c2}')
+    cad = next(c for c in sim.cadastros if c['id'] == '00000000-0000-4000-8000-000000000014')
+    novo = max(sim.fichas)
+    checar(cad.get('codigo_g360') == novo and sim.fichas[novo]['acesso_liberado'] is False, f'pedido vinculado ao cliente incluído (bloqueado): {cad.get("codigo_g360")}')
+    checar('Bloqueado' in n.tc('#admBox'), 'ficha aberta para liberar o acesso')
+    pg.click('#gX')
+    # CNPJ que já existe no G360: não duplica, oferece a ficha
+    sim.cadastros.append({**cad, 'id': '00000000-0000-4000-8000-000000000015', 'documento': sim.fichas[1165]['documento'], 'codigo_g360': None})
+    pg.click('[data-at="prod"]'); pg.click('[data-at="cli"]'); sel = '#clCad .crow2[data-id="00000000-0000-4000-8000-000000000015"]'
+    pg.wait_for_selector(f'{sel} [data-novo]'); n0 = len(sim.inclusoes); pg.click(f'{sel} [data-novo]'); pg.wait_for_selector('#mAdm.open #nAbrir')
+    checar('já está no G360' in n.tc('#admBox') and '1165' in n.tc('#admBox') and len(sim.inclusoes) == n0, 'CNPJ já cadastrado não duplica')
+    pg.click('#nAbrir'); pg.wait_for_selector('#mAdm.open #gSalvar')
+    checar(next(c for c in sim.cadastros if c['id'].endswith('15'))['codigo_g360'] == 1165, 'vinculado ao cadastro existente')
+    n.fechar()
+
+print('FALHAS:' if falhas else 'Portal (layout original) + Etapas 1, 2 e 5 a 14: todos os testes passaram.')
 for f in falhas: print(' -', f)

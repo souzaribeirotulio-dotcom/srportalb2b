@@ -235,6 +235,16 @@ Ao salvar, chame `PUT operadores/clientes/{cliente}` com a `versao` da ficha e o
 
 Os botões de acesso chamam `PUT operadores/clientes/{cliente}/acesso` com `liberado` e a `revisao`. Atualize a ficha após gravar. O botão de bloquear avisa que sessões e links serão invalidados. Depois de corrigir o e-mail e liberar o acesso, gere o link de primeiro acesso pelo fluxo já usado. Se o e-mail mudou, gere outro link mesmo que já houvesse um pendente.
 
+### Novo cliente a partir de Quero ser cliente
+
+No painel, depois que a equipe aprovar o pedido de **Quero ser cliente**, abra **Novo cliente**. Leia `GET operadores/cadastro/cliente` com a sessão do operador. Use `editaveis` para montar o formulário, `padroes` para mostrar os valores sugeridos e as duas listas de obrigatórios para marcar os campos. Carregue as opções de `GET operadores/referencias?tipo=...`. Para CPF, use os dados do próprio pedido.
+
+Para CNPJ, envie só `cnpj` no corpo de `POST operadores/cadastro/cnpj`. Se `ja_existe` vier verdadeiro e tiver `cliente_id`, abra a ficha pelo código. Se o código vier nulo, informe que o documento já existe e peça à equipe para conferir no G360. Se a API devolver uma sugestão, preencha os campos com os dados do pedido e da consulta e deixe a equipe conferir. Mostre o aviso de situação cadastral irregular quando vier. Se a consulta falhar, mostre `erro.mensagem` e permita continuar manualmente.
+
+Salve com `POST operadores/clientes` e uma `Idempotency-Key` inédita. Em timeout, preserve a chave e o corpo e aguarde a resposta antes de seguir. Mostre a mensagem da API e os campos em cada recusa. Só envie `confirmar_isento: true` se a equipe confirmar que a pessoa jurídica é governo ou ONG. Se o documento tiver outra IE ou RG, peça a confirmação antes de reenviar com `confirmar_documento_repetido: true`.
+
+Com a ficha devolvida, use a `revisao` para liberar o acesso com os controles da ficha. Gere o link de primeiro acesso depois de liberar e conferir o e-mail. A aprovação no painel só pode ser vinculada ao cliente retornado pela API.
+
 ## 12. CORS e endereços do portal
 
 A API só responde ao navegador nos endereços (origens) que a Movimento cadastrou para a loja. Endereço de pré-visualização que muda a cada versão não serve, nem curinga.

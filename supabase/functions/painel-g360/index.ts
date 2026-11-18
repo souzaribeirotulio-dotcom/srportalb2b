@@ -63,7 +63,7 @@ async function conferir(token: string): Promise<boolean> {
 const SITUACOES = new Set(["pendente", "aprovado", "recusado"]);
 const texto = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
-async function executar(acao: string, d: Record<string, unknown>): Promise<[number, unknown]> {
+async function executar(acao: string, d: Record<string, unknown>, token = ""): Promise<[number, unknown]> {
   if (acao === "cadastros_listar") {
     const { data, error } = await admin.from("portal_cadastros").select("*").eq("loja", loja)
       .order("criado_em", { ascending: false }).limit(300);
@@ -82,6 +82,27 @@ async function executar(acao: string, d: Record<string, unknown>): Promise<[numb
     if (error) throw error;
     if (!data?.length) return [404, { mensagem: "Cadastro não encontrado." }];
     return [200, { ok: true }];
+  }
+  if (acao === "cadastro_vincular") {
+    // Liga o pedido do portal ao cliente que a API devolveu (Novo cliente ou cadastro já existente).
+    // Só vincula se a ficha do G360, lida com o token do operador, tiver o mesmo documento.
+    const id = texto(d.id, 40); const codigo = Number(d.codigo_g360);
+    if (!/^[0-9a-f-]{36}$/.test(id) || !(Number.isSafeInteger(codigo) && codigo > 0)) return [400, { mensagem: "Dados inválidos." }];
+    const { data: k, error: e0 } = await admin.from("portal_cadastros").select("id, documento").eq("id", id).eq("loja", loja).maybeSingle();
+    if (e0) throw e0;
+    if (!k) return [404, { mensagem: "Cadastro não encontrado." }];
+    const r = await fetch(`${api.href.replace(/\/$/, "")}/b2b/v1/lojas/${loja}/operadores/clientes/${codigo}`, {
+      headers: { Authorization: `Bearer ${token}` }, redirect: "error", signal: AbortSignal.timeout(15_000),
+    });
+    if (r.status === 401) return [401, { mensagem: "Sua sessão terminou. Entre novamente." }];
+    if (!r.ok) { await r.body?.cancel(); return [409, { mensagem: "Não foi possível conferir a ficha no G360. Tente de novo." }]; }
+    const doc = String((await r.json())?.dados?.documento ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (doc !== String(k.documento)) return [409, { mensagem: "O cliente do G360 tem outro documento. O pedido não foi vinculado." }];
+    const { data, error } = await admin.from("portal_cadastros").update({
+      codigo_g360: codigo, status: "aprovado", decidido_por: "Equipe (usuário do G360)", atualizado_em: new Date().toISOString(),
+    }).eq("id", id).eq("loja", loja).select("*");
+    if (error) throw error;
+    return [200, { dados: data?.[0] }];
   }
   if (acao === "cliente_salvar") {
     // Ficha do cliente no portal (Novo/Editar cliente). Não toca no G360.
@@ -461,7 +482,7 @@ Deno.serve(async (req) => {
     return json(503, { mensagem: "Não foi possível conferir o acesso agora. Tente de novo em instantes." });
   }
   try {
-    const [s, b] = await executar(String(corpo.acao || ""), (corpo.dados ?? {}) as Record<string, unknown>);
+    const [s, b] = await executar(String(corpo.acao || ""), (corpo.dados ?? {}) as Record<string, unknown>, token);
     return json(s, b);
   } catch {
     console.warn("painel-g360: falha no banco", String(corpo.acao || ""));

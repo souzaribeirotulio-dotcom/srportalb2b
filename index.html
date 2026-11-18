@@ -625,10 +625,12 @@ body:has(.mod.open) #souzinha-widget .sz-fab{display:none}
     <p class="hint" style="margin:6px 0 2px">Acesso exclusivo para empresas clientes. Entre para ver preços e fazer pedidos.</p>
   </div>
   <div id="lgAdmT" hidden><h3 style="margin:8px 0 2px">Acesso do administrador</h3></div>
-  <label id="lgL">CNPJ</label><input id="lgC" placeholder="00.000.000/0000-00" inputmode="numeric" autocomplete="username">
-  <label>Senha</label><input id="lgS" type="password" placeholder="Sua senha" autocomplete="current-password">
+  <form id="lgForm" method="post" action="#" novalidate>
+  <label id="lgL" for="lgC">CNPJ</label><input id="lgC" name="username" placeholder="00.000.000/0000-00" inputmode="numeric" autocomplete="username">
+  <label for="lgS">Senha</label><input id="lgS" name="password" type="password" placeholder="Sua senha" autocomplete="current-password">
   <div class="err" id="lgE"></div>
-  <div class="act"><button class="btn sec" id="lgX">Cancelar</button><button class="btn pri" id="lgOk">Entrar</button></div>
+  <div class="act"><button type="button" class="btn sec" id="lgX">Cancelar</button><button type="submit" class="btn pri" id="lgOk">Entrar</button></div>
+  </form>
   <div id="lgEsq" hidden><label>E-mail do cadastro</label><input id="lgEm" type="email" placeholder="email@empresa.com.br"><div class="hint" id="lgEsqM">Informe o CNPJ e o e-mail do cadastro. Enviaremos uma senha nova para esse e-mail.</div></div>
   <div class="lgfoot"><a id="lgEsqL">Esqueci minha senha</a> · <a id="lgAdm">Acesso do administrador</a><a id="lgVolta" hidden>← Voltar para o login de cliente</a></div>
 </div></div>

@@ -563,8 +563,11 @@ function ligarLogin() {
   $('lgS').maxLength = 64;
   if (!$('lgRes')) $('lgE').insertAdjacentHTML('afterend', '<div id="lgRes" aria-live="polite"></div><p class="hint" id="lgSessao"></p>');
   $('lgX').onclick = () => { fecharModal('mLogin'); depoisDoLogin = null; };
-  $('lgS').onkeydown = (e) => { if (e.key === 'Enter') $('lgOk').click(); };
-  $('lgC').onkeydown = (e) => { if (e.key === 'Enter') $('lgS').focus(); };
+  // Formulário de verdade: o navegador oferece salvar o CNPJ e a senha e preenche no próximo login.
+  // O Enter na senha envia o formulário (clique no botão Entrar); a página não recarrega.
+  $('lgForm').onsubmit = (e) => e.preventDefault();
+  $('lgC').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); $('lgS').focus(); } };
+  $('lgS').onkeydown = null;
   $('lgOk').onclick = async () => {
     const usuario = doc.value.trim(); const senha = $('lgS').value;
     $('lgE').textContent = ''; $('lgRes').innerHTML = '';

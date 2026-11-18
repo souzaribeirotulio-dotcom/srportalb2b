@@ -59,6 +59,7 @@ class Sim:
         self.vinculo_segundos = 300
         self.fotos_pedidas = []
         self.cadastros = []
+        self.inclusoes = []; self.chaves_cli = {}
         self.enderecos_post = []
         self.fichas = {1165: {'id': 1165, 'documento': '11111111000111', 'tipo_pessoa': 'juridica', 'nome': 'COMPRADOR FICTICIO UM LTDA', 'fantasia': 'Fictício Um', 'ie_rg': 'ISENTO', 'email': 'compras@example.invalid', 'telefone1': '34 99999-0000', 'telefone2': '', 'telefone3': '', 'contato': 'Fulano', 'endereco': {'cep': '38400100', 'logradouro': 'Avenida Exemplo', 'numero': '10', 'complemento': '', 'bairro': {'id': 5, 'nome': 'Centro'}, 'cidade': {'id': 9, 'nome': 'Cidade Exemplo'}, 'uf': 'MG', 'ibge': '3170206'}, 'acesso_liberado': False, 'revisao': 0, 'versao': 'a' * 64, 'pode_alterar': True, 'pode_alterar_acesso': True, 'ie_travada': False}}
         self.fichas_put = []
@@ -322,6 +323,37 @@ class Sim:
         if caminho == 'operadores/enderecos/referencias':
             return self.ok(route, [{'id': 9, 'nome': 'Cidade Exemplo'}] if q.get('tipo', [''])[0] == 'cidade' else [{'id': 5, 'nome': 'Centro'}])
         if caminho == 'operadores/sessao': self.op_tokens.pop(tok, None); return route.fulfill(status=204, headers=CORS, body='')
+        if caminho == 'operadores/cadastro/cliente':
+            return self.ok(route, {'obrigatorios': ['telefone', 'categoria'], 'obrigatorios_pessoa_fisica': ['rg_se_nao_contribuinte'], 'editaveis': ['fantasia', 'email', 'telefone', 'contato', 'categoria', 'situacao', 'limite_credito_mensal'], 'padroes': {'categoria_id': None, 'situacao_id': 2, 'vendedor_id': None}})
+        if caminho == 'operadores/referencias':
+            t = q.get('tipo', [''])[0]
+            return self.ok(route, {'categoria': [{'id': 1, 'nome': 'Varejo'}, {'id': 3, 'nome': 'Atacado'}], 'situacao': [{'id': 2, 'nome': 'Normal'}]}.get(t, []))
+        if caminho == 'operadores/cadastro/cnpj':
+            doc = re.sub(r'[^0-9A-Za-z]', '', corpo['cnpj']).upper()
+            if set(corpo) != {'cnpj'}: return self.erro(route, 422, 'CAMPO_NAO_PERMITIDO', 'A solicitação tem campos que a API não aceita.', 'integracao')
+            ja = [f for f in self.fichas.values() if f['documento'] == doc]
+            if ja: return self.ok(route, {'ja_existe': True, 'cliente_id': ja[0]['id']})
+            if doc == '55555555000155': return self.erro(route, 503, 'RECEITA_INDISPONIVEL', 'A consulta por CNPJ está indisponível. Tente novamente ou preencha o cadastro manualmente.', 'tentar_de_novo')
+            return self.ok(route, {'ja_existe': False, 'documento': doc, 'razao_social': 'EMPRESA NOVA FICTICIA LTDA', 'nome': 'EMPRESA NOVA FICTICIA LTDA', 'fantasia': 'Nova Fictícia', 'ie_rg': '', 'email': '', 'telefone1': '', 'situacao_receita': 'INAPTA', 'situacao_irregular': True,
+                                   'endereco': {'cep': '38400200', 'logradouro': 'Rua Nova', 'numero': '50', 'complemento': '', 'cidade': {'id': 9, 'nome': 'Cidade Exemplo'}, 'bairro': {'id': 6, 'nome': 'Bairro Dois'}, 'uf': 'MG'}})
+        if caminho == 'operadores/clientes' and m == 'POST':
+            chave = req.headers.get('idempotency-key', '')
+            self.inclusoes.append((chave, corpo))
+            if not re.match(r'^[A-Za-z0-9_-]{16,64}$', chave): return self.erro(route, 400, 'CHAVE_INVALIDA', 'Envio sem identificação. Atualize a página e tente novamente.', 'integracao')
+            if self.cenario.get('incluir_cair'): self.cenario['incluir_cair'] -= 1; return route.abort()
+            if chave in self.chaves_cli:
+                if self.chaves_cli[chave][0] != corpo: return self.erro(route, 409, 'CHAVE_REUTILIZADA', 'Esta chave já foi usada em outra solicitação de inclusão.', 'integracao')
+                return self.ok(route, self.fichas[self.chaves_cli[chave][1]])
+            if corpo.get('ie_rg') == 'ISENTO' and not corpo.get('confirmar_isento'):
+                return self.erro(route, 422, 'IE_ISENTO_SEM_CONFIRMACAO', 'Somente governo e organizações não governamentais podem ser ISENTO. Confirme ou informe NAO CONTRIBUINTE.', 'usuario')
+            novo = max(self.fichas) + 1
+            e = corpo['endereco']
+            self.fichas[novo] = {'id': novo, 'documento': corpo['documento'], 'tipo_pessoa': 'fisica' if len(corpo['documento']) == 11 else 'juridica', 'nome': corpo['nome'], 'fantasia': corpo.get('fantasia', ''), 'ie_rg': corpo['ie_rg'],
+                'email': corpo.get('email', ''), 'telefone1': corpo.get('telefone1', ''), 'telefone2': corpo.get('telefone2', ''), 'telefone3': corpo.get('telefone3', ''), 'contato': corpo.get('contato', ''),
+                'endereco': {'cep': e['cep'], 'logradouro': e.get('logradouro') or 'Rua Nova', 'numero': e['numero'], 'complemento': e.get('complemento', ''), 'bairro': {'id': 6, 'nome': 'Bairro Dois'}, 'cidade': {'id': 9, 'nome': 'Cidade Exemplo'}, 'uf': 'MG', 'ibge': '3170206'},
+                'acesso_liberado': False, 'revisao': 0, 'versao': 'b' * 64, 'pode_alterar': True, 'pode_alterar_acesso': True, 'ie_travada': False}
+            self.chaves_cli[chave] = (corpo, novo)
+            return self.ok(route, self.fichas[novo], 201)
         if caminho == 'operadores/clientes/consulta':
             if re.sub(r'[^0-9A-Za-z]', '', corpo['cnpj']) == '11111111000111': return self.ok(route, {'codigo': 1165, 'nome': 'Comprador Fictício Um LTDA', 'acesso_portal': True, 'segmento': {'codigo': 1, 'descricao': 'Varejo'}})
             return self.erro(route, 404, 'CLIENTE_NAO_LOCALIZADO', 'Cliente não localizado.', 'usuario')
@@ -457,6 +489,13 @@ class Sim:
                     return res(404, {'mensagem': 'Ficha não encontrada.'})
                 c.update({'id': str(uuid.uuid4()), 'criado_por': 'equipe', 'criado_em': '2026-11-17T13:00:00+00:00', 'loja': '96da1e99a3f327f0'}); self.cadastros.append(c)
                 return res(200, {'dados': c})
+            if ac == 'cadastro_vincular':
+                cod = int(d['codigo_g360']); f = self.fichas.get(cod)
+                for c in self.cadastros:
+                    if c['id'] == d['id']:
+                        if not f or f['documento'] != c['documento']: return res(409, {'mensagem': 'O cliente do G360 tem outro documento. O pedido não foi vinculado.'})
+                        c.update(codigo_g360=cod, status='aprovado'); return res(200, {'dados': c})
+                return res(404, {'mensagem': 'Cadastro não encontrado.'})
             if ac == 'cadastro_decidir':
                 for c in self.cadastros:
                     if c.get('id') == d.get('id'): c['status'] = d['status']; c['observacao_equipe'] = d.get('observacao') or None; return res(200, {'ok': True})

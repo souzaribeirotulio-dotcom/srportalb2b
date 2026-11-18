@@ -104,3 +104,8 @@ Nada aqui é contrato oficial. Os nomes de operação são os da interface do fr
 
 ## Atualização 17/11 (noite) — importação de fotos em massa
 - O painel passou a incluir fotos em lote (`POST operadores/produtos/{id}/fotos`, `PUT .../fotos/capa`, `DELETE .../fotos/{item}`), achando os produtos por `codigos` em `POST operadores/produtos/busca`. Para 2.500 produtos são cerca de 7.500 inclusões. Confirmar com a Movimento se esse volume em poucos dias (respeitando 240 chamadas/min) é aceitável na homologação e na produção, e se o operador TULIO tem 01101 (incluir e definir capa) e 01102.
+
+## Atualização 18/11 (manhã) — novo cliente pelo painel e sessão do comprador
+- Novo cliente implementado (`GET operadores/cadastro/cliente`, `GET operadores/referencias`, `POST operadores/cadastro/cnpj`, `POST operadores/clientes` com `Idempotency-Key`). Falta confirmar: **quais nomes podem vir em `editaveis`, `obrigatorios` e `obrigatorios_pessoa_fisica`**. O contrato não lista os valores. O portal entende os nomes dos campos do corpo (`email`, `contato`, `categoria_id` ou `categoria` etc.) mais `telefone` e `rg_se_nao_contribuinte`; outro nome aparece na tela como "o G360 exige também: …".
+- Sessão do comprador: a equipe pede que o portal **não deslogue tão rápido**. Hoje `loja.sessao_minutos` volta 8 minutos na homologação. Pedimos para aumentar esse parâmetro (sugestão: 120 minutos) e dizer se existe ou se está previsto um jeito de "manter conectado" (renovar o token sem pedir a senha de novo). Pelas regras do kit, o token não pode ser guardado no navegador, então recarregar a página pede login de novo.
+- Política de venda sem estoque para produção: a equipe decide entre liberar, avisar ou bloquear (resposta pendente da Souza Ribeiro).
