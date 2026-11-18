@@ -45,6 +45,7 @@ export function carregarExibicao(forcar = false) {
 export function oculto(p) { return registro(p)?.oculto === true; }
 /** Configuração da loja: mostrar só produtos com estoque também na busca. */
 export function soEstoque() { return estado.soEstoque === true; }
+export function estoqueMinimoAtual() { return estado.estoqueMinimo || 0; }
 /** "Só produtos com mais de N unidades" (quando a API manda a quantidade). Sem número, não esconde. */
 export function abaixoDoMinimo(p) {
   const min = estado.estoqueMinimo || 0;

@@ -621,6 +621,13 @@ with sync_playwright() as pw:
     checar(110 in ids and 102 in ids and 101 not in ids, f'filtro fora do portal lista só os tirados: {ids}')
     pg.click('.arow[data-id="110"] [data-oc="0"]'); pg.wait_for_function("!document.querySelector('.arow[data-id=\"110\"]')")
     checar(sim.exibicao.get('P-110', {}).get('oculto') is False, 'produto de volta ao portal')
+    checar(sim.visiveis and 'P-101' in sim.visiveis['visiveis'] and 'P-103' in sim.visiveis['sem_estoque'], f'portal mandou a lista do que aparece: {sim.visiveis and {k: len(v) for k, v in sim.visiveis.items() if isinstance(v, list)}}')
+    pg.select_option('#aSt', 'visivel'); pg.wait_for_selector('.arow[data-id="101"]')
+    ids = [int(x) for x in pg.eval_on_selector_all('.arow[data-id]', 'e => e.map(x => x.dataset.id)')]
+    checar(103 not in ids and 102 not in ids and 'último acesso de cliente' in n.tc('#aPanel'), f'aparecendo no portal tira sem estoque e ocultos: {ids}')
+    pg.select_option('#aSt', 'fora'); pg.wait_for_selector('.arow[data-id="103"]')
+    t = n.tc('#aPanel')
+    checar('Sem estoque' in t and 'Tirado pela equipe' in t and pg.locator('.arow[data-id="101"]').count() == 0, 'fora do portal com o motivo de cada um')
     n.fechar()
 
 print('FALHAS:' if falhas else 'Portal (layout original) + Etapas 1, 2 e 5 a 14: todos os testes passaram.')

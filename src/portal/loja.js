@@ -6,11 +6,11 @@
    ===================================================================== */
 import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
-import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo } from '../catalogo/exibicao.js';
-import { LOJA } from '../api/supabase.js';
+import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo, estoqueMinimoAtual } from '../catalogo/exibicao.js';
+import { LOJA, supabaseComprador } from '../api/supabase.js';
 import { buscarLocal, temEstoque, variacoes } from '../catalogo/busca.js';
 import { listarProdutos, buscarProdutos, listarMarcas } from '../api/g360.js';
-import { sessao, entrar, sair, trocarSenha } from '../estado/sessao.js';
+import { sessao, entrar, sair, trocarSenha, garantirVinculo } from '../estado/sessao.js';
 import { adicionar, linhasCarrinho, alterarQuantidade, remover, aoMudarCarrinho, quantidadeLinhas } from '../estado/carrinho.js';
 import { carregarIds, incluirNaLista, removerDaLista, idsCarregados } from '../estado/minha-lista.js';
 import { normalizarQuantidade, dinheiro, estimar } from '../ui/formato.js';
@@ -272,7 +272,7 @@ async function resultadoVitrine() {
 let contagem = null;
 async function contarComEstoque(totalCatalogo) {
   const rotulo = $('tot').nextElementSibling;
-  const chave = `sr-estoque2-${LOJA}-${sessao.comprador?.codigo || ''}`;
+  const chave = `sr-estoque3-${LOJA}-${sessao.comprador?.codigo || ''}`;
   const mostrar = (t, r) => { $('tot').textContent = t; if (rotulo) rotulo.textContent = r; };
   try {
     const salvo = JSON.parse(localStorage.getItem(chave) || 'null');
@@ -284,12 +284,17 @@ async function contarComEstoque(totalCatalogo) {
   mostrar('…', 'Contando estoque');
   const paginas = Math.max(1, Math.ceil(totalCatalogo / 50));
   let n = 0; let feitas = 0; let proxima = 1; let falhou = false;
+  const lista = { visiveis: [], baixo: [], sem: [] }; // só códigos, para o painel saber o que aparece
   const trabalhador = async () => {
     while (!falhou && proxima <= paginas && sessao.token === token) {
       const pagina = proxima++;
       try {
         const { dados } = await listarProdutos(token, { pagina, limite: 50 });
-        n += dados.map(apresentar).filter((p) => temEstoque(p) && !oculto(p) && !abaixoDoMinimo(p)).length;
+        for (const p of dados.map(apresentar)) {
+          const tem = temEstoque(p); const baixo = tem && abaixoDoMinimo(p);
+          (!tem ? lista.sem : baixo ? lista.baixo : lista.visiveis).push(String(p.codigo));
+          if (tem && !baixo && !oculto(p)) n += 1;
+        }
       } catch { falhou = true; return; }
       feitas += 1;
       if (sessao.token === token && feitas < paginas) mostrar(`${n.toLocaleString('pt-BR')}…`, `Contando estoque ${Math.round((feitas / paginas) * 100)}%`);
@@ -300,6 +305,17 @@ async function contarComEstoque(totalCatalogo) {
   if (falhou) { mostrar(totalCatalogo.toLocaleString('pt-BR'), 'Produtos'); contagem = null; return; }
   mostrar(n.toLocaleString('pt-BR'), 'Com estoque');
   try { localStorage.setItem(chave, JSON.stringify({ n, em: Date.now() })); } catch { /* ok */ }
+  enviarVisiveis(lista);
+}
+
+/** Manda ao Supabase a lista de códigos com e sem estoque (o painel usa no filtro "Aparecendo no portal").
+ *  Sem quantidade nem preço. Falhou → tudo bem, outro acesso manda depois. */
+async function enviarVisiveis(l) {
+  try {
+    if (!(await garantirVinculo())) return;
+    const sb = supabaseComprador(); if (!sb) return;
+    await sb.rpc('portal_visiveis_gravar', { p_visiveis: l.visiveis, p_estoque_baixo: l.baixo, p_sem_estoque: l.sem, p_estoque_minimo: estoqueMinimoAtual() });
+  } catch { /* sem efeito para o comprador */ }
 }
 
 /** Busca: nomes do portal (tolerante) + busca da API (código, EAN, aplicação); com estoque primeiro. */

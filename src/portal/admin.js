@@ -110,7 +110,7 @@ function ligar() {
   });
 
   // Produtos
-  $('aSt').innerHTML = '<option value="">Todos os produtos</option><option value="auto">Nome automático (revisar)</option><option value="semcat">Sem categoria definida</option><option value="baixa">Margem abaixo do mínimo</option><option value="semcusto">Sem custo cadastrado</option><option value="visivel">✅ Não tirados pela equipe</option><option value="oculto">🚫 Tirados do portal pela equipe</option><option value="semdesc">Sem descrição da equipe</option>';
+  $('aSt').innerHTML = '<option value="">Todos os produtos</option><option value="auto">Nome automático (revisar)</option><option value="semcat">Sem categoria definida</option><option value="baixa">Margem abaixo do mínimo</option><option value="semcusto">Sem custo cadastrado</option><option value="visivel">✅ Aparecendo no portal</option><option value="fora">🚫 Fora do portal (todos os motivos)</option><option value="oculto">🙈 Tirados pela equipe</option><option value="semdesc">Sem descrição da equipe</option>';
   $('aCat').innerHTML = '<option value="">Todas as categorias</option>';
   $('aPanel').insertAdjacentHTML('beforebegin', `<div class="afil" style="align-items:center;margin-top:-4px"><button class="btn sec" id="aGerar" style="height:36px">✨ Gerar nomes e categorias</button>
     <span class="hint" id="aGerarInfo" style="margin:0">Passa por todos os produtos do G360 e cria o nome no padrão de e-commerce e a categoria. Não mexe no que a equipe já ajustou nem nos nomes do portal antigo.</span></div>`);
@@ -127,7 +127,8 @@ function ligar() {
   $('aQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); prod.pagina = 1; desenharProdutos(); } });
   $('aCat').addEventListener('change', () => { prod.pagina = 1; desenharProdutos(); });
   let stAntes = '';
-  $('aSt').addEventListener('change', () => { const st = $('aSt').value; const busca = st === 'oculto' || stAntes === 'oculto'; stAntes = st; if (busca) prod.pagina = 1; desenharProdutos(busca); });
+  const PELA_LISTA = ['oculto', 'visivel', 'fora'];
+  $('aSt').addEventListener('change', () => { const st = $('aSt').value; const busca = PELA_LISTA.includes(st) || PELA_LISTA.includes(stAntes); stAntes = st; if (busca) { prod.pagina = 1; visAdm = null; } desenharProdutos(busca); });
   $('aPanel').addEventListener('click', (e) => {
     const r = e.target.closest('.arow[data-id]'); if (!r) return;
     if (e.target.closest('[data-ed]') || e.target.closest('.amini')) abrirFotos(Number(r.dataset.id), r.dataset.nome);
@@ -339,12 +340,24 @@ async function desenharProdutos(buscar = true) {
       preencherGrupos();
       const cat = $('aCat').value;
       let codigos = cat ? codigosDaCategoria(cat) : null;
-      if ($('aSt').value === 'oculto') {
+      const st0 = $('aSt').value;
+      if (st0 === 'visivel' || st0 === 'fora') { if (!visAdm) visAdm = await lerVisiveis(); }
+      let porLista = null; // filtros "aparecendo" e "fora": a lista vem do portal e pagina aqui
+      if (st0 === 'oculto') {
         // Os ocultos não entram em codigosDaCategoria: filtra pela categoria do registro.
         const oc = codigosOcultos();
         codigos = cat ? oc.filter((c) => registro({ codigo: c })?.categoria === cat) : oc;
+      } else if ((st0 === 'visivel' || st0 === 'fora') && visAdm?.ok && !q) {
+        const ocs = new Set(codigosOcultos(100000));
+        porLista = st0 === 'visivel' ? visAdm.lista.visiveis.filter((c) => !ocs.has(c))
+          : [...new Set([...ocs, ...visAdm.lista.baixo, ...visAdm.lista.sem])];
+        if (cat) { const daCat = new Set(codigosDaCategoria(cat, 100000)); porLista = porLista.filter((c) => daCat.has(c) || registro({ codigo: c })?.categoria === cat); }
       }
-      if (codigos && !codigos.length) { prod.lista = []; prod.total = 0; }
+      if (porLista) {
+        const fatia = porLista.slice((prod.pagina - 1) * 20, prod.pagina * 20);
+        prod.lista = fatia.length ? (await buscarProdutosOperador(op.token, { codigos: fatia, limite: 20 })).dados : [];
+        prod.total = porLista.length;
+      } else if (codigos && !codigos.length) { prod.lista = []; prod.total = 0; }
       else {
         const { dados, paginacao } = await buscarProdutosOperador(op.token, { q: q || undefined, codigos: codigos || undefined, pagina: prod.pagina, limite: 20 });
         prod.lista = dados; prod.total = paginacao?.total || 0;
@@ -358,16 +371,19 @@ async function desenharProdutos(buscar = true) {
     || (st === 'baixa' && p.custo_visivel && p.margem_percentual !== null && p.margem_percentual < limiteMargem())
     || (st === 'semcusto' && p.custo_visivel && p.custo === null)
     || (st === 'oculto' && registro(p)?.oculto)
-    || (st === 'visivel' && !registro(p)?.oculto)
+    || (st === 'visivel' && motivoFora(p) === null)
+    || (st === 'fora' && motivoFora(p) !== null)
     || (st === 'semdesc' && !registro(p)?.descricao));
-  const avisoEstoque = st === 'visivel' || st === 'oculto' ? '<div class="rv-aviso" style="margin:10px 18px">Além dos que a equipe tira, o portal esconde sozinho os produtos com estoque baixo (5 unidades ou menos). O painel ainda não recebe o estoque do G360, então esses aparecem aqui como se estivessem no portal. Já pedimos esse dado à Movimento.</div>' : '';
+  const avisoEstoque = st === 'visivel' || st === 'fora' ? (visAdm?.ok
+    ? `<div class="hint" style="margin:10px 18px">Estoque conferido no último acesso de cliente ao portal: ${esc(new Date(visAdm.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }))}. A lista se atualiza sozinha quando os clientes entram (no máximo a cada 10 minutos).</div>`
+    : '<div class="rv-aviso" style="margin:10px 18px">Ainda não temos a lista de estoque do portal. Ela é criada quando um cliente entra no portal. Entre uma vez como cliente, espere a contagem do estoque terminar e volte aqui.</div>') : '';
   const paginas = Math.max(1, Math.ceil(prod.total / 20));
   const cats = categorias();
   alvo.innerHTML = avisoEstoque + `<div class="arow h"><div></div><div>Nome no portal (${prod.total})</div><div>Preço de tabela</div><div>Categoria</div><div>Custo</div><div></div></div>`
     + (L.length ? L.map((p) => { const r = registro(p); const cat = categoriaExibicao(p); return `<div class="arow" data-id="${Number(p.id)}" data-nome="${esc(nomeExibicao(p))}" data-cod="${esc(p.codigo)}" data-g360="${esc(p.nome)}">
       <div class="amini g360-mini" data-foto="${Number(p.id)}" title="Fotos"><span>…</span></div>
       <div class="nm"><input class="inp pnome" value="${esc(nomeExibicao(p))}" maxlength="160" aria-label="Nome no portal" style="width:100%;font-weight:600">
-        <small>G360: ${esc(p.nome)} · Cód. ${esc(p.codigo)} · ${esc(p.unidade || '—')}${r?.curva ? ` · <b style="color:var(--lima)">Curva ${esc(r.curva)}</b>` : ''} · ${margemHtml(p)} · ${r?.oculto ? '<b style="color:#ff8a8a">🙈 Oculto no catálogo</b> · ' : ''}${clipsAdm?.some((c) => Number(c.produto_id) === Number(p.id)) ? '▶ clip · ' : ''}<span class="org">${!r ? 'nome automático (não salvo)' : r.origem === 'automatico' ? 'nome automático' : r.origem === 'legado' ? 'portal antigo' : 'ajustado pela equipe'}</span></small></div>
+        <small>G360: ${esc(p.nome)} · Cód. ${esc(p.codigo)} · ${esc(p.unidade || '—')}${r?.curva ? ` · <b style="color:var(--lima)">Curva ${esc(r.curva)}</b>` : ''} · ${margemHtml(p)} · ${(() => { const m = motivoFora(p); return m ? `<b style="color:#ff8a8a">${m}</b> · ` : (visAdm?.ok ? '<b style="color:var(--lima)">✅ no portal</b> · ' : ''); })()}${clipsAdm?.some((c) => Number(c.produto_id) === Number(p.id)) ? '▶ clip · ' : ''}<span class="org">${!r ? 'nome automático (não salvo)' : r.origem === 'automatico' ? 'nome automático' : r.origem === 'legado' ? 'portal antigo' : 'ajustado pela equipe'}</span></small></div>
       <div class="num"><b>${esc(dinheiro(p.preco))}</b>${p.origem_preco ? `<small style="display:block;color:var(--tx3);font-size:11px">${esc(p.origem_preco)}</small>` : ''}</div>
       <div><select class="inp pcat" aria-label="Categoria">${cats.map((c) => `<option ${c === cat ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>${r?.categoria ? '' : '<small style="display:block;color:var(--tx3);font-size:11px">sugerida pelo nome</small>'}</div>
       <div class="uns">${p.custo_visivel ? (p.custo === null ? '—' : `R$ ${esc(numeroPainel(p.custo, 2))}`) : 'sem acesso'}</div>
@@ -382,6 +398,28 @@ async function desenharProdutos(buscar = true) {
 let clipsAdm = null;
 
 /** Abaixo da linha do produto: descrição do portal, ocultar do catálogo e clips (vídeos). */
+/* Lista do que aparece no portal (gravada pelo portal na contagem de estoque de um cliente). */
+let visAdm = null;
+async function lerVisiveis() {
+  try {
+    const d = (await painel('visiveis_ler')).dados;
+    if (!d) return { ok: false };
+    return { ok: true, em: d.atualizado_em, minimo: Number(d.estoque_minimo) || 0,
+      lista: { visiveis: d.visiveis || [], baixo: d.estoque_baixo || [], sem: d.sem_estoque || [] },
+      set: { visiveis: new Set(d.visiveis || []), baixo: new Set(d.estoque_baixo || []), sem: new Set(d.sem_estoque || []) } };
+  } catch { return { ok: false }; }
+}
+/** null = aparece no portal; texto = motivo de estar fora. Sem a lista, só sabe dos tirados pela equipe. */
+function motivoFora(p) {
+  if (registro(p)?.oculto) return '🙈 Tirado pela equipe';
+  if (!visAdm?.ok) return null;
+  const c = String(p.codigo);
+  if (visAdm.set.baixo.has(c)) return `📉 Estoque baixo (${visAdm.minimo} un. ou menos)`;
+  if (visAdm.set.sem.has(c)) return '⛔ Sem estoque';
+  if (!visAdm.set.visiveis.has(c)) return '❔ Fora do catálogo dos clientes';
+  return null;
+}
+
 /** Tira o produto do catálogo do portal (ou devolve). Não apaga nada no G360: o produto continua lá, no histórico e na Minha Lista. */
 async function tirarOuVoltar(r, b) {
   const p = (prod.lista || []).find((x) => Number(x.id) === Number(r.dataset.id)); if (!p) return;

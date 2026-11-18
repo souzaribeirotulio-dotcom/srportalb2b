@@ -283,6 +283,12 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     if (!data?.length) return [409, { mensagem: "Esta negociação já foi respondida ou cancelada pelo cliente." }];
     return [200, { ok: true }];
   }
+  if (acao === "visiveis_ler") {
+    // Lista de códigos com e sem estoque, gravada pelo portal na última contagem de um comprador.
+    const { data, error } = await admin.from("portal_visiveis").select("visiveis, estoque_baixo, sem_estoque, estoque_minimo, atualizado_em").eq("loja", loja).maybeSingle();
+    if (error) throw error;
+    return [200, { dados: data ?? null }];
+  }
   if (acao === "ocorrencias_listar") {
     const { data, error } = await admin.from("ocorrencias_g360")
       .select("registrada_em, codigo, operacao, comprador_codigo, request_id").eq("loja", loja)

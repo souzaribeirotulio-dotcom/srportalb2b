@@ -59,7 +59,7 @@ class Sim:
         self.vinculo_segundos = 300
         self.fotos_pedidas = []
         self.cadastros = []
-        self.inclusoes = []; self.chaves_cli = {}
+        self.inclusoes = []; self.chaves_cli = {}; self.visiveis = None
         self.enderecos_post = []
         self.fichas = {1165: {'id': 1165, 'documento': '11111111000111', 'tipo_pessoa': 'juridica', 'nome': 'COMPRADOR FICTICIO UM LTDA', 'fantasia': 'Fictício Um', 'ie_rg': 'ISENTO', 'email': 'compras@example.invalid', 'telefone1': '34 99999-0000', 'telefone2': '', 'telefone3': '', 'contato': 'Fulano', 'endereco': {'cep': '38400100', 'logradouro': 'Avenida Exemplo', 'numero': '10', 'complemento': '', 'bairro': {'id': 5, 'nome': 'Centro'}, 'cidade': {'id': 9, 'nome': 'Cidade Exemplo'}, 'uf': 'MG', 'ibge': '3170206'}, 'acesso_liberado': False, 'revisao': 0, 'versao': 'a' * 64, 'pode_alterar': True, 'pode_alterar_acesso': True, 'ie_travada': False}}
         self.fichas_put = []
@@ -454,6 +454,7 @@ class Sim:
                 if 'descricao' in d: r['descricao'] = d['descricao'] or None
                 if 'oculto' in d: r['oculto'] = d['oculto'] is True
                 return res(200, {'ok': True})
+            if ac == 'visiveis_ler': return res(200, {'dados': self.visiveis})
             if ac == 'config_ler': return res(200, {'dados': dict(self.config)})
             if ac == 'config_salvar':
                 for k in ('so_estoque', 'margem_minima', 'estoque_minimo'):
@@ -546,6 +547,11 @@ class Sim:
             return route.fulfill(status=404, headers=cab, body='')
         if tabela == 'portal_clips':
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps([c for c in self.clips if c['ativo']]))
+        if tabela == 'rpc/portal_visiveis_gravar':
+            if not valido: return route.fulfill(status=400, headers=cab, content_type='application/json', body=json.dumps({'message': 'sessao'}))
+            b = json.loads(req.post_data or '{}')
+            self.visiveis = {'visiveis': b['p_visiveis'], 'estoque_baixo': b['p_estoque_baixo'], 'sem_estoque': b['p_sem_estoque'], 'estoque_minimo': b['p_estoque_minimo'], 'atualizado_em': '2026-11-18T12:00:00+00:00'}
+            return route.fulfill(status=204, headers=cab, body='')
         if tabela == 'rpc/portal_config_publica':
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({'so_estoque': self.config['so_estoque'], 'estoque_minimo': self.config['estoque_minimo']}))
         if tabela == 'portal_negociacoes':
