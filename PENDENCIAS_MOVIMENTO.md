@@ -115,3 +115,11 @@ Nada aqui é contrato oficial. Os nomes de operação são os da interface do fr
 - Resolvido: `quantidade_disponivel` na busca e no preço por cliente do operador. O painel mostra "Disponível: N" e usa o número no filtro "Aparecendo no portal".
 - Resolvido: sessão de 60 minutos na homologação e F5 sem perder o login (token no sessionStorage da aba, comprador e painel com chaves separadas; ao recarregar, `GET me` e `abrir_sessao`).
 - A responder pela Souza Ribeiro antes da produção: tempo de inatividade desejado na produção e a política de venda sem estoque (liberar, avisar ou bloquear).
+
+## Produção (loja 5149dad76848a732) — vitrine com só 5 produtos (18/11/2026, 20:15)
+
+- Operação: `GET vitrine/produtos` (sem sessão) na URL-base `https://api-bh13.g360web.com.br/APIMOBILE`.
+- Resposta: `paginacao.total = 5` (códigos 002558, 105833, 2K300BI100, 8776, 22760) e 2 grupos em `GET vitrine/grupos`.
+- Na homologação, a mesma vitrine devolvia o catálogo todo (milhares de produtos).
+- Pergunta: qual configuração do G360 de produção define os produtos liberados para a loja (vitrine e catálogo do comprador)? O portal não filtra nada além de estoque e dos produtos tirados pela equipe.
+- Origem cadastrada e funcionando: `https://portal.souzaribeiro.net`.
