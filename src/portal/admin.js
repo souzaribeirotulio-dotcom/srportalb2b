@@ -925,7 +925,7 @@ async function abrirFicha(k) {
       <div><label for="kWa">WhatsApp${req}</label>${inp('kWa', soNum(d.whats), 'inputmode="tel" maxlength="16" placeholder="DDD + número"')}</div>
       <div><label for="kTel">Telefone da empresa</label>${inp('kTel', soNum(d.telefone), 'inputmode="numeric" maxlength="11"')}</div>
       <div class="full"><label for="kEm">E-mail${req}</label>${inp('kEm', d.email, 'type="email" maxlength="160"')}</div>
-      <div class="full"><label for="kOri">Como conheceu a Souza Ribeiro?${req}</label><select class="inp" id="kOri"><option value="">Selecione…</option>${origens.map((o) => `<option ${o === d.origem ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div></div>
+      <div class="full"><label for="kOri">Como conheceu a Souza Ribeiro?${k ? "" : req}</label><select class="inp" id="kOri"><option value="">Selecione…</option>${origens.map((o) => `<option ${o === d.origem ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div></div>
     <div class="csec">Liberação (admin)</div>
     <div class="fgrid"><div><label for="kCod">Código do cliente no G360</label>${inp('kCod', d.codigo_g360 || '', 'inputmode="numeric" maxlength="9" placeholder="Vem pelo Buscar dados"')}</div>
       <div><label for="kSt">Situação</label><select class="inp" id="kSt">${Object.entries({ pendente: 'Aguardando aprovação', aprovado: 'Aprovado', recusado: 'Reprovado' }).map(([v, t]) => `<option value="${v}" ${v === d.status ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
@@ -1038,8 +1038,19 @@ async function abrirFicha(k) {
     if (!/^[0-9]{10,11}$/.test(n.whats)) falta.push('WhatsApp com DDD');
     if (n.telefone && !/^[0-9]{10,11}$/.test(n.telefone)) falta.push('telefone com DDD');
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(n.email)) falta.push('e-mail válido');
-    if (!n.origem) falta.push('como nos conheceu');
-    if (falta.length) { $('kE').textContent = `Falta preencher: ${falta.join(', ')}.`; return; }
+    // Fichas antigas (e as do "Quero ser cliente" de antes) podem não ter a origem: só é obrigatória no cadastro novo.
+    if (!n.origem && !d.id) falta.push('como nos conheceu');
+    document.querySelectorAll('#admBox .inp.faltou').forEach((el) => el.classList.remove('faltou'));
+    if (falta.length) {
+      const marcar = { 'CNPJ completo': ['kCnpj'], 'razão social': ['kRaz'], 'inscrição estadual (ou marque Isento)': ['kIE'], 'responsável': ['kResp'],
+        'WhatsApp com DDD': ['kWa'], 'telefone com DDD': ['kTel'], 'e-mail válido': ['kEm'], 'como nos conheceu': ['kOri'],
+        'endereço completo': ['kCep', 'kNum', 'kLog', 'kBai', 'kCid', 'kUf'].filter((id) => !$(id).value.trim() || (id === 'kCep' && soNum($(id).value).length !== 8)) };
+      falta.forEach((f) => (marcar[f] || []).forEach((id) => $(id).classList.add('faltou')));
+      $('kE').textContent = `Não salvou. Falta preencher: ${falta.join(', ')}.`;
+      const prim = document.querySelector('#admBox .inp.faltou');
+      (prim || $('kE')).scrollIntoView({ block: 'center', behavior: 'smooth' }); prim?.focus({ preventScroll: true });
+      return;
+    }
     $('kE').textContent = ''; $('kOk').disabled = true; $('kOk').textContent = 'Salvando…';
     try {
       const salvo = (await painel('cliente_salvar', { cliente: n })).dados;
@@ -1054,9 +1065,11 @@ async function abrirFicha(k) {
         if (ja) setTimeout(() => abrirFicha(ja), 1200);
         return;
       }
-      $('kE').textContent = e.message;
+      $('kE').textContent = e.message || 'Não foi possível salvar agora. Tente de novo.';
+      $('kE').scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
   };
+  $('admBox').addEventListener('input', (e) => { if (e.target.classList?.contains('faltou')) e.target.classList.remove('faltou'); });
 }
 
 /** "Quero ser cliente" aprovado → cadastro no G360 (nasce bloqueado) → vincula o pedido ao código devolvido → ficha para liberar e mandar o link. */

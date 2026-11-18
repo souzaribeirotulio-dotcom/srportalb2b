@@ -241,3 +241,5 @@ body.g360-painel #souzinha-widget, body.g360:not(.g360-legado) #souzinha-widget 
 .img .dots { position: absolute; bottom: 9px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; z-index: 2; pointer-events: none; }
 .img .dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(0, 0, 0, .18); transition: background .25s; }
 .img .dots i.on { background: #6aa21a; }
+
+#admBox .inp.faltou{border-color:#d64545;box-shadow:0 0 0 3px rgba(214,69,69,.18)}

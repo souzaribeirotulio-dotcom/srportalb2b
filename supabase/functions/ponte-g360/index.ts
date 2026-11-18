@@ -121,7 +121,13 @@ Deno.serve(criarPonte({
       redirect: "error",
       signal: AbortSignal.timeout(8000),
     });
-    if (!resposta.ok) throw new Error("Provedor recusou a entrega");
+    if (!resposta.ok) {
+      // Só o status e o tipo de erro do provedor: sem e-mail, link, token ou chave.
+      const erro = await resposta.json().catch(() => null);
+      const tipo = typeof erro?.name === "string" && /^[a-z_]{1,60}$/.test(erro.name) ? erro.name : "";
+      console.warn("Ponte de acesso", "provedor_email", resposta.status, tipo);
+      throw new Error("Provedor recusou a entrega");
+    }
   },
   avisarFalha(etapa, status) {
     console.warn("Ponte de acesso", etapa, status ?? "");
