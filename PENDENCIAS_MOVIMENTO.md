@@ -123,3 +123,10 @@ Nada aqui é contrato oficial. Os nomes de operação são os da interface do fr
 - Na homologação, a mesma vitrine devolvia o catálogo todo (milhares de produtos).
 - Pergunta: qual configuração do G360 de produção define os produtos liberados para a loja (vitrine e catálogo do comprador)? O portal não filtra nada além de estoque e dos produtos tirados pela equipe.
 - Origem cadastrada e funcionando: `https://portal.souzaribeiro.net`.
+
+## Produção — painel do operador recusado pela origem (18/11/2026, 20:18)
+
+- Operação: `POST operadores/sessoes` no painel em `https://portal.souzaribeiro.net/painel`.
+- Resposta: 403 `ORIGEM_OPERADOR_NAO_PERMITIDA`, `request_id` b0cc4a6015d66c89.
+- As chamadas do comprador da mesma origem funcionam (CORS e preflight ok).
+- Pedido: liberar também para o painel do operador a origem `https://portal.souzaribeiro.net`.
