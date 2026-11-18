@@ -562,6 +562,10 @@ class Sim:
             b = json.loads(req.post_data or '{}')
             self.visiveis = {'visiveis': b['p_visiveis'], 'estoque_baixo': b['p_estoque_baixo'], 'sem_estoque': b['p_sem_estoque'], 'estoque_minimo': b['p_estoque_minimo'], 'atualizado_em': '2026-11-18T12:00:00+00:00'}
             return route.fulfill(status=204, headers=cab, body='')
+        if tabela == 'rpc/portal_vitrine_codigos':
+            ocs = {k for k, v in self.exibicao.items() if v.get('oculto')}
+            d = [{'codigos': [c for c in self.visiveis['visiveis'] if c not in ocs], 'atualizado_em': self.visiveis['atualizado_em']}] if self.visiveis else []
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps(d))
         if tabela == 'rpc/portal_config_publica':
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({'so_estoque': self.config['so_estoque'], 'estoque_minimo': self.config['estoque_minimo']}))
         if tabela == 'portal_negociacoes':

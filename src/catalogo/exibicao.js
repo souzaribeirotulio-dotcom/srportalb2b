@@ -41,6 +41,22 @@ export function carregarExibicao(forcar = false) {
   return estado.carregando;
 }
 
+/** Visitante: códigos que aparecem no portal (lista da última contagem de estoque de um cliente). null = sem lista. */
+let ativosPublicos; // promessa: chips e catálogo pedem juntos, uma chamada só
+export function codigosAtivosPublicos() {
+  if (!ativosPublicos) ativosPublicos = (async () => {
+    try {
+      const sb = supabaseConfigurado() ? supabaseComprador() : null;
+      if (!sb) return null;
+      const { data } = await sb.rpc('portal_vitrine_codigos', { p_loja: LOJA });
+      const c = (Array.isArray(data) ? data[0] : data)?.codigos;
+      return c?.length ? c.map(String) : null;
+    } catch { return null; } // sem lista: catálogo inteiro da vitrine
+  })();
+  return ativosPublicos;
+}
+export function esquecerAtivosPublicos() { ativosPublicos = undefined; }
+
 /** Produto escondido do catálogo pela equipe (continua no G360, no histórico e na Minha Lista). */
 export function oculto(p) { return registro(p)?.oculto === true; }
 /** Configuração da loja: mostrar só produtos com estoque também na busca. */

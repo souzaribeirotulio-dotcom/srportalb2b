@@ -6,7 +6,7 @@
    catálogo autenticado; ao sair, estes dados públicos voltam do zero.
    ===================================================================== */
 import { listarVitrine, listarMarcasVitrine, urlVitrine } from '../api/g360.js';
-import { carregarExibicao, apresentar, codigosDaCategoria, pesoCurva, oculto, categorias as categoriasPortal } from '../catalogo/exibicao.js';
+import { carregarExibicao, apresentar, codigosDaCategoria, pesoCurva, oculto, categorias as categoriasPortal, codigosAtivosPublicos, esquecerAtivosPublicos } from '../catalogo/exibicao.js';
 import { buscarLocal, variacoes } from '../catalogo/busca.js';
 import { esc } from './comum.js';
 
@@ -15,7 +15,7 @@ const cache = new Map();   // chave → { itens, total }
 let marcas = null;
 export let vitrineFechada = false;
 
-export function limparVisitante() { cache.clear(); marcas = null; vitrineFechada = false; }
+export function limparVisitante() { cache.clear(); marcas = null; vitrineFechada = false; esquecerAtivosPublicos(); }
 
 export async function marcasPublicas() {
   if (!marcas) marcas = await listarMarcasVitrine();
@@ -24,17 +24,21 @@ export async function marcasPublicas() {
 
 export async function chipsPublicos() {
   await carregarExibicao();
-  return categoriasPortal().map((nome) => ({ codigo: nome, nome, quantidade: codigosDaCategoria(nome, Infinity).length || '' }));
+  const ativos = await codigosAtivosPublicos(); const set = ativos ? new Set(ativos) : null;
+  return categoriasPortal().map((nome) => ({ codigo: nome, nome, quantidade: codigosDaCategoria(nome, Infinity).filter((c) => !set || set.has(String(c))).length || '' }));
 }
 
 /** Página pública: { itens, total, paginas }. */
 export async function resultadoPublico(filtros) {
   await carregarExibicao();
+  // Só o que aparece no portal (estoque acima do mínimo e não tirado pela equipe), quando a lista existe.
+  const ativos = await codigosAtivosPublicos(); const set = ativos ? new Set(ativos) : null;
+  const ativo = (p) => !set || set.has(String(p.codigo));
   const marca = filtros.marca ? Number(filtros.marca) : undefined;
   if (filtros.q) {
     const chave = `q|${filtros.q}|${filtros.grupo}|${filtros.marca}`;
     if (!cache.has(chave)) {
-      const locais = buscarLocal(filtros.q, { categoria: filtros.grupo, max: 100 });
+      const locais = buscarLocal(filtros.q, { categoria: filtros.grupo, max: 100 }).filter((l) => !set || set.has(String(l.codigo)));
       const pontos = new Map(locais.map((l, i) => [l.codigo, 1000 - i]));
       const achados = new Map();
       for (let i = 0; i < locais.length; i += 50) {
@@ -47,7 +51,7 @@ export async function resultadoPublico(filtros) {
         dados.map(apresentar).filter((p) => !filtros.grupo || p.categoria === filtros.grupo)
           .forEach((p) => { if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); pontos.set(String(p.codigo), 100); } });
       } catch (e) { if (!achados.size) throw e; }
-      const itens = [...achados.values()].filter((p) => !oculto(p)).sort((a, b) => (pesoCurva(a) - pesoCurva(b))
+      const itens = [...achados.values()].filter((p) => !oculto(p) && ativo(p)).sort((a, b) => (pesoCurva(a) - pesoCurva(b))
         || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
       cache.set(chave, { itens, total: itens.length });
     }
@@ -56,7 +60,7 @@ export async function resultadoPublico(filtros) {
   }
   // Sem busca: pela categoria do portal (códigos em blocos de 100) ou o catálogo inteiro paginado pela API.
   if (filtros.grupo) {
-    const codigos = codigosDaCategoria(filtros.grupo, Infinity);
+    const codigos = codigosDaCategoria(filtros.grupo, Infinity).filter((c) => !set || set.has(String(c)));
     const chave = `g|${filtros.grupo}|${filtros.marca}|${filtros.pagina}`;
     if (!cache.has(chave)) {
       // A página N da categoria: busca os códigos daquela fatia e ordena pela curva.
@@ -67,10 +71,23 @@ export async function resultadoPublico(filtros) {
     const r = cache.get(chave);
     return { itens: r.itens, total: r.total, paginas: Math.max(1, Math.ceil(r.total / POR_PAGINA)) };
   }
+  if (set && !marca) {
+    // Catálogo inteiro: pagina pela lista do que aparece no portal (mais vendidos primeiro).
+    const ordem = ativos.map((c, i) => ({ c, i, w: pesoCurva({ codigo: c }) })).sort((a, b) => a.w - b.w || a.i - b.i).map((x) => x.c);
+    const chaveA = `a|${filtros.pagina}`;
+    if (!cache.has(chaveA)) {
+      const fatia = ordem.slice((filtros.pagina - 1) * POR_PAGINA, filtros.pagina * POR_PAGINA);
+      const { dados } = fatia.length ? await listarVitrine({ codigos: fatia, limite: 50 }) : { dados: [] };
+      const pos = new Map(fatia.map((c, i) => [c, i]));
+      cache.set(chaveA, { itens: dados.map(apresentar).filter((p) => !oculto(p)).sort((a, b) => (pos.get(String(a.codigo)) ?? 99) - (pos.get(String(b.codigo)) ?? 99)), total: ordem.length });
+    }
+    const r = cache.get(chaveA);
+    return { itens: r.itens, total: r.total, paginas: Math.max(1, Math.ceil(r.total / POR_PAGINA)), totalCatalogo: r.total };
+  }
   const chave = `t|${filtros.marca}|${filtros.pagina}`;
   if (!cache.has(chave)) {
     const { dados, paginacao } = await listarVitrine({ marca, pagina: filtros.pagina, limite: POR_PAGINA });
-    cache.set(chave, { itens: dados.map(apresentar).filter((p) => !oculto(p)).sort((a, b) => (pesoCurva(a) - pesoCurva(b)) || a.nome.localeCompare(b.nome, 'pt')), total: paginacao?.total || 0 });
+    cache.set(chave, { itens: dados.map(apresentar).filter((p) => !oculto(p) && ativo(p)).sort((a, b) => (pesoCurva(a) - pesoCurva(b)) || a.nome.localeCompare(b.nome, 'pt')), total: paginacao?.total || 0 });
   }
   const r = cache.get(chave);
   return { itens: r.itens, total: r.total, paginas: Math.max(1, Math.ceil(r.total / POR_PAGINA)), totalCatalogo: !filtros.marca ? r.total : null };

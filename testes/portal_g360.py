@@ -695,6 +695,21 @@ with sync_playwright() as pw:
     checar(im3.getpixel((600, 600))[0] > 150 and im3.getpixel((600, 600))[1] < 100, 'a foto escolhida como capa (roxa) foi a primeira')
     n.fechar()
 
+    # Visitante: só os produtos que aparecem no portal (lista do último acesso de cliente)
+    etapa[0] = 'Etapa 16 (visitante só ativos)'
+    sim = Sim()
+    n = N(pw, sim); pg = n.pg
+    pg.wait_for_selector('#grid .card.publico'); total_sem_lista = n.tc('#tot')
+    n.fechar()
+    sim.visiveis = {'visiveis': ['P-101', 'P-104', 'P-105', 'P-106'], 'estoque_baixo': [], 'sem_estoque': ['P-103'], 'estoque_minimo': 5, 'atualizado_em': '2026-11-18T12:00:00+00:00'}
+    sim.exibicao.setdefault('P-106', {}).update({'oculto': True})
+    n = N(pw, sim); pg = n.pg
+    pg.wait_for_selector('#grid .card.publico')
+    ids = sorted(int(x) for x in pg.eval_on_selector_all('#grid .card.publico', 'e => e.map(x => x.dataset.id)'))
+    checar(ids == [101, 104, 105], f'visitante vê só os ativos, sem o tirado pela equipe: {ids} (sem lista: {total_sem_lista})')
+    checar(n.tc('#tot') == '3' and '3 produtos' in n.tc('#cnt'), f"contagem do visitante só dos ativos: {n.tc('#tot')} / {n.tc('#cnt')}")
+    n.fechar()
+
     # Etapa 5 passo 3 e Etapa 10 passo 4 (pacote 18/11 tarde): F5 mantém a sessão na aba; outra aba pede login
     etapa[0] = 'Etapa 15 (F5)'
     sim = Sim()
@@ -734,5 +749,5 @@ with sync_playwright() as pw:
     pg.reload(); pg.wait_for_selector('#aUsu'); checar(True, 'depois de sair, o F5 não traz a sessão do painel de volta')
     n.fechar()
 
-print('FALHAS:' if falhas else 'Portal (layout original) + Etapas 1, 2 e 5 a 15: todos os testes passaram.')
+print('FALHAS:' if falhas else 'Portal (layout original) + Etapas 1, 2 e 5 a 16: todos os testes passaram.')
 for f in falhas: print(' -', f)
