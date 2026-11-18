@@ -109,13 +109,14 @@ body.g360-painel select.inp option { background: #10240f; color: var(--tx); }
 body.g360-painel .pcat { width: 100%; }
 body.g360-painel .arow .nm small { margin-top: 4px; }
 /* Detalhe do produto */
-#detBox .gmain .foto { width: 100%; min-height: 300px; display: grid; place-items: center; }
-#detBox .gmain .foto img { max-width: 100%; max-height: 420px; object-fit: contain; }
+/* A caixa da foto principal tem altura fixa e mostra a foto inteira (sem a proporção 4:3 genérica, que cortava fotos quadradas). */
+#detBox .gmain .foto { width: 100%; aspect-ratio: auto; height: 420px; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #fff; }
+#detBox .gmain .foto img { width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; }
 #detBox .gth { width: 64px; height: 64px; border: 2px solid #e8ece4; border-radius: 10px; padding: 3px; background: #fff; cursor: pointer; }
 #detBox .gth.on { border-color: #7fb21f; }
-#detBox .gth .foto, #detBox .gth .foto img { width: 100%; height: 100%; object-fit: contain; font-size: 9px; }
+#detBox .gth .foto, #detBox .gth .foto img { width: 100%; height: 100%; aspect-ratio: 1; object-fit: contain; font-size: 9px; }
 #grid .card .img, #grid .card .name { cursor: pointer; }
-@media (max-width: 640px) { #detBox .gmain .foto { min-height: 220px; } #detBox .gmain .foto img { max-height: 260px; } }
+@media (max-width: 640px) { #detBox .gmain .foto { height: 300px; } }
 body.g360-painel #souzinha-widget, body.g360:not(.g360-legado) #souzinha-widget { display: none !important; }
 
 /* Olhinho do cartão: visível no foco do teclado e sempre visível em telas de toque (alvo de 44px). */
