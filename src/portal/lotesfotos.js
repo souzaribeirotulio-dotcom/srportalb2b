@@ -65,7 +65,7 @@ function erro(e) {
 }
 
 /** Repete com espera o que a API marca como "tentar de novo". */
-async function comEspera(fn) {
+export async function comEspera(fn) {
   for (let t = 0; ; t++) {
     try { return await fn(); } catch (e) {
       if (!(e instanceof ErroApi) || e.responsavel !== 'tentar_de_novo' || e.tipo === 'rede' || e.tipo === 'tempo' || t >= 3) throw e;
@@ -74,56 +74,68 @@ async function comEspera(fn) {
   }
 }
 
-async function produtosDosCodigos(codigos) {
+export async function produtosDosCodigos(codigos, token = ctx.token) {
   const porCod = new Map();
   for (let i = 0; i < codigos.length; i += 50) {
-    const { dados } = await comEspera(() => buscarProdutosOperador(ctx.token(), { codigos: codigos.slice(i, i + 50), limite: 50 }));
+    const { dados } = await comEspera(() => buscarProdutosOperador(token(), { codigos: codigos.slice(i, i + 50), limite: 50 }));
     dados.forEach((p) => porCod.set(String(p.codigo), p));
   }
   return codigos.map((c) => porCod.get(String(c))).filter(Boolean);
 }
 
+/**
+ * Monta e grava um lote de até qtd produtos sem foto no G360, sem repetir os de outros lotes.
+ * opcoes: { token, painel, qtd, responsavel, modo: 'visivel'|'todos', aoProgresso(txt) }
+ * Devolve { lote, produtos } ou { vazio: true } ou { semLista: true }.
+ */
+export async function montarLote(o) {
+  ctx = ctx || o;
+  const usar = { token: o.token, painel: o.painel };
+  await carregarExibicao();
+  const existentes = (await usar.painel('lotes_listar')).dados || [];
+  const tomados = new Set(existentes.flatMap((l) => l.codigos.map(String)));
+  const escolhidos = []; let conferidos = 0;
+  const conferirFotos = async (lista) => {
+    const fila = lista.filter((p) => !tomados.has(String(p.codigo)) && !registro(p)?.oculto);
+    let i = 0;
+    await Promise.all(Array.from({ length: 4 }, async () => {
+      while (i < fila.length && escolhidos.length < o.qtd) {
+        const p = fila[i++];
+        const g = await comEspera(() => listarFotosOperador(usar.token(), p.id));
+        conferidos++;
+        if (!g.fotos?.length && escolhidos.length < o.qtd) { escolhidos.push(p); tomados.add(String(p.codigo)); }
+        o.aoProgresso?.(`Conferindo quem já tem foto no G360… ${escolhidos.length} de ${o.qtd} produtos sem foto (${conferidos} conferidos)`);
+      }
+    }));
+  };
+  if (o.modo === 'visivel') {
+    const vis = (await usar.painel('visiveis_ler')).dados;
+    if (!vis?.visiveis?.length) return { semLista: true };
+    const ordem = vis.visiveis.map(String).filter((c) => !tomados.has(c))
+      .map((c, i) => ({ c, i, w: pesoCurva({ codigo: c }) })).sort((a, b) => a.w - b.w || a.i - b.i).map((x) => x.c);
+    for (let i = 0; i < ordem.length && escolhidos.length < o.qtd; i += 50) await conferirFotos(await produtosDosCodigos(ordem.slice(i, i + 50), usar.token));
+  } else {
+    for (let pagina = 1, total = Infinity; (pagina - 1) * 50 < total && escolhidos.length < o.qtd; pagina++) {
+      const r = await comEspera(() => buscarProdutosOperador(usar.token(), { pagina, limite: 50 }));
+      total = r.paginacao?.total ?? 0;
+      await conferirFotos(r.dados);
+    }
+  }
+  if (!escolhidos.length) return { vazio: true };
+  const lote = (await usar.painel('lote_salvar', { codigos: escolhidos.map((p) => String(p.codigo)), responsavel: o.responsavel })).dados;
+  return { lote, produtos: escolhidos };
+}
+
 async function gerar() {
   if (gerando) return;
   const qtd = Math.max(1, Math.min(500, Math.round(Number($('lfQtd').value) || 100)));
-  const resp = $('lfResp').value.trim().slice(0, 80);
-  const modo = $('lfModo').value;
   gerando = true; $('lfGerar').disabled = true; $('lfGerar').textContent = 'Montando a planilha…';
   try {
-    await carregarExibicao();
-    const tomados = new Set(lotes.flatMap((l) => l.codigos.map(String)));
-    const escolhidos = [];
-    let conferidos = 0;
-    const conferirFotos = async (lista) => {
-      const fila = lista.filter((p) => !tomados.has(String(p.codigo)) && !registro(p)?.oculto);
-      let i = 0;
-      await Promise.all(Array.from({ length: 4 }, async () => {
-        while (i < fila.length && escolhidos.length < qtd) {
-          const p = fila[i++];
-          const g = await comEspera(() => listarFotosOperador(ctx.token(), p.id));
-          conferidos++;
-          if (!g.fotos?.length && escolhidos.length < qtd) { escolhidos.push(p); tomados.add(String(p.codigo)); }
-          msg(`<div class="hint">Conferindo quem já tem foto no G360… ${escolhidos.length} de ${qtd} produtos sem foto (${conferidos} conferidos)</div>`);
-        }
-      }));
-    };
-    if (modo === 'visivel') {
-      const vis = (await ctx.painel('visiveis_ler')).dados;
-      if (!vis?.visiveis?.length) { msg('<div class="rv-aviso">Ainda não temos a lista do que aparece no portal (ela nasce quando um cliente entra). Entre uma vez como cliente ou escolha "Todos do G360 sem foto".</div>'); return; }
-      const ordem = vis.visiveis.map(String).filter((c) => !tomados.has(c))
-        .map((c, i) => ({ c, i, w: pesoCurva({ codigo: c }) })).sort((a, b) => a.w - b.w || a.i - b.i).map((x) => x.c);
-      for (let i = 0; i < ordem.length && escolhidos.length < qtd; i += 50) await conferirFotos(await produtosDosCodigos(ordem.slice(i, i + 50)));
-    } else {
-      for (let pagina = 1, total = Infinity; (pagina - 1) * 50 < total && escolhidos.length < qtd; pagina++) {
-        const r = await comEspera(() => buscarProdutosOperador(ctx.token(), { pagina, limite: 50 }));
-        total = r.paginacao?.total ?? 0;
-        await conferirFotos(r.dados);
-      }
-    }
-    if (!escolhidos.length) { msg('<div class="rv-aviso">Nenhum produto sem foto ficou de fora das planilhas já geradas. 🎉</div>'); return; }
-    const lote = (await ctx.painel('lote_salvar', { codigos: escolhidos.map((p) => String(p.codigo)), responsavel: resp })).dados;
-    await baixar(lote, escolhidos);
-    msg(`<div class="okmsg">✓ Lote ${Number(lote.numero)} com ${escolhidos.length} produtos baixado${escolhidos.length < qtd ? ` (só havia ${escolhidos.length} sem foto)` : ''}.</div>`);
+    const r = await montarLote({ token: ctx.token, painel: ctx.painel, qtd, responsavel: $('lfResp').value.trim().slice(0, 80), modo: $('lfModo').value, aoProgresso: (t) => msg(`<div class="hint">${esc(t)}</div>`) });
+    if (r.semLista) { msg('<div class="rv-aviso">Ainda não temos a lista do que aparece no portal (ela nasce quando um cliente entra). Entre uma vez como cliente ou escolha "Todos do G360 sem foto".</div>'); return; }
+    if (r.vazio) { msg('<div class="rv-aviso">Nenhum produto sem foto ficou de fora das planilhas já geradas. 🎉</div>'); return; }
+    await baixar(r.lote, r.produtos);
+    msg(`<div class="okmsg">✓ Lote ${Number(r.lote.numero)} com ${r.produtos.length} produtos baixado${r.produtos.length < qtd ? ` (só havia ${r.produtos.length} sem foto)` : ''}.</div>`);
     await carregarLotes();
   } catch (e) { erro(e); }
   finally { gerando = false; if ($('lfGerar')) { $('lfGerar').disabled = false; $('lfGerar').textContent = 'Gerar e baixar planilha'; } }

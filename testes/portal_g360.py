@@ -643,6 +643,39 @@ with sync_playwright() as pw:
     dl.value.save_as('/tmp/lote2.xlsx'); cods2 = [openpyxl.load_workbook('/tmp/lote2.xlsx').active.cell(r, 1).value for r in range(5, 10)]
     checar(len(cods2) == 5 and not set(cods1) & set(cods2), f'lote 2 não repete produtos do lote 1: {cods2}')
     checar(len(sim.lotes) == 2 and 'Lote 2' in n.tc('#lfLista'), 'lotes gravados e listados')
+    pg.click('#lfX')
+    # Caça-capa: colar a foto, ajuste automático, Enter envia; "Não achei" grava no lote
+    import io, base64
+    from PIL import Image as _I
+    def _foto(fmt='PNG'):
+        im = _I.new('RGB', (800, 500), 'white'); im.paste((200, 30, 30), (500, 50, 700, 450)); b = io.BytesIO(); im.save(b, fmt); return b.getvalue()
+    pg.click('#aCaca'); pg.wait_for_selector('#ccFull.open #ccPegar')
+    pg.fill('#ccNome', 'João Teste'); pg.fill('#ccQtd', '3'); pg.select_option('#ccModo', 'todos'); pg.click('#ccPegar')
+    pg.wait_for_selector('#ccArq', state='attached')
+    lote = sim.lotes[-1]; checar(len(lote['codigos']) == 3 and not set(lote['codigos']) & set(cods1 + cods2), f"lote do caça-capa sem repetir: {lote['codigos']}")
+    pg.evaluate("window.dispatchEvent(new Event('x'))")
+    pg.evaluate("() => { const dt = new DataTransfer(); dt.setData('text/plain', 'https://exemplo.invalid/foto.jpg'); document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true })); }")
+    checar('Copiar imagem' in n.toast(), 'colar o endereço em vez da imagem explica o que fazer')
+    pid1 = int(next(p['id'] for p in sim.produtos if p['codigo'] == lote['codigos'][0]))
+    pg.set_input_files('#ccArq', files=[{'name': 'f.png', 'mimeType': 'image/png', 'buffer': _foto()}]); pg.wait_for_selector('.ccprev img')
+    pg.keyboard.press('Enter'); pg.wait_for_function(f"document.querySelector('#ccCorpo .hint') && document.querySelector('#ccCorpo .hint').textContent.includes('1 com capa') && !document.getElementById('ccFila').textContent")
+    post = [x for x in sim.chamadas if x[0] == 'POST' and x[1] == f'operadores/produtos/{pid1}/fotos'][-1][3]
+    im = _I.open(io.BytesIO(base64.b64decode(post['foto'].split(',', 1)[1])))
+    px = im.convert('RGB').load()
+    checar(im.size == (1200, 1200) and im.format == 'JPEG' and post['descricao'] == 'Capa', f'capa 1200x1200 JPEG: {im.size} {im.format}')
+    vermelhos = [(x, y) for x in range(0, 1200, 10) for y in range(0, 1200, 10) if px[x, y][0] > 150 and px[x, y][1] < 100]
+    xs = [v[0] for v in vermelhos]; ys = [v[1] for v in vermelhos]
+    checar(vermelhos and min(xs) >= 150 and max(xs) <= 1050 and min(ys) >= 170 and max(ys) <= 1070 and min(px[5, 5]) > 245 and min(px[1190, 5]) > 245, f'produto recortado e centralizado com margem: x {min(xs)}-{max(xs)} y {min(ys)}-{max(ys)}')
+    checar(max(ys) - min(ys) > 850, f'sobra branca recortada: produto ampliado até a área ({max(ys) - min(ys)} px de altura)')
+    pg.click('#ccPular'); pg.wait_for_function("document.querySelector('#ccCorpo .hint').textContent.includes('1 não achei')")
+    checar(lote['codigos'][1] in sim.lotes[-1]['pulados'], f"não achei gravado no lote: {sim.lotes[-1]['pulados']}")
+    pg.evaluate("async () => { const c = document.createElement('canvas'); c.width = 300; c.height = 300; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,300,300); x.fillStyle = '#2244cc'; x.fillRect(100,60,100,180); const b = await new Promise(r => c.toBlob(r, 'image/png')); const dt = new DataTransfer(); dt.items.add(new File([b], 'c.png', { type: 'image/png' })); document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true })); }")
+    pg.wait_for_selector('.ccprev img'); checar('pequena' in n.tc('#ccCola'), 'aviso de foto pequena')
+    pg.keyboard.press('Enter'); pg.wait_for_selector('#ccNovo')
+    checar('terminado' in n.tc('#ccCorpo') and 'Fotografar no estoque' in n.tc('#ccCorpo'), 'fim do lote com a lista para fotografar')
+    pg.wait_for_function("!document.getElementById('ccFila') || !document.getElementById('ccFila').textContent")
+    pid3 = int(next(p['id'] for p in sim.produtos if p['codigo'] == lote['codigos'][2]))
+    checar([x['descricao'] for x in sim.galeria.get(pid3, [])] == ['Capa'], 'capa colada com Ctrl+V enviada')
     n.fechar()
 
 print('FALHAS:' if falhas else 'Portal (layout original) + Etapas 1, 2 e 5 a 14: todos os testes passaram.')

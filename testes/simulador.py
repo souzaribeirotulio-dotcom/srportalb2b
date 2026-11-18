@@ -457,8 +457,11 @@ class Sim:
             if ac == 'visiveis_ler': return res(200, {'dados': self.visiveis})
             if ac == 'lotes_listar': return res(200, {'dados': sorted(self.lotes, key=lambda l: -l['numero'])})
             if ac == 'lote_salvar':
-                l = {'id': str(uuid.uuid4()), 'numero': max([x['numero'] for x in self.lotes] or [0]) + 1, 'responsavel': d.get('responsavel') or None, 'codigos': d['codigos'], 'criado_em': '2026-11-18T13:00:00+00:00'}
+                l = {'id': str(uuid.uuid4()), 'numero': max([x['numero'] for x in self.lotes] or [0]) + 1, 'responsavel': d.get('responsavel') or None, 'codigos': d['codigos'], 'pulados': [], 'criado_em': '2026-11-18T13:00:00+00:00'}
                 self.lotes.append(l); return res(200, {'dados': l})
+            if ac == 'lote_pular':
+                l = next(x for x in self.lotes if x['id'] == d['id']); pul = set(l.get('pulados', []))
+                (pul.discard if d.get('pular') is False else pul.add)(d['codigo']); l['pulados'] = sorted(pul); return res(200, {'dados': l['pulados']})
             if ac == 'lote_apagar': self.lotes = [x for x in self.lotes if x['id'] != d['id']]; return res(200, {'ok': True})
             if ac == 'config_ler': return res(200, {'dados': dict(self.config)})
             if ac == 'config_salvar':

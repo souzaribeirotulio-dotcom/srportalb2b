@@ -284,7 +284,7 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     return [200, { ok: true }];
   }
   if (acao === "lotes_listar") {
-    const { data, error } = await admin.from("portal_lotes_fotos").select("id, numero, responsavel, codigos, criado_em").eq("loja", loja).order("numero", { ascending: false }).limit(500);
+    const { data, error } = await admin.from("portal_lotes_fotos").select("id, numero, responsavel, codigos, pulados, criado_em").eq("loja", loja).order("numero", { ascending: false }).limit(500);
     if (error) throw error;
     return [200, { dados: data }];
   }
@@ -297,11 +297,25 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
       const { data: ult, error: e0 } = await admin.from("portal_lotes_fotos").select("numero").eq("loja", loja).order("numero", { ascending: false }).limit(1);
       if (e0) throw e0;
       const numero = (ult?.[0]?.numero ?? 0) + 1;
-      const { data, error } = await admin.from("portal_lotes_fotos").insert({ loja, numero, responsavel, codigos }).select("id, numero, responsavel, codigos, criado_em");
+      const { data, error } = await admin.from("portal_lotes_fotos").insert({ loja, numero, responsavel, codigos }).select("id, numero, responsavel, codigos, pulados, criado_em");
       if (!error) return [200, { dados: data?.[0] }];
       if (error.code !== "23505") throw error;
     }
     return [409, { mensagem: "Outro lote foi gravado agora. Tente de novo." }];
+  }
+  if (acao === "lote_pular") {
+    // Caça-capa: marca (ou desmarca) um produto do lote como "não achei foto".
+    const id = texto(d.id, 40); const codigo = texto(d.codigo, 40);
+    if (!/^[0-9a-f-]{36}$/.test(id) || !codigo) return [400, { mensagem: "Dados inválidos." }];
+    const { data: l, error: e0 } = await admin.from("portal_lotes_fotos").select("codigos, pulados").eq("id", id).eq("loja", loja).maybeSingle();
+    if (e0) throw e0;
+    if (!l) return [404, { mensagem: "Lote não encontrado." }];
+    if (!(l.codigos as string[]).includes(codigo)) return [400, { mensagem: "Produto fora deste lote." }];
+    const atual = new Set((l.pulados ?? []) as string[]);
+    if (d.pular === false) atual.delete(codigo); else atual.add(codigo);
+    const { error } = await admin.from("portal_lotes_fotos").update({ pulados: [...atual] }).eq("id", id).eq("loja", loja);
+    if (error) throw error;
+    return [200, { dados: [...atual] }];
   }
   if (acao === "lote_apagar") {
     const id = texto(d.id, 40);

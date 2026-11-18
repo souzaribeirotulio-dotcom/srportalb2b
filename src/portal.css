@@ -202,3 +202,22 @@ body.g360-painel #souzinha-widget, body.g360:not(.g360-legado) #souzinha-widget 
   .improw { grid-template-columns: repeat(3, 1fr); }
   .impnm { grid-column: 1 / -1; }
 }
+
+/* Caça-capa */
+.ccgrid { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(280px, 520px); gap: 18px; align-items: start; }
+.ccinfo h3 { font-size: 19px; }
+.ccbusca { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 8px; }
+.ccbusca .btn { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
+.ccpassos { margin: 8px 0 6px 18px; padding: 0; line-height: 1.7; }
+.cccola { border: 2px dashed var(--linha2); border-radius: 16px; min-height: 340px; display: flex; align-items: center; justify-content: center; padding: 14px; flex-direction: column; outline: none; }
+.cccola:focus-visible, .cccola.on { border-color: var(--lima); background: var(--limas); }
+.cccola.tem { border-style: solid; border-color: var(--lima); }
+.ccvazio { text-align: center; color: var(--tx2); font-size: 15px; line-height: 1.8; }
+.ccvazio b { font-size: 18px; color: var(--tx); }
+.ccarq { cursor: pointer; text-transform: none !important; letter-spacing: 0 !important; font-weight: 500 !important; color: var(--lima) !important; }
+.ccprev { position: relative; width: 100%; max-width: 420px; aspect-ratio: 1; background: #fff; border-radius: 13px; overflow: hidden; }
+.ccprev img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.ccselo { position: absolute; left: 4%; top: 4%; background: #17351e; color: #b2e04a; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px; opacity: .85; }
+.ccolho { position: absolute; right: 4%; top: 4%; width: 30px; height: 30px; border-radius: 8px; background: rgba(23, 53, 30, .15); display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.ruim { color: #ff8a8a; }
+@media (max-width: 860px) { .ccgrid { grid-template-columns: 1fr; } .cccola { min-height: 260px; } }
