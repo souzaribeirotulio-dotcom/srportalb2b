@@ -1,17 +1,19 @@
 /* Caça-capa (painel → Produtos): capa de muitos produtos por copiar e colar.
  * O funcionário pega um lote (100 produtos sem foto, sem repetir entre pessoas), vê um produto por vez,
  * acha a foto oficial, "Copiar imagem" → Ctrl+V. O painel recorta as sobras brancas, centraliza num
- * quadrado branco de 1200 × 1200 com margem e cantos de cima livres, mostra a prévia e, no Enter,
+ * quadrado branco de 1200 × 1200 no tamanho escolhido (zoom), mostra a prévia e, no Enter,
  * sobe como capa no G360 (uma de cada vez, em segundo plano) e já mostra o próximo.
  * "Não achei" grava o produto no lote como "fotografar no estoque". */
-import { listarFotosOperador, incluirFotoOperador, definirCapaOperador, interpretarErro, ErroApi } from '../api/g360.js';
+import { listarFotosOperador, incluirFotoOperador, definirCapaOperador, removerFotoOperador, interpretarErro, ErroApi } from '../api/g360.js';
 import { carregarExibicao, nomeExibicao, categoriaExibicao } from '../catalogo/exibicao.js';
 import { montarLote, produtosDosCodigos, comEspera } from './lotesfotos.js';
 import { $, esc, toast } from './comum.js';
 
 const LADO = 1200;
-// Área do produto: margem de 150 px dos lados e 170 px em cima (cantos de cima livres para selo e ícone).
-const AREA = { x: 150, y: 170, w: 900, h: 900 };
+// Tamanho do produto no quadrado (zoom): padrão 92%, ajustável na prévia de 70% a 98%. Fica lembrado neste navegador.
+const ZOOM_PADRAO = 92;
+function zoomGuardado() { try { const z = Number(localStorage.getItem('sr-cacacapa-zoom')); return z >= 70 && z <= 98 ? z : ZOOM_PADRAO; } catch { return ZOOM_PADRAO; } }
+function guardarZoom(z) { try { localStorage.setItem('sr-cacacapa-zoom', String(z)); } catch { /* ok */ } }
 
 let ctx = null;
 let st = null; // { lote, itens: [{ p, estado: 'fazer'|'enviando'|'feito'|'erro'|'pulado'|'tinha', erro }], i, previa }
@@ -139,7 +141,8 @@ function desenhar() {
     <div class="cccola ${pv ? 'tem' : ''}" id="ccCola" tabindex="0" aria-label="Área para colar a foto">
       ${it.estado === 'conferir' ? '<div class="g360-carregando">Conferindo no G360…</div>'
       : pv ? `<div class="ccprev"><img src="${pv.url}" alt="Prévia da capa"><span class="ccselo">Selo</span><span class="ccolho">👁</span></div>
-          <div class="hint" style="margin:6px 0 0">${pv.avisos.length ? pv.avisos.map((a) => `<span class="ruim">⚠ ${esc(a)}</span>`).join('<br>') : '✓ Pronta: fundo branco, produto centralizado, cantos livres.'}</div>`
+          <label class="cczoom" for="ccZoom">🔍 Tamanho do produto <input type="range" id="ccZoom" min="70" max="98" step="2" value="${pv.zoom}"> <b id="ccZoomV">${pv.zoom}%</b></label>
+          <div class="hint" style="margin:6px 0 0">${pv.avisos.length ? pv.avisos.map((a) => `<span class="ruim">⚠ ${esc(a)}</span>`).join('<br>') : '✓ Pronta: fundo branco e produto centralizado. Ajuste o tamanho se quiser.'}</div>`
       : '<div class="ccvazio"><b>Cole a foto aqui</b><br>Ctrl+V · ou arraste o arquivo · ou <label class="ccarq"><u>escolha no computador</u><input type="file" id="ccArq" accept="image/*" hidden></label></div>'}
     </div></div>`;
   ligarTopo();
@@ -148,6 +151,7 @@ function desenhar() {
   $('ccPular').onclick = pular;
   $('ccEnviar').onclick = enviar;
   $('ccArq')?.addEventListener('change', (e) => { const f = e.target.files?.[0]; if (f) preparar(f); });
+  $('ccZoom')?.addEventListener('input', (e) => { $('ccZoomV').textContent = `${e.target.value}%`; rezoom(Number(e.target.value)); });
   const z = $('ccCola');
   z.addEventListener('dragover', (e) => { e.preventDefault(); z.classList.add('on'); });
   z.addEventListener('dragleave', () => z.classList.remove('on'));
@@ -205,7 +209,7 @@ function aoColar(e) {
 
 function aoTeclar(e) {
   if (!aberto() || !st) return;
-  if (e.target.closest?.('input, textarea, select')) return;
+  if (e.target.closest?.('input, textarea, select') && e.target.type !== 'range') return;
   if (e.key === 'Enter' && st.previa?.dados) { e.preventDefault(); enviar(); }
   if (e.key === 'Escape' && st.previa) { e.preventDefault(); ir(st.i); }
 }
@@ -214,12 +218,25 @@ async function preparar(arquivo) {
   const it = st.itens[st.i];
   if (!it || it.estado === 'conferir') return;
   try {
-    const r = await ajustarCapa(arquivo);
+    const z = zoomGuardado();
+    const r = await ajustarCapa(arquivo, z);
     if (st.previa?.url) URL.revokeObjectURL(st.previa.url);
-    st.previa = r;
+    st.previa = { ...r, orig: arquivo, zoom: z };
     desenhar();
     $('ccEnviar')?.focus();
   } catch { toast('Não deu para ler essa imagem. Tente copiar de novo ou use outra foto.'); }
+}
+
+let zoomVez = 0;
+async function rezoom(z) {
+  const pv = st?.previa; if (!pv?.orig) return;
+  const eu = ++zoomVez;
+  guardarZoom(z);
+  const r = await ajustarCapa(pv.orig, z);
+  if (eu !== zoomVez || st?.previa !== pv) { URL.revokeObjectURL(r.url); return; }
+  URL.revokeObjectURL(pv.url);
+  Object.assign(pv, r, { zoom: z });
+  const img = $('ccCola')?.querySelector('.ccprev img'); if (img) img.src = pv.url;
 }
 
 function carregar(blob) {
@@ -227,7 +244,9 @@ function carregar(blob) {
 }
 
 /** Recorta as sobras claras, centraliza em 1200 × 1200 branco com margem e devolve { dados (data URL JPEG), url (prévia), avisos }. */
-export async function ajustarCapa(blob) {
+export async function ajustarCapa(blob, zoom = zoomGuardado()) {
+  const lado = Math.round(LADO * zoom / 100);
+  const AREA = { x: Math.round((LADO - lado) / 2), y: Math.round((LADO - lado) / 2), w: lado, h: lado };
   const img = await carregar(blob);
   const W = img.naturalWidth; const H = img.naturalHeight;
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -285,6 +304,9 @@ async function rodarFila() {
       if ((antes.fotos?.length || 0) >= (antes.maximo || 12)) throw new Error('A galeria deste produto já tem 12 fotos.');
       const g = await comEspera(() => incluirFotoOperador(ctx.token(), it.p.id, dados, 'Capa'));
       if (g.item && g.capa !== g.item) await comEspera(() => definirCapaOperador(ctx.token(), it.p.id, g.item));
+      // Colou de novo neste produto: a capa nova entra e a anterior (enviada por aqui) sai da galeria.
+      if (it.itemEnviado && it.itemEnviado !== g.item) { try { await comEspera(() => removerFotoOperador(ctx.token(), it.p.id, it.itemEnviado)); } catch { /* fica na galeria */ } }
+      it.itemEnviado = g.item;
       it.estado = 'feito';
       ctx.aoFoto?.(it.p.id);
     } catch (e) {

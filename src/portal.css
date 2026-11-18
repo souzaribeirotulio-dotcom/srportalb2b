@@ -221,3 +221,5 @@ body.g360-painel #souzinha-widget, body.g360:not(.g360-legado) #souzinha-widget 
 .ccolho { position: absolute; right: 4%; top: 4%; width: 30px; height: 30px; border-radius: 8px; background: rgba(23, 53, 30, .15); display: flex; align-items: center; justify-content: center; font-size: 14px; }
 .ruim { color: #ff8a8a; }
 @media (max-width: 860px) { .ccgrid { grid-template-columns: 1fr; } .cccola { min-height: 260px; } }
+.cczoom { display: flex; align-items: center; gap: 10px; margin: 10px 0 0; font-size: 13px; color: var(--tx2); text-transform: none !important; letter-spacing: 0 !important; font-weight: 500 !important; width: 100%; max-width: 420px; }
+.cczoom input[type="range"] { flex: 1; min-height: 44px; accent-color: var(--lima); }

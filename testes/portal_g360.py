@@ -660,15 +660,20 @@ with sync_playwright() as pw:
     checar('Copiar imagem' in n.toast(), 'colar o endereço em vez da imagem explica o que fazer')
     pid1 = int(next(p['id'] for p in sim.produtos if p['codigo'] == lote['codigos'][0]))
     pg.set_input_files('#ccArq', files=[{'name': 'f.png', 'mimeType': 'image/png', 'buffer': _foto()}]); pg.wait_for_selector('.ccprev img')
-    pg.keyboard.press('Enter'); pg.wait_for_function(f"document.querySelector('#ccCorpo .hint') && document.querySelector('#ccCorpo .hint').textContent.includes('1 com capa') && !document.getElementById('ccFila').textContent")
+    checar(pg.input_value('#ccZoom') == '92', 'zoom padrão de 92%')
+    src0 = pg.get_attribute('.ccprev img', 'src')
+    pg.eval_on_selector('#ccZoom', "e => { e.value = '80'; e.dispatchEvent(new Event('input', { bubbles: true })); }")
+    pg.wait_for_function(f"document.querySelector('.ccprev img').src !== '{src0}'")
+    checar(n.tc('#ccZoomV') == '80%' and pg.evaluate("localStorage.getItem('sr-cacacapa-zoom')") == '80', 'zoom muda a prévia e fica lembrado')
+    pg.focus('#ccZoom'); pg.keyboard.press('Enter'); pg.wait_for_function(f"document.querySelector('#ccCorpo .hint') && document.querySelector('#ccCorpo .hint').textContent.includes('1 com capa') && !document.getElementById('ccFila').textContent")
     post = [x for x in sim.chamadas if x[0] == 'POST' and x[1] == f'operadores/produtos/{pid1}/fotos'][-1][3]
     im = _I.open(io.BytesIO(base64.b64decode(post['foto'].split(',', 1)[1])))
     px = im.convert('RGB').load()
     checar(im.size == (1200, 1200) and im.format == 'JPEG' and post['descricao'] == 'Capa', f'capa 1200x1200 JPEG: {im.size} {im.format}')
     vermelhos = [(x, y) for x in range(0, 1200, 10) for y in range(0, 1200, 10) if px[x, y][0] > 150 and px[x, y][1] < 100]
     xs = [v[0] for v in vermelhos]; ys = [v[1] for v in vermelhos]
-    checar(vermelhos and min(xs) >= 150 and max(xs) <= 1050 and min(ys) >= 170 and max(ys) <= 1070 and min(px[5, 5]) > 245 and min(px[1190, 5]) > 245, f'produto recortado e centralizado com margem: x {min(xs)}-{max(xs)} y {min(ys)}-{max(ys)}')
-    checar(max(ys) - min(ys) > 850, f'sobra branca recortada: produto ampliado até a área ({max(ys) - min(ys)} px de altura)')
+    checar(vermelhos and min(ys) >= 110 and max(ys) <= 1090 and abs((min(xs) + max(xs)) / 2 - 600) < 20 and min(px[5, 5]) > 245 and min(px[1190, 5]) > 245, f'produto recortado e centralizado: x {min(xs)}-{max(xs)} y {min(ys)}-{max(ys)}')
+    checar(900 < max(ys) - min(ys) < 980, f'sobra branca recortada e zoom de 80% aplicado ({max(ys) - min(ys)} px de altura)')
     pg.click('#ccPular'); pg.wait_for_function("document.querySelector('#ccCorpo .hint').textContent.includes('1 não achei')")
     checar(lote['codigos'][1] in sim.lotes[-1]['pulados'], f"não achei gravado no lote: {sim.lotes[-1]['pulados']}")
     pg.evaluate("async () => { const c = document.createElement('canvas'); c.width = 300; c.height = 300; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,300,300); x.fillStyle = '#2244cc'; x.fillRect(100,60,100,180); const b = await new Promise(r => c.toBlob(r, 'image/png')); const dt = new DataTransfer(); dt.items.add(new File([b], 'c.png', { type: 'image/png' })); document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true })); }")
