@@ -15,6 +15,8 @@ import { chamarPainel } from '../api/painel.js';
 import { pedirLink } from '../api/ponte.js';
 import { consultarCnpj } from './cadastro.js';
 import { abrirFichaG360 } from './fichag360.js';
+import { paraJpeg } from './jpeg.js';
+import { abrirImportacaoFotos } from './importarfotos.js';
 import { definirEncerramentoOperador, definirAtividadeOperador } from '../estado/sessao.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { dinheiro, numeroPainel, dataBr } from '../ui/formato.js';
@@ -112,6 +114,12 @@ function ligar() {
   $('aPanel').insertAdjacentHTML('beforebegin', `<div class="afil" style="align-items:center;margin-top:-4px"><button class="btn sec" id="aGerar" style="height:36px">✨ Gerar nomes e categorias</button>
     <span class="hint" id="aGerarInfo" style="margin:0">Passa por todos os produtos do G360 e cria o nome no padrão de e-commerce e a categoria. Não mexe no que a equipe já ajustou nem nos nomes do portal antigo.</span></div>`);
   $('aGerar').addEventListener('click', gerarTudo);
+  $('aGerar').insertAdjacentHTML('afterend', '<button class="btn pri" id="aImpFotos" style="height:36px">📦 Importar imagens</button>');
+  $('aImpFotos').addEventListener('click', () => abrirImportacaoFotos({
+    token: () => op.token,
+    aoSessaoEncerrada: (e) => encerrarOperador(e.message),
+    aoConcluir: (ids) => { ids.forEach((id) => capas.delete(id)); if (aba === 'prod') carregarMiniaturas($('aPanel')); },
+  }));
   $('aPanel').addEventListener('change', salvarLinhaProduto);
   const buscarProd = adiar(() => { if ($('aQ').value.trim() === prod.qFeita) return; prod.pagina = 1; desenharProdutos(); }, 450);
   $('aQ').addEventListener('input', buscarProd);
@@ -593,30 +601,6 @@ async function acaoFoto(e) {
     toast('Fotos atualizadas no G360 ✓');
     desenharFotos();
   } catch (err) { b.disabled = false; mostrarMensagemErro($('fxRes'), err); }
-}
-
-/** Qualquer imagem vira JPEG (máx. 1600 px, até 2 MB) antes de ir para a API. */
-function paraJpeg(arquivo) {
-  return new Promise((ok, falha) => {
-    if (arquivo.type === 'image/jpeg' && arquivo.size <= 2 * 1024 * 1024) {
-      const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = () => falha(new Error('leitura')); r.readAsDataURL(arquivo); return;
-    }
-    const img = new Image(); const u = URL.createObjectURL(arquivo);
-    img.onload = () => {
-      URL.revokeObjectURL(u);
-      let w = img.naturalWidth; let h = img.naturalHeight; const max = 1600;
-      if (Math.max(w, h) > max) { const f = max / Math.max(w, h); w = Math.round(w * f); h = Math.round(h * f); }
-      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-      const c2 = cv.getContext('2d'); c2.fillStyle = '#fff'; c2.fillRect(0, 0, w, h); c2.drawImage(img, 0, 0, w, h);
-      for (const q of [0.88, 0.8, 0.7, 0.6, 0.5]) {
-        const d = cv.toDataURL('image/jpeg', q);
-        if ((d.length - 23) * 0.75 <= 2 * 1024 * 1024) { ok(d); return; }
-      }
-      falha(new Error('grande'));
-    };
-    img.onerror = () => { URL.revokeObjectURL(u); falha(new Error('formato')); };
-    img.src = u;
-  });
 }
 
 async function enviarArquivos(lista) {

@@ -156,3 +156,48 @@ body.g360-painel #souzinha-widget, body.g360:not(.g360-legado) #souzinha-widget 
 .stk.disp { color: var(--lima); font-weight: 600; }
 .stk.disp.out { color: #ff8a8a; }
 .stk.disp.baixo { color: #ffd45c; }
+
+/* Importação de fotos em massa (painel) */
+.ifimp { position: fixed; inset: 0; z-index: 90; display: none; background: rgba(0, 0, 0, .62); padding: 18px; }
+.ifimp.open { display: flex; align-items: stretch; justify-content: center; }
+.impbox { width: 100%; max-width: 1240px; background: var(--n950, #0b1a0b); border: 1px solid var(--linha2); border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; }
+.imphead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--linha); }
+.imphead .fxx { min-width: 44px; min-height: 44px; }
+#impCorpo { flex: 1; overflow: auto; padding: 14px 18px 22px; }
+.impini { max-width: 640px; margin: 10px auto; color: var(--tx2); font-size: 14px; }
+.impex { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 12px; }
+.impex code { background: var(--limas); color: var(--lima); padding: 4px 9px; border-radius: 8px; font-size: 13px; }
+.impdrop { display: flex; align-items: center; justify-content: center; min-height: 150px; border: 2px dashed var(--linha2); border-radius: 14px; cursor: pointer; color: var(--tx); text-align: center; padding: 16px; margin-top: 10px; }
+.impdrop.on, .impdrop:hover { border-color: var(--lima); background: var(--limas); }
+.impbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; position: sticky; top: -14px; background: var(--n950, #0b1a0b); padding: 8px 0 10px; z-index: 2; }
+.impbar .tool, .impbar select { min-height: 38px; }
+.impav { border: 1px solid rgba(255, 190, 80, .4); background: rgba(255, 190, 80, .08); border-radius: 12px; padding: 10px 14px; font-size: 13px; color: var(--tx2); display: grid; gap: 6px; margin-bottom: 10px; word-break: break-word; }
+.impgrid { display: grid; gap: 8px; }
+.improw { display: grid; grid-template-columns: minmax(160px, 1fr) repeat(3, 112px); gap: 10px; align-items: center; border: 1px solid var(--linha); border-radius: 12px; padding: 8px 10px; }
+.impnm { min-width: 0; font-size: 13.5px; color: var(--tx); }
+.impnm small { display: block; color: var(--tx3); font-size: 12px; margin-top: 2px; }
+.impst { display: block; font-size: 12px; color: var(--lima); margin-top: 4px; }
+.impst .ruim { color: #ff8a8a; }
+.impslot { display: flex; flex-direction: column; gap: 4px; align-items: stretch; cursor: pointer; font-size: 12.5px; color: var(--tx2); text-transform: none !important; letter-spacing: 0 !important; font-weight: 500 !important; }
+.impslot img { width: 100%; aspect-ratio: 1; object-fit: contain; background: #fff; border-radius: 9px; border: 2px solid var(--lima); }
+.impslot span { display: flex; align-items: center; gap: 6px; min-height: 28px; }
+.impslot input { width: 18px; height: 18px; }
+.impslot.off img { opacity: .35; border-color: #ff8a8a; }
+.impslot.ok img { border-color: var(--lima); box-shadow: 0 0 0 2px var(--limas); }
+.impslot.falta { cursor: default; }
+.impvazio { aspect-ratio: 1; border: 1.5px dashed var(--linha2); border-radius: 9px; display: flex; align-items: center; justify-content: center; color: var(--tx3); font-size: 12px; text-align: center; padding: 6px; }
+.impprog { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; }
+.impbarra { flex: 1; min-width: 160px; height: 10px; background: rgba(255, 255, 255, .08); border-radius: 999px; overflow: hidden; }
+.impbarra i { display: block; height: 100%; width: 0; background: var(--lima); transition: width .3s; }
+.impfim { border: 1px solid rgba(178, 224, 74, .45); background: var(--limas); color: var(--tx); border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; font-size: 14px; }
+.impfim.aviso { border-color: rgba(255, 190, 80, .5); background: rgba(255, 190, 80, .08); }
+.implb { position: fixed; inset: 0; z-index: 95; background: rgba(0, 0, 0, .85); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.implb[hidden] { display: none; }
+.implb img { max-width: 100%; max-height: 100%; background: #fff; border-radius: 10px; }
+.implb .fxx { position: absolute; top: 14px; right: 14px; min-width: 44px; min-height: 44px; }
+@media (max-width: 760px) {
+  .ifimp { padding: 0; }
+  .impbox { border-radius: 0; }
+  .improw { grid-template-columns: repeat(3, 1fr); }
+  .impnm { grid-column: 1 / -1; }
+}

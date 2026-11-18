@@ -523,5 +523,48 @@ with sync_playwright() as pw:
     checar(inc['valor'] == '4.75' and inc['produto'] == 101 and sim.negociacoes[0]['status'] == 'aprovada', f'aprovar congela no G360: {inc} {sim.negociacoes[0]["status"]}')
     n.fechar()
 
-print('FALHAS:' if falhas else 'Portal (layout original) + Etapas 1, 2 e 5 a 11: todos os testes passaram.')
+    # Etapa 13: importação de fotos em massa (ZIP → grade de aprovação → G360)
+    etapa[0] = 'Etapa 13'
+    import io, zipfile
+    from PIL import Image as _Img
+    def _img(fmt, cor):
+        b = io.BytesIO(); _Img.new('RGB', (40, 40), cor).save(b, fmt); return b.getvalue()
+    def _zip(arqs):
+        b = io.BytesIO()
+        with zipfile.ZipFile(b, 'w') as z:
+            for nome, dados in arqs: z.writestr(nome, dados)
+        return b.getvalue()
+    gal104 = [dict(x) for x in sim.galeria.get(104, [])]
+    z1 = _zip([('lote/P-101_capa.jpg', _img('JPEG', 'red')), ('lote/P-101_ambiente.png', _img('PNG', 'green')), ('lote/P-101_uso.jpg', _img('JPEG', 'blue')),
+               ('P-102_capa.jpg', _img('JPEG', 'white')), ('P-104_capa.jpg', _img('JPEG', 'gray')), ('X-999_capa.jpg', _img('JPEG', 'black')),
+               ('foto qualquer.jpg', _img('JPEG', 'black')), ('__MACOSX/._P-101_capa.jpg', b'x')])
+    n = N(pw, sim, '/painel', largura=1280); pg = n.pg
+    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
+    pg.click('[data-at="prod"]'); pg.click('#aImpFotos'); pg.wait_for_selector('#ifImp.open #impArq', state='attached')
+    pg.set_input_files('#impArq', files=[{'name': 'vazio.zip', 'mimeType': 'application/zip', 'buffer': _zip([('nada.jpg', _img('JPEG', 'red'))])}])
+    pg.wait_for_selector('#impMsg .rv-aviso'); checar('Nenhum arquivo no padrão' in n.tc('#impMsg'), 'ZIP sem nomes no padrão recusado')
+    pg.set_input_files('#impArq', files=[{'name': 'lote.zip', 'mimeType': 'application/zip', 'buffer': z1}])
+    pg.wait_for_selector('#impGrid .improw')
+    t = n.tc('#impCorpo')
+    checar(pg.locator('#impGrid .improw').count() == 3, f"3 produtos encontrados: {pg.locator('#impGrid .improw').count()}")
+    checar('X-999' in t and 'não encontrado' in t and 'foto qualquer.jpg' in t and 'já tem 2 fotos' in t, 'avisos: código desconhecido, nome fora do padrão, produto com fotos')
+    pg.uncheck('[data-k="P-102"] input[data-t="capa"]')
+    checar('4 fotos aprovadas' in n.tc('#impConta'), f"contagem: {n.tc('#impConta')}")
+    pg.click('#impPub'); pg.wait_for_selector('#impProg .impfim')
+    g101 = sim.galeria.get(101, [])
+    checar([x['descricao'] for x in g101] == ['Capa', 'Ambiente', 'Em uso'], f'P-101 com as 3 fotos, capa primeiro: {g101}')
+    checar(not sim.galeria.get(102), 'foto desmarcada não sobe')
+    checar(sim.galeria.get(104) == gal104, 'produto que já tinha fotos foi pulado')
+    fotos_post = [x for x in sim.chamadas if x[0] == 'POST' and x[1].endswith('/fotos')]
+    checar(all(str(x[3].get('foto', '')).startswith('data:image/jpeg;base64,') for x in fotos_post), 'PNG convertido para JPEG antes do envio')
+    checar('3 fotos publicadas' in n.tc('#impProg') and '1 pulada' in n.tc('#impProg'), f"resumo: {n.tc('#impProg')}")
+    pg.click('#impOutro'); pg.set_input_files('#impArq', files=[{'name': 'troca.zip', 'mimeType': 'application/zip', 'buffer': _zip([('P-104_capa.jpg', _img('JPEG', 'gray'))])}])
+    pg.wait_for_selector('#impPol'); pg.select_option('#impPol', 'trocar'); pg.click('#impPub')
+    checar('Confirmar: apagar' in n.tc('#impPub') and sim.galeria.get(104) == gal104, 'substituir pede confirmação antes de apagar')
+    pg.click('#impPub'); pg.wait_for_selector('#impProg .impfim')
+    checar([x['descricao'] for x in sim.galeria.get(104, [])] == ['Capa'], f"fotos antigas substituídas: {sim.galeria.get(104)}")
+    pg.click('#impX'); checar(not pg.is_visible('#ifImp'), 'fechar a importação')
+    n.fechar()
+
+print('FALHAS:' if falhas else 'Portal (layout original) + Etapas 1, 2 e 5 a 13: todos os testes passaram.')
 for f in falhas: print(' -', f)
