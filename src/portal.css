@@ -231,3 +231,13 @@ body.g360-painel #souzinha-widget, body.g360:not(.g360-legado) #souzinha-widget 
 .ccth span { position: absolute; top: -8px; right: -8px; display: flex; gap: 3px; }
 .ccth button { width: 32px; height: 32px; border-radius: 999px; border: 0; background: #17351e; color: #fff; font-size: 13px; cursor: pointer; line-height: 1; }
 .ccmais { width: 78px; min-height: 92px; border: 2px dashed var(--linha2); border-radius: 10px; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 11px; color: var(--tx2); }
+
+/* Card: troca suave de foto no hover (como no portal antigo) */
+.img .g360-foto img { transition: opacity .35s, transform .45s; }
+.img .g360-foto img.iextra { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; pointer-events: none; }
+.img .g360-foto.troca img:not(.iextra) { opacity: 0; }
+.img .g360-foto.troca img.iextra.on { opacity: 1; }
+.card:hover .img .g360-foto:not([data-fotos]) img { transform: scale(1.05); }
+.img .dots { position: absolute; bottom: 9px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; z-index: 2; pointer-events: none; }
+.img .dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(0, 0, 0, .18); transition: background .25s; }
+.img .dots i.on { background: #6aa21a; }
