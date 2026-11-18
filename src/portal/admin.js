@@ -110,7 +110,7 @@ function ligar() {
   });
 
   // Produtos
-  $('aSt').innerHTML = '<option value="">Todos os produtos</option><option value="auto">Nome automático (revisar)</option><option value="semcat">Sem categoria definida</option><option value="baixa">Margem abaixo do mínimo</option><option value="semcusto">Sem custo cadastrado</option><option value="visivel">✅ Aparecendo no portal</option><option value="oculto">🚫 Fora do portal (tirados pela equipe)</option><option value="semdesc">Sem descrição da equipe</option>';
+  $('aSt').innerHTML = '<option value="">Todos os produtos</option><option value="auto">Nome automático (revisar)</option><option value="semcat">Sem categoria definida</option><option value="baixa">Margem abaixo do mínimo</option><option value="semcusto">Sem custo cadastrado</option><option value="visivel">✅ Não tirados pela equipe</option><option value="oculto">🚫 Tirados do portal pela equipe</option><option value="semdesc">Sem descrição da equipe</option>';
   $('aCat').innerHTML = '<option value="">Todas as categorias</option>';
   $('aPanel').insertAdjacentHTML('beforebegin', `<div class="afil" style="align-items:center;margin-top:-4px"><button class="btn sec" id="aGerar" style="height:36px">✨ Gerar nomes e categorias</button>
     <span class="hint" id="aGerarInfo" style="margin:0">Passa por todos os produtos do G360 e cria o nome no padrão de e-commerce e a categoria. Não mexe no que a equipe já ajustou nem nos nomes do portal antigo.</span></div>`);
@@ -360,9 +360,10 @@ async function desenharProdutos(buscar = true) {
     || (st === 'oculto' && registro(p)?.oculto)
     || (st === 'visivel' && !registro(p)?.oculto)
     || (st === 'semdesc' && !registro(p)?.descricao));
+  const avisoEstoque = st === 'visivel' || st === 'oculto' ? '<div class="rv-aviso" style="margin:10px 18px">Além dos que a equipe tira, o portal esconde sozinho os produtos com estoque baixo (5 unidades ou menos). O painel ainda não recebe o estoque do G360, então esses aparecem aqui como se estivessem no portal. Já pedimos esse dado à Movimento.</div>' : '';
   const paginas = Math.max(1, Math.ceil(prod.total / 20));
   const cats = categorias();
-  alvo.innerHTML = `<div class="arow h"><div></div><div>Nome no portal (${prod.total})</div><div>Preço de tabela</div><div>Categoria</div><div>Custo</div><div></div></div>`
+  alvo.innerHTML = avisoEstoque + `<div class="arow h"><div></div><div>Nome no portal (${prod.total})</div><div>Preço de tabela</div><div>Categoria</div><div>Custo</div><div></div></div>`
     + (L.length ? L.map((p) => { const r = registro(p); const cat = categoriaExibicao(p); return `<div class="arow" data-id="${Number(p.id)}" data-nome="${esc(nomeExibicao(p))}" data-cod="${esc(p.codigo)}" data-g360="${esc(p.nome)}">
       <div class="amini g360-mini" data-foto="${Number(p.id)}" title="Fotos"><span>…</span></div>
       <div class="nm"><input class="inp pnome" value="${esc(nomeExibicao(p))}" maxlength="160" aria-label="Nome no portal" style="width:100%;font-weight:600">
