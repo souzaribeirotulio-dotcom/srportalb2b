@@ -223,3 +223,11 @@ body.g360-painel #souzinha-widget, body.g360:not(.g360-legado) #souzinha-widget 
 @media (max-width: 860px) { .ccgrid { grid-template-columns: 1fr; } .cccola { min-height: 260px; } }
 .cczoom { display: flex; align-items: center; gap: 10px; margin: 10px 0 0; font-size: 13px; color: var(--tx2); text-transform: none !important; letter-spacing: 0 !important; font-weight: 500 !important; width: 100%; max-width: 420px; }
 .cczoom input[type="range"] { flex: 1; min-height: 44px; accent-color: var(--lima); }
+.ccfotos { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; width: 100%; max-width: 420px; }
+.ccth { position: relative; width: 78px; cursor: pointer; border: 2px solid var(--linha2); border-radius: 10px; padding: 3px; background: #fff; }
+.ccth.on { border-color: var(--lima); }
+.ccth img { width: 100%; aspect-ratio: 1; object-fit: contain; display: block; }
+.ccth b { display: block; font-size: 10.5px; color: #17351e; text-align: center; }
+.ccth span { position: absolute; top: -8px; right: -8px; display: flex; gap: 3px; }
+.ccth button { width: 32px; height: 32px; border-radius: 999px; border: 0; background: #17351e; color: #fff; font-size: 13px; cursor: pointer; line-height: 1; }
+.ccmais { width: 78px; min-height: 92px; border: 2px dashed var(--linha2); border-radius: 10px; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 11px; color: var(--tx2); }

@@ -678,11 +678,21 @@ with sync_playwright() as pw:
     checar(lote['codigos'][1] in sim.lotes[-1]['pulados'], f"não achei gravado no lote: {sim.lotes[-1]['pulados']}")
     pg.evaluate("async () => { const c = document.createElement('canvas'); c.width = 300; c.height = 300; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,300,300); x.fillStyle = '#2244cc'; x.fillRect(100,60,100,180); const b = await new Promise(r => c.toBlob(r, 'image/png')); const dt = new DataTransfer(); dt.items.add(new File([b], 'c.png', { type: 'image/png' })); document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true })); }")
     pg.wait_for_selector('.ccprev img'); checar('pequena' in n.tc('#ccCola'), 'aviso de foto pequena')
+    colar = "async (cor) => { const c = document.createElement('canvas'); c.width = 700; c.height = 700; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,700,700); x.fillStyle = cor; x.fillRect(200,100,300,500); const b = await new Promise(r => c.toBlob(r, 'image/png')); const dt = new DataTransfer(); dt.items.add(new File([b], 'c.png', { type: 'image/png' })); document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true })); }"
+    pg.evaluate(colar, '#22aa22'); pg.wait_for_selector('.ccth[data-f="1"]')
+    pg.evaluate(colar, '#aa22aa'); pg.wait_for_selector('.ccth[data-f="2"]')
+    checar('Enviar 3 fotos' in n.tc('#ccEnviar'), 'várias fotos no mesmo produto')
+    pg.click('.ccth[data-f="1"] [data-tirar]'); pg.wait_for_function("document.querySelectorAll('.ccth').length === 2")
+    pg.click('.ccth[data-f="1"] [data-capa]'); pg.wait_for_function("document.querySelector('.ccth[data-f=\"0\"] b').textContent.includes('Capa')")
     pg.keyboard.press('Enter'); pg.wait_for_selector('#ccNovo')
     checar('terminado' in n.tc('#ccCorpo') and 'Fotografar no estoque' in n.tc('#ccCorpo'), 'fim do lote com a lista para fotografar')
     pg.wait_for_function("!document.getElementById('ccFila') || !document.getElementById('ccFila').textContent")
     pid3 = int(next(p['id'] for p in sim.produtos if p['codigo'] == lote['codigos'][2]))
-    checar([x['descricao'] for x in sim.galeria.get(pid3, [])] == ['Capa'], 'capa colada com Ctrl+V enviada')
+    g3 = sim.galeria.get(pid3, [])
+    checar([x['descricao'] for x in g3] == ['Capa', 'Foto 2'], f'duas fotos enviadas, a escolhida como capa primeiro: {g3}')
+    post3 = [x for x in sim.chamadas if x[0] == 'POST' and x[1] == f'operadores/produtos/{pid3}/fotos']
+    im3 = _I.open(io.BytesIO(base64.b64decode(post3[0][3]['foto'].split(',', 1)[1]))).convert('RGB')
+    checar(im3.getpixel((600, 600))[0] > 150 and im3.getpixel((600, 600))[1] < 100, 'a foto escolhida como capa (roxa) foi a primeira')
     n.fechar()
 
     # Etapa 5 passo 3 e Etapa 10 passo 4 (pacote 18/11 tarde): F5 mantém a sessão na aba; outra aba pede login

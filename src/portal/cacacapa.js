@@ -16,7 +16,9 @@ function zoomGuardado() { try { const z = Number(localStorage.getItem('sr-cacaca
 function guardarZoom(z) { try { localStorage.setItem('sr-cacacapa-zoom', String(z)); } catch { /* ok */ } }
 
 let ctx = null;
-let st = null; // { lote, itens: [{ p, estado: 'fazer'|'enviando'|'feito'|'erro'|'pulado'|'tinha', erro }], i, previa }
+let st = null; // { lote, itens: [{ p, estado: 'fazer'|'enviando'|'feito'|'erro'|'pulado'|'tinha', erro }], i, fotos: [{ orig, dados, url, avisos, zoom }], sel }
+const MAX_FOTOS = 12;
+function limparFotos() { (st?.fotos || []).forEach((f) => f.url && URL.revokeObjectURL(f.url)); if (st) { st.fotos = []; st.sel = 0; } }
 const fila = []; let enviando = false;
 
 export async function abrirCacaCapa(opcoes) {
@@ -38,7 +40,7 @@ function aberto() { return $('ccFull')?.classList.contains('open'); }
 function fechar() {
   if (fila.length || enviando) { toast('Espere terminar de enviar as fotos.'); return; }
   $('ccFull').classList.remove('open');
-  if (st?.previa?.url) URL.revokeObjectURL(st.previa.url);
+  limparFotos();
   st = null;
   ctx.aoConcluir?.();
 }
@@ -84,7 +86,7 @@ function falha(e, alvo) {
 async function iniciar(lote, produtos) {
   await carregarExibicao();
   const pulados = new Set((lote.pulados || []).map(String));
-  st = { lote, itens: produtos.map((p) => ({ p, estado: pulados.has(String(p.codigo)) ? 'pulado' : 'conferir' })), i: 0, previa: null };
+  st = { lote, itens: produtos.map((p) => ({ p, estado: pulados.has(String(p.codigo)) ? 'pulado' : 'conferir' })), i: 0, fotos: [], sel: 0 };
   st.i = Math.max(0, st.itens.findIndex((x) => x.estado === 'conferir'));
   desenhar();
   conferirAtual();
@@ -118,7 +120,7 @@ function desenhar() {
   if (!it) { c.innerHTML = topo + fim(); ligarTopo(); return; }
   const p = it.p; const nome = nomeExibicao(p); const marca = (p.marca && typeof p.marca === 'object' ? p.marca.nome : p.marca) || '';
   const q = encodeURIComponent(`${p.nome} ${marca}`.trim());
-  const pv = st.previa;
+  const fotos = st.fotos; const pv = fotos[st.sel];
   c.innerHTML = topo + `<div class="ccgrid">
     <div class="ccinfo">
       <div class="hint" style="margin:0">Cód. <b>${esc(p.codigo)}</b> · ${esc(p.unidade || '')} · ${esc(categoriaExibicao(p))}</div>
@@ -128,21 +130,23 @@ function desenhar() {
         <a class="btn sec" target="_blank" rel="noopener noreferrer" href="https://www.google.com/search?tbm=isch&tbs=ic:specific,isc:white&q=${q}">🔎 Google Imagens (fundo branco)</a>
         ${marca ? `<a class="btn sec" target="_blank" rel="noopener noreferrer" href="https://www.google.com/search?q=${encodeURIComponent(`${marca} ${p.nome} site oficial`)}">🏭 Site da marca</a>` : ''}
       </div>
-      <ol class="hint ccpassos"><li>Abra a foto grande do produto (de preferência no site da marca).</li><li>Botão direito na foto → <b>Copiar imagem</b>.</li><li>Volte aqui e aperte <b>Ctrl+V</b>.</li><li>Confira a prévia e aperte <b>Enter</b>.</li></ol>
+      <ol class="hint ccpassos"><li>Abra a foto grande do produto (de preferência no site da marca).</li><li>Botão direito na foto → <b>Copiar imagem</b>.</li><li>Volte aqui e aperte <b>Ctrl+V</b>.</li><li>Quer mais fotos? Cole a próxima (a primeira é a capa).</li><li>Confira e aperte <b>Enter</b>.</li></ol>
       ${it.estado === 'erro' ? `<div class="g360-erro">${esc(it.erro || 'Não deu para enviar.')}</div>` : ''}
-      ${it.estado === 'feito' || it.estado === 'enviando' ? '<div class="okmsg">✓ Capa enviada. Pode colar outra para trocar.</div>' : ''}
+      ${it.estado === 'feito' || it.estado === 'enviando' ? '<div class="okmsg">✓ Fotos enviadas. Colando de novo, as fotos enviadas por aqui são trocadas.</div>' : ''}
       ${it.estado === 'pulado' ? '<div class="rv-aviso">Marcado como "não achei" (fotografar no estoque).</div>' : ''}
       <div class="act" style="justify-content:flex-start;flex-wrap:wrap">
         <button class="btn sec" id="ccVoltar" type="button" ${st.i === 0 ? 'disabled' : ''}>‹ Anterior</button>
         <button class="btn sec" id="ccPular" type="button">${it.estado === 'pulado' ? 'Tirar do "não achei"' : 'Não achei'}</button>
         <button class="btn sec" id="ccProx" type="button">Pular ›</button>
-        <button class="btn pri" id="ccEnviar" type="button" ${pv?.dados ? '' : 'disabled'}>Enviar capa (Enter)</button>
+        <button class="btn pri" id="ccEnviar" type="button" ${fotos.length ? '' : 'disabled'}>${fotos.length > 1 ? `Enviar ${fotos.length} fotos (Enter)` : 'Enviar capa (Enter)'}</button>
       </div></div>
     <div class="cccola ${pv ? 'tem' : ''}" id="ccCola" tabindex="0" aria-label="Área para colar a foto">
       ${it.estado === 'conferir' ? '<div class="g360-carregando">Conferindo no G360…</div>'
-      : pv ? `<div class="ccprev"><img src="${pv.url}" alt="Prévia da capa"><span class="ccselo">Selo</span><span class="ccolho">👁</span></div>
+      : pv ? `<div class="ccprev"><img src="${pv.url}" alt="Prévia da foto ${st.sel + 1}">${st.sel === 0 ? '<span class="ccselo">Selo</span><span class="ccolho">👁</span>' : ''}</div>
+          <div class="ccfotos">${fotos.map((f, j) => `<div class="ccth ${j === st.sel ? 'on' : ''}" data-f="${j}"><img src="${f.url}" alt="Foto ${j + 1}"><b>${j === 0 ? '★ Capa' : `Foto ${j + 1}`}</b><span>${j ? `<button type="button" data-capa="${j}" title="Tornar capa">★</button>` : ''}<button type="button" data-tirar="${j}" title="Tirar esta foto">×</button></span></div>`).join('')}
+            ${fotos.length < MAX_FOTOS ? '<div class="ccmais">➕ Mais fotos?<br><small>Cole com Ctrl+V</small></div>' : ''}</div>
           <label class="cczoom" for="ccZoom">🔍 Tamanho do produto <input type="range" id="ccZoom" min="70" max="98" step="2" value="${pv.zoom}"> <b id="ccZoomV">${pv.zoom}%</b></label>
-          <div class="hint" style="margin:6px 0 0">${pv.avisos.length ? pv.avisos.map((a) => `<span class="ruim">⚠ ${esc(a)}</span>`).join('<br>') : '✓ Pronta: fundo branco e produto centralizado. Ajuste o tamanho se quiser.'}</div>`
+          <div class="hint" style="margin:6px 0 0">${pv.avisos.length ? pv.avisos.map((a) => `<span class="ruim">⚠ ${esc(a)}</span>`).join('<br>') : `✓ Pronta: fundo branco e produto centralizado. Ajuste o tamanho se quiser.${fotos.length === 1 ? ' Para mais fotos, cole a próxima.' : ''}`}</div>`
       : '<div class="ccvazio"><b>Cole a foto aqui</b><br>Ctrl+V · ou arraste o arquivo · ou <label class="ccarq"><u>escolha no computador</u><input type="file" id="ccArq" accept="image/*" hidden></label></div>'}
     </div></div>`;
   ligarTopo();
@@ -151,6 +155,13 @@ function desenhar() {
   $('ccPular').onclick = pular;
   $('ccEnviar').onclick = enviar;
   $('ccArq')?.addEventListener('change', (e) => { const f = e.target.files?.[0]; if (f) preparar(f); });
+  c.querySelectorAll('.ccth').forEach((el) => el.addEventListener('click', (e) => {
+    const j = Number(el.dataset.f);
+    if (e.target.closest('[data-tirar]')) { URL.revokeObjectURL(st.fotos[j].url); st.fotos.splice(j, 1); st.sel = Math.min(st.sel, Math.max(0, st.fotos.length - 1)); }
+    else if (e.target.closest('[data-capa]')) { const [f] = st.fotos.splice(j, 1); st.fotos.unshift(f); st.sel = 0; }
+    else st.sel = j;
+    desenhar();
+  }));
   $('ccZoom')?.addEventListener('input', (e) => { $('ccZoomV').textContent = `${e.target.value}%`; rezoom(Number(e.target.value)); });
   const z = $('ccCola');
   z.addEventListener('dragover', (e) => { e.preventDefault(); z.classList.add('on'); });
@@ -158,7 +169,7 @@ function desenhar() {
   z.addEventListener('drop', (e) => { e.preventDefault(); z.classList.remove('on'); const f = [...(e.dataTransfer?.files || [])].find((x) => x.type.startsWith('image/')); if (f) preparar(f); });
 }
 
-function ligarTopo() { if ($('ccLotes')) $('ccLotes').onclick = () => { if (st?.previa?.url) URL.revokeObjectURL(st.previa.url); st = null; escolherLote(); }; }
+function ligarTopo() { if ($('ccLotes')) $('ccLotes').onclick = () => { limparFotos(); st = null; escolherLote(); }; }
 
 function fim() {
   const k = contagem();
@@ -173,8 +184,7 @@ function fim() {
 
 function ir(i) {
   if (!st) return;
-  if (st.previa?.url) URL.revokeObjectURL(st.previa.url);
-  st.previa = null;
+  limparFotos();
   st.i = Math.max(0, Math.min(st.itens.length, i));
   desenhar();
   if ($('ccRevisar')) { $('ccRevisar').onclick = () => ir(st.itens.length - 1); $('ccNovo').onclick = () => { st = null; escolherLote(); }; }
@@ -210,8 +220,8 @@ function aoColar(e) {
 function aoTeclar(e) {
   if (!aberto() || !st) return;
   if (e.target.closest?.('input, textarea, select') && e.target.type !== 'range') return;
-  if (e.key === 'Enter' && st.previa?.dados) { e.preventDefault(); enviar(); }
-  if (e.key === 'Escape' && st.previa) { e.preventDefault(); ir(st.i); }
+  if (e.key === 'Enter' && st.fotos?.length) { e.preventDefault(); enviar(); }
+  if (e.key === 'Escape' && st.fotos?.length) { e.preventDefault(); URL.revokeObjectURL(st.fotos[st.sel].url); st.fotos.splice(st.sel, 1); st.sel = Math.max(0, Math.min(st.sel, st.fotos.length - 1)); desenhar(); }
 }
 
 async function preparar(arquivo) {
@@ -220,8 +230,9 @@ async function preparar(arquivo) {
   try {
     const z = zoomGuardado();
     const r = await ajustarCapa(arquivo, z);
-    if (st.previa?.url) URL.revokeObjectURL(st.previa.url);
-    st.previa = { ...r, orig: arquivo, zoom: z };
+    if (st.fotos.length >= MAX_FOTOS) { URL.revokeObjectURL(r.url); toast(`São no máximo ${MAX_FOTOS} fotos por produto.`); return; }
+    st.fotos.push({ ...r, orig: arquivo, zoom: z });
+    st.sel = st.fotos.length - 1;
     desenhar();
     $('ccEnviar')?.focus();
   } catch { toast('Não deu para ler essa imagem. Tente copiar de novo ou use outra foto.'); }
@@ -229,14 +240,15 @@ async function preparar(arquivo) {
 
 let zoomVez = 0;
 async function rezoom(z) {
-  const pv = st?.previa; if (!pv?.orig) return;
+  const pv = st?.fotos?.[st.sel]; if (!pv?.orig) return;
   const eu = ++zoomVez;
   guardarZoom(z);
   const r = await ajustarCapa(pv.orig, z);
-  if (eu !== zoomVez || st?.previa !== pv) { URL.revokeObjectURL(r.url); return; }
+  if (eu !== zoomVez || !st?.fotos?.includes(pv)) { URL.revokeObjectURL(r.url); return; }
   URL.revokeObjectURL(pv.url);
   Object.assign(pv, r, { zoom: z });
   const img = $('ccCola')?.querySelector('.ccprev img'); if (img) img.src = pv.url;
+  const th = $('ccCola')?.querySelector(`.ccth[data-f="${st.sel}"] img`); if (th) th.src = pv.url;
 }
 
 function carregar(blob) {
@@ -285,10 +297,10 @@ export async function ajustarCapa(blob, zoom = zoomGuardado()) {
 
 /* ---------- enviar em segundo plano ---------- */
 function enviar() {
-  const it = st?.itens[st.i]; const pv = st?.previa;
-  if (!it || !pv?.dados) return;
+  const it = st?.itens[st.i]; const fotos = (st?.fotos || []).map((f) => f.dados);
+  if (!it || !fotos.length) return;
   it.estado = 'enviando'; it.erro = null;
-  fila.push({ it, dados: pv.dados, lote: st.lote.id });
+  fila.push({ it, fotos, lote: st.lote.id });
   rodarFila();
   proximo();
 }
@@ -297,17 +309,23 @@ async function rodarFila() {
   if (enviando) return;
   enviando = true;
   while (fila.length) {
-    const { it, dados } = fila.shift();
+    const { it, fotos } = fila.shift();
     atualizarFila();
     try {
+      // Colou de novo neste produto: as fotos enviadas antes por aqui saem antes de entrar as novas.
+      for (const item of it.itensEnviados || []) { try { await comEspera(() => removerFotoOperador(ctx.token(), it.p.id, item)); } catch { /* fica na galeria */ } }
+      it.itensEnviados = [];
       const antes = await comEspera(() => listarFotosOperador(ctx.token(), it.p.id));
-      if ((antes.fotos?.length || 0) >= (antes.maximo || 12)) throw new Error('A galeria deste produto já tem 12 fotos.');
-      const g = await comEspera(() => incluirFotoOperador(ctx.token(), it.p.id, dados, 'Capa'));
-      if (g.item && g.capa !== g.item) await comEspera(() => definirCapaOperador(ctx.token(), it.p.id, g.item));
-      // Colou de novo neste produto: a capa nova entra e a anterior (enviada por aqui) sai da galeria.
-      if (it.itemEnviado && it.itemEnviado !== g.item) { try { await comEspera(() => removerFotoOperador(ctx.token(), it.p.id, it.itemEnviado)); } catch { /* fica na galeria */ } }
-      it.itemEnviado = g.item;
-      it.estado = 'feito';
+      const livres = (antes.maximo || MAX_FOTOS) - (antes.fotos?.length || 0);
+      if (livres <= 0) throw new Error('A galeria deste produto já tem 12 fotos.');
+      let capa = null;
+      for (const [j, dados] of fotos.slice(0, livres).entries()) {
+        const g = await comEspera(() => incluirFotoOperador(ctx.token(), it.p.id, dados, j === 0 ? 'Capa' : `Foto ${j + 1}`));
+        it.itensEnviados.push(g.item);
+        if (j === 0) { capa = g.item; if (g.item && g.capa !== g.item) await comEspera(() => definirCapaOperador(ctx.token(), it.p.id, g.item)); }
+      }
+      if (fotos.length > livres) toast(`${it.p.codigo}: só cabiam ${livres} fotos na galeria.`);
+      it.estado = capa ? 'feito' : 'erro';
       ctx.aoFoto?.(it.p.id);
     } catch (e) {
       if (e instanceof ErroApi && e.status === 401) { fila.length = 0; enviando = false; falha(e); return; }
