@@ -22,7 +22,7 @@ import { definirEncerramentoOperador, definirAtividadeOperador } from '../estado
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { dinheiro, numeroPainel, dataBr } from '../ui/formato.js';
 import { $, esc, toast, abrirModal, fecharModal, adiar } from './comum.js';
-import { carregarExibicao, sinonimos as sinonimosPortal, categorias, registro, nomeExibicao, categoriaExibicao, codigosDaCategoria, aplicarLocal, definirCategoriasLocal } from '../catalogo/exibicao.js';
+import { carregarExibicao, codigosOcultos, sinonimos as sinonimosPortal, categorias, registro, nomeExibicao, categoriaExibicao, codigosDaCategoria, aplicarLocal, definirCategoriasLocal } from '../catalogo/exibicao.js';
 import { nomeEcommerce, categoriaPeloNome } from '../catalogo/nomes.js';
 import { buscarLocal } from '../catalogo/busca.js';
 import { fichaDoProduto, descricaoBasica } from '../catalogo/descricoes.js';
@@ -110,7 +110,7 @@ function ligar() {
   });
 
   // Produtos
-  $('aSt').innerHTML = '<option value="">Todos os produtos</option><option value="auto">Nome automático (revisar)</option><option value="semcat">Sem categoria definida</option><option value="baixa">Margem abaixo do mínimo</option><option value="semcusto">Sem custo cadastrado</option><option value="oculto">Ocultos no catálogo</option><option value="semdesc">Sem descrição da equipe</option>';
+  $('aSt').innerHTML = '<option value="">Todos os produtos</option><option value="auto">Nome automático (revisar)</option><option value="semcat">Sem categoria definida</option><option value="baixa">Margem abaixo do mínimo</option><option value="semcusto">Sem custo cadastrado</option><option value="visivel">✅ Aparecendo no portal</option><option value="oculto">🚫 Fora do portal (tirados pela equipe)</option><option value="semdesc">Sem descrição da equipe</option>';
   $('aCat').innerHTML = '<option value="">Todas as categorias</option>';
   $('aPanel').insertAdjacentHTML('beforebegin', `<div class="afil" style="align-items:center;margin-top:-4px"><button class="btn sec" id="aGerar" style="height:36px">✨ Gerar nomes e categorias</button>
     <span class="hint" id="aGerarInfo" style="margin:0">Passa por todos os produtos do G360 e cria o nome no padrão de e-commerce e a categoria. Não mexe no que a equipe já ajustou nem nos nomes do portal antigo.</span></div>`);
@@ -126,11 +126,13 @@ function ligar() {
   $('aQ').addEventListener('input', buscarProd);
   $('aQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); prod.pagina = 1; desenharProdutos(); } });
   $('aCat').addEventListener('change', () => { prod.pagina = 1; desenharProdutos(); });
-  $('aSt').addEventListener('change', () => desenharProdutos(false));
+  let stAntes = '';
+  $('aSt').addEventListener('change', () => { const st = $('aSt').value; const busca = st === 'oculto' || stAntes === 'oculto'; stAntes = st; if (busca) prod.pagina = 1; desenharProdutos(busca); });
   $('aPanel').addEventListener('click', (e) => {
     const r = e.target.closest('.arow[data-id]'); if (!r) return;
     if (e.target.closest('[data-ed]') || e.target.closest('.amini')) abrirFotos(Number(r.dataset.id), r.dataset.nome);
     if (e.target.closest('[data-mais]')) { abrirEditorProduto(r); return; }
+    const boc = e.target.closest('[data-oc]'); if (boc) { tirarOuVoltar(r, boc); return; }
     if (e.target.closest('[data-cg]')) { aba = 'cong'; cong.produto = { id: Number(r.dataset.id), rotulo: `${r.dataset.cod} · ${r.dataset.nome}` }; desenharAba(); }
   });
 
@@ -336,7 +338,12 @@ async function desenharProdutos(buscar = true) {
       if (!clipsAdm) { try { clipsAdm = (await painel('clips_listar')).dados || []; } catch { clipsAdm = []; } }
       preencherGrupos();
       const cat = $('aCat').value;
-      const codigos = cat ? codigosDaCategoria(cat) : null;
+      let codigos = cat ? codigosDaCategoria(cat) : null;
+      if ($('aSt').value === 'oculto') {
+        // Os ocultos não entram em codigosDaCategoria: filtra pela categoria do registro.
+        const oc = codigosOcultos();
+        codigos = cat ? oc.filter((c) => registro({ codigo: c })?.categoria === cat) : oc;
+      }
       if (codigos && !codigos.length) { prod.lista = []; prod.total = 0; }
       else {
         const { dados, paginacao } = await buscarProdutosOperador(op.token, { q: q || undefined, codigos: codigos || undefined, pagina: prod.pagina, limite: 20 });
@@ -351,6 +358,7 @@ async function desenharProdutos(buscar = true) {
     || (st === 'baixa' && p.custo_visivel && p.margem_percentual !== null && p.margem_percentual < limiteMargem())
     || (st === 'semcusto' && p.custo_visivel && p.custo === null)
     || (st === 'oculto' && registro(p)?.oculto)
+    || (st === 'visivel' && !registro(p)?.oculto)
     || (st === 'semdesc' && !registro(p)?.descricao));
   const paginas = Math.max(1, Math.ceil(prod.total / 20));
   const cats = categorias();
@@ -362,7 +370,7 @@ async function desenharProdutos(buscar = true) {
       <div class="num"><b>${esc(dinheiro(p.preco))}</b>${p.origem_preco ? `<small style="display:block;color:var(--tx3);font-size:11px">${esc(p.origem_preco)}</small>` : ''}</div>
       <div><select class="inp pcat" aria-label="Categoria">${cats.map((c) => `<option ${c === cat ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>${r?.categoria ? '' : '<small style="display:block;color:var(--tx3);font-size:11px">sugerida pelo nome</small>'}</div>
       <div class="uns">${p.custo_visivel ? (p.custo === null ? '—' : `R$ ${esc(numeroPainel(p.custo, 2))}`) : 'sem acesso'}</div>
-      <div class="ab2"><button class="tool ab" data-ed>🖼 Fotos</button><button class="tool ab" data-mais aria-expanded="false">📝 Descrição e clips</button><button class="tool ab" data-cg>❄ Congelar</button></div></div>`; }).join('')
+      <div class="ab2"><button class="tool ab" data-ed>🖼 Fotos</button><button class="tool ab" data-mais aria-expanded="false">📝 Descrição e clips</button><button class="tool ab" data-cg>❄ Congelar</button>${r?.oculto ? '<button class="tool ab" data-oc="0" style="color:var(--lima)">↩ Voltar ao portal</button>' : '<button class="tool ab" data-oc="1" style="color:#ff8a8a">🚫 Tirar do portal</button>'}</div></div>`; }).join('')
       : vazio('Nenhum produto encontrado. Tente outro nome ou código.'))
     + (paginas > 1 ? `<nav class="g360-pag" style="margin:14px auto"><button class="tool" id="apA" ${prod.pagina <= 1 ? 'disabled' : ''}>‹ Anterior</button><span>Página ${prod.pagina} de ${paginas}</span><button class="tool" id="apP" ${prod.pagina >= paginas ? 'disabled' : ''}>Próxima ›</button></nav>` : '');
   $('apA')?.addEventListener('click', () => { prod.pagina -= 1; desenharProdutos(); });
@@ -373,6 +381,20 @@ async function desenharProdutos(buscar = true) {
 let clipsAdm = null;
 
 /** Abaixo da linha do produto: descrição do portal, ocultar do catálogo e clips (vídeos). */
+/** Tira o produto do catálogo do portal (ou devolve). Não apaga nada no G360: o produto continua lá, no histórico e na Minha Lista. */
+async function tirarOuVoltar(r, b) {
+  const p = (prod.lista || []).find((x) => Number(x.id) === Number(r.dataset.id)); if (!p) return;
+  const oc = b.dataset.oc === '1';
+  if (oc && b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = 'Confirmar: tirar do portal'; setTimeout(() => { if (b.isConnected && b.dataset.confirmar === '1') { b.dataset.confirmar = ''; b.textContent = '🚫 Tirar do portal'; } }, 5000); return; }
+  b.disabled = true;
+  try {
+    await painel('produto_extra_salvar', { codigo: String(p.codigo), produto_id: Number(p.id), nome: nomeExibicao(p), nome_g360: p.nome, categoria: categoriaExibicao(p), oculto: oc });
+    aplicarLocal([{ codigo: String(p.codigo), produto_id: Number(p.id), oculto: oc, ...(registro(p) ? {} : { nome: nomeExibicao(p), origem: 'automatico' }) }]);
+    toast(oc ? 'Produto tirado do portal ✓ — os clientes não veem mais' : 'Produto de volta ao portal ✓');
+    desenharProdutos(false);
+  } catch (e) { b.disabled = false; toast(e.message); }
+}
+
 function abrirEditorProduto(r) {
   const prox = r.nextElementSibling;
   const botao = r.querySelector('[data-mais]');

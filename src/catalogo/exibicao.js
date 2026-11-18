@@ -94,6 +94,13 @@ export function codigosDaCategoria(cat, max = 500) {
   return out.slice(0, max);
 }
 
+/** Códigos dos produtos tirados do portal pela equipe (para o filtro do painel, até 500). */
+export function codigosOcultos(max = 500) {
+  const out = [];
+  for (const r of estado.porCodigo.values()) if (r.oculto) out.push(String(r.codigo));
+  return out.slice(0, max);
+}
+
 /** Depois de gravar no painel: atualiza a memória sem recarregar tudo. */
 export function aplicarLocal(linhas) {
   for (const r of linhas) {
