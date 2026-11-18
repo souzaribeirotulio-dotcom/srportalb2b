@@ -332,17 +332,22 @@ with sync_playwright() as pw:
     sim.lista[1165].add(999)
     n.ir('lista'); pg.wait_for_selector('#lPanel .lrow[data-id="101"]')
     checar('R$ 11,50' in pg.locator('.lrow[data-id="101"]').text_content(), 'Minha Lista sem preço atual')
-    fora = pg.locator('.lrow[data-fora="999"]')
-    checar('Indisponível no momento' in fora.text_content() and 'R$' not in fora.text_content(), 'fora do catálogo')
-    checar('Última compra: 5 UN em 01/11/2026' in pg.locator('.lrow[data-id="104"]').text_content(), 'histórico de compra na lista')
+    checar(not pg.locator('.lrow[data-id="104"]').count(), 'produto só comprado (não salvo) não entra sozinho na Minha Lista')
+    checar(not pg.locator('.lrow[data-fora="999"]').count() and 'não está no portal agora' in n.tc('#lPanel'), 'produto salvo fora do catálogo fica escondido, com aviso')
     busca = [x for x in sim.chamadas if x[1] == 'produtos/busca'][-1][3]
-    checar(busca.get('limite') == 50 and {101, 999, 104} <= set(busca.get('ids')), f'filtro ids/limite: {busca}')
-    fora.locator('[data-rm]').click(); pg.wait_for_selector('#lPanel .lrow[data-id="101"]'); pg.wait_for_timeout(300)
-    checar(999 not in sim.lista[1165], 'remover da lista')
+    checar(busca.get('limite') == 50 and {101, 999} <= set(busca.get('ids')), f'filtro ids/limite: {busca}')
+    sim.lista[1165].discard(999); sim.lista[1165].add(104)
+    n.ir('cat'); n.ir('lista'); pg.wait_for_selector('#lPanel .lrow[data-id="104"]')
+    checar('Última compra: 5 UN em 01/11/2026' in pg.locator('.lrow[data-id="104"]').text_content(), 'histórico de compra na lista')
+    pg.locator('.lrow[data-id="104"] [data-rm]').click(); pg.wait_for_selector('#lPanel .lrow[data-id="104"]', state='detached'); pg.wait_for_timeout(300)
+    checar(104 not in sim.lista[1165], 'remover da lista')
+    pg.wait_for_selector('#lPanel .lrow[data-id="104"]', state='detached')
+    sim.lista[1165].add(104); n.ir('cat'); n.ir('lista'); pg.wait_for_selector('#lPanel .lrow[data-id="104"]')
     pg.locator('.lrow[data-id="101"] [data-d="1"]').click(); pg.locator('.lrow[data-id="104"] .qty input').fill('3')
     checar('2 itens' in n.tc('#lN'), 'quantidades na lista')
     pg.click('#lAdd'); pg.wait_for_selector('#drawer.open .ci')
     checar(pg.locator('#dBody .ci').count() == 2, 'lista → carrinho')
+    sim.lista[1165].discard(104)
     pg.click('#dClose')
     pg.screenshot(path=f'{OUT}/portal_minha_lista_390.png', full_page=True)
     etapa[0] = 'Etapa 11'
@@ -361,9 +366,9 @@ with sync_playwright() as pw:
     n.entrar(U2, S2)
     n.ir('lista'); n.pg.wait_for_selector('#lPanel .empty2:has-text("vazia")')
     antes = len([x for x in sim.chamadas if x[0] == 'PONTE'])
-    sim.lista.setdefault(1919, set()).add(108)
+    sim.lista.setdefault(1919, set()).add(105)
     n.ir('cat'); n.pg.wait_for_selector('#grid .card')
-    n.ir('lista'); n.pg.wait_for_selector('#lPanel .lrow[data-id="108"]')
+    n.ir('lista'); n.pg.wait_for_selector('#lPanel .lrow[data-id="105"]')
     checar(len([x for x in sim.chamadas if x[0] == 'PONTE']) >= antes + 1, 'vínculo vencido não reaberto')
     checar(n.pg.locator('#lPanel .lrow[data-id="101"]').count() == 0, 'comprador 2 viu a lista do 1')
     n.ir('ped'); n.pg.wait_for_selector('#pPanel .empty2:has-text("ainda não fez")')
@@ -710,6 +715,43 @@ with sync_playwright() as pw:
     checar(n.tc('#tot') == '3' and '3 produtos' in n.tc('#cnt'), f"contagem do visitante só dos ativos: {n.tc('#tot')} / {n.tc('#cnt')}")
     n.fechar()
 
+    # Minha Lista: só salvos e ativos no portal; esvaziar; painel vê a lista do cliente e congela preço dali
+    etapa[0] = 'Etapa 17 (Minha Lista)'
+    sim = Sim()
+    sim.lista[1165] = {101, 104, 105}; sim.lista[2001] = {101}
+    sim.exibicao['P-105'] = {'codigo': 'P-105', 'produto_id': 105, 'nome': None, 'categoria': None, 'origem': 'automatico', 'oculto': True}
+    n = N(pw, sim); pg = n.pg
+    n.entrar(U1, S1)
+    n.ir('lista'); pg.wait_for_selector('#lPanel .lrow[data-id="101"]')
+    ids = sorted(int(x) for x in pg.eval_on_selector_all('#lPanel .lrow[data-id]', 'e => e.map(x => x.dataset.id)'))
+    checar(ids == [101, 104], f'lista do cliente só com produtos salvos e ativos no portal: {ids}')
+    checar('1 produto da sua lista não está no portal agora' in n.tc('#lPanel'), 'aviso do produto salvo fora do portal')
+    pg.click('#lEsv'); pg.wait_for_timeout(200)
+    checar('Clique de novo' in n.tc('#lEsv') and sim.lista[1165] == {101, 104, 105}, 'esvaziar pede o segundo clique antes de apagar')
+    pg.click('#lEsv'); pg.wait_for_selector('#lPanel .empty2')
+    checar(sim.lista[1165] == set() and sim.lista[2001] == {101}, 'esvaziar apaga só a lista deste cliente')
+    checar('Sua lista está vazia' in n.tc('#lPanel'), 'lista vazia depois de esvaziar')
+    n.fechar()
+    sim.lista[1165] = {101, 104, 105}
+    n = N(pw, sim, '/painel', largura=1280); pg = n.pg
+    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
+    pg.wait_for_selector('#clPortal [data-mlc="1165"]'); pg.click('#clPortal [data-mlc="1165"]')
+    pg.wait_for_selector('#mlItens .crow[data-id="105"]')
+    checar('fora do portal (o cliente não vê)' in n.tc('#mlItens .crow[data-id="105"]') and 'fora do portal' not in n.tc('#mlItens .crow[data-id="101"]'), 'painel marca o produto que o cliente não vê')
+    checar('3 produtos na lista' in n.tc('#mlItens') and '2 aparecendo para o cliente' in n.tc('#mlItens'), 'painel conta os produtos da lista do cliente')
+    pg.fill('#mlQ', 'P-105'); pg.click('#mlBuscar'); pg.wait_for_function("!document.getElementById('mlRes').textContent.includes('Buscando')")
+    checar(not pg.locator('#mlRes [data-add]').count(), 'busca do painel não oferece produto fora do portal para a lista')
+    pg.click('#mlItens .crow[data-id="101"] [data-cgl]'); pg.wait_for_selector('[data-cgbox="101"]:not([hidden]) [data-cgv]')
+    pg.click('[data-cgbox="101"] [data-cgok]'); pg.wait_for_selector('[data-cgbox="101"] [data-cgerr] .okmsg')
+    checar(not [x for x in sim.chamadas if x[0] == 'POST' and 'precos-congelados' in x[1]], 'congelar sem preço não grava')
+    pg.fill('[data-cgbox="101"] [data-cgv]', '8,40'); pg.click('[data-cgbox="101"] [data-cgok]'); pg.wait_for_timeout(800)
+    inc = [x for x in sim.chamadas if x[0] == 'POST' and 'precos-congelados' in x[1]]
+    checar(inc and inc[-1][3]['valor'] == '8.40' and inc[-1][3]['produto'] == 101 and '1165' in inc[-1][1], f'congelar pela Minha Lista grava no G360 para o cliente: {inc[-1] if inc else None}')
+    pg.click('#mlEsv'); checar(sim.lista[1165] == {101, 104, 105}, 'esvaziar no painel pede o segundo clique')
+    pg.click('#mlEsv'); pg.wait_for_selector('#mlItens >> text=Lista vazia')
+    checar(sim.lista[1165] == set() and sim.lista[2001] == {101}, 'painel esvazia só a lista deste cliente')
+    n.fechar()
+
     # Etapa 5 passo 3 e Etapa 10 passo 4 (pacote 18/11 tarde): F5 mantém a sessão na aba; outra aba pede login
     etapa[0] = 'Etapa 15 (F5)'
     sim = Sim()
@@ -758,5 +800,5 @@ with sync_playwright() as pw:
     pg.reload(); pg.wait_for_selector('#aUsu'); checar(True, 'depois de sair, o F5 não traz a sessão do painel de volta')
     n.fechar()
 
-print('FALHAS:' if falhas else 'Portal (layout original) + Etapas 1, 2 e 5 a 16: todos os testes passaram.')
+print('FALHAS:' if falhas else 'Portal (layout original) + Etapas 1, 2 e 5 a 17: todos os testes passaram.')
 for f in falhas: print(' -', f)

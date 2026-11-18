@@ -1,13 +1,14 @@
 /* =====================================================================
-   Minha Lista no layout original: os produtos salvos (Supabase, com o
-   vínculo da ponte) e os já comprados (GET historico-compras), com preço
+   Minha Lista no layout original: só os produtos salvos (Supabase, com o
+   vínculo da ponte) que estão ativos no portal, com a última compra de
+   cada um (GET historico-compras) e preço
    e disponibilidade de agora (filtro ids, todas as páginas). Preço guardado
    nunca vai para a tela. Quantidades → carrinho ou pedido direto.
    ===================================================================== */
-import { carregarExibicao, apresentar } from '../catalogo/exibicao.js';
+import { carregarExibicao, apresentar, codigosAtivosPublicos, oculto } from '../catalogo/exibicao.js';
 import { produtosPorIds, consultarHistoricoCompras, listarPedidos, consultarPedido } from '../api/g360.js';
 import { sessao } from '../estado/sessao.js';
-import { carregarIds, removerDaLista, ErroLista } from '../estado/minha-lista.js';
+import { carregarIds, removerDaLista, esvaziarLista, ErroLista } from '../estado/minha-lista.js';
 import { adicionar } from '../estado/carrinho.js';
 import { normalizarQuantidade, dinheiro, quantidade as qtdBr, dataBr, estimar } from '../ui/formato.js';
 import { ligarFotos, htmlFoto } from '../ui/fotos.js';
@@ -34,7 +35,7 @@ function unidadeDoItem(p, nomeUnidade) {
 
 export async function desenharMinhaLista(ctx) {
   const painel = $('lPanel');
-  $('lSub').textContent = 'Os produtos que você salvou e os que sua empresa já compra, com o preço de agora. Informe as quantidades e faça o pedido em segundos.';
+  $('lSub').textContent = 'Os produtos que você salvou, com o preço de agora. Informe as quantidades e faça o pedido em segundos.';
   $('lRep').onclick = () => repetirUltimo(ctx);
   painel.innerHTML = '<div class="empty2">Carregando a sua lista…</div>';
   let salvos = new Set(); let avisoLista = '';
@@ -43,14 +44,19 @@ export async function desenharMinhaLista(ctx) {
   try { hist = await consultarHistoricoCompras(sessao.token, 6); } catch (e) { if (e.status === 401) return; }
   const compras = new Map((hist.produtos || []).map((h) => [Number(h.produto_id), h]));
   const extras = (preencherDepois || []).map((i) => Number(i.produto_id));
-  const ids = [...new Set([...salvos, ...compras.keys(), ...extras])];
-  if (!ids.length) {
-    painel.innerHTML = `${avisoLista ? `<div class="rv-aviso bad" style="margin:12px">${esc(avisoLista)}</div>` : ''}<div class="empty2">Sua lista está vazia. No catálogo, toque em ☆ Lista nos produtos que você compra sempre.<br><button type="button" class="btn pri" id="lCat" style="margin-top:14px">Ir para o catálogo</button></div>`;
+  const ids = [...new Set([...salvos, ...extras])];
+  const vazia = (extra = '') => {
+    painel.innerHTML = `${avisoLista ? `<div class="rv-aviso bad" style="margin:12px">${esc(avisoLista)}</div>` : ''}<div class="empty2">Sua lista está vazia. No catálogo, toque em ☆ Lista nos produtos que você compra sempre.${extra}<br><button type="button" class="btn pri" id="lCat" style="margin-top:14px">Ir para o catálogo</button></div>`;
     $('lCat').onclick = () => ctx.ir('/catalogo');
-    return;
-  }
-  let achados;
-  try { await carregarExibicao(); achados = new Map([...(await produtosPorIds(sessao.token, ids))].map(([k, v]) => [k, apresentar(v)])); } catch (e) {
+  };
+  if (!ids.length) { vazia(); return; }
+  let achados; let ativos = null;
+  try {
+    await carregarExibicao();
+    const [porId, cods] = await Promise.all([produtosPorIds(sessao.token, ids), codigosAtivosPublicos()]);
+    achados = new Map([...porId].map(([k, v]) => [k, apresentar(v)]));
+    ativos = cods ? new Set(cods) : null;
+  } catch (e) {
     painel.innerHTML = '<div style="padding:16px" id="lErr"></div>';
     mostrarMensagemErro($('lErr'), e, { aoTentarDeNovo: () => desenharMinhaLista(ctx) });
     return;
@@ -64,20 +70,41 @@ export async function desenharMinhaLista(ctx) {
     preencherDepois = null;
     toast('Quantidades do pedido preenchidas. Confira e feche o pedido.');
   }
-  linhas = ids.map((id) => ({ id, p: achados.get(id), salvo: salvos.has(id), compra: compras.get(id) }))
+  // Só produtos ativos no portal. Os outros ficam guardados e voltam sozinhos quando o produto voltar ao portal.
+  const noPortal = (p) => !!p && !oculto(p) && (!ativos || ativos.has(String(p.codigo)));
+  const escondidos = ids.filter((id) => salvos.has(id) && !noPortal(achados.get(id))).length;
+  const avisoEsc = escondidos ? `<div class="rv-aviso" style="margin:12px">${escondidos} produto${escondidos === 1 ? '' : 's'} da sua lista não ${escondidos === 1 ? 'está' : 'estão'} no portal agora e ${escondidos === 1 ? 'fica escondido' : 'ficam escondidos'}. Volta${escondidos === 1 ? '' : 'm'} sozinho${escondidos === 1 ? '' : 's'} quando ${escondidos === 1 ? 'voltar' : 'voltarem'} ao portal.</div>` : '';
+  linhas = ids.filter((id) => noPortal(achados.get(id))).map((id) => ({ id, p: achados.get(id), salvo: salvos.has(id), compra: compras.get(id) }))
     .sort((a, b) => String(a.p?.nome || 'zz').localeCompare(String(b.p?.nome || 'zz'), 'pt'));
-  painel.innerHTML = `${avisoLista ? `<div class="rv-aviso bad" style="margin:12px">${esc(avisoLista)}</div>` : ''}
+  if (!linhas.length) { vazia(escondidos ? `<br><small>${escondidos} produto${escondidos === 1 ? '' : 's'} salvo${escondidos === 1 ? '' : 's'} fora do portal agora.</small>` : ''); if (salvos.size) ligarEsvaziar(ctx, salvos.size); return; }
+  painel.innerHTML = `${avisoLista ? `<div class="rv-aviso bad" style="margin:12px">${esc(avisoLista)}</div>` : ''}${avisoEsc}
     <div class="lrow h"><div></div><div>Produto</div><div>Histórico</div><div>Preço</div><div>Quantidade</div><div style="text-align:right">Subtotal</div></div>
     ${linhas.map(htmlLinha).join('')}
     <div class="sticky"><div class="tt"><span id="lN"></span> Total estimado:<b id="lT"></b></div>
-      <button type="button" class="btn out" id="lClr">Limpar</button><button type="button" class="btn out" id="lAdd">Adicionar ao carrinho</button><button type="button" class="btn pri" id="lBuy">Fechar pedido agora</button></div>`;
+      ${salvos.size ? '<button type="button" class="btn out" id="lEsv" title="Tira todos os produtos da sua lista">Esvaziar minha lista</button>' : ''}<button type="button" class="btn out" id="lClr" title="Apaga só as quantidades digitadas">Limpar quantidades</button><button type="button" class="btn out" id="lAdd">Adicionar ao carrinho</button><button type="button" class="btn pri" id="lBuy">Fechar pedido agora</button></div>`;
   ligarFotos(painel);
   atualizarTotais();
   $('lClr').onclick = () => { LQ = new Map(); desenharMinhaLista(ctx); };
+  if (salvos.size) ligarEsvaziar(ctx, salvos.size);
   $('lAdd').onclick = () => { if (mandarParaCarrinho()) abrirCarrinho(); };
   $('lBuy').onclick = () => { if (mandarParaCarrinho()) abrirCheckout(ctx); };
   painel.onclick = (e) => cliqueLinha(e, ctx);
   painel.oninput = (e) => { const r = e.target.closest('.lrow[data-id]'); if (r && e.target.matches('.qty input')) definir(r, e.target.value, false); };
+}
+
+/** "Esvaziar minha lista": confirma no segundo clique e apaga todos os produtos salvos. */
+function ligarEsvaziar(ctx, total) {
+  let b = $('lEsv');
+  if (!b) {
+    $('lPanel').insertAdjacentHTML('beforeend', '<div style="text-align:center;padding:0 0 18px"><button type="button" class="btn out" id="lEsv">Esvaziar minha lista</button></div>');
+    b = $('lEsv');
+  }
+  b.onclick = async () => {
+    if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = `Tirar ${total} produto${total === 1 ? '' : 's'}? Clique de novo`; setTimeout(() => { if (b.isConnected && !b.disabled) { b.dataset.confirmar = ''; b.textContent = 'Esvaziar minha lista'; } }, 5000); return; }
+    b.disabled = true; b.textContent = 'Esvaziando…';
+    try { await esvaziarLista(); LQ = new Map(); LU = new Map(); toast('Sua lista foi esvaziada'); desenharMinhaLista(ctx); }
+    catch (err) { b.disabled = false; b.dataset.confirmar = ''; b.textContent = 'Esvaziar minha lista'; toast(err.message); }
+  };
 }
 
 function htmlLinha(x) {

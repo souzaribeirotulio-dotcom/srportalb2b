@@ -549,6 +549,9 @@ class Sim:
                 if r['produto_id'] in st: return route.fulfill(status=409, headers=cab, content_type='application/json', body='{"code":"23505","message":"duplicate key"}')
                 st.add(r['produto_id']); return route.fulfill(status=201, headers=cab, body='')
             if m == 'DELETE':
+                if q.get('comprador_codigo', [''])[0] != f"eq.{s['codigo']}" or q.get('loja', [''])[0] != f'eq.{LOJA}':
+                    return route.fulfill(status=204, headers=cab, body='')  # a RLS só apaga as linhas do próprio comprador
+                if 'produto_id' not in q: self.lista[s['codigo']] = set(); return route.fulfill(status=204, headers=cab, body='')
                 pid = int(q['produto_id'][0].replace('eq.', ''))
                 self.lista.get(s['codigo'], set()).discard(pid); return route.fulfill(status=204, headers=cab, body='')
         if p.startswith('/storage/v1/object/upload/sign/portal-clips/'):

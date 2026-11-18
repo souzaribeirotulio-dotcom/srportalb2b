@@ -43,3 +43,12 @@ export async function removerDaLista(produtoId) {
   if (error) throw new ErroLista(MSG_INDISPONIVEL);
   if (ids) ids.delete(Number(produtoId));
 }
+
+/** Esvazia a Minha Lista inteira do comprador (o recorte da regra de acesso vale também aqui). */
+export async function esvaziarLista() {
+  const sb = await cliente();
+  const { error } = await sb.from('minha_lista').delete()
+    .eq('loja', LOJA).eq('comprador_codigo', sessao.comprador.codigo);
+  if (error) throw new ErroLista(MSG_INDISPONIVEL);
+  ids = new Set();
+}

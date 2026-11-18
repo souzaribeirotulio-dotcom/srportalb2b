@@ -24,7 +24,7 @@ import { definirEncerramentoOperador, definirAtividadeOperador } from '../estado
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { dinheiro, numeroPainel, dataBr } from '../ui/formato.js';
 import { $, esc, toast, abrirModal, fecharModal, adiar } from './comum.js';
-import { carregarExibicao, codigosOcultos, sinonimos as sinonimosPortal, categorias, registro, nomeExibicao, categoriaExibicao, codigosDaCategoria, aplicarLocal, definirCategoriasLocal } from '../catalogo/exibicao.js';
+import { carregarExibicao, codigosAtivosPublicos, esquecerAtivosPublicos, codigosOcultos, sinonimos as sinonimosPortal, categorias, registro, nomeExibicao, categoriaExibicao, codigosDaCategoria, aplicarLocal, definirCategoriasLocal } from '../catalogo/exibicao.js';
 import { nomeEcommerce, categoriaPeloNome } from '../catalogo/nomes.js';
 import { buscarLocal } from '../catalogo/busca.js';
 import { fichaDoProduto, descricaoBasica } from '../catalogo/descricoes.js';
@@ -744,19 +744,30 @@ async function montarLista(c) {
     $('mlQ').addEventListener('input', adiar(() => { if ($('mlQ').value.trim().length >= 3) buscar(); }, 450));
     await itens();
   };
+  let ativos = null; // códigos ativos no portal (null = sem a lista ainda: trata todos como ativos)
+  const noPortal = (p) => !!p && registro(p)?.oculto !== true && (!ativos || ativos.has(String(p.codigo)));
   async function itens() {
     const box = $('mlItens');
     if (!ids.length) { box.innerHTML = vazio('Lista vazia. Busque acima e clique em "+ Adicionar".'); return; }
     let precos = [];
-    try { for (let i = 0; i < ids.length; i += 50) precos = precos.concat(await consultarPrecosOperador(op.token, c.codigo, ids.slice(i, i + 50))); }
-    catch (e) { erroEm(box, e, itens); return; }
+    try {
+      esquecerAtivosPublicos();
+      const cods = await codigosAtivosPublicos(); ativos = cods ? new Set(cods) : null;
+      for (let i = 0; i < ids.length; i += 50) precos = precos.concat(await consultarPrecosOperador(op.token, c.codigo, ids.slice(i, i + 50)));
+    } catch (e) { erroEm(box, e, itens); return; }
     const porId = new Map(precos.map((p) => [Number(p.id), p]));
-    box.innerHTML = `<div class="hint" style="padding:0 16px 6px">${ids.length} produto${ids.length === 1 ? '' : 's'} na lista</div>` + ids.map((id) => {
-      const p = porId.get(id);
-      return `<div class="crow" data-id="${id}"><div class="g360-mini" data-foto="${id}"><span>…</span></div>
-        <div class="nm">${esc(p ? nomeExibicao(p) : `Produto ${id}`)}<small>Cód. ${esc(p?.codigo || id)}${p ? dispPainel(p) : ' · fora do catálogo deste cliente'}</small></div>
-        <div class="g">Preço do cliente<b>${p ? esc(dinheiro(p.preco)) : '—'}</b></div><div></div><div></div>
-        <button class="rm" data-rm title="Tirar da lista">×</button></div>`;
+    const ordem = [...ids].sort((x, y) => Number(noPortal(porId.get(y))) - Number(noPortal(porId.get(x))));
+    const fora = ids.filter((id) => !noPortal(porId.get(id))).length;
+    box.innerHTML = `<div class="hint" style="padding:0 16px 6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span>${ids.length} produto${ids.length === 1 ? '' : 's'} na lista · <b style="color:var(--lima)">${ids.length - fora} aparecendo para o cliente</b>${fora ? ` · <b style="color:#ff8a8a">${fora} fora do portal (o cliente não vê)</b>` : ''}</span>
+        <button class="btn sec" id="mlEsv" type="button" style="height:32px;margin-left:auto">🗑 Esvaziar lista</button></div>` + ordem.map((id) => {
+      const p = porId.get(id); const ativo = noPortal(p);
+      return `<div class="crow" data-id="${id}" style="${ativo ? '' : 'opacity:.6'}"><div class="g360-mini" data-foto="${id}"><span>…</span></div>
+        <div class="nm">${esc(p ? nomeExibicao(p) : `Produto ${id}`)}<small>Cód. ${esc(p?.codigo || id)}${p ? dispPainel(p) : ' · fora do catálogo deste cliente'}${ativo ? '' : ' · <b style="color:#ff8a8a">fora do portal (o cliente não vê)</b>'}</small></div>
+        <div class="g">Preço do cliente<b>${p ? esc(dinheiro(p.preco)) : '—'}</b>${p?.preco_congelado ? `<small style="display:block;color:var(--lima)">❄ congelado ${esc(dinheiro(p.preco_congelado))}</small>` : ''}</div>
+        <div class="df2">${p ? margemHtml(p) : ''}</div>
+        ${p ? '<button class="tool ab" data-cgl type="button" style="white-space:nowrap">❄ Congelar</button>' : '<div></div>'}
+        <button class="rm" data-rm title="Tirar da lista">×</button></div>
+        <div class="mlcg" data-cgbox="${id}" hidden></div>`;
     }).join('');
     carregarMiniaturas(box);
     box.querySelectorAll('[data-rm]').forEach((b) => b.onclick = async () => {
@@ -764,6 +775,49 @@ async function montarLista(c) {
       try { ids = (await painel('lista_remover', { comprador: c.codigo, produto_id: Number(b.closest('.crow').dataset.id) })).dados; itens(); }
       catch (e) { b.disabled = false; toast(e.message); }
     });
+    const esv = $('mlEsv');
+    esv.onclick = async () => {
+      if (esv.dataset.confirmar !== '1') { esv.dataset.confirmar = '1'; esv.textContent = `Tirar os ${ids.length}? Clique de novo`; return; }
+      esv.disabled = true; esv.textContent = 'Esvaziando…';
+      try { for (const id of [...ids]) ids = (await painel('lista_remover', { comprador: c.codigo, produto_id: id })).dados; toast('Lista do cliente esvaziada'); }
+      catch (e) { toast(e.message); }
+      itens();
+    };
+    box.querySelectorAll('[data-cgl]').forEach((b) => b.onclick = () => abrirCongelarNaLista(b.closest('.crow'), porId.get(Number(b.closest('.crow').dataset.id))));
+  }
+  /** Congelar o preço do produto para este cliente direto da lista (grava no G360). */
+  function abrirCongelarNaLista(row, p) {
+    const box = row.nextElementSibling;
+    if (!box.hidden) { box.hidden = true; return; }
+    const hoje = new Date().toISOString().slice(0, 10); const f = new Date(); f.setFullYear(f.getFullYear() + 1);
+    const custo = p.custo_visivel && p.custo !== null ? Number(p.custo) : null;
+    box.hidden = false;
+    box.innerHTML = `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;padding:4px 16px 14px 16px">
+      <div class="pin"><span>R$</span><input data-cgv inputmode="decimal" placeholder="${esc(valorTela(p.preco_congelado || p.preco))}" aria-label="Preço congelado"></div>
+      <label class="hint" style="margin:0">De <input type="date" data-cgi value="${hoje}"></label>
+      <label class="hint" style="margin:0">Até <input type="date" data-cgf value="${f.toISOString().slice(0, 10)}" min="${hoje}"></label>
+      <button class="btn pri" data-cgok type="button" style="height:36px">Congelar no G360</button>
+      <span class="hint" data-cgmg style="margin:0">Tabela para o cliente: <b>${esc(dinheiro(p.preco))}</b>${custo !== null ? ` · custo R$ ${esc(numeroPainel(custo, 2))}` : ''}${p.preco_congelado ? ' · já tem preço congelado: para alterar o atual, use a aba Preços congelados' : ''}</span>
+      <div data-cgerr style="flex-basis:100%" aria-live="polite"></div></div>`;
+    const inp = box.querySelector('[data-cgv]'); inp.focus();
+    inp.addEventListener('input', () => {
+      const v = Number(valorPreco(inp.value) || 0); const el = box.querySelector('[data-cgmg]');
+      const base = `Tabela para o cliente: <b>${esc(dinheiro(p.preco))}</b>${custo !== null ? ` · custo R$ ${esc(numeroPainel(custo, 2))}` : ''}`;
+      const mg = custo !== null && v > 0 ? ((v - custo) / v) * 100 : null;
+      el.innerHTML = base + (mg !== null ? ` · margem no preço digitado: <b class="mg ${mg < limiteMargem() ? 'bad' : 'ok'}">${esc(numeroPainel(mg, 1))}%</b>${mg < limiteMargem() ? ' (abaixo do mínimo)' : ''}` : '');
+    });
+    box.querySelector('[data-cgok]').onclick = async (ev) => {
+      const b = ev.currentTarget; const err = box.querySelector('[data-cgerr]'); err.innerHTML = '';
+      const valor = valorPreco(inp.value);
+      const inicio = box.querySelector('[data-cgi]').value; const fim = box.querySelector('[data-cgf]').value;
+      if (!valor) { err.innerHTML = '<div class="okmsg bad">Digite o preço, por exemplo 12,50.</div>'; inp.focus(); return; }
+      if (!inicio || !fim || fim < inicio) { err.innerHTML = '<div class="okmsg bad">A data final precisa ser igual ou depois da inicial.</div>'; return; }
+      b.disabled = true; b.textContent = 'Gravando no G360…';
+      try {
+        await incluirPrecoCongelado(op.token, c.codigo, { produto: Number(p.id), unidade_id: null, valor, inicio, fim });
+        toast(`Preço congelado no G360 ✓ ${dinheiro(valor)}`); itens();
+      } catch (e) { b.disabled = false; b.textContent = 'Congelar no G360'; if (e.status === 401) { encerrarOperador(e.message); return; } mostrarMensagemErro(err, e); }
+    };
   }
   async function buscar() {
     const q = $('mlQ').value.trim(); const res = $('mlRes');
@@ -772,10 +826,13 @@ async function montarLista(c) {
     try {
       await carregarExibicao();
       const locais = buscarLocal(q, { max: 20 });
-      const { dados } = locais.length ? await buscarProdutosOperador(op.token, { codigos: locais.map((l) => l.codigo), limite: 20 })
+      let { dados } = locais.length ? await buscarProdutosOperador(op.token, { codigos: locais.map((l) => l.codigo), limite: 20 })
         : await buscarProdutosOperador(op.token, { q, limite: 20 });
       const ordem = new Map(locais.map((l, i) => [l.codigo, i]));
       dados.sort((a, b) => (ordem.get(String(a.codigo)) ?? 99) - (ordem.get(String(b.codigo)) ?? 99));
+      if (!ativos) { const cods = await codigosAtivosPublicos(); ativos = cods ? new Set(cods) : null; }
+      const todos = dados.length; dados = dados.filter((p) => noPortal(p));
+      if (!dados.length && todos) { res.innerHTML = vazio('Os produtos encontrados não estão ativos no portal. Só dá para pôr na lista o que aparece para o cliente.'); return; }
       res.innerHTML = dados.length ? dados.map((p) => `<div class="crow" data-id="${Number(p.id)}"><div class="g360-mini" data-foto="${Number(p.id)}"><span>…</span></div>
           <div class="nm">${esc(nomeExibicao(p))}<small>Cód. ${esc(p.codigo)} · ${esc(p.unidade || '')}</small></div><div class="g">Tabela<b>${esc(dinheiro(p.preco))}</b></div><div></div>
           <div></div><button class="btn ${ids.includes(Number(p.id)) ? 'sec' : 'pri'}" data-add style="height:34px;white-space:nowrap" ${ids.includes(Number(p.id)) ? 'disabled' : ''}>${ids.includes(Number(p.id)) ? 'Na lista ✓' : '+ Adicionar'}</button></div>`).join('')
@@ -805,9 +862,10 @@ async function desenharClientesPortal() {
   alvo.innerHTML = `<div class="crow2 h"><div>Clientes que já entraram no portal (${lista.length})</div><div>Cód. G360</div><div>Último acesso</div><div>Pedidos pelo portal</div><div></div></div>`
     + (lista.length ? lista.map((c) => `<div class="crow2"><div class="nm"><b>${esc(c.nome || 'Nome aparece no próximo acesso')}</b><small>Primeiro acesso: ${esc(dt(c.primeiro_em))}${c.acessos ? ` · ${c.acessos} acesso${c.acessos === 1 ? '' : 's'}` : ''}</small></div>
         <div class="sm sm2">${esc(c.codigo)}</div><div class="sm">${esc(dt(c.ultimo_em))}</div>
-        <div class="sm">${c.pedidos ? `<b>${c.pedidos}</b> · ${esc(brl(c.valor))}` : '—'}</div><div></div></div>`).join('')
+        <div class="sm">${c.pedidos ? `<b>${c.pedidos}</b> · ${esc(brl(c.valor))}` : '—'}</div><div><button class="tool ab" data-mlc="${esc(c.codigo)}" data-nome="${esc(c.nome || '')}" type="button">⭐ Minha Lista</button></div></div>`).join('')
       : vazio('Nenhum cliente entrou no portal ainda.'))
     + '<div class="hint" style="padding:10px 18px">A lista mostra quem já entrou pelo menos uma vez. Quem tem acesso liberado no G360 mas nunca entrou ainda não aparece (pedido feito à Movimento).</div>';
+  alvo.querySelectorAll('[data-mlc]').forEach((b) => b.onclick = () => montarLista({ codigo: Number(b.dataset.mlc), nome: b.dataset.nome || `cliente ${b.dataset.mlc}` }));
 }
 
 /* Dados do Supabase pelo mesmo login do G360 (função painel-g360). 401 encerra o painel. */
