@@ -6,7 +6,7 @@
    ===================================================================== */
 import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
-import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo, estoqueMinimoAtual } from '../catalogo/exibicao.js';
+import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo, estoqueMinimoAtual, codigosAtivosPublicos } from '../catalogo/exibicao.js';
 import { LOJA, supabaseComprador } from '../api/supabase.js';
 import { buscarLocal, temEstoque, variacoes } from '../catalogo/busca.js';
 import { listarProdutos, buscarProdutos, listarMarcas } from '../api/g360.js';
@@ -217,6 +217,26 @@ function desenharChips() {
 
 /* ---------------- catálogo ---------------- */
 
+/** "Mostrando 24 de 1.600 produtos". Sem o total (filtro por marca), só "Mostrando 24 produtos". */
+function mostrando(vistos, total, q = '') {
+  const pal = q ? (n) => (n === 1 ? 'resultado' : 'resultados') : (n) => (n === 1 ? 'produto' : 'produtos');
+  const fim = q ? ` para “${esc(q)}”` : (filtros.grupo ? ` em ${esc(filtros.grupo)}` : '');
+  if (total == null) return `Mostrando <b>${vistos.toLocaleString('pt-BR')}</b> ${pal(vistos)}${fim}`;
+  const t = Math.max(total, vistos);
+  return `Mostrando <b>${vistos.toLocaleString('pt-BR')} de ${t.toLocaleString('pt-BR')}</b> ${pal(t)}${fim}`;
+}
+
+/** Quantos produtos estão ativos no portal (lista pronta no Supabase, uma consulta rápida).
+ *  Com categoria, só os dela. Com marca, não dá para saber sem ler o catálogo: null. */
+async function totalNoPortal() {
+  if (filtros.marca) return null;
+  const cods = await codigosAtivosPublicos();
+  if (!cods) return null;
+  if (!filtros.grupo) return cods.length;
+  const ativos = new Set(cods);
+  return codigosDaCategoria(filtros.grupo, Infinity).filter((c) => ativos.has(String(c))).length;
+}
+
 /* ---------- vitrine (sem busca): só produtos com estoque ---------- */
 const POR_PAGINA = 24;
 let vitrine = null;   // { chave, apiPagina, apiPaginas, itens, fim }
@@ -369,8 +389,7 @@ async function desenharCatalogoPublico(grid, pag) {
   try {
     const r = await resultadoPublico(filtros);
     if (meu !== buscaN || sessao.ativa) return;
-    $('cnt').innerHTML = filtros.q ? `<b>${r.total.toLocaleString('pt-BR')}</b> resultado${r.total === 1 ? '' : 's'} para “${esc(filtros.q)}” · entre para ver os preços`
-      : 'Entre para ver os preços';
+    $('cnt').innerHTML = mostrando((filtros.pagina - 1) * POR_PAGINA + r.itens.length, r.total, filtros.q) + ' · entre para ver os preços';
     grid.innerHTML = r.itens.length ? r.itens.map(htmlCartaoPublico).join('')
       : `<div class="empty">${filtros.q ? `Nada encontrado para “${esc(filtros.q)}”. Tente outra palavra ou o código do produto.` : 'Nenhum produto nesta seleção.'}</div>`;
     ligarTrocaFotos(grid);
@@ -404,9 +423,10 @@ export async function desenharCatalogo() {
     if (meu !== buscaN) return;
     const dados = r.itens;
     if (!filtros.q && !filtros.grupo && !filtros.marca && classificacoes && classificacoes.total === null) { classificacoes.total = ''; }
+    const vistos = (filtros.pagina - 1) * POR_PAGINA + dados.length;
     $('cnt').innerHTML = filtros.q
-      ? `<b>${r.total.toLocaleString('pt-BR')}</b> resultado${r.total === 1 ? '' : 's'} para “${esc(filtros.q)}”${r.semEstoque ? ` · ${r.semEstoque} sem estoque no fim da lista` : ''}`
-      : '';
+      ? mostrando(vistos, r.total, filtros.q) + (r.semEstoque ? ` · ${r.semEstoque} sem estoque no fim da lista` : '')
+      : (dados.length ? mostrando(vistos, await totalNoPortal()) : '');
     produtosDaTela = new Map(dados.map((p) => [Number(p.id), p]));
     const lista = idsCarregados();
     grid.innerHTML = dados.length ? dados.map((p) => htmlCartao(p, { naLista: lista ? lista.has(Number(p.id)) : null })).join('')
