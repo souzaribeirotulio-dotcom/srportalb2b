@@ -570,9 +570,13 @@ with sync_playwright() as pw:
     pg.click('[data-at="prod"]'); pg.click('#aImpFotos'); pg.wait_for_selector('#ifImp.open #impArq', state='attached')
     pg.set_input_files('#impArq', files=[{'name': 'vazio.zip', 'mimeType': 'application/zip', 'buffer': _zip([('nada.jpg', _img('JPEG', 'red'))])}])
     pg.wait_for_selector('#impMsg .rv-aviso'); checar('Nenhum arquivo no padrão' in n.tc('#impMsg'), 'ZIP sem nomes no padrão recusado')
+    sim.fotos_erro = {102}  # o G360 não deixa conferir a galeria de um produto: ele fica marcado e o resto segue
     pg.set_input_files('#impArq', files=[{'name': 'lote.zip', 'mimeType': 'application/zip', 'buffer': z1}])
     pg.wait_for_selector('#impGrid .improw')
+    sim.fotos_erro = set()
     t = n.tc('#impCorpo')
+    checar('sem resposta do G360' in t and 'Não deu para conferir' in n.tc('[data-k="P-102"]') and not pg.is_checked('[data-k="P-102"] input[data-t="capa"]'),
+           'importar: produto que o G360 não deixou conferir fica desmarcado com a mensagem, e o resto segue')
     checar(pg.locator('#impGrid .improw').count() == 3, f"3 produtos encontrados: {pg.locator('#impGrid .improw').count()}")
     checar('X-999' in t and 'não encontrado' in t and 'foto qualquer.jpg' in t and 'já tem 2 fotos' in t, 'avisos: código desconhecido, nome fora do padrão, produto com fotos')
     pg.uncheck('[data-k="P-102"] input[data-t="capa"]')
@@ -674,18 +678,27 @@ with sync_playwright() as pw:
     pg.click('#lfX')
     # Exportar fotos (ZIP): procura quem tem foto, a equipe escolhe, baixa no padrão do Importar imagens
     import zipfile, io as _io
+    vit0 = sim.vitrine_aberta
+    # vitrine fechada: confere a galeria produto por produto
+    sim.vitrine_aberta = False
     com_foto = sorted(str(next(p['codigo'] for p in sim.produtos if int(p['id']) == pid)) for pid, g in sim.galeria.items() if g)
     pg.click('#aExpFotos'); pg.wait_for_selector('#mAdm.open #exIr'); pg.select_option('#exModo', 'todos'); pg.click('#exIr')
     pg.wait_for_selector('#exLista input[data-c]')
     lista_cods = pg.eval_on_selector_all('#exLista input[data-c]', 'els => els.map(e => e.dataset.c)')
-    checar(sorted(lista_cods) == com_foto, f'exportar: lista só com os produtos que têm foto: {lista_cods} x {com_foto}')
+    checar(sorted(lista_cods) == com_foto, f'exportar (vitrine fechada): lista só com os produtos que têm foto: {lista_cods} x {com_foto}')
+    # vitrine aberta: a lista sai direto da vitrine (fotos[]), sem perguntar galeria por galeria
+    sim.vitrine_aberta = True; galerias0 = len([c for c in sim.chamadas if 'fotos' in str(c[1])]) if sim.chamadas and isinstance(sim.chamadas[0], tuple) else None
+    pg.click('#exIr'); pg.wait_for_function("document.getElementById('exIr').textContent.includes('Procurar de novo') && document.querySelector('#exLista input[data-c]')")
+    lista_cods = pg.eval_on_selector_all('#exLista input[data-c]', 'els => els.map(e => e.dataset.c)')
+    pela_vitrine = sorted(str(p['codigo']) for p in sim.produtos if p.get('fotos'))
+    checar(sorted(lista_cods) == pela_vitrine and any(c[0] == 'vitrine/produtos' for c in sim.vitrine_chamadas), f'exportar (rápido): lista vem da vitrine: {lista_cods} x {pela_vitrine}')
     tirar = lista_cods[0]; pg.uncheck(f'#exLista input[data-c="{tirar}"]')
     with pg.expect_download() as dl: pg.click('#exBaixar')
     z = zipfile.ZipFile(_io.BytesIO(open(dl.value.path(), 'rb').read())); nomes = z.namelist()
     checar(nomes and all(re.match(r'^.+_(capa|ambiente|uso)\.(jpg|png|webp)$', x) for x in nomes) and not any(x.startswith(tirar + '_') for x in nomes) and any(x.endswith('_capa.jpg') for x in nomes),
            f'exportar: ZIP no padrão do Importar imagens, só com os escolhidos: {nomes}')
     pg.wait_for_function("document.getElementById('exFim').textContent.includes('Pronto')")
-    pg.click('#exX')
+    pg.click('#exX'); sim.vitrine_aberta = vit0
     # Caça-capa: colar a foto, ajuste automático, Enter envia; "Não achei" grava no lote
     import io, base64
     from PIL import Image as _I
