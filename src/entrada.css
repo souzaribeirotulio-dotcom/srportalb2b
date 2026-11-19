@@ -102,3 +102,9 @@ body.g360 > *:not(.fundo):not(#g360Entrada) { display: none !important; }
 .g360-ok p { margin: 0; font-size: 14px; color: var(--tx); }
 #g360Resultado:not(:empty) { margin-top: 12px; }
 .g360-avisos { text-align: left; color: var(--tx2); font-size: 13px; margin: 14px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+
+/* "Mostrar senhas": caixinha pequena ao lado do texto (a regra geral dos campos do formulário não vale para ela). */
+.g360-form label.g360-check { display: inline-flex; align-items: center; gap: 10px; width: max-content; margin: 4px 0 0; font-size: 14px; color: var(--tx2); min-height: 44px; }
+.g360-form .g360-check input[type="checkbox"] { width: 18px; height: 18px; min-height: 0; padding: 0; margin: 0; border-radius: 4px; flex: none; background: none; accent-color: var(--lima); cursor: pointer; }
+/* Título recebe o foco ao abrir (leitor de tela), sem a moldura que parece um campo. */
+.g360-cartao [tabindex="-1"]:focus { outline: none; }

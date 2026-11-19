@@ -541,7 +541,7 @@ export function fecharCarrinho() { $('drawer').classList.remove('open'); $('shad
 function desenharCarrinho() {
   const it = linhasCarrinho();
   $('dBody').innerHTML = it.length ? it.map((l) => `<div class="ci" data-k="${esc(`${l.produto_id}|${l.unidade ?? ''}`)}">
-      ${htmlFoto({ id: l.produto_id, nome: l.nome, fotos: l.fotos }, 'g360-mini')}
+      ${htmlFoto({ id: l.produto_id, nome: l.nome, fotos: (l.fotos || []).slice(0, 1) }, 'g360-mini')}
       <div class="n">${esc(l.nome)}<small>${l.precoTexto ? `${esc(dinheiro(l.precoTexto))}${l.unidade ? ` / ${esc(String(l.unidadeNome).toLowerCase())}` : ''}` : (l.unidade ? esc(l.unidadeNome) : '')}${l.seu_preco ? ' <span class="tagcg">Seu preço</span>' : ''}</small>
         <div class="qty" style="margin-top:6px;width:max-content"><button type="button" data-d="-1" aria-label="Diminuir">−</button><input type="text" inputmode="decimal" value="${esc(String(l.quantidade).replace('.', ','))}" maxlength="13" aria-label="Quantidade"><button type="button" data-d="1" aria-label="Aumentar">+</button></div></div>
       <div class="r">${l.precoTexto ? esc(dinheiro(estimar([l]).total)) : '—'}<br><button type="button" class="x">Remover</button></div></div>`).join('')
