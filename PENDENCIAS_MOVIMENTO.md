@@ -134,3 +134,7 @@ Nada aqui é contrato oficial. Os nomes de operação são os da interface do fr
 ## Kit cujos componentes não podem ser vendidos separados (19/11)
 A Souza Ribeiro vai vender alguns produtos só como kit (ex.: base marmitex 3414 + tampa 4315). O contrato só informa `kit: true` no produto; não há como o portal saber os componentes nem um parâmetro para "componente só dentro do kit".
 Pergunta: se os componentes ficarem sem **Publicar no e-commerce** (ou outro ajuste do G360), o kit continua vendendo pela API e os componentes deixam de ser aceitos em `POST revisoes` / `POST pedidos` sozinhos? Qual é a configuração certa no G360 para isso?
+
+## Vendedor do pedido e do cliente (19/11)
+O G360 grava o vendedor do cadastro do comprador (ou o Vendedor padrão do pedido), mas nenhuma resposta do contrato traz essa informação: `Pedido` / `PedidoResumo` (`GET pedidos`, `GET pedidos/{id}`) e `FichaClienteOperador` (`GET operadores/clientes/{cliente}`) não têm vendedor.
+Pedido: incluir o vendedor (id e nome) no pedido e na ficha do cliente do operador, para a equipe ver no painel para qual vendedor cada pedido do portal foi.
