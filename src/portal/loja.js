@@ -7,10 +7,10 @@
 import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
 import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo, estoqueMinimoAtual, codigosAtivosPublicos } from '../catalogo/exibicao.js';
-import { LOJA, supabaseComprador } from '../api/supabase.js';
+
 import { buscarLocal, temEstoque, variacoes } from '../catalogo/busca.js';
 import { listarProdutos, buscarProdutos, listarMarcas } from '../api/g360.js';
-import { sessao, entrar, sair, trocarSenha, garantirVinculo, vinculoEmAndamento } from '../estado/sessao.js';
+import { sessao, entrar, sair, trocarSenha, vinculoEmAndamento } from '../estado/sessao.js';
 import { adicionar, linhasCarrinho, alterarQuantidade, remover, aoMudarCarrinho, quantidadeLinhas } from '../estado/carrinho.js';
 import { carregarIds, incluirNaLista, removerDaLista, idsCarregados } from '../estado/minha-lista.js';
 import { normalizarQuantidade, dinheiro, estimar } from '../ui/formato.js';
@@ -178,7 +178,7 @@ export function mostrarLoja(contexto, rota, params = [], estado = {}) {
 
 function desenharHero() {
   $('hi').innerHTML = `${saudacao()}<em>Seus suprimentos</em>num só lugar.`;
-  if (!sessao.ativa) { $('nMarcas').textContent = '—'; contagem = null; }
+  if (!sessao.ativa) { $('nMarcas').textContent = '—'; }
 }
 
 async function carregarClassificacoes() {
@@ -271,7 +271,6 @@ async function resultadoVitrine() {
       : await listarProdutos(sessao.token, { marca, pagina, limite: 50 });
     vitrine.apiPagina = pagina; lidas += 1;
     vitrine.apiPaginas = Math.max(1, Math.ceil((paginacao?.total || 0) / 50));
-    if (!filtros.grupo && !filtros.marca && pagina === 1) agendarLista(Number(paginacao?.total || 0));
     vitrine.itens.push(...dados.map(apresentar).filter((p) => temEstoque(p) && !oculto(p) && !abaixoDoMinimo(p)));
     if (pagina >= vitrine.apiPaginas) {
       if (vitrine.bloco + 1 < blocos.length) { vitrine.bloco += 1; vitrine.apiPagina = 0; } else vitrine.fim = true;
@@ -284,60 +283,8 @@ async function resultadoVitrine() {
   return { itens, total: vitrine.itens.length, temMais, aindaLendo: !vitrine.fim, paginas: temMais ? filtros.pagina + 1 : filtros.pagina };
 }
 
-/* Lista do que aparece no portal (para o painel e para o visitante). Não aparece na tela.
-   A API não informa quais produtos têm estoque, então o portal lê o catálogo em segundo
-   plano, com 2 consultas por vez, só depois que os primeiros cards já apareceram e sem
-   disputar com a navegação do cliente. Feito no máximo a cada 2 horas por navegador. */
-let contagem = null;
-function agendarLista(totalCatalogo) {
-  const token = sessao.token;
-  setTimeout(() => {
-    const ocioso = window.requestIdleCallback || ((f) => setTimeout(f, 0));
-    ocioso(() => { if (sessao.token === token) contarComEstoque(totalCatalogo); });
-  }, 2500);
-}
-async function contarComEstoque(totalCatalogo) {
-  const chave = `sr-estoque3-${LOJA}-${sessao.comprador?.codigo || ''}`;
-  try {
-    const salvo = JSON.parse(localStorage.getItem(chave) || 'null');
-    if (salvo && Date.now() - salvo.em < 2 * 60 * 60 * 1000) return;
-  } catch { /* sem armazenamento: lê de novo */ }
-  if (contagem && contagem.token === sessao.token) return;
-  const token = sessao.token;
-  contagem = { token };
-  const paginas = Math.max(1, Math.ceil(totalCatalogo / 50));
-  let n = 0; let feitas = 0; let proxima = 1; let falhou = false;
-  const lista = { visiveis: [], baixo: [], sem: [] }; // só códigos, para o painel saber o que aparece
-  const trabalhador = async () => {
-    while (!falhou && proxima <= paginas && sessao.token === token) {
-      const pagina = proxima++;
-      try {
-        const { dados } = await listarProdutos(token, { pagina, limite: 50, segundoPlano: true });
-        for (const p of dados.map(apresentar)) {
-          const tem = temEstoque(p); const baixo = tem && abaixoDoMinimo(p);
-          (!tem ? lista.sem : baixo ? lista.baixo : lista.visiveis).push(String(p.codigo));
-          if (tem && !baixo && !oculto(p)) n += 1;
-        }
-      } catch { falhou = true; return; }
-      feitas += 1;
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(2, paginas) }, trabalhador));
-  if (sessao.token !== token) return;
-  if (falhou) { contagem = null; return; }
-  try { localStorage.setItem(chave, JSON.stringify({ n, em: Date.now() })); } catch { /* ok */ }
-  enviarVisiveis(lista);
-}
-
-/** Manda ao Supabase a lista de códigos com e sem estoque (o painel usa no filtro "Aparecendo no portal").
- *  Sem quantidade nem preço. Falhou → tudo bem, outro acesso manda depois. */
-async function enviarVisiveis(l) {
-  try {
-    if (!(await garantirVinculo())) return;
-    const sb = supabaseComprador(); if (!sb) return;
-    await sb.rpc('portal_visiveis_gravar', { p_visiveis: l.visiveis, p_estoque_baixo: l.baixo, p_sem_estoque: l.sem, p_estoque_minimo: estoqueMinimoAtual() });
-  } catch { /* sem efeito para o comprador */ }
-}
+/* A lista do que aparece no portal (visitante e filtros do painel) é gravada pelo painel,
+   no botão "Atualizar produtos do portal". O navegador do cliente só lê a página que está vendo. */
 
 /** Busca: nomes do portal (tolerante) + busca da API (código, EAN, aplicação); com estoque primeiro. */
 async function resultadoBusca() {

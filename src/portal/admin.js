@@ -18,7 +18,7 @@ import { abrirFichaG360 } from './fichag360.js';
 import { paraJpeg } from './jpeg.js';
 import { abrirImportacaoFotos } from './importarfotos.js';
 import { abrirNovoClienteG360 } from './novocliente.js';
-import { abrirLotesFotos } from './lotesfotos.js';
+import { abrirLotesFotos, comEspera } from './lotesfotos.js';
 import { abrirCacaCapa } from './cacacapa.js';
 import { definirEncerramentoOperador, definirAtividadeOperador } from '../estado/sessao.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
@@ -140,6 +140,8 @@ function ligar() {
     aoConcluir: () => { if (aba === 'prod') carregarMiniaturas($('aPanel')); },
   }));
   $('aImpFotos').insertAdjacentHTML('afterend', '<button class="btn sec" id="aLotes" style="height:36px">📄 Planilha para fotos</button>');
+  $('aLotes').insertAdjacentHTML('afterend', '<button class="btn sec" id="aVis" style="height:36px">🔄 Atualizar produtos do portal</button><span class="hint" id="aVisM" style="margin:0" aria-live="polite"></span>');
+  $('aVis').addEventListener('click', atualizarProdutosDoPortal);
   $('aLotes').addEventListener('click', () => abrirLotesFotos({ token: () => op.token, painel, aoSessaoEncerrada: (e) => encerrarOperador(e.message) }));
   $('aImpFotos').addEventListener('click', () => abrirImportacaoFotos({
     token: () => op.token,
@@ -401,8 +403,8 @@ async function desenharProdutos(buscar = true) {
     || (st === 'fora' && motivoFora(p) !== null)
     || (st === 'semdesc' && !registro(p)?.descricao));
   const avisoEstoque = st === 'visivel' || st === 'fora' ? (visAdm?.ok
-    ? `<div class="hint" style="margin:10px 18px">Estoque conferido no último acesso de cliente ao portal: ${esc(new Date(visAdm.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }))}. A lista se atualiza sozinha quando os clientes entram (no máximo a cada 10 minutos).</div>`
-    : '<div class="rv-aviso" style="margin:10px 18px">Ainda não temos a lista de estoque do portal. Ela é criada quando um cliente entra no portal. Entre uma vez como cliente, espere a contagem do estoque terminar e volte aqui.</div>') : '';
+    ? `<div class="hint" style="margin:10px 18px">Lista de estoque do portal atualizada em ${esc(new Date(visAdm.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }))}. Para atualizar, clique em 🔄 Atualizar produtos do portal.</div>`
+    : '<div class="rv-aviso" style="margin:10px 18px">Ainda não temos a lista de estoque do portal. Clique em 🔄 Atualizar produtos do portal (leva cerca de 1 minuto).</div>') : '';
   const paginas = Math.max(1, Math.ceil(prod.total / 20));
   const cats = categorias();
   alvo.innerHTML = avisoEstoque + `<div class="arow h"><div></div><div>Nome no portal (${prod.total})</div><div>Preço de tabela</div><div>Categoria</div><div>Custo</div><div></div></div>`
@@ -431,7 +433,44 @@ function dispPainel(p) {
   return ` · <b style="color:${Number(q) > 0 ? 'var(--lima)' : '#ff8a8a'}">Disponível: ${esc(String(q).replace('.', ','))}</b>`;
 }
 
-/* Lista do que aparece no portal (gravada pelo portal na contagem de estoque de um cliente). */
+/** "Atualizar produtos do portal": lê o catálogo do G360 com o login do operador, devagar
+ *  (1 página de 50 a cada 0,7 s, cerca de 85 chamadas por minuto, bem abaixo do limite de 240),
+ *  e grava a lista que o visitante e os filtros do painel usam. Só roda quando a equipe clica. */
+let atualizandoVis = false;
+async function atualizarProdutosDoPortal() {
+  if (atualizandoVis) return;
+  const b = $('aVis'); const m = $('aVisM');
+  atualizandoVis = true; b.disabled = true;
+  const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+  try {
+    await carregarConfigLoja(true);
+    const min = Number(cfgLoja?.estoque_minimo) || 0;
+    const lista = { visiveis: [], baixo: [], sem: [] };
+    let pagina = 1; let paginas = 1;
+    do {
+      m.textContent = `Lendo o catálogo do G360… página ${pagina} de ${paginas}`;
+      const { dados, paginacao } = await comEspera(() => buscarProdutosOperador(op.token, { pagina, limite: 50 }));
+      paginas = Math.max(1, Math.ceil((paginacao?.total || 0) / 50));
+      for (const p of dados) {
+        const n = Number(p.quantidade_disponivel);
+        const tem = p.preco !== null && p.preco !== undefined && n > 0;
+        (!tem ? lista.sem : min > 0 && n <= min ? lista.baixo : lista.visiveis).push(String(p.codigo));
+      }
+      pagina += 1;
+      if (pagina <= paginas) await espera(700);
+    } while (pagina <= paginas);
+    m.textContent = 'Gravando a lista…';
+    await painel('visiveis_gravar', { visiveis: lista.visiveis, estoque_baixo: lista.baixo, sem_estoque: lista.sem, estoque_minimo: min });
+    visAdm = null;
+    m.textContent = `✓ Lista atualizada: ${lista.visiveis.length.toLocaleString('pt-BR')} produtos aparecendo no portal (${(lista.baixo.length + lista.sem.length).toLocaleString('pt-BR')} fora por estoque).`;
+    if (aba === 'prod') desenharProdutos(true);
+  } catch (e) {
+    if (e.status === 401) { encerrarOperador(e.message); return; }
+    m.textContent = `Não foi possível atualizar: ${e.message || 'tente de novo em instantes.'} A lista anterior continua valendo.`;
+  } finally { atualizandoVis = false; b.disabled = false; }
+}
+
+/* Lista do que aparece no portal (gravada pelo botão "Atualizar produtos do portal"). */
 let visAdm = null;
 async function lerVisiveis() {
   try {

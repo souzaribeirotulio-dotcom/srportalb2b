@@ -457,6 +457,9 @@ class Sim:
                 if 'oculto' in d: r['oculto'] = d['oculto'] is True
                 return res(200, {'ok': True})
             if ac == 'visiveis_ler': return res(200, {'dados': self.visiveis})
+            if ac == 'visiveis_gravar':
+                self.visiveis = {'visiveis': d['visiveis'], 'estoque_baixo': d['estoque_baixo'], 'sem_estoque': d['sem_estoque'], 'estoque_minimo': d['estoque_minimo'], 'atualizado_em': '2026-11-18T22:00:00+00:00'}
+                return res(200, {'ok': True})
             if ac == 'lotes_listar': return res(200, {'dados': sorted(self.lotes, key=lambda l: -l['numero'])})
             if ac == 'lote_salvar':
                 l = {'id': str(uuid.uuid4()), 'numero': max([x['numero'] for x in self.lotes] or [0]) + 1, 'responsavel': d.get('responsavel') or None, 'codigos': d['codigos'], 'pulados': [], 'criado_em': '2026-11-18T13:00:00+00:00'}

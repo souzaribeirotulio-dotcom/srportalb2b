@@ -330,6 +330,19 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     if (error) throw error;
     return [200, { dados: data ?? null }];
   }
+  if (acao === "visiveis_gravar") {
+    // Lista montada pelo painel (botão "Atualizar produtos do portal"): só códigos, sem preço nem quantidade.
+    const lista = (v: unknown) => [...new Set((Array.isArray(v) ? v : []).map((c) => texto(c, 40)).filter(Boolean))];
+    const visiveis = lista(d.visiveis), baixo = lista(d.estoque_baixo), sem = lista(d.sem_estoque);
+    if (visiveis.length + baixo.length + sem.length > 30000) return [400, { mensagem: "Lista grande demais." }];
+    const minimo = Number(d.estoque_minimo);
+    const { error } = await admin.from("portal_visiveis").upsert({
+      loja, visiveis, estoque_baixo: baixo, sem_estoque: sem,
+      estoque_minimo: minimo >= 0 && minimo <= 100000 ? minimo : 0, comprador_codigo: null, atualizado_em: new Date().toISOString(),
+    }, { onConflict: "loja" });
+    if (error) throw error;
+    return [200, { ok: true }];
+  }
   if (acao === "ocorrencias_listar") {
     const { data, error } = await admin.from("ocorrencias_g360")
       .select("registrada_em, codigo, operacao, comprador_codigo, request_id").eq("loja", loja)
