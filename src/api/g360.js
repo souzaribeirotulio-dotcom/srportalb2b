@@ -350,6 +350,11 @@ export async function entrarOperador(usuario, senha) {
 }
 export async function sairOperador(token) { await requisitar('DELETE', 'operadores/sessao', { token }); }
 
+/** GET operadores/me — consultarOperadorDaSessao: { operador: {codigo, usuario, nome}, empresa, permissoes, carteira, sessao }. */
+export async function consultarOperadorMe(token) {
+  return (await requisitar('GET', 'operadores/me', { token })).dados;
+}
+
 /** POST operadores/clientes/consulta — { codigo, nome, acesso_portal, segmento }. */
 export async function consultarClienteOperador(token, cnpj) {
   return (await requisitar('POST', 'operadores/clientes/consulta', { token, corpo: { cnpj } })).dados;

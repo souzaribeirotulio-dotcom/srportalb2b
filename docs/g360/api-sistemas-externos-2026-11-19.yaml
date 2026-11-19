@@ -1,9 +1,10 @@
 openapi: "3.1.0"
 info:
   title: "API dos sistemas externos"
-  version: "2026.11.18"
+  version: "2026.11.19"
+  x-edicao: "Etapas 1 e 2"
   description: |-
-    Contrato de integração com o G360. As operações usam a URL-base da instalação, seguida de /b2b/v1/lojas/{loja}. As rotas GET também aceitam HEAD. O CORS permite apenas as origens configuradas na loja. O preflight aceita GET, HEAD, POST, PUT, DELETE e OPTIONS, com Authorization, Content-Type e Idempotency-Key. A vitrine usa GET e HEAD simples, sem cabeçalhos que exijam preflight no navegador. Requisições sem Origin seguem a autenticação da operação. Recusas por método inexistente ou parâmetro de rota fora do padrão seguem o tratamento geral da aplicação.
+    Contrato de integração com o G360. As operações usam a URL-base da instalação, seguida de /b2b/v1/lojas/{loja}. As rotas GET também aceitam HEAD. O CORS permite apenas as origens configuradas na loja. Nas respostas reais dessas origens, Access-Control-Expose-Headers: Retry-After permite ao navegador ler a espera enviada em Retry-After. Origem não cadastrada e vitrine fechada não recebem CORS; o preflight permanece igual. O preflight aceita GET, HEAD, POST, PUT, DELETE e OPTIONS, com Authorization, Content-Type e Idempotency-Key. A vitrine usa GET e HEAD simples, sem cabeçalhos que exijam preflight no navegador. Requisições sem Origin seguem a autenticação da operação. Recusas por método inexistente ou parâmetro de rota fora do padrão seguem o tratamento geral da aplicação.
 
     Limites: 240 chamadas por minuto por endereço IP e loja localizada pelo slug, somadas entre operações. Slugs desconhecidos compartilham um contador de 60 por minuto por IP. Atrás de um proxy confiável, o limite usa o endereço de origem resolvido pelo servidor. Por IP de origem e loja, a vitrine tem 30 chamadas por minuto para produtos, grupos e marcas somados e 180 por minuto para fotos. Por IP, o teto anterior ao banco é de 120 listagens e 360 fotos por minuto, somadas entre lojas. Lojas com vitrine indisponível compartilham o contador de recusas com slugs desconhecidos. Os contadores da vitrine são independentes dos do comprador. O corpo pode ter até 65.536 bytes. Na inclusão de uma foto pelo operador, o limite é de 2.804.096 bytes. Páginas de 1 a 100.000, com 1 a 50 registros (padrão 20).
 
@@ -11,7 +12,7 @@ info:
 
     Disponibilidade no catálogo: mostre a faixa de estoque e, quando a loja ligar Mostrar a quantidade disponível no G360, também o número para compradores autenticados. A vitrine nunca devolve o número. As consultas de produtos do operador trazem o número sempre.
 
-    Login: em cada loja, 5 falhas por documento e IP, 40 por IP e 50 por documento em 15 minutos. Sessões têm limite absoluto de 12 horas e limite de inatividade configurável (padrão 8 minutos).
+    Login: em cada loja, 5 falhas por documento e IP, 40 por IP e 50 por documento em 15 minutos. Sem Continuar conectado, a sessão tem limite absoluto de 12 horas e inatividade configurável (padrão 8 minutos). Com continuar_conectado=true e continuar_conectado_dias>0, o prazo é renovado pelo uso a cada N dias, sem a inatividade em minutos, até o teto absoluto de 90 dias desde o login. O prazo em dias é o configurado na loja no login; expires_at no servidor e expira_em acompanham a renovação, gravada no máximo a cada 30 segundos. As mesmas revogações continuam valendo.
 
     Operador: o login tem contadores próprios de 5 falhas por apelido e IP, 40 por IP e 50 por apelido, por loja em 15 minutos. O Bearer do operador é vinculado à loja e à sua empresa. A sessão dura até 12 horas com a mesma configuração de inatividade da loja. Com a licença compartilhada ativa, a vaga do tipo Mobile vence após 180 segundos sem atividade e o Bearer revogado exige novo login. O backend reconfere cadastro, credencial, empresa e a permissão de cada operação.
 
@@ -117,6 +118,64 @@ paths:
           "$ref": "#/components/responses/AcessoEmAndamento"
         "413":
           "$ref": "#/components/responses/CorpoGrande"
+        "429":
+          "$ref": "#/components/responses/LimiteRequisicoes"
+        "503":
+          "$ref": "#/components/responses/Indisponivel"
+  "/b2b/v1/lojas/{loja}/operadores/me":
+    parameters:
+      - "$ref": "#/components/parameters/Loja"
+    get:
+      tags: ["Operador"]
+      operationId: "consultarOperadorDaSessao"
+      summary: "Consultar o operador da sessão"
+      description: "Devolve quem está logado, o que o G360 permite a ele e a carteira de clientes que ele enxerga. Cada permissão segue a mesma regra da operação correspondente: quando vem false, a operação responde 403 OPERADOR_SEM_ACESSO. A exceção é ver_custo, que não bloqueia operação. Mesmo com a permissão em true, a inclusão e a alteração podem recusar um campo com 403: a ficha do cliente e o formulário de inclusão informam, campo a campo, o que o usuário pode preencher. Use a resposta para montar o painel e para o seu servidor confirmar quem está logado antes de aplicar permissões próprias, que podem restringir mais e nunca liberar além do G360. A leitura revalida a sessão e conta como atividade, como as demais operações do operador, e entra no limite por IP e loja."
+      security:
+        - SessaoOperador: []
+      responses:
+        "200":
+          description: "Operador da sessão, permissões e carteira."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Sucesso"
+                properties:
+                  dados:
+                    "$ref": "#/components/schemas/IdentidadeOperador"
+              example:
+                dados:
+                  operador: {codigo: 12, usuario: "VENDEDOR EXEMPLO", nome: "Vendedor Exemplo"}
+                  empresa: 1
+                  permissoes:
+                    consultar_clientes: true
+                    incluir_clientes: true
+                    alterar_clientes: false
+                    consultar_produtos: true
+                    consultar_precos_cliente: true
+                    ver_custo: false
+                    precos_congelados: true
+                    consultar_fotos: true
+                    incluir_remover_fotos: false
+                    ordenar_fotos: false
+                  carteira:
+                    restrita: true
+                    vendedores:
+                      - {codigo: 3, nome: "Vendedor Exemplo"}
+                    clientes_sem_vendedor: true
+                  sessao: {expira_em: "2099-01-15T00:00:00+00:00"}
+                request_id: "0011223344556677"
+        "401":
+          "$ref": "#/components/responses/SessaoInvalida"
+        "403":
+          "$ref": "#/components/responses/OrigemOperadorNaoPermitida"
+        "404":
+          "$ref": "#/components/responses/LojaIndisponivel"
+        "409":
+          "$ref": "#/components/responses/AcessoEmAndamento"
+        "413":
+          "$ref": "#/components/responses/CorpoGrande"
+        "423":
+          "$ref": "#/components/responses/LicencaOperadorIndisponivel"
         "429":
           "$ref": "#/components/responses/LimiteRequisicoes"
         "503":
@@ -1568,6 +1627,7 @@ paths:
                   nome: "Loja Exemplo"
                   troca_senha: true
                   sessao_minutos: 8
+                  continuar_conectado_dias: 30
                   pedido_minimo: "150.00"
                 request_id: "0011223344556677"
         "404":
@@ -1586,7 +1646,7 @@ paths:
       tags: ["Acesso e sessão"]
       operationId: "criarSessao"
       summary: "Entrar na loja"
-      description: "Confere CPF/CNPJ e senha própria. Senha ausente ou igual ao código do cliente recebe a mesma recusa de credencial inválida. Use o link para definir a senha. Consulte os contadores de login na descrição geral."
+      description: "Confere CPF/CNPJ e senha própria. Senha ausente ou igual ao código do cliente recebe a mesma recusa de credencial inválida. Use o link para definir a senha. continuar_conectado é booleano opcional (padrão false). Com o recurso desligado ou ausente na base, a sessão é normal mesmo quando solicitado. A resposta informa o valor efetivo. Consulte os prazos e contadores na descrição geral."
       security: []
       requestBody:
         required: true
@@ -1597,12 +1657,13 @@ paths:
             example:
               usuario: "12ABC34501DE35"
               senha: "Exemplo7"
+              continuar_conectado: false
       x-exemplo-requisicao: |-
         POST /b2b/v1/lojas/0123456789abcdef/sessoes
         Host: loja-exemplo.invalid
         Content-Type: application/json
 
-        {"usuario": "12ABC34501DE35", "senha": "Exemplo7"}
+        {"usuario": "12ABC34501DE35", "senha": "Exemplo7", "continuar_conectado": false}
       responses:
         "201":
           description: "Sessão criada."
@@ -1617,6 +1678,7 @@ paths:
                 dados:
                   token: "exemplo_sem_validade_0000000000000000000000"
                   tipo: "Bearer"
+                  continuar_conectado: false
                   expira_em: "2099-01-15T00:00:00+00:00"
                   comprador:
                     nome: "Comprador Exemplo"
@@ -1630,6 +1692,7 @@ paths:
                     nome: "Loja Exemplo"
                     troca_senha: true
                     sessao_minutos: 8
+                    continuar_conectado_dias: 30
                     pedido_minimo: "150.00"
                     imagens: "PARCEIRO_EXEMPLO/IMGS_PROD_G360"
                     bloqueia_sem_estoque: true
@@ -1662,7 +1725,17 @@ paths:
         "413":
           "$ref": "#/components/responses/CorpoGrande"
         "422":
-          "$ref": "#/components/responses/CampoNaoPermitido"
+          description: "Campo desconhecido ou continuar_conectado com tipo diferente de booleano."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Erro"
+                properties:
+                  erro:
+                    properties:
+                      codigo:
+                        type: "string"
+                        enum: ["CAMPO_NAO_PERMITIDO", "DADOS_INVALIDOS"]
         "429":
           "$ref": "#/components/responses/LimiteLogin"
         "503":
@@ -1957,6 +2030,7 @@ paths:
                     nome: "Loja Exemplo"
                     troca_senha: true
                     sessao_minutos: 8
+                    continuar_conectado_dias: 30
                     pedido_minimo: "150.00"
                     imagens: "PARCEIRO_EXEMPLO/IMGS_PROD_G360"
                     bloqueia_sem_estoque: true
@@ -3304,7 +3378,7 @@ paths:
             instante em que essa venda grava a reserva. Com saldo para os dois, o pedido segue normalmente, mesmo com a
             venda do Desktop aberta. A quantidade reservada fica protegida mesmo quando a loja vende sem estoque. Nada foi
             gravado e a chave continua livre. Aguarde ao menos 3 segundos e reenvie o mesmo corpo com a mesma
-            Idempotency-Key. JavaScript em outra origem não lê Retry-After. Quando a venda do Desktop fecha, a quantidade
+            Idempotency-Key. JavaScript nas origens cadastradas lê Retry-After; use a espera informada, com 3 segundos como alternativa quando o cabeçalho não vier. Quando a venda do Desktop fecha, a quantidade
             sai do saldo e o reenvio segue as regras de sempre (422 REVISAO_BLOQUEADA se a falta for real); quando ela
             desiste, a quantidade volta. Se o reenvio encontrar o pedido já confirmado, a resposta é 200 com o mesmo
             pedido.
@@ -4320,6 +4394,59 @@ components:
         token: {type: "string", pattern: "^op_[A-Za-z0-9_-]{43}$"}
         tipo: {const: "Bearer"}
         expira_em: {type: "string", format: "date-time", description: "Limite absoluto em UTC."}
+    IdentidadeOperador:
+      type: "object"
+      additionalProperties: false
+      required: ["operador", "empresa", "permissoes", "carteira", "sessao"]
+      properties:
+        operador:
+          type: "object"
+          additionalProperties: false
+          required: ["codigo", "usuario", "nome"]
+          properties:
+            codigo: {type: "integer", description: "Código do usuário no G360. Use como identificador estável nas permissões do seu sistema."}
+            usuario: {type: "string", description: "Apelido usado no login, em maiúsculas."}
+            nome: {type: ["string", "null"], description: "Nome do cadastro do usuário, quando houver."}
+        empresa: {type: "integer", description: "Empresa da loja em que a sessão foi aberta."}
+        permissoes:
+          type: "object"
+          additionalProperties: false
+          required: ["consultar_clientes", "incluir_clientes", "alterar_clientes", "consultar_produtos", "consultar_precos_cliente", "ver_custo", "precos_congelados", "consultar_fotos", "incluir_remover_fotos", "ordenar_fotos"]
+          properties:
+            consultar_clientes: {type: "boolean", description: "Exige 00500. Consulta por CNPJ, ficha do cliente, CEP e referências de endereço."}
+            incluir_clientes: {type: "boolean", description: "Exige 00501. Formulário Novo cliente, referências do cadastro, consulta do CNPJ e inclusão. Os campos que o usuário pode preencher vêm em editaveis de GET operadores/cadastro/cliente. O preenchimento pelo CEP usa as rotas de endereço, que exigem consultar_clientes."}
+            alterar_clientes: {type: "boolean", description: "Exige 00502. Alteração da ficha e do acesso ao portal. A ficha informa os campos bloqueados para o usuário. Na prática, depende também de consultar_clientes, porque a alteração usa a versao lida na ficha."}
+            consultar_produtos: {type: "boolean", description: "Requer 01100. Busca de produtos."}
+            consultar_precos_cliente: {type: "boolean", description: "Requer 01100 e 00500. Preços para um cliente."}
+            ver_custo: {type: "boolean", description: "Requer 01110. Não bloqueia operação: com false, as consultas de produtos trazem custo e margem_percentual nulos e custo_visivel falso."}
+            precos_congelados: {type: "boolean", description: "Requer 500110. Listar, incluir, alterar e encerrar preço congelado dos clientes da carteira."}
+            consultar_fotos: {type: "boolean", description: "Requer 01100, 01101 ou 01102. Listar e abrir as fotos do produto."}
+            incluir_remover_fotos: {type: "boolean", description: "Requer 01101 ou 01102."}
+            ordenar_fotos: {type: "boolean", description: "Requer 01101. Capa e ordem das fotos."}
+        carteira:
+          type: "object"
+          description: "Resume só o recorte por vendedor. O vínculo do cliente com a empresa, a situação do cadastro e o prospect continuam valendo, então a carteira não é a lista de clientes liberados. Para saber se um cliente está no recorte, consulte-o."
+          additionalProperties: false
+          required: ["restrita", "vendedores", "clientes_sem_vendedor"]
+          properties:
+            restrita: {type: "boolean", description: "true quando o G360 limita os clientes aos vendedores vinculados ao usuário: parâmetro Vendedor exclusivo ligado e usuário sem autorização para todos os vendedores. false: sem recorte por vendedor."}
+            vendedores:
+              type: "array"
+              description: "Vendedores vinculados ao usuário no G360, em ordem de código, sem repetição e sem o código zero, que não é vendedor. Vem também quando a carteira é livre."
+              items:
+                type: "object"
+                additionalProperties: false
+                required: ["codigo", "nome"]
+                properties:
+                  codigo: {type: "integer"}
+                  nome: {type: ["string", "null"]}
+            clientes_sem_vendedor: {type: "boolean", description: "Se o usuário enxerga clientes sem vendedor no cadastro. Na carteira restrita, isso exige ao menos um vínculo."}
+        sessao:
+          type: "object"
+          additionalProperties: false
+          required: ["expira_em"]
+          properties:
+            expira_em: {type: "string", format: "date-time", description: "Limite absoluto em UTC, o mesmo informado no login."}
     ClienteConsultadoOperador:
       type: "object"
       additionalProperties: false
@@ -4329,7 +4456,7 @@ components:
         nome: {type: "string"}
         acesso_portal:
           type: "boolean"
-          description: "Indica se o cadastro está liberado para acessar o portal. Em bases sem esse controle, valem as demais regras de acesso do cadastro."
+          description: "Situação da chave do item 03. Em base antiga sem a coluna, segue a regra anterior de acesso."
         segmento:
           "$ref": "#/components/schemas/Comprador/properties/segmento"
     RequestId:
@@ -4392,7 +4519,7 @@ components:
           minimum: 0
     Loja:
       type: "object"
-      required: ["nome","troca_senha","sessao_minutos","pedido_minimo"]
+      required: ["nome","troca_senha","sessao_minutos","continuar_conectado_dias","pedido_minimo"]
       properties:
         nome:
           type: "string"
@@ -4403,13 +4530,18 @@ components:
           minimum: 1
           maximum: 720
           default: 8
+        continuar_conectado_dias:
+          type: "integer"
+          minimum: 0
+          maximum: 90
+          description: "Dias sem uso da sessão longa escolhidos no login. Zero desliga (inclusive base sem o parâmetro); valor inválido usa 30. Mostre a caixa desmarcada apenas quando maior que zero."
         pedido_minimo:
           type: ["string","null"]
           pattern: '^[0-9]+\.[0-9]{2}$'
           description: "Subtotal mínimo dos produtos, em reais, sem frete nem taxa de pagamento. Nulo quando a loja desativa a regra."
     LojaComSessao:
       type: "object"
-      required: ["nome","troca_senha","sessao_minutos","pedido_minimo","imagens","bloqueia_sem_estoque"]
+      required: ["nome","troca_senha","sessao_minutos","continuar_conectado_dias","pedido_minimo","imagens","bloqueia_sem_estoque"]
       properties:
         nome:
           type: "string"
@@ -4420,6 +4552,11 @@ components:
           minimum: 1
           maximum: 720
           default: 8
+        continuar_conectado_dias:
+          type: "integer"
+          minimum: 0
+          maximum: 90
+          description: "Dias sem uso da sessão longa escolhidos no login. Zero desliga (inclusive base sem o parâmetro); valor inválido usa 30. Mostre a caixa desmarcada apenas quando maior que zero."
         pedido_minimo:
           type: ["string","null"]
           pattern: '^[0-9]+\.[0-9]{2}$'
@@ -4462,7 +4599,7 @@ components:
               type: "string"
     SessaoCriada:
       type: "object"
-      required: ["token","tipo","expira_em","comprador","loja"]
+      required: ["token","tipo","expira_em","continuar_conectado","comprador","loja"]
       properties:
         token:
           type: "string"
@@ -4470,10 +4607,13 @@ components:
           description: "Token opaco de sessão. Trate como credencial."
         tipo:
           const: "Bearer"
+        continuar_conectado:
+          type: "boolean"
+          description: "Valor efetivo. Somente true permite guardar o token no localStorage; false usa sessionStorage."
         expira_em:
           type: "string"
           format: "date-time"
-          description: "Limite absoluto da sessão em UTC. A sessão pode terminar antes por inatividade ou revogação."
+          description: "Vencimento atual em UTC: fixo na sessão normal e renovado pelo uso na longa, limitado a 90 dias desde o login. Revogação pode encerrar antes."
         comprador:
           "$ref": "#/components/schemas/Comprador"
         loja:
@@ -4505,7 +4645,7 @@ components:
         expira_em:
           type: "string"
           format: "date-time"
-          description: "Limite absoluto da sessão em UTC. A sessão pode terminar antes por inatividade ou revogação."
+          description: "Vencimento atual em UTC, renovado pelo uso na sessão longa e limitado ao teto absoluto de 90 dias desde o login."
     EntrarEntrada:
       type: "object"
       required: ["usuario","senha"]
@@ -4518,6 +4658,10 @@ components:
           writeOnly: true
           minLength: 1
           description: "Até 64 bytes. A senha gravada pode conter acentos."
+        continuar_conectado:
+          type: "boolean"
+          default: false
+          description: "Opcional e exclusivo do comprador. Solicita sessão longa quando habilitada na loja. Não aceita 0, 1, texto ou null."
       additionalProperties: false
     TrocarSenhaEntrada:
       type: "object"

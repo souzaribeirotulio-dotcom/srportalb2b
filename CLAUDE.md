@@ -25,7 +25,7 @@ Cliente, produto, preço, estoque, frete, pagamento e pedido são decididos pela
 
 Na dúvida, vale esta ordem:
 
-1. o contrato OpenAPI (`api-sistemas-externos-2026-11-16.yaml`), baixado do site da Movimento, com rotas, métodos, campos, tipos, cabeçalhos e códigos de erro;
+1. o contrato OpenAPI (`api-sistemas-externos-2026-11-19.yaml`, ou uma edição mais nova do site, que tem a data no nome), baixado do site da Movimento, com rotas, métodos, campos, tipos, cabeçalhos e códigos de erro;
 2. o guia `primeiros-passos.md`, com os fluxos, a matriz de reenvio, o catálogo de mensagens e os limites;
 3. o exemplo da pasta `supabase/` do kit: função `ponte-g360`, tabelas e regras de acesso;
 4. este arquivo.
@@ -71,7 +71,11 @@ Todas as chamadas à API ficam num módulo só (por exemplo, `src/api/g360.ts`),
 
 ## 5. Segurança
 
-Guarde o token da API no `sessionStorage`, numa chave só para ele, para o comprador continuar no portal quando recarregar a página (F5). O `sessionStorage` vale só para aquela aba: fechar a aba ou abrir o portal em outra pede login de novo, e isso é o esperado. Não use `localStorage`, cookie criado por JavaScript nem a URL para o token. Ao abrir a página com um token guardado, chame `GET me` antes de mostrar qualquer tela privada. No 200, siga sem pedir login e abra de novo o vínculo do Supabase (`abrir_sessao`, seção 7, passo 3). No 401, apague o token e mostre o login. Apague o token também ao sair, em qualquer 401 e antes de outro comprador entrar. Como qualquer script da página consegue ler o `sessionStorage`, não carregue scripts de terceiros nas páginas do portal sem necessidade. A sessão do Supabase do comprador continua sem persistência: crie o cliente com `auth: { persistSession: false }` e refaça o vínculo depois da recarga.
+A caixa **Continuar conectado** vem desmarcada e só aparece quando `GET loja` informa `continuar_conectado_dias > 0`. Mostre ao lado: **Não marque em computador compartilhado.** Se o campo não vier, trate como zero e não envie o campo novo ao backend antigo. No login, envie `continuar_conectado` como booleano e siga o valor efetivo da resposta.
+
+Com `continuar_conectado: true` na resposta, guarde o token no `localStorage`, em chave própria para a loja e o comprador (por exemplo, `g360:<loja>:comprador:persistente`). Com false, guarde no `sessionStorage` da aba, em outra chave (`g360:<loja>:comprador:sessao`). Apague ambas antes de guardar um token novo. Não use cookie criado por JavaScript nem a URL para o token.
+
+Ao abrir, chame `GET me` com o token guardado antes de mostrar qualquer tela privada. Com 200, siga e refaça o vínculo do Supabase; com 401, apague o token dos dois lugares e peça login. **Sair**, qualquer 401 da sessão do comprador e a entrada de outro comprador também apagam os dois lugares. Falha de rede não libera a tela privada. Nenhum script de terceiros pode ser carregado na página do portal. A sessão do Supabase continua sem persistência (`auth: { persistSession: false }`).
 
 Não registre no console, em log ou no Supabase o token, a senha, o documento digitado, o corpo do login, o corpo do pedido de senha nem o `#token=` do link.
 
@@ -120,14 +124,14 @@ Datas vêm como `AAAA-MM-DD`, e os horários de expiração, em UTC.
 
 ## 7. Sessão do comprador
 
-1. `GET loja` devolve o nome da loja, `sessao_minutos` (tempo de inatividade) e `troca_senha` (se o comprador pode definir e trocar a senha pelo portal).
-2. O login é `POST sessoes` com `{"usuario": "<CPF ou CNPJ>", "senha": "<senha>"}`. O 201 traz `token`, `expira_em`, `comprador` e `loja`. Depois de 5 senhas erradas em 15 minutos, a API passa a recusar por um tempo (`MUITAS_TENTATIVAS`). Mostre a mensagem e não tente de novo sozinho.
+1. `GET loja` devolve o nome da loja, `sessao_minutos` (tempo de inatividade) `continuar_conectado_dias` (zero desliga a caixa) e `troca_senha` (se o comprador pode definir e trocar a senha pelo portal).
+2. O login é `POST sessoes` com `{"usuario": "<CPF ou CNPJ>", "senha": "<senha>"}`. Envie também `continuar_conectado: true` somente se a caixa estiver marcada e o recurso habilitado. O 201 traz `token`, `expira_em`, `continuar_conectado` efetivo, `comprador` e `loja`. Depois de 5 senhas erradas em 15 minutos, a API passa a recusar por um tempo (`MUITAS_TENTATIVAS`). Mostre a mensagem e não tente de novo sozinho.
 3. Em seguida, mande o token para a função: `{"acao": "abrir_sessao", "token": "<token>"}`. No 200, passe só a `sessao` para `supabase.auth.setSession(sessao)` e guarde `api_expira_em`, `api_inatividade_minutos` e `api_vinculo_expira_em`. No 401, volte ao login. No 503, ofereça tentar de novo e deixe o comprador seguir sem os dados do Supabase (a Minha Lista).
 4. A regra de acesso só aceita a sessão do Supabase até `api_vinculo_expira_em`, que fica 5 minutos depois da conferência ou antes disso, e usar o portal não renova esse prazo. Vencido o prazo, a Minha Lista volta vazia, sem erro, e as gravações são recusadas. Por isso, antes de ler ou gravar no Supabase, confira o prazo. Se venceu, encerre a sessão local com `signOut({ scope: "local" })`, chame `abrir_sessao` de novo com o token da API guardado e só então leia ou grave. Faça isso quando precisar, nunca em intervalo fixo.
-5. Conte a inatividade a partir da última chamada autenticada que a API aceitou. Se passar de `sessao_minutos`, bloqueie as telas privadas e peça login. Não faça chamada periódica só para manter a sessão viva.
-6. Um 401 em qualquer operação do comprador apaga o token, encerra o Supabase com `signOut({ scope: "local" })`, limpa os dados da tela e volta ao login com a mensagem da API.
-7. Para sair, chame `DELETE sessao` na API, apague o token guardado e chame `signOut({ scope: "local" })` no Supabase.
-8. Para trocar a senha logado, use `PUT senha`. A resposta traz um token novo. Encerre as sessões do Supabase com `signOut({ scope: "global" })` e chame `abrir_sessao` com esse token.
+5. Na sessão normal, conte a inatividade desde a última chamada autenticada aceita; vencido `sessao_minutos`, peça login. Na longa, não aplique a inatividade em minutos nem encerre só porque o `expira_em` antigo venceu: reconfira com `GET me` sob demanda, pois o vencimento anda com o uso. Ela exige uso a cada N dias e novo login com senha após 90 dias desde a criação. Não faça chamadas periódicas para manter a sessão viva.
+6. Um 401 em qualquer operação do comprador apaga o token dos dois lugares, encerra o Supabase com `signOut({ scope: "local" })`, limpa os dados da tela e volta ao login com a mensagem da API.
+7. Para sair, chame `DELETE sessao` na API, apague o token dos dois lugares e chame `signOut({ scope: "local" })` no Supabase.
+8. Para trocar a senha logado, use `PUT senha`. A resposta traz um token novo de sessão normal: apague os dois armazenamentos e guarde o novo no sessionStorage. Encerre as sessões do Supabase com `signOut({ scope: "global" })` e chame `abrir_sessao` com esse token.
 9. Com `comprador.compra_bloqueada` verdadeiro, o comprador navega mas não envia pedido. Deixe isso claro na tela e o envio desligado. A revisão confirma com a pendência `CADASTRO_BLOQUEADO`.
 10. Com `loja.troca_senha` falso, esconda "definir senha" e "trocar senha" e explique que a senha é definida pelo fornecedor.
 
@@ -181,11 +185,11 @@ Durante o envio, o botão "Enviar pedido" fica desligado. O tempo-limite é de 3
 | 201, ou 200 com pedido | Mostra o pedido. O 200 é a repetição de um envio que já tinha dado certo. |
 | Tempo esgotado, conexão caída ou resposta incerta | Consulta `GET pedidos/por-chave/{chave}`. Se vier o pedido, mostra. Se vier 404 `NAO_ENCONTRADO`, o pedido não foi gravado, e o portal reenvia o mesmo corpo com a mesma chave. Esse 404 vem com `responsavel: integracao`, mas aqui ele é esperado: não passa pelo tratamento genérico. |
 | Sem conexão nem para consultar | Mostra "Sem conexão com o servidor" e um botão "Tentar de novo", que primeiro consulta pela mesma chave e só depois reenvia. |
-| 409 `OPERACAO_EM_ANDAMENTO` ou `VENDA_EM_ANDAMENTO` | Espera pelo menos 3 segundos e reenvia o mesmo corpo com a mesma chave. Depois de 3 tentativas, mostra a mensagem e um botão "Tentar de novo". |
+| 409 `OPERACAO_EM_ANDAMENTO` ou `VENDA_EM_ANDAMENTO` | Usa o `Retry-After` quando vier (sem ele, espera pelo menos 3 segundos) e reenvia o mesmo corpo com a mesma chave. Depois de 3 tentativas, mostra a mensagem e um botão "Tentar de novo". |
 | 409 `REVISAO_ALTERADA` | Revisa de novo, mostra o que mudou e pede confirmação. Envia com a nova assinatura e a mesma chave. |
 | 409 `CHAVE_REUTILIZADA` | Consulta pela chave antes de qualquer outra coisa. Não cria pedido novo sem resolver isso. |
 | 422 `REVISAO_BLOQUEADA` | Mostra cada pendência de `erro.campos.pendencias` com o seu `responsavel`. |
-| 503 `INDISPONIVEL` | Espera pelo menos 30 segundos, consulta pela chave e reenvia com a mesma chave. |
+| 503 `INDISPONIVEL` | Usa o `Retry-After` quando vier (sem ele, espera pelo menos 30 segundos), consulta pela chave e reenvia com a mesma chave. |
 
 Chave nova só quando o comprador começar outro pedido, com o anterior resolvido.
 
@@ -201,7 +205,7 @@ Falha de rede ou de CORS não tem envelope. Ela chega como exceção do `fetch`,
 |---|---|
 | `usuario` | Pede a quem está na tela para corrigir o campo ou escolher outra opção, com `erro.campos` junto dos campos. |
 | `fornecedor` | Mostra a mensagem e registra a ocorrência, como descrito logo abaixo. |
-| `tentar_de_novo` | Diz que vale esperar e oferece "Tentar de novo". A espera é de 3 s nos 409, 30 s no 503 e crescente no 429 (5, 10, 20 e 40 s). |
+| `tentar_de_novo` | Diz que vale esperar e oferece "Tentar de novo". Use `Retry-After` quando vier, legível pelo navegador nas origens cadastradas. Sem ele, a espera é de 3 s nos 409, 30 s no 503 e crescente no 429 (5, 10, 20 e 40 s). |
 | `integracao` | É defeito do portal. Mostra uma mensagem genérica com o `request_id`, e o caso fica anotado para correção. |
 | ausente ou desconhecido | Mesmo tratamento de `integracao`. |
 
@@ -225,6 +229,17 @@ A segunda é a sessão do Supabase, usada só para ler as ocorrências. A ponte 
 
 O painel faz consulta de cliente por CNPJ, busca de produtos com preço, custo, margem e quantidade disponível, a galeria de fotos e o preço congelado. Os acessos que cada operação exige estão no `primeiros-passos.md`. Faltando acesso, a API responde `OPERADOR_SEM_ACESSO` com a mensagem certa, e é ela que vai para a tela. Custo e margem só aparecem com `custo_visivel` verdadeiro; não esconda nem calcule por conta própria. A quantidade disponível vem sempre em `quantidade_disponivel`, na unidade base e com a mesma conta do catálogo do comprador. Mostre como **Disponível: N** em cada produto do painel, mesmo quando o catálogo do comprador não mostrar o número, e não some nem subtraia nada por conta própria. Diferente do catálogo do comprador, aqui o `preco` de `POST operadores/produtos/precos` é o da tabela, e o valor negociado vigente vem à parte, em `preco_congelado`. As fotos sobem uma de cada vez, em JPEG de até 2 MB, como data URL, com no máximo 12 por produto.
 
+Para saber quem está logado, chame `GET operadores/me` com o token do operador. A resposta traz `operador.codigo`, as `permissoes` que o G360 dá a ele e a `carteira` de clientes. Use as permissões para esconder no painel o que a API recusaria, e continue mostrando a mensagem da API quando ela recusar mesmo assim. `ver_custo` não bloqueia nada: só diz se custo e margem vêm preenchidos. A `carteira` resume só o recorte por vendedor. Empresa, situação do cadastro e prospect continuam valendo, então ela não serve de lista de clientes liberados: para saber se um cliente está no recorte, consulte-o pela API.
+
+Se a Souza Ribeiro quiser permissões próprias do painel, como abas, Minha Lista, negociações e dashboard, siga este desenho:
+
+- As permissões ficam numa tabela do Supabase com RLS ligada e sem nenhuma política para `anon` e `authenticated`. O navegador não lê nem grava ali.
+- Quem lê e grava é a função `ponte-g360`, com a chave secreta, em ações próprias do painel. Em cada ação, a função recebe o token do operador, chama `GET operadores/me` e filtra o que lê e o que grava pela loja dela e pelo `operador.codigo` dessa resposta.
+- Nunca use um código de operador vindo do navegador, de cabeçalho, do corpo da chamada ou do `user_metadata`, e não grave o código no `user_metadata`, que o próprio usuário altera. A sessão do Supabase do painel é a conta da equipe descrita acima e não identifica o operador. Por isso a regra fica na função, e não numa política de RLS.
+- A tela que edita essas permissões também passa pela função e só abre para os códigos de operador marcados como administradores na própria tabela. Nessa ação, a função chama o `me` sem usar a resposta guardada. O primeiro administrador entra pelo SQL Editor; prepare o comando com o código como `<preencha>`.
+- A permissão própria só restringe: o que o G360 nega continua negado.
+- Para não gastar o limite por IP e loja, a função pode guardar a resposta do `me` por até um minuto, identificada pela loja e por um hash do token, nunca pelo token aberto. Descarte-a na ação de sair e no primeiro 401.
+
 ### Cadastro e primeiro acesso do cliente
 
 Na consulta por CNPJ, coloque um botão para abrir a ficha pelo `codigo` que a API devolver. Chame `GET operadores/clientes/{cliente}` com o token do operador. Mostre a ficha e marque documento, nome, IE ou RG, CEP, logradouro, número, bairro e cidade. Use `pode_alterar` para habilitar a edição, `ie_travada` para deixar a IE só para leitura e `pode_alterar_acesso` para exibir os botões de liberar e bloquear. A API confere os acessos de novo ao gravar.
@@ -237,11 +252,17 @@ Os botões de acesso chamam `PUT operadores/clientes/{cliente}/acesso` com `libe
 
 ### Novo cliente a partir de Quero ser cliente
 
+Antes de aprovar um pedido de **Quero ser cliente**, confira se o documento já tem cadastro no G360. Para CNPJ, chame `POST operadores/cadastro/cnpj` uma vez, quando o pedido for aberto no painel, e nunca para a lista inteira: para um CNPJ ainda sem cadastro, a chamada gasta uma consulta externa da cota da loja. Ela exige o acesso de inclusão. Se `permissoes.incluir_clientes` vier falso no `GET operadores/me`, use `POST operadores/clientes/consulta`, que acha o cadastro dentro do recorte do operador.
+
+Se vier `ja_existe` verdadeiro, mostre um aviso claro antes do botão de aprovar, como "Este CNPJ já tem cadastro no G360". Se `cliente_id` vier nulo, o documento existe fora do recorte do operador ou em mais de um cadastro: informe isso, não aprove como cadastro novo e peça à equipe para conferir no G360. Com `cliente_id`, mostre o código e a ficha de `GET operadores/clientes/{cliente}` ao lado dos dados do pedido. Nesse caso, não crie outra ficha: vincule o pedido a esse código. O G360 é a fonte do cadastro. O painel não guarda nome, e-mail ou telefone diferentes dos do G360 para o mesmo cliente. Se o pedido trouxer dados mais novos, a equipe decide e grava no G360 com `PUT operadores/clientes/{cliente}`. O link de primeiro acesso vai para o e-mail do cadastro no G360, e não para o e-mail digitado no pedido. Por isso, confira esse e-mail antes de gerar o link. Se o link não chegar, confira no G360 se há outro cadastro ativo com o mesmo documento.
+
+Para CPF, a API não tem consulta prévia. Se o `POST operadores/clientes` de um pedido de **Quero ser cliente** responder `DOCUMENTO_REPETIDO` ou `DOCUMENTO_E_IE_REPETIDOS`, não confirme o reenvio: peça à equipe para conferir no G360 e vincular o pedido ao cadastro existente.
+
 No painel, depois que a equipe aprovar o pedido de **Quero ser cliente**, abra **Novo cliente**. Leia `GET operadores/cadastro/cliente` com a sessão do operador. Use `editaveis` para montar o formulário, `padroes` para mostrar os valores sugeridos e as duas listas de obrigatórios para marcar os campos. Carregue as opções de `GET operadores/referencias?tipo=...`. Para CPF, use os dados do próprio pedido.
 
 Para CNPJ, envie só `cnpj` no corpo de `POST operadores/cadastro/cnpj`. Se `ja_existe` vier verdadeiro e tiver `cliente_id`, abra a ficha pelo código. Se o código vier nulo, informe que o documento já existe e peça à equipe para conferir no G360. Se a API devolver uma sugestão, preencha os campos com os dados do pedido e da consulta e deixe a equipe conferir. Mostre o aviso de situação cadastral irregular quando vier. Se a consulta falhar, mostre `erro.mensagem` e permita continuar manualmente.
 
-Salve com `POST operadores/clientes` e uma `Idempotency-Key` inédita. Em timeout, preserve a chave e o corpo e aguarde a resposta antes de seguir. Mostre a mensagem da API e os campos em cada recusa. Só envie `confirmar_isento: true` se a equipe confirmar que a pessoa jurídica é governo ou ONG. Se o documento tiver outra IE ou RG, peça a confirmação antes de reenviar com `confirmar_documento_repetido: true`.
+Salve com `POST operadores/clientes` e uma `Idempotency-Key` inédita. Em timeout, preserve a chave e o corpo e aguarde a resposta antes de seguir. Mostre a mensagem da API e os campos em cada recusa. Só envie `confirmar_isento: true` se a equipe confirmar que a pessoa jurídica é governo ou ONG. Se o documento tiver outra IE ou RG, peça a confirmação antes de reenviar com `confirmar_documento_repetido: true`. Num pedido de **Quero ser cliente**, não confirme: siga o início desta seção.
 
 Com a ficha devolvida, use a `revisao` para liberar o acesso com os controles da ficha. Gere o link de primeiro acesso depois de liberar e conferir o e-mail. A aprovação no painel só pode ser vinculada ao cliente retornado pela API.
 

@@ -1,7 +1,8 @@
 /* =====================================================================
    "Quero ser cliente": antes de aprovar, confere o documento no G360.
-   - CNPJ: POST operadores/cadastro/cnpj (sem 00501, cai para POST operadores/clientes/consulta).
-     CPF: POST operadores/clientes/consulta.
+   - CNPJ: POST operadores/cadastro/cnpj, uma vez por pedido aberto (gasta cota da loja quando o CNPJ é novo).
+     Sem permissoes.incluir_clientes (GET operadores/me), usa POST operadores/clientes/consulta (recorte do operador).
+     CPF: a API não tem consulta prévia; segue para o Novo cliente, que não confirma documento repetido.
    - Já é cliente com código → aviso "Este CNPJ já é cliente no G360", dados do pedido
      ao lado dos do G360 (GET operadores/clientes/{cliente}). O que a equipe marcar é
      gravado NO G360 (PUT operadores/clientes/{cliente}, só o que mudou, com a versao);
@@ -10,7 +11,7 @@
    - Não é cliente → aprova e segue para o Novo cliente no G360.
    O G360 é a fonte do cadastro: o portal não guarda dados diferentes para o mesmo cliente.
    ===================================================================== */
-import { preencherNovoClienteCnpj, consultarClienteOperador, consultarFichaClienteOperador, alterarFichaClienteOperador } from '../api/g360.js';
+import { preencherNovoClienteCnpj, consultarClienteOperador, consultarOperadorMe, consultarFichaClienteOperador, alterarFichaClienteOperador } from '../api/g360.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { $, esc, toast, abrirModal, fecharModal } from './comum.js';
 
@@ -59,8 +60,18 @@ export async function conferirPedidoNoG360(k, o) {
   abrirComparacao(k, existe.codigo, o);
 }
 
+const meDoToken = new Map(); // token → permissões (a sessão do operador não muda de permissão no meio)
+async function podeIncluir(token) {
+  if (!meDoToken.has(token)) {
+    try { meDoToken.set(token, (await consultarOperadorMe(token)).permissoes || {}); }
+    catch (e) { if (e.status === 401) throw e; return true; } // sem a rota: tenta a consulta do CNPJ e cai para a consulta se faltar acesso
+  }
+  return meDoToken.get(token).incluir_clientes !== false;
+}
+
 async function procurar(doc, o) {
-  if (doc.length === 14) {
+  if (doc.length !== 14) return null; // CPF: sem consulta prévia na API
+  if (await podeIncluir(o.token())) {
     try {
       const r = await preencherNovoClienteCnpj(o.token(), doc);
       return r.ja_existe ? { codigo: r.cliente_id || null } : null;

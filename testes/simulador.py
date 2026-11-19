@@ -1,5 +1,5 @@
 """Simulador da API do G360, da ponte-g360 e do Supabase para os testes do portal.
-Só dados fictícios. Segue o contrato api-sistemas-externos-2026-11-18.yaml."""
+Só dados fictícios. Segue o contrato api-sistemas-externos-2026-11-19.yaml."""
 import json, re, base64, hashlib, time, uuid
 from decimal import Decimal
 from urllib.parse import urlparse, parse_qs
@@ -358,6 +358,12 @@ class Sim:
                 'acesso_liberado': False, 'revisao': 0, 'versao': 'b' * 64, 'pode_alterar': True, 'pode_alterar_acesso': True, 'ie_travada': False}
             self.chaves_cli[chave] = (corpo, novo)
             return self.ok(route, self.fichas[novo], 201)
+        if caminho == 'operadores/me' and m == 'GET':
+            self.chamadas_me = getattr(self, 'chamadas_me', 0) + 1
+            perm = {k: True for k in ['consultar_clientes', 'incluir_clientes', 'alterar_clientes', 'consultar_produtos', 'consultar_precos_cliente', 'ver_custo', 'precos_congelados', 'consultar_fotos', 'incluir_remover_fotos', 'ordenar_fotos']}
+            perm.update(getattr(self, 'perm_operador', {}))
+            return self.ok(route, {'operador': {'codigo': 12, 'usuario': 'OPERADOR TESTE', 'nome': 'Operador Teste'}, 'empresa': 1, 'permissoes': perm,
+                                   'carteira': {'restrita': False, 'vendedores': [], 'clientes_sem_vendedor': True}, 'sessao': {'expira_em': '2099-01-15T00:00:00+00:00'}})
         if caminho == 'operadores/clientes/consulta':
             if re.sub(r'[^0-9A-Za-z]', '', corpo['cnpj']) == '11111111000111': return self.ok(route, {'codigo': 1165, 'nome': 'Comprador Fictício Um LTDA', 'acesso_portal': True, 'segmento': {'codigo': 1, 'descricao': 'Varejo'}})
             return self.erro(route, 404, 'CLIENTE_NAO_LOCALIZADO', 'Cliente não localizado.', 'usuario')

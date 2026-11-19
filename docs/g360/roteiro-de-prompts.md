@@ -138,14 +138,15 @@ Um aviso antes de testar: cada documento pode pedir no máximo 3 links a cada 15
 Crie o login do comprador (POST sessoes e depois abrir_sessao na função),
 o controle de inatividade pelo sessao_minutos da loja, a renovação do
 vínculo do Supabase, a saída e a troca de senha logado. Siga a seção 7 das
-instruções, com o token no sessionStorage da aba e o tratamento do 401.
+instruções: token no sessionStorage com a caixa desmarcada e no localStorage apenas com Continuar conectado efetivo. Limpe os dois ao sair e no 401. A caixa só aparece com continuar_conectado_dias > 0, desmarcada, com o aviso sobre computador compartilhado.
 ```
 
 1. Entrem com o comprador de teste. A tela mostra o nome dele.
 2. Entrem uma vez com a senha errada. Tem de aparecer "CNPJ/CPF ou senha inválidos." Não insistam muito: 5 erros em 15 minutos bloqueiam novas tentativas por um tempo.
-3. Recarreguem a página (F5). O comprador continua logado. Depois fechem a aba e abram o portal numa aba nova: ele pede o login.
-4. Fiquem parados mais que o tempo de inatividade da loja (60 minutos na homologação, se não avisarmos outro) e cliquem em qualquer coisa. O portal pede o login de novo.
-5. Saiam e usem o botão Voltar do navegador. Nenhum dado do comprador pode aparecer, e recarregar a página não pode trazer a sessão de volta.
+3. Com a caixa desmarcada, recarreguem a página (F5): o comprador continua logado. Fechem o navegador e abram de novo: pede login. Com a caixa marcada, fechar e reabrir mantém a sessão após conferir GET me.
+4. Com a caixa desmarcada, fiquem parados mais que o tempo de inatividade da loja (60 minutos na homologação, se não avisarmos outro) e cliquem em qualquer coisa. O portal pede o login de novo.
+5. Com a caixa marcada, troquem a senha em outro aparelho: a sessão anterior deve cair. Depois entrem novamente, usem Sair e reabram: pede login.
+6. Saiam e usem o botão Voltar do navegador. Nenhum dado do comprador pode aparecer, e recarregar a página não pode trazer a sessão de volta.
 
 ## Etapa 6. Catálogo
 
@@ -222,6 +223,24 @@ Combinem com a gente qual operador usar e o que dá para conferir na homologaç�
 2. Consultem o preço de dois produtos para um cliente sem preço negociado. O valor tem de ser o mesmo que ele vê no catálogo. Com preço negociado não dá para comparar assim: o catálogo mostra o menor dos dois valores, e o painel mostra cada um separado.
 3. Com o operador que não tem acesso ao custo, a busca de produtos não pode mostrar custo nem margem.
 4. Recarreguem o painel (F5). A equipe continua logada, sem login novo.
+
+### Permissões da equipe no painel
+
+```text
+Crie as permissões da equipe no painel, seguindo a seção 11 das
+instruções. Depois do login do operador, chame GET operadores/me e use
+permissoes e carteira para mostrar só o que o G360 permite. As permissões
+próprias do painel (abas, Minha Lista, negociações e dashboard) ficam numa
+tabela do Supabase fechada ao navegador. Só a função ponte-g360 lê e grava
+essa tabela, depois de conferir o token com GET operadores/me, filtrando
+pela loja e pelo operador.codigo dessa resposta. Nunca confie num código
+de operador vindo do navegador.
+```
+
+1. Entrem com um operador sem o acesso de preço congelado. O painel não mostra a negociação de preço, e a API recusa se alguém tentar direto.
+2. Entrem com um vendedor de carteira restrita. Ele só encontra os clientes dele. O cliente de outro vendedor não aparece.
+3. Tirem no painel de vocês uma aba de um usuário. Ele deixa de ver a aba e, chamando direto, o servidor de vocês recusa.
+4. Com o painel aberto, tentem ler a tabela de permissões direto pelo navegador, com a sessão do Supabase do painel. A leitura volta vazia.
 
 ## Etapa 11. Ocorrências do fornecedor
 

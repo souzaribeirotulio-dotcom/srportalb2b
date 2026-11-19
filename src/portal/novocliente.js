@@ -273,7 +273,9 @@ function desenhar(c) {
       pendentes.delete(k.id); travar(false);
       if (e.codigo === 'CHAVE_REUTILIZADA') { mostrarMensagemErro($('nErr'), e); return; }
       mostrarMensagemErro($('nErr'), e);
-      if (e.codigo === 'DOCUMENTO_REPETIDO') confirmar('Sim, é outro cadastro com IE ou RG diferente', { confirmar_documento_repetido: true });
+      // Pedido de "Quero ser cliente": documento repetido não é cadastro novo. Não confirma o reenvio;
+      // a equipe confere no G360 e vincula o pedido ao cadastro que já existe.
+      if (e.codigo === 'DOCUMENTO_REPETIDO' || e.codigo === 'DOCUMENTO_E_IE_REPETIDOS') $('nErr').insertAdjacentHTML('beforeend', '<div class="rv-aviso bad">Este documento já tem cadastro no G360: não vamos criar outro. Confira o cadastro no G360 e ligue o pedido a ele em <b>Editar</b> (código do G360 → Salvar).</div>');
       if (e.codigo === 'IE_ISENTO_SEM_CONFIRMACAO') { $('nIsentoW').style.display = 'block'; $('nIsento').focus(); }
       return;
     }
