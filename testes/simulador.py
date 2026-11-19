@@ -56,6 +56,7 @@ class Sim:
         self.chamadas = []
         self.op_tokens = {}
         self.congelados = []
+        self.fotos_erro = set()  # produtos cuja galeria a API recusa (teste do caça-capa)
         self.galeria = {104: [{'item': 1, 'descricao': 'Frente'}, {'item': 2, 'descricao': 'Lado'}]}
         self.capas = {104: 1}
         self.vinculo_segundos = 300
@@ -385,6 +386,7 @@ class Sim:
             pid = int(mm.group(1)); g = self.galeria.setdefault(pid, [])
             gal = lambda: {'fotos': g, 'capa': g[0]['item'] if g else None, 'maximo': 12}
             sub = mm.group(2)
+            if sub is None and m == 'GET' and pid in self.fotos_erro: return self.erro(route, 404, 'NAO_ENCONTRADO', 'Produto não encontrado.', 'integracao')
             if sub is None and m == 'GET': return self.ok(route, gal())
             if sub is None and m == 'POST':
                 item = max([f['item'] for f in g] or [0]) + 1; g.append({'item': item, 'descricao': corpo.get('descricao', '')})
