@@ -28,6 +28,7 @@ class Sim:
         self.loja = {'nome': 'Loja Exemplo Fictícia', 'troca_senha': troca_senha, 'sessao_minutos': sessao_minutos, 'imagens': None, 'pedido_minimo': '150.00', 'bloqueia_sem_estoque': True}
         self.vitrine_aberta = True; self.vitrine_chamadas = []
         self.cond_vistas = {}; self.cond_ocultas = {}
+        self.carrinhos = {}
         self.compradores = {
             '11.111.111/0001-11': {'senha': 'Teste12', 'codigo': 1165, 'nome': 'Comprador Fictício Um LTDA', 'fantasia': 'Fictício Um', 'bloq': False},
             '22.222.222/0001-22': {'senha': 'Teste34', 'codigo': 1919, 'nome': 'Comprador Fictício Dois LTDA', 'fantasia': 'Fictício Dois', 'bloq': False},
@@ -578,6 +579,16 @@ class Sim:
             self.cond_vistas[cod] = [(int(c['id']), c['descricao']) for c in b.get('p_condicoes', [])]
             oc = sorted(set(self.cond_ocultas.get(0, [])) | set(self.cond_ocultas.get(cod, [])))
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps(oc))
+        if tabela == 'rpc/portal_carrinho_ler':
+            if not valido: return route.fulfill(status=400, headers=cab, content_type='application/json', body=json.dumps({'message': 'sessao'}))
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps(self.carrinhos.get(s['codigo'])))
+        if tabela == 'rpc/portal_carrinho_gravar':
+            if not valido: return route.fulfill(status=400, headers=cab, content_type='application/json', body=json.dumps({'message': 'sessao'}))
+            b = json.loads(req.post_data or '{}'); cod = s['codigo']; atual = self.carrinhos.get(cod)
+            assert all(set(l) <= {'produto_id', 'unidade', 'quantidade', 'nome', 'codigo', 'unidadeNome'} for l in b['p_linhas']), 'carrinho com campo a mais'
+            gravou = not atual or atual['em'] < b['p_em']
+            if gravou: self.carrinhos[cod] = {'linhas': b['p_linhas'], 'em': b['p_em']}
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps(gravou))
         if tabela == 'rpc/portal_visiveis_gravar':
             if not valido: return route.fulfill(status=400, headers=cab, content_type='application/json', body=json.dumps({'message': 'sessao'}))
             b = json.loads(req.post_data or '{}')

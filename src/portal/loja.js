@@ -11,6 +11,7 @@ import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, a
 import { buscarLocal, temEstoque, variacoes } from '../catalogo/busca.js';
 import { listarProdutos, buscarProdutos, listarMarcas, produtosPorIds } from '../api/g360.js';
 import { sessao, entrar, sair, trocarSenha, vinculoEmAndamento } from '../estado/sessao.js';
+import { iniciarCarrinhoNuvem, sincronizarCarrinho } from '../estado/carrinho-nuvem.js';
 import { adicionar, linhasCarrinho, alterarQuantidade, remover, aoMudarCarrinho, quantidadeLinhas, linhasSemPrecoAtual, atualizarLinha } from '../estado/carrinho.js';
 import { carregarIds, incluirNaLista, removerDaLista, idsCarregados } from '../estado/minha-lista.js';
 import { normalizarQuantidade, dinheiro, estimar } from '../ui/formato.js';
@@ -113,7 +114,12 @@ function montar() {
   $('grid').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('.qty input')) { e.preventDefault(); e.target.closest('.card').querySelector('.add')?.click(); } });
   $('dBody').addEventListener('click', cliqueCarrinho);
   $('dBody').addEventListener('change', mudancaCarrinho);
-  aoMudarCarrinho(() => { $('cartN').textContent = quantidadeLinhas() || ''; if ($('drawer').classList.contains('open')) desenharCarrinho(); });
+  iniciarCarrinhoNuvem();
+  aoMudarCarrinho((origem) => {
+    $('cartN').textContent = quantidadeLinhas() || '';
+    if (origem === 'nuvem') atualizarCarrinhoGuardado(); // veio de outro navegador: busca preço e estoque do momento
+    if ($('drawer').classList.contains('open')) desenharCarrinho();
+  });
 
   ligarLogin();
   // Paginação abaixo da grade.
@@ -376,6 +382,7 @@ function atualizarCarrinhoGuardado() {
 
 export async function desenharCatalogo() {
   atualizarCarrinhoGuardado();
+  sincronizarCarrinho();
   const grid = $('grid'); const pag = $('g360Pag');
   pag.innerHTML = '';
   document.querySelector('.bar').style.display = '';
@@ -495,6 +502,7 @@ async function cliqueCartao(e) {
 /* ---------------- carrinho lateral ---------------- */
 
 export function abrirCarrinho() {
+  sincronizarCarrinho();
   desenharCarrinho();
   $('drawer').classList.add('open'); $('shade').classList.add('open');
 }

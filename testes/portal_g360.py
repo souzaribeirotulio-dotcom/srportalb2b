@@ -1,5 +1,6 @@
 """Portal no layout original + integração G360 (Etapas 1, 2 e 5 a 11).
 Roda contra http://localhost:5173 (npm run build && npm run preview), com o simulador (dados fictícios)."""
+import json
 import os, re, json, sys, time
 from playwright.sync_api import sync_playwright
 sys.path.insert(0, os.path.dirname(__file__))
@@ -827,6 +828,25 @@ with sync_playwright() as pw:
     outra.wait_for_selector('#grid .card, #grid .empty, #gEntrar'); outra.wait_for_timeout(500)
     checar(not outra.evaluate("document.body.classList.contains('logged')"), 'outra aba pede login')
     outra.close()
+    # Outro navegador (outro computador ou celular): o mesmo comprador vê o mesmo carrinho
+    pg.wait_for_timeout(1500)
+    checar(any(any(l['produto_id'] == 104 for l in c['linhas']) for c in sim.carrinhos.values()), f'carrinho gravado no Supabase: {sim.carrinhos}')
+    checar(all('preco' not in json.dumps(c).lower() for c in sim.carrinhos.values()), 'carrinho no Supabase sem preço')
+    n2 = N(pw, sim, '/'); n2.entrar(U1, S1)
+    n2.pg.wait_for_function("document.getElementById('cartN').textContent === '1'", timeout=8000)
+    n2.pg.click('#cartBtn'); n2.pg.wait_for_selector('#drawer.open .ci')
+    n2.pg.wait_for_function("document.querySelector('#dBody .ci .r') && document.querySelector('#dBody .ci .r').textContent.includes('R$')")
+    checar('3' in n2.pg.input_value('#dBody .ci .qty input'), 'outro navegador, mesmo comprador: o carrinho aparece com a quantidade certa e o preço da API')
+    n2.pg.locator('#dBody .ci .x').first.click(); n2.pg.wait_for_function("document.getElementById('cartN').textContent === ''"); n2.pg.wait_for_timeout(1500)
+    n2.fechar()
+    pg.click('#cartBtn'); pg.wait_for_function("document.getElementById('cartN').textContent === ''", timeout=8000)
+    checar(True, 'removido no outro navegador: ao abrir o carrinho aqui, ele some também')
+    pg.click('#dClose')
+    pg.locator('#grid .card[data-id="104"] .qty input').fill('3'); pg.locator('#grid .card[data-id="104"] .add').click()
+    pg.wait_for_function("document.getElementById('cartN').textContent === '1'"); pg.wait_for_timeout(1200)
+    n3 = N(pw, sim, '/'); n3.entrar(U2, S2); n3.pg.wait_for_timeout(1500)
+    checar(n3.tc('#cartN') == '', 'outro comprador, em outro navegador, não recebe o carrinho do primeiro')
+    n3.fechar()
     # token derrubado no servidor: o F5 cai no login e apaga o token
     sim.tokens.clear(); pg.reload(); pg.wait_for_timeout(1200)
     checar(not pg.evaluate("document.body.classList.contains('logged')") and not pg.evaluate(f"sessionStorage.getItem('{chave}')"), '401 depois do F5 apaga o token e mostra o login')
