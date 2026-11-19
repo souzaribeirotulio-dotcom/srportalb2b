@@ -18,6 +18,7 @@ import { consultarCnpj } from './cadastro.js';
 import { abrirFichaG360 } from './fichag360.js';
 import { paraJpeg } from './jpeg.js';
 import { abrirImportacaoFotos } from './importarfotos.js';
+import { abrirExportacaoFotos } from './exportarfotos.js';
 import { abrirNovoClienteG360 } from './novocliente.js';
 import { abrirLotesFotos, comEspera } from './lotesfotos.js';
 import { abrirCacaCapa } from './cacacapa.js';
@@ -143,6 +144,8 @@ function ligar() {
   $('aImpFotos').insertAdjacentHTML('afterend', '<button class="btn sec" id="aLotes" style="height:36px">📄 Planilha para fotos</button>');
   $('aLotes').insertAdjacentHTML('afterend', '<button class="btn sec" id="aVis" style="height:36px">🔄 Atualizar produtos do portal</button><span class="hint" id="aVisM" style="margin:0" aria-live="polite"></span>');
   $('aVis').addEventListener('click', atualizarProdutosDoPortal);
+  $('aLotes').insertAdjacentHTML('beforebegin', '<button class="btn sec" id="aExpFotos" style="height:36px">⬇ Exportar fotos</button>');
+  $('aExpFotos').addEventListener('click', () => abrirExportacaoFotos({ token: () => op.token, painel, aoSessaoEncerrada: (e) => encerrarOperador(e.message) }));
   $('aLotes').addEventListener('click', () => abrirLotesFotos({ token: () => op.token, painel, aoSessaoEncerrada: (e) => encerrarOperador(e.message) }));
   $('aImpFotos').addEventListener('click', () => abrirImportacaoFotos({
     token: () => op.token,

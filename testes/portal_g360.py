@@ -672,6 +672,20 @@ with sync_playwright() as pw:
     checar(len(cods2) == 5 and not set(cods1) & set(cods2), f'lote 2 não repete produtos do lote 1: {cods2}')
     pg.wait_for_function("document.getElementById('lfLista').textContent.includes('Lote 2')"); checar(len(sim.lotes) == 2, 'lotes gravados e listados')
     pg.click('#lfX')
+    # Exportar fotos (ZIP): procura quem tem foto, a equipe escolhe, baixa no padrão do Importar imagens
+    import zipfile, io as _io
+    com_foto = sorted(str(next(p['codigo'] for p in sim.produtos if int(p['id']) == pid)) for pid, g in sim.galeria.items() if g)
+    pg.click('#aExpFotos'); pg.wait_for_selector('#mAdm.open #exIr'); pg.select_option('#exModo', 'todos'); pg.click('#exIr')
+    pg.wait_for_selector('#exLista input[data-c]')
+    lista_cods = pg.eval_on_selector_all('#exLista input[data-c]', 'els => els.map(e => e.dataset.c)')
+    checar(sorted(lista_cods) == com_foto, f'exportar: lista só com os produtos que têm foto: {lista_cods} x {com_foto}')
+    tirar = lista_cods[0]; pg.uncheck(f'#exLista input[data-c="{tirar}"]')
+    with pg.expect_download() as dl: pg.click('#exBaixar')
+    z = zipfile.ZipFile(_io.BytesIO(open(dl.value.path(), 'rb').read())); nomes = z.namelist()
+    checar(nomes and all(re.match(r'^.+_(capa|ambiente|uso)\.(jpg|png|webp)$', x) for x in nomes) and not any(x.startswith(tirar + '_') for x in nomes) and any(x.endswith('_capa.jpg') for x in nomes),
+           f'exportar: ZIP no padrão do Importar imagens, só com os escolhidos: {nomes}')
+    pg.wait_for_function("document.getElementById('exFim').textContent.includes('Pronto')")
+    pg.click('#exX')
     # Caça-capa: colar a foto, ajuste automático, Enter envia; "Não achei" grava no lote
     import io, base64
     from PIL import Image as _I
