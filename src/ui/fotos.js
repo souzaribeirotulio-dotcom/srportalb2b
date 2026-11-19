@@ -70,7 +70,8 @@ export function ligarFotos(raiz) {
   if (!('IntersectionObserver' in window)) { els.forEach(carregar); return; }
   if (!observador) {
     observador = new IntersectionObserver((entradas) => {
-      entradas.forEach((en) => { if (en.isIntersecting) { observador.unobserve(en.target); carregar(en.target); } });
+      // Cartão de um resultado antigo (a busca nova está chegando) não baixa foto: vai ser trocado.
+      entradas.forEach((en) => { if (en.isIntersecting) { observador.unobserve(en.target); if (en.target.isConnected && !en.target.closest('.buscando')) carregar(en.target); } });
     }, { rootMargin: '200px' });
   }
   els.forEach((el) => observador.observe(el));

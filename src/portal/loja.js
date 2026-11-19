@@ -38,6 +38,7 @@ let montado = false;
 let buscaN = 0;
 
 export function limparLoja() {
+  esquecerBuscasRecentes();
   limparVisitante();
   Object.assign(filtros, { q: '', grupo: '', marca: '', pagina: 1 });
   classificacoes = null;
@@ -292,32 +293,57 @@ async function resultadoVitrine() {
 /* A lista do que aparece no portal (visitante e filtros do painel) é gravada pelo painel,
    no botão "Atualizar produtos do portal". O navegador do cliente só lê a página que está vendo. */
 
+/* Busca rápida: todas as consultas da busca saem juntas (em paralelo), e produto já consultado há pouco
+   não é pedido de novo. Os preços e o estoque desta lista servem para mostrar; quem decide é a revisão. */
+const RECENTE_MS = 90_000;
+const produtosRecentes = new Map(); // codigo → { p, t } (resposta da API, já apresentada)
+const buscasRecentes = new Map();   // chave da busca → { itens, semEstoque, t }
+// A chave leva o token: preço é do comprador logado, nunca passa para outro.
+function guardarRecente(p) { produtosRecentes.set(`${sessao.token}|${p.codigo}`, { p, t: Date.now() }); }
+function recente(codigo) { const r = produtosRecentes.get(`${sessao.token}|${codigo}`); return r && Date.now() - r.t < RECENTE_MS ? r.p : null; }
+export function esquecerBuscasRecentes() { produtosRecentes.clear(); buscasRecentes.clear(); }
+
 /** Busca: nomes do portal (tolerante) + busca da API (código, EAN, aplicação); com estoque primeiro. */
 async function resultadoBusca() {
   const chave = `${sessao.token}|${filtros.q}|${filtros.grupo}|${filtros.marca}`;
+  if (!busca || busca.chave !== chave) {
+    const guardada = buscasRecentes.get(chave);
+    if (guardada && Date.now() - guardada.t < RECENTE_MS) busca = { chave, itens: [...guardada.itens], semEstoque: guardada.semEstoque, ordem: '' };
+  }
   if (!busca || busca.chave !== chave) {
     const marca = filtros.marca ? Number(filtros.marca) : undefined;
     const locais = buscarLocal(filtros.q, { categoria: filtros.grupo, max: 150 });
     const pontos = new Map(locais.map((l, i) => [l.codigo, 1000 - i]));
     const achados = new Map();
-    // 1) Os mais relevantes pelo nome do portal, em blocos de 50 códigos.
-    const cods = locais.map((l) => l.codigo);
-    for (let i = 0; i < cods.length; i += 50) {
-      const { dados } = await buscarProdutos(sessao.token, { codigos: cods.slice(i, i + 50), marca, limite: 50 });
-      dados.forEach((p) => achados.set(Number(p.id), apresentar(p)));
-    }
+    // 1) Os mais relevantes pelo nome do portal: o que já foi consultado há pouco não vai de novo à API.
+    const faltam = [];
+    for (const l of locais) { const r = !marca && recente(l.codigo); if (r) achados.set(Number(r.id), r); else faltam.push(l.codigo); }
+    const blocos = [];
+    for (let i = 0; i < faltam.length; i += 50) blocos.push(faltam.slice(i, i + 50));
     // 2) A busca do G360 (pega código de barras, aplicação e o que ainda não tem nome no portal).
-    try {
-      // Termos alternativos: a busca digitada e as variações pelos sinônimos (basta um bater).
-      const vs = variacoes(filtros.q);
-      const { dados } = await listarProdutos(sessao.token, vs.length > 1 ? { termos: [filtros.q, ...vs.slice(1)], marca, limite: 50 } : { q: filtros.q, marca, limite: 50 });
-      dados.map(apresentar).filter((p) => !filtros.grupo || p.categoria === filtros.grupo)
-        .forEach((p) => { if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); if (!pontos.has(String(p.codigo))) pontos.set(String(p.codigo), 100); } });
-    } catch (e) { if (!achados.size) throw e; }
+    //    Termos alternativos: a busca digitada e as variações pelos sinônimos (basta um bater).
+    const vs = variacoes(filtros.q);
+    const pedidos = [
+      ...blocos.map((b) => buscarProdutos(sessao.token, { codigos: b, marca, limite: 50 })),
+      listarProdutos(sessao.token, vs.length > 1 ? { termos: [filtros.q, ...vs.slice(1)], marca, limite: 50 } : { q: filtros.q, marca, limite: 50 }),
+    ];
+    const res = await Promise.allSettled(pedidos);
+    res.slice(0, blocos.length).forEach((r) => { if (r.status === 'fulfilled') r.value.dados.forEach((p) => { const a = apresentar(p); guardarRecente(a); achados.set(Number(p.id), a); }); });
+    const api = res[res.length - 1];
+    if (api.status === 'fulfilled') {
+      api.value.dados.map(apresentar).filter((p) => !filtros.grupo || p.categoria === filtros.grupo)
+        .forEach((p) => { guardarRecente(p); if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); if (!pontos.has(String(p.codigo))) pontos.set(String(p.codigo), 100); } });
+    }
+    const falha = res.find((r) => r.status === 'rejected');
+    if (falha && (!achados.size || falha.reason?.status === 401)) throw falha.reason;
     // Ordem: com estoque primeiro; entre os que batem com a busca, os mais vendidos (curva A, B, C); depois a relevância.
     const todos = [...achados.values()].filter((p) => !oculto(p) && !abaixoDoMinimo(p) && (!soEstoque() || temEstoque(p))).sort((a, b) => (temEstoque(b) - temEstoque(a)) || (pesoCurva(a) - pesoCurva(b))
       || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
     busca = { chave, itens: todos, semEstoque: todos.filter((p) => !temEstoque(p)).length, ordem: '' };
+    if (!falha) {
+      buscasRecentes.set(chave, { itens: [...todos], semEstoque: busca.semEstoque, t: Date.now() });
+      if (buscasRecentes.size > 30) buscasRecentes.delete(buscasRecentes.keys().next().value);
+    }
     registrarBusca(filtros.q, todos.length);
   }
   if (busca.ordem !== $('ord').value) { busca.ordem = $('ord').value; if (busca.ordem !== 'nome') ordenar(busca.itens); }
@@ -388,7 +414,9 @@ export async function desenharCatalogo() {
   document.querySelector('.bar').style.display = '';
   if (!sessao.ativa) { await desenharCatalogoPublico(grid, pag); return; }
   const meu = ++buscaN;
-  grid.innerHTML = '<div class="empty">Carregando produtos…</div>';
+  // Durante a busca, os cartões anteriores ficam na tela (esmaecidos) até chegar o resultado novo.
+  if (filtros.q && filtros.pagina === 1 && grid.querySelector('.card')) grid.classList.add('buscando');
+  else grid.innerHTML = '<div class="empty">Carregando produtos…</div>';
   // Minha Lista em paralelo com os produtos (antes, um esperava o outro).
   const idsP = idsCarregados() === null ? carregarIds().catch(() => null) : null;
   try {
@@ -396,6 +424,7 @@ export async function desenharCatalogo() {
     const r = filtros.q ? await resultadoBusca() : await resultadoVitrine();
     if (idsP) { await idsP; desenharTopo(); }
     if (meu !== buscaN) return;
+    grid.classList.remove('buscando');
     const dados = r.itens;
     if (!filtros.q && !filtros.grupo && !filtros.marca && classificacoes && classificacoes.total === null) { classificacoes.total = ''; }
     const vistos = (filtros.pagina - 1) * POR_PAGINA + dados.length;
@@ -418,6 +447,7 @@ export async function desenharCatalogo() {
     }
   } catch (e) {
     if (meu !== buscaN) return;
+    grid.classList.remove('buscando');
     grid.innerHTML = '<div class="empty g360-erro"></div>';
     mostrarMensagemErro(grid.firstElementChild, e, { aoTentarDeNovo: desenharCatalogo });
   }
