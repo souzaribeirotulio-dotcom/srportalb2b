@@ -1,6 +1,6 @@
 /* =====================================================================
    Módulo ÚNICO de chamadas à API dos sistemas externos (G360).
-   Contrato: docs/g360/api-sistemas-externos-2026-11-18.yaml
+   Contrato: docs/g360/api-sistemas-externos-2026-11-19.yaml
    Nenhuma tela chama fetch direto: tudo passa por aqui, inclusive o
    tratamento de erro (seção 10 do CLAUDE.md).
    Endereço = VITE_G360_BASE_URL + /b2b/v1/lojas/ + VITE_G360_LOJA + /caminho
@@ -16,7 +16,7 @@ const RESPONSAVEIS = ['usuario', 'fornecedor', 'tentar_de_novo', 'integracao'];
 
 /** Erro de uma chamada à API, já interpretado para as telas. */
 export class ErroApi extends Error {
-  constructor({ mensagem, codigo = null, responsavel = null, campos = {}, requestId = null, status = 0, tipo = 'api', operacao = null }) {
+  constructor({ mensagem, codigo = null, responsavel = null, campos = {}, requestId = null, status = 0, tipo = 'api', operacao = null, retryAfter = null }) {
     super(mensagem);
     this.name = 'ErroApi';
     this.codigo = codigo;           // erro.codigo do contrato (ex.: SESSAO_INVALIDA)
@@ -27,6 +27,7 @@ export class ErroApi extends Error {
     this.status = status;           // HTTP (0 em falha de rede)
     this.tipo = tipo;               // api | rede | tempo | configuracao
     this.operacao = operacao;       // "MÉTODO caminho-do-contrato", ex.: "GET pedidos/{id}"
+    this.retryAfter = retryAfter;   // segundos de Retry-After, quando a API mandou
   }
 }
 
@@ -117,6 +118,9 @@ export async function requisitar(metodo, modelo, { parametros, consulta, token =
   if (resp.ok && json && 'dados' in json) { avisarAtividade(); json.status = resp.status; return json; }
 
   const env = json && json.erro;
+  // Retry-After (segundos) é legível pelo navegador nas origens cadastradas.
+  const ra = Number(resp.headers.get('Retry-After'));
+  const retryAfter = Number.isFinite(ra) && ra > 0 ? Math.min(ra, 600) : null;
   const erro = env && typeof env.mensagem === 'string'
     ? new ErroApi({
         mensagem: env.mensagem,       // como veio, sem reescrever nem traduzir
@@ -126,9 +130,10 @@ export async function requisitar(metodo, modelo, { parametros, consulta, token =
         requestId: (json && json.request_id) || null,
         status: resp.status,
         operacao,
+        retryAfter,
       })
     // Resposta fora do envelope: tratada como defeito de integração.
-    : new ErroApi({ mensagem: MENSAGEM_INTEGRACAO, responsavel: 'integracao', status: resp.status, requestId: (json && json.request_id) || null, operacao });
+    : new ErroApi({ mensagem: MENSAGEM_INTEGRACAO, responsavel: 'integracao', status: resp.status, requestId: (json && json.request_id) || null, operacao, retryAfter });
 
   // Um 401 em operação autenticada encerra aquela sessão (comprador ou operador).
   if (resp.status === 401 && escopo !== 'publico' && ganchos.aoSessaoEncerrada) {
@@ -170,6 +175,7 @@ export function interpretarErro(erro, tentativa = 0) {
 
 /** Espera antes de tentar de novo: 3 s nos 409, 30 s no 503 e 5, 10, 20, 40 s no 429. */
 export function esperaPara(erro, tentativa = 0) {
+  if (erro.retryAfter) return erro.retryAfter; // a API diz quanto esperar
   if (erro.status === 409) return 3;
   if (erro.status === 503) return 30;
   if (erro.status === 429) return [5, 10, 20, 40][Math.min(tentativa, 3)];

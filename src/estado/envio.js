@@ -107,8 +107,9 @@ export async function executarEnvio(pendente, aoProgresso = () => {}, { consulta
       if (e.status === 409 && (e.codigo === 'OPERACAO_EM_ANDAMENTO' || e.codigo === 'VENDA_EM_ANDAMENTO')) {
         if (conflitos < 3) {
           conflitos += 1;
-          aoProgresso(e.message, 3);
-          await esperar(3000);
+          const seg = e.retryAfter || 3;
+          aoProgresso(e.message, seg);
+          await esperar(seg * 1000);
           continue;
         }
         return { tipo: 'erro', erro: e, podeTentar: true };
@@ -124,8 +125,9 @@ export async function executarEnvio(pendente, aoProgresso = () => {}, { consulta
         return { tipo: 'bloqueada', erro: e, pendencias: Array.isArray(e.campos?.pendencias) ? e.campos.pendencias : [] };
       }
       if (e.status === 503) {
-        aoProgresso(e.message, 30);
-        await esperar(30000);
+        const seg = e.retryAfter || 30;
+        aoProgresso(e.message, seg);
+        await esperar(seg * 1000);
         const c = await consultarPorChave(pendente);
         if (c.tipo === 'pedido') return c;
         if (c.tipo === 'nao_gravado' && reenviosAutomaticos < 2) { reenviosAutomaticos += 1; continue; }
