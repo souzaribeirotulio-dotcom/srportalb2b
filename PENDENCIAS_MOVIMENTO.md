@@ -144,5 +144,6 @@ O painel vai ter perfis (gerente e vendedor) e o vendedor só pode ver os client
 Pedido: uma rota como `GET operadores/sessao` (ou campos no 201 do login) com o id, o apelido e o vendedor vinculado ao operador, e a lista de acessos dele (ex.: 01110, 00502). Hoje o portal precisa conferir cliente por cliente com `GET operadores/clientes/{cliente}` para saber se está no recorte do vendedor.
 
 ## Histórico de compras do cliente para o operador, com último preço (19/11)
+Modelo detalhado do que pedimos (rota, campos, exemplos e perguntas): `PROPOSTA_HISTORICO_OPERADOR.md`.
 `GET historico-compras` só funciona com a sessão do próprio comprador e não traz o preço pago (só data, quantidade e unidades da última compra). O painel do operador não tem rota de histórico.
 Pedido: uma rota como `GET operadores/clientes/{cliente}/historico-compras?meses=3` (com o recorte de vendedor) que traga, por produto, a data, a quantidade, a unidade vendida (`unidade_id`) e o valor unitário efetivo da última compra. Com ela, o vendedor monta a Minha Lista do cliente e congela os preços em um passo, sem depender de PDF.
