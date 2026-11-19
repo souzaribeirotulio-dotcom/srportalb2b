@@ -130,3 +130,7 @@ Nada aqui é contrato oficial. Os nomes de operação são os da interface do fr
 - Resposta: 403 `ORIGEM_OPERADOR_NAO_PERMITIDA`, `request_id` b0cc4a6015d66c89.
 - As chamadas do comprador da mesma origem funcionam (CORS e preflight ok).
 - Pedido: liberar também para o painel do operador a origem `https://portal.souzaribeiro.net`.
+
+## Kit cujos componentes não podem ser vendidos separados (19/11)
+A Souza Ribeiro vai vender alguns produtos só como kit (ex.: base marmitex 3414 + tampa 4315). O contrato só informa `kit: true` no produto; não há como o portal saber os componentes nem um parâmetro para "componente só dentro do kit".
+Pergunta: se os componentes ficarem sem **Publicar no e-commerce** (ou outro ajuste do G360), o kit continua vendendo pela API e os componentes deixam de ser aceitos em `POST revisoes` / `POST pedidos` sozinhos? Qual é a configuração certa no G360 para isso?
