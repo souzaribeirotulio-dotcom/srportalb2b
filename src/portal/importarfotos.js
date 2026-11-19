@@ -116,11 +116,22 @@ async function localizar() {
       for (const p of dados) { const it = lote.itens.get(chave(p.codigo)); if (it) it.produto = p; }
     }
     const achados = [...lote.itens.values()].filter((i) => i.produto);
-    let n = 0;
+    let n = 0; let fatal = null;
+    // Um produto que o G360 não deixa conferir fica marcado (fotos desmarcadas) e o resto segue.
+    // Só para tudo em sessão encerrada, sem acesso ou licença; depois disso ninguém mais escreve o progresso.
     await emParalelo(achados, 4, async (it) => {
-      it.galeria = await comEspera(() => listarFotosOperador(ctx.token(), it.produto.id));
-      progresso(`Conferindo as fotos que já existem… ${++n} de ${achados.length}`);
+      if (fatal) return;
+      try { it.galeria = await comEspera(() => listarFotosOperador(ctx.token(), it.produto.id)); }
+      catch (e) {
+        if (e instanceof ErroApi && (e.status === 401 || e.status === 403 || e.status === 423 || PARAR_TUDO.has(e.codigo))) { fatal = fatal || e; return; }
+        const i = e instanceof ErroApi ? interpretarErro(e) : { mensagem: e.message };
+        it.erro = `Não deu para conferir as fotos que já existem: ${i.mensagem}${i.suporte ? ` (Código para o suporte: ${i.suporte})` : ''}`;
+        for (const t of TIPOS) if (it.fotos[t]) it.fotos[t].aprovada = false;
+        lote.semConferir = (lote.semConferir || 0) + 1;
+      }
+      if (!fatal) progresso(`Conferindo as fotos que já existem… ${++n} de ${achados.length}`);
     });
+    if (fatal) throw fatal;
   } catch (e) {
     if (pararTudo(e)) return;
     const i = interpretarErro(e);
@@ -142,6 +153,7 @@ function desenharGrade() {
   if (lote.naoEncontrados.length) avisos.push(`<b>${lote.naoEncontrados.length} código${lote.naoEncontrados.length === 1 ? '' : 's'} não encontrado${lote.naoEncontrados.length === 1 ? '' : 's'} no G360</b> (ficam de fora): ${esc(lote.naoEncontrados.slice(0, 30).join(', '))}${lote.naoEncontrados.length > 30 ? '…' : ''}`);
   if (lote.foraPadrao.length) avisos.push(`<b>${lote.foraPadrao.length} arquivo${lote.foraPadrao.length === 1 ? '' : 's'} fora do padrão de nome</b> (ignorado${lote.foraPadrao.length === 1 ? '' : 's'}): ${esc(lote.foraPadrao.slice(0, 15).join(', '))}${lote.foraPadrao.length > 15 ? '…' : ''}`);
   if (lote.repetidos.length) avisos.push(`<b>${lote.repetidos.length} arquivo${lote.repetidos.length === 1 ? '' : 's'} repetido${lote.repetidos.length === 1 ? '' : 's'}</b>: vale o último de cada.`);
+  if (lote.semConferir) avisos.push(`<b>${lote.semConferir} produto${lote.semConferir === 1 ? '' : 's'} sem resposta do G360</b> ao conferir as fotos atuais: ficaram desmarcados (veja a mensagem em cada um).`);
   if (lote.invalidos.length) avisos.push(`<b>Não deu para abrir:</b> ${esc(lote.invalidos.join(', '))}`);
   const faltando = itens.filter((i) => TIPOS.some((t) => !i.fotos[t])).length;
   if (faltando) avisos.push(`<b>${faltando} produto${faltando === 1 ? '' : 's'} sem alguma das 3 fotos</b> (marcados abaixo). Sobem só as que vieram.`);

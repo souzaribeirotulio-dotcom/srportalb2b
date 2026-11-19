@@ -3,7 +3,7 @@
  * Serve para levar as fotos da homologação para a produção: exporta aqui e importa lá.
  * Só lê: GET operadores/produtos/{id}/fotos e GET .../fotos/{item}. Nada é gravado no G360 nem no Supabase. */
 import JSZip from 'jszip';
-import { listarFotosOperador, obterFotoOperador, buscarProdutosOperador, interpretarErro, ErroApi } from '../api/g360.js';
+import { listarFotosOperador, obterFotoOperador, buscarProdutosOperador, listarVitrine, interpretarErro, ErroApi } from '../api/g360.js';
 import { comEspera, produtosDosCodigos } from './lotesfotos.js';
 import { $, esc, abrirModal, fecharModal } from './comum.js';
 
@@ -23,7 +23,7 @@ export function abrirExportacaoFotos(opcoes) {
         <option value="visivel">Os que aparecem no portal (lista do botão "Atualizar produtos do portal")</option>
         <option value="todos">Todos os produtos do G360 (demora mais)</option></select></div>
     </div>
-    <p class="hint">Primeiro o painel procura os produtos que têm foto; depois você escolhe quais baixar. Vão até 3 fotos por produto: a capa e as duas seguintes da galeria.</p>
+    <p class="hint">O painel lista só os produtos que têm foto (leva cerca de 1 minuto para os do portal); depois você escolhe quais baixar. Vão até 3 fotos por produto: a capa e as duas seguintes da galeria.</p>
     <div id="exMsg" aria-live="polite"></div>
     <div class="act"><button class="btn sec" id="exFechar" type="button">Fechar</button><button class="btn pri" id="exIr" type="button">Procurar produtos com foto</button></div>`;
   const fechar = () => { if (rodando) { rodando.parar = true; return; } fecharModal('mAdm'); };
@@ -42,11 +42,49 @@ async function codigosDoPortal() {
 /* 1) Procura os produtos que têm foto; 2) a equipe escolhe quais; 3) baixa os escolhidos em ZIP. */
 let achados = []; // [{ p, ordem: [itens], marcado }]
 
+/* Caminho rápido: a vitrine (catálogo aberto) já diz, de 50 em 50, quais produtos têm foto (fotos[], capa primeiro).
+   Respeita o limite da vitrine (30 consultas por minuto). Se a vitrine estiver fechada, volta para a conferência um por um. */
+const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
+async function pelaVitrine(modo, est, mostrar) {
+  const cods = modo === 'visivel' ? await codigosDoPortal() : null;
+  if (cods && !cods.length) throw new Error('Ainda não há lista do que aparece no portal. Use "Atualizar produtos do portal" ou escolha "Todos os produtos".');
+  const pedidos = [];
+  if (cods) { est.total = cods.length; for (let i = 0; i < cods.length; i += 50) pedidos.push({ codigos: cods.slice(i, i + 50), limite: 50 }); }
+  let ultimo = 0;
+  const pedir = async (f) => { const espera = 2100 - (Date.now() - ultimo); if (espera > 0) await sleep(espera); ultimo = Date.now(); return comEspera(() => listarVitrine(f)); };
+  const tratar = (dados) => {
+    for (const p of dados) { est.conferidos++; if (Array.isArray(p.fotos) && p.fotos.length) achados.push({ p, ordem: p.fotos.map(Number), marcado: true }); }
+    mostrar();
+  };
+  if (cods) { for (const f of pedidos) { if (rodando.parar) break; tratar((await pedir(f)).dados); } return; }
+  const r = await pedir({ pagina: 1, limite: 50 });
+  est.total = r.paginacao?.total || r.dados.length; tratar(r.dados);
+  const paginas = Math.ceil(est.total / 50);
+  for (let p = 2; p <= paginas && !rodando.parar; p++) tratar((await pedir({ pagina: p, limite: 50 })).dados);
+}
+
 async function exportar() {
   if (rodando) return;
   const modo = $('exModo').value;
   rodando = { parar: false };
   achados = [];
+  {
+    const est0 = { conferidos: 0, total: 0 };
+    const mostrar0 = () => msg(`<div class="impprog"><div class="impbarra"><i style="width:${est0.total ? Math.round((est0.conferidos / est0.total) * 100) : 0}%"></i></div>
+      <span class="hint" style="margin:0">Procurando produtos com foto… ${est0.conferidos} de ${est0.total || '…'} · <b>${achados.length} com foto</b></span></div>`);
+    $('exIr').disabled = true; $('exIr').textContent = 'Procurando…'; $('exFechar').textContent = 'Parar';
+    try {
+      await pelaVitrine(modo, est0, mostrar0);
+      rodando = null;
+      $('exIr').disabled = false; $('exIr').textContent = 'Procurar de novo'; $('exFechar').textContent = 'Fechar';
+      achados.sort((a, b) => String(a.p.codigo).localeCompare(String(b.p.codigo), 'pt', { numeric: true }));
+      desenharEscolha('', 0);
+      return;
+    } catch (e) {
+      if (!(e instanceof ErroApi)) { rodando = null; $('exIr').disabled = false; $('exIr').textContent = 'Procurar produtos com foto'; $('exFechar').textContent = 'Fechar'; msg(`<div class="rv-aviso bad">${esc(e.message)}</div>`); return; }
+      achados = []; // vitrine fechada ou recusando: confere galeria por galeria
+    }
+  }
   $('exIr').disabled = true; $('exIr').textContent = 'Procurando…'; $('exFechar').textContent = 'Parar';
   const est = { conferidos: 0, total: 0, falhas: 0 };
   const mostrar = () => msg(`<div class="impprog"><div class="impbarra"><i style="width:${est.total ? Math.round((est.conferidos / est.total) * 100) : 0}%"></i></div>
