@@ -60,7 +60,7 @@ export async function abrirNovoClienteG360(k, opcoes) {
     box.innerHTML = '<div class="empty2">Consultando o CNPJ…</div>';
     try {
       const r = await preencherNovoClienteCnpj(opcoes.token(), doc);
-      if (r.ja_existe) return jaExiste(k, r.cliente_id, opcoes);
+      if (r.ja_existe) return opcoes.jaExiste ? opcoes.jaExiste(r.cliente_id) : jaExiste(k, r.cliente_id, opcoes);
       sug = r;
     } catch (e) {
       if (e.status === 401) { fecharModal('mAdm'); opcoes.aoSessaoEncerrada?.(e); return; }

@@ -395,6 +395,21 @@ class Sim:
             if m == 'DELETE': g[:] = [x for x in g if x['item'] != int(sub)]; return self.ok(route, gal())
         return self.erro(route, 404, 'NAO_ENCONTRADO', 'Recurso não encontrado.', 'integracao')
 
+    @staticmethod
+    def dados_g360(f, resp):
+        dig = lambda v: re.sub(r'\D', '', str(v or ''))
+        def fone(v):
+            x = dig(v)
+            if len(x) in (12, 13) and x.startswith('55'): x = x[2:]
+            if len(x) in (11, 12) and x.startswith('0'): x = x[1:]
+            return x if re.match(r'^[0-9]{10,11}$', x) else None
+        e = f.get('endereco') or {}
+        em = (f.get('email') or '').strip().lower()
+        return {'razao_social': f['nome'], 'fantasia': f.get('fantasia') or None, 'inscricao_estadual': (f.get('ie_rg') or '').upper() or None,
+                'email': em if re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', em) else None, 'responsavel': f.get('contato') or resp, 'whats': fone(f.get('telefone1')), 'telefone': fone(f.get('telefone2')),
+                'cep': dig(e.get('cep')) or None, 'logradouro': e.get('logradouro') or None, 'numero': e.get('numero') or None, 'complemento': e.get('complemento') or None,
+                'bairro': (e.get('bairro') or {}).get('nome'), 'cidade': (e.get('cidade') or {}).get('nome'), 'uf': e.get('uf')}
+
     # ---------- ponte e Supabase ----------
     def jwt(self, sub, extra):
         return f"{b64u({'alg': 'HS256', 'typ': 'JWT'})}.{b64u({'sub': sub, 'exp': int(time.time()) + 3600, 'role': 'authenticated', **extra})}.assinatura"
@@ -508,6 +523,11 @@ class Sim:
                 igual = [x for x in self.cadastros if x['documento'] == doc and x.get('id') != c.get('id')]
                 if igual: return res(409, {'mensagem': 'Já existe uma ficha com este CNPJ. Abrimos a ficha existente.', 'id': igual[0].get('id')})
                 c['documento'] = doc; c['codigo_g360'] = int(c['codigo_g360']) if c.get('codigo_g360') else None
+                if c['codigo_g360']:
+                    f = self.fichas.get(c['codigo_g360'])
+                    if not f: return res(409, {'mensagem': 'Não foi possível ler a ficha do cliente no G360 (código ou acesso). Confira o código e tente de novo.'})
+                    if f['documento'] != doc: return res(409, {'mensagem': 'O cliente do G360 com este código tem outro documento. A ficha não foi salva.'})
+                    c.update(self.dados_g360(f, c.get('responsavel')))
                 if c.get('id'):
                     for x in self.cadastros:
                         if x.get('id') == c['id']: x.update(c); return res(200, {'dados': x})
@@ -519,7 +539,7 @@ class Sim:
                 for c in self.cadastros:
                     if c['id'] == d['id']:
                         if not f or f['documento'] != c['documento']: return res(409, {'mensagem': 'O cliente do G360 tem outro documento. O pedido não foi vinculado.'})
-                        c.update(codigo_g360=cod, status='aprovado'); return res(200, {'dados': c})
+                        c.update(codigo_g360=cod, status='aprovado', **self.dados_g360(f, c.get('responsavel'))); return res(200, {'dados': c})
                 return res(404, {'mensagem': 'Cadastro não encontrado.'})
             if ac == 'cadastro_decidir':
                 for c in self.cadastros:

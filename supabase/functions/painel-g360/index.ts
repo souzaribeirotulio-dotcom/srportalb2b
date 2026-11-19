@@ -61,6 +61,48 @@ async function conferir(token: string): Promise<boolean> {
 }
 
 const SITUACOES = new Set(["pendente", "aprovado", "recusado"]);
+const docLimpo = (v: unknown) => String(v ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+/** GET operadores/clientes/{codigo} com o token do operador: [status, ficha | null]. */
+async function lerFichaG360(token: string, codigo: number): Promise<[number, Record<string, any> | null]> {
+  const r = await fetch(`${api.href.replace(/\/$/, "")}/b2b/v1/lojas/${loja}/operadores/clientes/${codigo}`, {
+    headers: { Authorization: `Bearer ${token}` }, redirect: "error", signal: AbortSignal.timeout(15_000),
+  });
+  if (!r.ok) { await r.body?.cancel(); return [r.status, null]; }
+  return [200, ((await r.json())?.dados ?? null) as Record<string, any> | null];
+}
+
+/** Campos da ficha do portal que vêm do G360 (a fonte do cadastro). responsavelAtual fica se o G360 não tiver contato. */
+function dadosDoG360(f: Record<string, any>, responsavelAtual: string) {
+  const dig = (v: unknown) => String(v ?? "").replace(/\D/g, "");
+  const fone = (v: unknown) => {
+    let x = dig(v);
+    if ((x.length === 12 || x.length === 13) && x.startsWith("55")) x = x.slice(2);
+    if ((x.length === 11 || x.length === 12) && x.startsWith("0")) x = x.slice(1);
+    return /^[0-9]{10,11}$/.test(x) ? x : null;
+  };
+  const e = (f.endereco ?? {}) as Record<string, any>;
+  const email = texto(f.email, 160).toLowerCase();
+  const cep = dig(e.cep);
+  const uf = texto(e.uf, 2).toUpperCase();
+  const contato = texto(f.contato, 120);
+  return {
+    razao_social: texto(f.nome, 200),
+    fantasia: texto(f.fantasia, 200) || null,
+    inscricao_estadual: texto(f.ie_rg, 30).toUpperCase() || null,
+    email: /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ? email : null,
+    responsavel: contato.length >= 2 ? contato : (responsavelAtual.length >= 2 ? responsavelAtual : texto(f.nome, 120)),
+    whats: fone(f.telefone1),
+    telefone: fone(f.telefone2),
+    cep: /^[0-9]{8}$/.test(cep) ? cep : null,
+    logradouro: texto(e.logradouro, 200) || null,
+    numero: texto(e.numero, 20) || null,
+    complemento: texto(e.complemento, 120) || null,
+    bairro: texto(e.bairro?.nome, 120) || null,
+    cidade: texto(e.cidade?.nome, 120) || null,
+    uf: /^[A-Z]{2}$/.test(uf) ? uf : null,
+  };
+}
 const texto = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
 async function executar(acao: string, d: Record<string, unknown>, token = ""): Promise<[number, unknown]> {
@@ -84,35 +126,34 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     return [200, { ok: true }];
   }
   if (acao === "cadastro_vincular") {
-    // Liga o pedido do portal ao cliente que a API devolveu (Novo cliente ou cadastro já existente).
+    // Liga o pedido do portal ao cliente que a API devolveu (Novo cliente ou cadastro já existente)
+    // e passa a ficha do portal para os dados do G360 (o G360 é a fonte do cadastro).
     // Só vincula se a ficha do G360, lida com o token do operador, tiver o mesmo documento.
+    // Também serve para "Atualizar com o G360" numa ficha já vinculada.
     const id = texto(d.id, 40); const codigo = Number(d.codigo_g360);
     if (!/^[0-9a-f-]{36}$/.test(id) || !(Number.isSafeInteger(codigo) && codigo > 0)) return [400, { mensagem: "Dados inválidos." }];
-    const { data: k, error: e0 } = await admin.from("portal_cadastros").select("id, documento").eq("id", id).eq("loja", loja).maybeSingle();
+    const { data: k, error: e0 } = await admin.from("portal_cadastros").select("id, documento, responsavel").eq("id", id).eq("loja", loja).maybeSingle();
     if (e0) throw e0;
     if (!k) return [404, { mensagem: "Cadastro não encontrado." }];
-    const r = await fetch(`${api.href.replace(/\/$/, "")}/b2b/v1/lojas/${loja}/operadores/clientes/${codigo}`, {
-      headers: { Authorization: `Bearer ${token}` }, redirect: "error", signal: AbortSignal.timeout(15_000),
-    });
-    if (r.status === 401) return [401, { mensagem: "Sua sessão terminou. Entre novamente." }];
-    if (!r.ok) { await r.body?.cancel(); return [409, { mensagem: "Não foi possível conferir a ficha no G360. Tente de novo." }]; }
-    const doc = String((await r.json())?.dados?.documento ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    if (doc !== String(k.documento)) return [409, { mensagem: "O cliente do G360 tem outro documento. O pedido não foi vinculado." }];
+    const [st, f] = await lerFichaG360(token, codigo);
+    if (st === 401) return [401, { mensagem: "Sua sessão terminou. Entre novamente." }];
+    if (!f) return [409, { mensagem: "Não foi possível conferir a ficha no G360. Tente de novo." }];
+    if (docLimpo(f.documento) !== String(k.documento)) return [409, { mensagem: "O cliente do G360 tem outro documento. O pedido não foi vinculado." }];
     const { data, error } = await admin.from("portal_cadastros").update({
-      codigo_g360: codigo, status: "aprovado", decidido_por: "Equipe (usuário do G360)", atualizado_em: new Date().toISOString(),
+      ...dadosDoG360(f, String(k.responsavel || "")), codigo_g360: codigo, status: "aprovado", decidido_por: "Equipe (usuário do G360)", atualizado_em: new Date().toISOString(),
     }).eq("id", id).eq("loja", loja).select("*");
     if (error) throw error;
     return [200, { dados: data?.[0] }];
   }
   if (acao === "cliente_salvar") {
-    // Ficha do cliente no portal (Novo/Editar cliente). Não toca no G360.
+    // Ficha do cliente no portal (Novo/Editar cliente). Não grava no G360; com código, copia os dados do G360.
     const c = (d.cliente ?? {}) as Record<string, unknown>;
     const id = texto(c.id, 40);
     const so = (v: unknown, max: number) => texto(v, max).replace(/\D/g, "");
     const documento = texto(c.documento, 32).toUpperCase().replace(/[^A-Z0-9]/g, "");
     const status = texto(c.status, 12) || "aprovado";
     const codigo = c.codigo_g360 === null || c.codigo_g360 === "" || c.codigo_g360 === undefined ? null : Number(c.codigo_g360);
-    const ficha = {
+    const ficha: Record<string, any> = {
       documento,
       razao_social: texto(c.razao_social, 200),
       fantasia: texto(c.fantasia, 200) || null,
@@ -137,6 +178,15 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     if (!/^[A-Z0-9]{11,14}$/.test(documento)) return [400, { mensagem: "Digite o CNPJ ou CPF completo." }];
     if (!SITUACOES.has(status)) return [400, { mensagem: "Situação inválida." }];
     if (codigo !== null && !(Number.isSafeInteger(codigo) && codigo > 0)) return [400, { mensagem: "O código do G360 tem de ser um número." }];
+    if (codigo !== null) {
+      // Ficha ligada ao G360: nome, IE, contato, e-mail, telefones e endereço vêm do G360, não do formulário.
+      if (!token) return [401, { mensagem: "Sua sessão terminou. Entre novamente." }];
+      const [st, f] = await lerFichaG360(token, codigo);
+      if (st === 401) return [401, { mensagem: "Sua sessão terminou. Entre novamente." }];
+      if (!f) return [409, { mensagem: "Não foi possível ler a ficha do cliente no G360 (código ou acesso). Confira o código e tente de novo." }];
+      if (docLimpo(f.documento) !== documento) return [409, { mensagem: "O cliente do G360 com este código tem outro documento. A ficha não foi salva." }];
+      Object.assign(ficha, dadosDoG360(f, ficha.responsavel));
+    } else {
     if (ficha.razao_social.length < 2) return [400, { mensagem: "Digite a razão social." }];
     if (ficha.responsavel.length < 2) return [400, { mensagem: "Digite o nome do responsável." }];
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ficha.email)) return [400, { mensagem: "Digite um e-mail válido." }];
@@ -144,6 +194,7 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     if (ficha.telefone && !/^[0-9]{10,11}$/.test(ficha.telefone)) return [400, { mensagem: "Telefone com DDD (10 ou 11 números)." }];
     if (ficha.cep && !/^[0-9]{8}$/.test(ficha.cep)) return [400, { mensagem: "CEP com 8 números." }];
     if (ficha.uf && !/^[A-Z]{2}$/.test(ficha.uf)) return [400, { mensagem: "UF com 2 letras." }];
+    }
     // Mesmo CNPJ em outra ficha: devolve a existente em vez de duplicar.
     const { data: igual, error: e0 } = await admin.from("portal_cadastros").select("id").eq("loja", loja).eq("documento", documento).limit(1);
     if (e0) throw e0;

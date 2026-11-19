@@ -411,18 +411,20 @@ with sync_playwright() as pw:
     for k_, v_ in {'#kRaz': 'Comprador Fictício Um LTDA', '#kCep': '38400100', '#kNum': '10', '#kLog': 'Rua Exemplo', '#kBai': 'Centro', '#kCid': 'Uberlândia', '#kResp': 'Fulano Exemplo', '#kWa': '34999990000', '#kEm': 'compras@example.invalid'}.items():
         pg.fill(k_, v_)
     pg.select_option('#kUf', 'MG'); pg.check('#kIsento'); pg.select_option('#kOri', 'Google')
+    pg.click('#kLink'); checar('e-mail cadastrado no G360' in n.tc('#kLinkM') and not any(c[0] == 'PONTE' and c[1] == 'pedir_link' for c in sim.chamadas), 'link pede confirmação antes de enviar')
     pg.click('#kLink'); pg.wait_for_function("document.getElementById('kLinkM').textContent.includes('link')")
     checar(any(c[0] == 'PONTE' and c[1] == 'pedir_link' and c[3].get('documento') == '11111111000111' for c in sim.chamadas), 'link de acesso pedido pela ficha')
     pg.click('#kOk'); pg.wait_for_selector('#mAdm:not(.open)', state='attached')
     f_ = [c for c in sim.cadastros if c['documento'] == '11111111000111']
     checar(len(f_) == 1 and f_[0]['codigo_g360'] == 1165 and f_[0]['inscricao_estadual'] == 'ISENTO' and f_[0]['status'] == 'aprovado', f'ficha salva: {f_}')
+    checar(f_[0]['logradouro'] == 'Avenida Exemplo' and f_[0]['cidade'] == 'Cidade Exemplo' and f_[0]['responsavel'] == 'Fulano', 'ficha com código fica com os dados do G360, não com os digitados')
     pg.wait_for_selector('#clCad .crow2[data-id] >> text=1165', state='attached')
     pg.click('#clNovo'); pg.fill('#kCnpj', '11.111.111/0001-11'); pg.click('#kBusca')
     pg.wait_for_selector('#kCnpjM >> text=Já existe uma ficha'); pg.wait_for_selector('#admBox h3 >> text=Editar cliente')
-    checar(pg.input_value('#kResp') == 'Fulano Exemplo', 'CNPJ repetido abre a ficha existente')
-    pg.fill('#kResp', 'Ciclano Exemplo'); pg.click('#kOk'); pg.wait_for_selector('#mAdm:not(.open)', state='attached')
-    checar(len([c for c in sim.cadastros if c['documento'] == '11111111000111']) == 1 and f_[0]['responsavel'] == 'Ciclano Exemplo', 'editar não duplica')
-    pg.fill('#clQ', 'ciclano'); pg.wait_for_timeout(400); checar(pg.locator('#clCad .crow2[data-id]').count() == 1, 'busca na lista de clientes')
+    checar(pg.input_value('#kResp') == 'Fulano', 'CNPJ repetido abre a ficha existente')
+    pg.select_option('#kOri', 'Indicação de outro cliente'); pg.click('#kOk'); pg.wait_for_selector('#mAdm:not(.open)', state='attached')
+    checar(len([c for c in sim.cadastros if c['documento'] == '11111111000111']) == 1 and f_[0]['origem'] == 'Indicação de outro cliente', 'editar não duplica')
+    pg.fill('#clQ', 'fulano'); pg.wait_for_timeout(400); checar(pg.locator('#clCad .crow2[data-id]').count() == 1, 'busca na lista de clientes')
     pg.fill('#clQ', '')
     pg.click('#clCad .crow2[data-id]:has-text("1165") [data-lista]'); pg.wait_for_selector('#mlQ'); pg.fill('#mlQ', 'P-105'); pg.click('#mlBuscar'); pg.wait_for_selector('#mlRes [data-add]')
     pg.click('#mlRes [data-add]'); pg.wait_for_selector('#mlItens .crow[data-id="105"]')
@@ -505,7 +507,7 @@ with sync_playwright() as pw:
     checar(sim.fichas_put[-1].get('confirmar_documento_repetido') is True, 'reenvio confirmado')
     pg.click('#gLib'); pg.wait_for_selector('#gLink')
     checar(sim.fichas[1165]['acesso_liberado'] is True and 'Liberado' in n.tc('#admBox'), 'acesso liberado')
-    pg.click('#gLink'); pg.wait_for_function("document.getElementById('gAcRes').textContent.includes('link')")
+    pg.click('#gLink'); pg.click('#gLink'); pg.wait_for_function("document.getElementById('gAcRes').textContent.includes('link')")
     checar(any(c[0] == 'PONTE' and c[1] == 'pedir_link' and c[3].get('documento') == '99999999000199' for c in sim.chamadas), 'link de primeiro acesso pela ficha')
     pg.click('#gBloq'); checar('Confirmar bloqueio' in n.tc('#gBloq'), 'bloqueio pede confirmação')
     pg.click('#gX')
@@ -617,10 +619,42 @@ with sync_playwright() as pw:
     # CNPJ que já existe no G360: não duplica, oferece a ficha
     sim.cadastros.append({**cad, 'id': '00000000-0000-4000-8000-000000000015', 'documento': sim.fichas[1165]['documento'], 'codigo_g360': None})
     pg.click('[data-at="prod"]'); pg.click('[data-at="cli"]'); sel = '#clCad .crow2[data-id="00000000-0000-4000-8000-000000000015"]'
-    pg.wait_for_selector(f'{sel} [data-novo]'); n0 = len(sim.inclusoes); pg.click(f'{sel} [data-novo]'); pg.wait_for_selector('#mAdm.open #nAbrir')
-    checar('já está no G360' in n.tc('#admBox') and '1165' in n.tc('#admBox') and len(sim.inclusoes) == n0, 'CNPJ já cadastrado não duplica')
-    pg.click('#nAbrir'); pg.wait_for_selector('#mAdm.open #gSalvar')
+    pg.wait_for_selector(f'{sel} [data-novo]'); n0 = len(sim.inclusoes); pg.click(f'{sel} [data-novo]'); pg.wait_for_selector('#mAdm.open #vOk')
+    checar('já é cliente no G360' in n.tc('#admBox') and '1165' in n.tc('#admBox') and len(sim.inclusoes) == n0, 'CNPJ já cadastrado não duplica')
+    pg.click('#vOk'); pg.wait_for_selector('#mAdm.open #gSalvar')
     checar(next(c for c in sim.cadastros if c['id'].endswith('15'))['codigo_g360'] == 1165, 'vinculado ao cadastro existente')
+    pg.click('#gX')
+    # Quero ser cliente PENDENTE com CNPJ que já é cliente: Aprovar confere no G360, compara e vincula (sem guardar dados diferentes)
+    sim.fichas[1166] = {**json.loads(json.dumps(sim.fichas[1165])), 'id': 1166, 'documento': '77777777000177', 'nome': 'CLIENTE ANTIGO FICTICIO LTDA', 'acesso_liberado': False}
+    sim.cadastros.append({**cad, 'id': '00000000-0000-4000-8000-000000000016', 'documento': '77777777000177', 'codigo_g360': None, 'status': 'pendente',
+                          'email': 'novo-email@example.invalid', 'whats': '34988887777', 'razao_social': 'Cliente Antigo Fictício LTDA'})
+    pg.click('[data-at="prod"]'); pg.click('[data-at="cli"]'); sel = '#clCad .crow2[data-id="00000000-0000-4000-8000-000000000016"]'
+    pg.select_option('#clSt', ''); pg.wait_for_selector(f'{sel} [data-d="aprovado"]'); n0 = len(sim.inclusoes); put0 = len(sim.fichas_put)
+    pg.click(f'{sel} [data-d="aprovado"]'); pg.wait_for_selector('#mAdm.open #vOk')
+    t = n.tc('#admBox')
+    checar('Este CNPJ já é cliente no G360' in t and '1166' in t and sim.fichas[1166]['email'] in t and 'novo-email@example.invalid' in t, f'aviso de CNPJ já cliente, com os dados do pedido ao lado dos do G360: {t[:300]}')
+    checar(pg.locator('[data-gravar="email"]').count() == 1 and pg.locator('[data-gravar="nome"]').count() == 0, 'só as diferenças podem ser gravadas no G360 (razão social igual, sem marcação)')
+    checar(next(c for c in sim.cadastros if c['id'].endswith('16'))['status'] == 'pendente', 'não aprova antes da conferência')
+    pg.check('[data-gravar="email"]'); checar('novo-email@example.invalid' in n.tc('#vEmail'), 'o link vai para o e-mail que ficará no G360')
+    pg.click('#vOk'); pg.wait_for_selector('#mAdm.open #gSalvar')
+    ped = sim.fichas_put[put0:]
+    checar(len(ped) == 1 and set(ped[0]) == {'versao', 'email'} and ped[0]['email'] == 'novo-email@example.invalid', f'gravou no G360 só o marcado, com a versão: {ped}')
+    c16 = next(c for c in sim.cadastros if c['id'].endswith('16'))
+    checar(c16['codigo_g360'] == 1166 and c16['status'] == 'aprovado' and c16['whats'] == '34999990000' and c16['email'] == 'novo-email@example.invalid' and len(sim.inclusoes) == n0,
+           f'vinculado ao código existente, ficha do portal igual ao G360: {c16.get("whats")} {c16.get("email")}')
+    pg.click('#gX')
+    # Ficha ligada: dados do G360 travados no portal e o servidor não aceita trocar
+    pg.click(f'{sel} [data-ed]'); pg.wait_for_selector('#mAdm.open #kSinc')
+    checar(pg.evaluate("document.getElementById('kEm').readOnly && document.getElementById('kRaz').readOnly && document.getElementById('kBusca').hidden"), 'ficha ligada: cadastro só pelo G360')
+    pg.evaluate("document.getElementById('kEm').readOnly = false"); pg.fill('#kEm', 'outro@example.invalid'); pg.click('#kOk'); pg.wait_for_timeout(800)
+    checar(next(c for c in sim.cadastros if c['id'].endswith('16'))['email'] == 'novo-email@example.invalid', 'teste que tem de falhar: trocar o e-mail na ficha do portal não grava (vale o do G360)')
+    # Link: mostra o e-mail do G360 e só envia na confirmação
+    pg.wait_for_selector('#mAdm:not(.open)', state='attached'); sim.fichas[1166]['acesso_liberado'] = True
+    pg.click(f'{sel} [data-g360]'); pg.wait_for_selector('#mAdm.open #gLink'); links0 = len([c for c in sim.chamadas if c[0] == 'PONTE' and c[1] == 'pedir_link'])
+    pg.click('#gLink'); pg.wait_for_timeout(300)
+    checar('novo-email@example.invalid' in n.tc('#gAcRes') and len([c for c in sim.chamadas if c[0] == 'PONTE' and c[1] == 'pedir_link']) == links0, 'link: mostra o e-mail do G360 antes de enviar')
+    pg.click('#gLink'); pg.wait_for_function("document.getElementById('gAcRes').textContent.includes('Se o cadastro')")
+    checar(True, 'link enviado depois da confirmação')
     pg.click('#gX')
     # Produtos: tirar do portal / voltar, e filtros "aparecendo" e "fora do portal"
     pg.click('[data-at="prod"]'); pg.fill('#aQ', 'P-110'); pg.press('#aQ', 'Enter'); pg.wait_for_selector('.arow[data-id="110"] [data-oc="1"]')

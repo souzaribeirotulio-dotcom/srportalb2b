@@ -16,6 +16,7 @@ import { chamarPainel } from '../api/painel.js';
 import { pedirLink } from '../api/ponte.js';
 import { consultarCnpj } from './cadastro.js';
 import { abrirFichaG360 } from './fichag360.js';
+import { conferirPedidoNoG360 } from './conferircadastro.js';
 import { paraJpeg } from './jpeg.js';
 import { abrirImportacaoFotos } from './importarfotos.js';
 import { abrirNovoClienteG360 } from './novocliente.js';
@@ -963,7 +964,7 @@ function pintarCadastros() {
       <div class="sm sm2">${k.codigo_g360 ? esc(k.codigo_g360) : '<span style="color:var(--tx3)">—</span>'}</div>
       <div class="sm">${esc(k.cidade || '')}${k.uf ? `/${esc(k.uf)}` : ''}${k.codigo_g360 ? `<span class="som"> · cód. ${esc(k.codigo_g360)}</span>` : ''}</div>
       <div class="stw"><span class="stt ${k.status === 'recusado' ? 'reprovado' : esc(k.status)}">${SIT[k.status] || esc(k.status)}</span></div>
-      <div class="ab2">${k.status === 'pendente' ? '<button class="ap" data-d="aprovado">Aprovar</button><button class="rp" data-d="recusado">Reprovar</button>' : ''}${k.status === 'aprovado' && !k.codigo_g360 ? '<button class="ap" data-novo>➕ Cadastrar no G360</button>' : ''}<button data-lista ${k.codigo_g360 ? '' : 'disabled title="Cadastre no G360 primeiro (➕ Cadastrar no G360)"'}>⭐ Minha Lista</button>${k.codigo_g360 ? '<button data-g360>📋 Ficha G360</button>' : ''}<button data-ed>Editar</button></div></div>`).join('')
+      <div class="ab2">${k.status === 'pendente' ? '<button class="ap" data-d="aprovado">Aprovar</button><button class="rp" data-d="recusado">Reprovar</button>' : ''}${k.status === 'aprovado' && !k.codigo_g360 ? '<button class="ap" data-novo>➕ Cadastrar no G360</button>' : ''}<button data-lista ${k.codigo_g360 ? '' : 'disabled title="Cadastre no G360 primeiro (➕ Cadastrar no G360)"'}>⭐ Minha Lista</button>${k.codigo_g360 ? '<button data-g360>📋 Ficha G360</button><button data-sinc title="Copiar para a ficha do portal os dados atuais do G360">🔄 Dados do G360</button>' : ''}<button data-ed>Editar</button></div></div>`).join('')
       : vazio(cadastros.length ? 'Nenhum cliente encontrado com essa busca.' : 'Nenhum cliente ainda. Clique em "+ Novo cliente" ou aguarde os pedidos de "Quero ser cliente".'))
     + '<div class="hint" style="padding:10px 18px">A ficha é do portal: preço, condições de pagamento, crédito e endereços de entrega continuam vindo do G360. Para o cliente entrar, ele precisa estar no G360 com "Acesso à API dos sistemas externos" marcado.</div>';
   alvo.querySelectorAll('.crow2[data-id] button').forEach((b) => b.addEventListener('click', async () => {
@@ -972,6 +973,14 @@ function pintarCadastros() {
     if (b.hasAttribute('data-g360')) { abrirFichaG360(k.codigo_g360, opcoesFichaG360()); return; }
     if (b.hasAttribute('data-novo')) { novoClienteG360(k); return; }
     if (b.hasAttribute('data-lista')) { montarLista({ codigo: k.codigo_g360, nome: k.fantasia || k.razao_social }); return; }
+    if (b.hasAttribute('data-sinc')) {
+      b.disabled = true;
+      try { await sincronizarComG360(k, k.codigo_g360); toast('Ficha do portal atualizada com o G360 ✓'); }
+      catch (e) { b.disabled = false; toast(e.message); }
+      return;
+    }
+    // Aprovar: confere o documento no G360 antes (já é cliente → compara e vincula; não é → Novo cliente).
+    if (b.dataset.d === 'aprovado') { conferirAprovacao(k); return; }
     b.disabled = true;
     try { await painel('cadastro_decidir', { id: k.id, status: b.dataset.d, observacao: k.observacao_equipe || '' }); }
     catch (e) { b.disabled = false; toast(e.message); return; }
@@ -1041,6 +1050,18 @@ async function abrirFicha(k) {
   const fechar = () => fecharModal('mAdm');
   $('kX').onclick = fechar; $('kC').onclick = fechar;
   if (d.codigo_g360) painelCondicoes($('kCond'), Number(d.codigo_g360));
+  const ligada = !!d.codigo_g360;
+  if (ligada) {
+    // Ficha ligada ao G360: cadastro só pelo G360 (fonte). No portal ficam vendedor, origem e situação.
+    ['kCnpj', 'kRaz', 'kFan', 'kIE', 'kCep', 'kNum', 'kLog', 'kCom', 'kBai', 'kCid', 'kResp', 'kWa', 'kTel', 'kEm', 'kCod'].forEach((id) => { $(id).readOnly = true; });
+    $('kUf').disabled = true; $('kIsento').disabled = true; $('kBusca').hidden = true;
+    $('kCnpjM').innerHTML = `<div class="rv-aviso" style="margin:6px 0 0">Ligada ao cliente <b>${esc(d.codigo_g360)}</b> do G360. Nome, IE, contato, e-mail, telefones e endereço vêm do G360: para mudar, use <b>Abrir ficha no G360</b>. <button type="button" class="tool" id="kSinc" style="margin-left:6px">🔄 Atualizar com o G360</button></div>`;
+    $('kSinc').onclick = async () => {
+      $('kSinc').disabled = true;
+      try { const r = await sincronizarComG360(d, d.codigo_g360); toast('Ficha atualizada com o G360 ✓'); abrirFicha(r); }
+      catch (e) { $('kSinc').disabled = false; toast(e.message); }
+    };
+  }
   $('mAdm').onclick = (e) => { if (e.target.id === 'mAdm') fechar(); };
   setTimeout(() => (k ? $('kRaz') : $('kCnpj')).focus(), 60);
 
@@ -1115,6 +1136,13 @@ async function abrirFicha(k) {
   $('kLink').onclick = async () => {
     const c = docLimpo($('kCnpj').value);
     if (c.length < 11) { $('kLinkM').textContent = 'Digite o CNPJ primeiro.'; return; }
+    if ($('kLink').dataset.confirmar !== '1') {
+      $('kLink').dataset.confirmar = '1'; $('kLink').textContent = '✉ Confirmar envio do link';
+      $('kLinkM').innerHTML = ligada && d.email ? `O link vai para o e-mail do G360: <b>${esc(d.email)}</b>. Confira antes de confirmar.`
+        : 'O link vai para o e-mail cadastrado no G360. Abra a ficha no G360 para conferir o e-mail antes de confirmar.';
+      return;
+    }
+    $('kLink').dataset.confirmar = ''; $('kLink').textContent = '✉ Enviar link de acesso';
     $('kLink').disabled = true; $('kLinkM').textContent = 'Enviando…';
     try { $('kLinkM').textContent = await pedirLink(c); }
     catch (e) { $('kLinkM').textContent = e.message; }
@@ -1130,6 +1158,7 @@ async function abrirFicha(k) {
       telefone: foneLimpo(v('kTel')), email: v('kEm'), origem: $('kOri').value, codigo_g360: v('kCod') || null, status: $('kSt').value, vendedor: $('kVend').value,
     };
     const falta = [];
+    if (!ligada) {
     if (!/^[A-Z0-9]{14}$/.test(n.documento) && !/^[0-9]{11}$/.test(n.documento)) falta.push('CNPJ completo');
     if (n.razao_social.length < 2) falta.push('razão social');
     if (!n.inscricao_estadual) falta.push('inscrição estadual (ou marque Isento)');
@@ -1139,6 +1168,7 @@ async function abrirFicha(k) {
     if (n.telefone && !/^[0-9]{10,11}$/.test(n.telefone)) falta.push('telefone com DDD');
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(n.email)) falta.push('e-mail válido');
     // Fichas antigas (e as do "Quero ser cliente" de antes) podem não ter a origem: só é obrigatória no cadastro novo.
+    }
     if (!n.origem && !d.id) falta.push('como nos conheceu');
     document.querySelectorAll('#admBox .inp.faltou').forEach((el) => el.classList.remove('faltou'));
     if (falta.length) {
@@ -1172,17 +1202,40 @@ async function abrirFicha(k) {
   $('admBox').addEventListener('input', (e) => { if (e.target.classList?.contains('faltou')) e.target.classList.remove('faltou'); });
 }
 
+/** Vincula a ficha do portal ao código do G360 e copia os dados do G360 (fonte do cadastro). */
+async function sincronizarComG360(k, codigo) {
+  const r = (await painel('cadastro_vincular', { id: k.id, codigo_g360: codigo })).dados;
+  if (cadastros && r) { const i = cadastros.findIndex((x) => x.id === r.id); if (i >= 0) cadastros[i] = r; }
+  pintarCadastros();
+  return r;
+}
+
+/** Aprovar um pedido de "Quero ser cliente": confere no G360 antes de aprovar. */
+function conferirAprovacao(k) {
+  conferirPedidoNoG360(k, {
+    token: () => op.token,
+    aoSessaoEncerrada: (e) => encerrarOperador(e.message),
+    vincular: (codigo) => sincronizarComG360(k, codigo),
+    abrirFicha: (codigo) => abrirFichaG360(codigo, opcoesFichaG360()),
+    aprovarNovo: async () => {
+      if (k.status !== 'aprovado') {
+        await painel('cadastro_decidir', { id: k.id, status: 'aprovado', observacao: k.observacao_equipe || '' });
+        k.status = 'aprovado'; pintarCadastros();
+        toast('Não é cliente no G360: pedido aprovado. Agora cadastre no G360.');
+      }
+      novoClienteG360(k);
+    },
+  });
+}
+
 /** "Quero ser cliente" aprovado → cadastro no G360 (nasce bloqueado) → vincula o pedido ao código devolvido → ficha para liberar e mandar o link. */
 function novoClienteG360(k) {
   abrirNovoClienteG360(k, {
     token: () => op.token,
     aoSessaoEncerrada: (e) => encerrarOperador(e.message),
-    vincular: async (codigo) => {
-      const r = (await painel('cadastro_vincular', { id: k.id, codigo_g360: codigo })).dados;
-      if (cadastros && r) { const i = cadastros.findIndex((x) => x.id === r.id); if (i >= 0) cadastros[i] = r; }
-      pintarCadastros();
-    },
+    vincular: (codigo) => sincronizarComG360(k, codigo),
     abrirFicha: (codigo) => abrirFichaG360(codigo, opcoesFichaG360()),
+    jaExiste: () => conferirAprovacao(k),
   });
 }
 
@@ -1202,7 +1255,13 @@ async function fichaPeloCnpj() {
 }
 
 function opcoesFichaG360() {
-  return { token: () => op.token, aoSessaoEncerrada: (e) => encerrarOperador(e.message), aoMudar: () => { /* a ficha do portal não muda sozinha */ } };
+  return {
+    token: () => op.token, aoSessaoEncerrada: (e) => encerrarOperador(e.message),
+    // Ficha gravada no G360: a ficha do portal ligada a esse código passa a ter os mesmos dados.
+    aoMudar: (nova) => {
+      for (const k of (cadastros || []).filter((x) => Number(x.codigo_g360) === Number(nova?.id))) sincronizarComG360(k, nova.id).catch(() => {});
+    },
+  };
 }
 
 /* ---------------- Preços congelados ---------------- */

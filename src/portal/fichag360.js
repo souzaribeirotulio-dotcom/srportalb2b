@@ -165,6 +165,14 @@ function desenhar(f, opcoes) {
   if ($('gLib')) $('gLib').onclick = (ev) => acesso(true, ev.currentTarget);
   if ($('gBloq')) $('gBloq').onclick = (ev) => acesso(false, ev.currentTarget);
   if ($('gLink')) $('gLink').onclick = async () => {
+    // O link vai para o e-mail do G360: mostra qual é antes de enviar.
+    if (!String(f.email || '').includes('@')) { $('gAcRes').textContent = 'Este cadastro não tem e-mail no G360. Grave o e-mail na ficha antes de enviar o link.'; return; }
+    if ($('gLink').dataset.confirmar !== '1') {
+      $('gLink').dataset.confirmar = '1'; $('gLink').textContent = '✉ Confirmar envio do link';
+      $('gAcRes').innerHTML = `O link vai para <b>${esc(f.email)}</b> (e-mail do G360). Confira e clique de novo para enviar.`;
+      return;
+    }
+    $('gLink').dataset.confirmar = ''; $('gLink').textContent = '✉ Enviar link de primeiro acesso';
     $('gLink').disabled = true; $('gAcRes').textContent = 'Enviando…';
     try { $('gAcRes').textContent = await pedirLink(f.documento); } catch (err) { $('gAcRes').textContent = err.message; } finally { $('gLink').disabled = false; }
   };
