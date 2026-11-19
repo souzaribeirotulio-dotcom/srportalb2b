@@ -94,19 +94,31 @@ export async function montarLote(o) {
   await carregarExibicao();
   const existentes = (await usar.painel('lotes_listar')).dados || [];
   const tomados = new Set(existentes.flatMap((l) => l.codigos.map(String)));
-  const escolhidos = []; let conferidos = 0;
+  const escolhidos = []; let conferidos = 0; let falhas = 0; let ultimoErro = null; let fatal = null;
+  // Um produto que a API não deixa conferir (foto, produto fora da loja…) é deixado de lado; o lote segue.
+  // Para tudo só em sessão encerrada, sem acesso ou sem conexão. Depois de parar, ninguém mais escreve o progresso,
+  // para a mensagem de erro não ser apagada pelas conferências que ainda estavam a caminho.
+  const progresso = () => { if (!fatal) o.aoProgresso?.(`Conferindo quem já tem foto no G360… ${escolhidos.length} de ${o.qtd} produtos sem foto (${conferidos} conferidos${falhas ? `, ${falhas} sem resposta do G360 deixados de lado` : ''})`); };
   const conferirFotos = async (lista) => {
     const fila = lista.filter((p) => !tomados.has(String(p.codigo)) && !registro(p)?.oculto);
     let i = 0;
     await Promise.all(Array.from({ length: 4 }, async () => {
-      while (i < fila.length && escolhidos.length < o.qtd) {
+      while (!fatal && i < fila.length && escolhidos.length < o.qtd) {
         const p = fila[i++];
-        const g = await comEspera(() => listarFotosOperador(usar.token(), p.id));
+        let g;
+        try { g = await comEspera(() => listarFotosOperador(usar.token(), p.id)); }
+        catch (e) {
+          if (!(e instanceof ErroApi) || e.status === 401 || e.status === 403 || e.tipo === 'rede' || e.tipo === 'tempo') { fatal = fatal || e; return; }
+          falhas++; ultimoErro = e;
+          if (falhas >= 20 && falhas > conferidos) { fatal = e; return; } // quase tudo falhando: para e mostra o erro
+          progresso(); continue;
+        }
         conferidos++;
         if (!g.fotos?.length && escolhidos.length < o.qtd) { escolhidos.push(p); tomados.add(String(p.codigo)); }
-        o.aoProgresso?.(`Conferindo quem já tem foto no G360… ${escolhidos.length} de ${o.qtd} produtos sem foto (${conferidos} conferidos)`);
+        progresso();
       }
     }));
+    if (fatal) throw fatal;
   };
   if (o.modo === 'visivel') {
     const vis = (await usar.painel('visiveis_ler')).dados;
@@ -121,7 +133,7 @@ export async function montarLote(o) {
       await conferirFotos(r.dados);
     }
   }
-  if (!escolhidos.length) return { vazio: true };
+  if (!escolhidos.length) { if (ultimoErro) throw ultimoErro; return { vazio: true }; }
   const lote = (await usar.painel('lote_salvar', { codigos: escolhidos.map((p) => String(p.codigo)), responsavel: o.responsavel })).dados;
   return { lote, produtos: escolhidos };
 }
