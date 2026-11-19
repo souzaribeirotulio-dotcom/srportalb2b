@@ -21,6 +21,7 @@ import { telaDefinirSenha, receberTokenDoLink } from './telas/definir-senha.js';
 import { mostrarAdmin, sairDaTelaAdmin } from './portal/admin.js';
 import { mostrarLoja, limparLoja, fecharTudo, prepararCasca } from './portal/loja.js';
 import { limparCheckout } from './portal/checkout.js';
+import { ligarCamadas } from './ui/camadas.js';
 import { limparListaTela } from './portal/lista.js';
 
 // Versão publicada no rodapé (para conferir se o navegador está com a versão nova).
@@ -165,6 +166,7 @@ async function desenhar() {
 
 if (ATIVO) {
   montarRaiz();
+  ligarCamadas();
   window.addEventListener('popstate', desenhar);
   // F5 com sessão guardada na aba: confere com GET me antes de mostrar telas privadas.
   restaurarSessao().catch(() => false).then(() => desenhar());

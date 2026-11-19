@@ -246,3 +246,12 @@ body.g360-painel #souzinha-widget, body.g360:not(.g360-legado) #souzinha-widget 
 
 /* Busca: resultado anterior esmaecido enquanto o novo chega */
 #grid.buscando{opacity:.5;transition:opacity .15s;pointer-events:none}
+
+/* Tela aberta por cima: o fundo não rola; a rolagem fica dentro da janela. */
+html.g360-travado, html.g360-travado body { overflow: hidden; }
+.mod .box, .drawer .db, .ifimp .impbox { overscroll-behavior: contain; }
+/* Confirmação "Sair sem salvar?" no centro da tela, por cima de tudo. */
+#mConf { z-index: 95; place-items: center !important; padding: 16px !important; }
+#mConf .box.conf { max-width: 420px; border-radius: 20px !important; text-align: center; }
+#mConf .box.conf h3 { font-size: 19px; }
+#mConf .act { justify-content: center; }
