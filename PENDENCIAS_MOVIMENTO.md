@@ -138,3 +138,7 @@ Pergunta: se os componentes ficarem sem **Publicar no e-commerce** (ou outro aju
 ## Vendedor do pedido e do cliente (19/11)
 O G360 grava o vendedor do cadastro do comprador (ou o Vendedor padrão do pedido), mas nenhuma resposta do contrato traz essa informação: `Pedido` / `PedidoResumo` (`GET pedidos`, `GET pedidos/{id}`) e `FichaClienteOperador` (`GET operadores/clientes/{cliente}`) não têm vendedor.
 Pedido: incluir o vendedor (id e nome) no pedido e na ficha do cliente do operador, para a equipe ver no painel para qual vendedor cada pedido do portal foi.
+
+## Quem é o operador logado (19/11)
+O painel vai ter perfis (gerente e vendedor) e o vendedor só pode ver os clientes dele nas partes que ficam no Supabase do portal (fichas do portal, negociações, Minha Lista, vendas). `POST operadores/sessoes` devolve só `token`, `tipo` e `expira_em`, e não há rota que diga quem é o operador do token.
+Pedido: uma rota como `GET operadores/sessao` (ou campos no 201 do login) com o id, o apelido e o vendedor vinculado ao operador, e a lista de acessos dele (ex.: 01110, 00502). Hoje o portal precisa conferir cliente por cliente com `GET operadores/clientes/{cliente}` para saber se está no recorte do vendedor.
