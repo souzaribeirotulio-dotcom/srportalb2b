@@ -9,9 +9,9 @@ import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/
 import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo, estoqueMinimoAtual, codigosAtivosPublicos } from '../catalogo/exibicao.js';
 
 import { buscarLocal, temEstoque, variacoes } from '../catalogo/busca.js';
-import { listarProdutos, buscarProdutos, listarMarcas } from '../api/g360.js';
+import { listarProdutos, buscarProdutos, listarMarcas, produtosPorIds } from '../api/g360.js';
 import { sessao, entrar, sair, trocarSenha, vinculoEmAndamento } from '../estado/sessao.js';
-import { adicionar, linhasCarrinho, alterarQuantidade, remover, aoMudarCarrinho, quantidadeLinhas } from '../estado/carrinho.js';
+import { adicionar, linhasCarrinho, alterarQuantidade, remover, aoMudarCarrinho, quantidadeLinhas, linhasSemPrecoAtual, atualizarLinha } from '../estado/carrinho.js';
 import { carregarIds, incluirNaLista, removerDaLista, idsCarregados } from '../estado/minha-lista.js';
 import { normalizarQuantidade, dinheiro, estimar } from '../ui/formato.js';
 import { ligarTrocaFotos, ligarFotos, liberarFotosDaTela, htmlFoto } from '../ui/fotos.js';
@@ -354,7 +354,28 @@ async function desenharCatalogoPublico(grid, pag) {
   }
 }
 
+/** Carrinho guardado (F5 ou novo login): busca preço, selo e estoque do momento na API (filtro ids, de uma vez). */
+let atualizandoCarrinho = null;
+function atualizarCarrinhoGuardado() {
+  if (!sessao.ativa || atualizandoCarrinho || !linhasSemPrecoAtual().length) return;
+  const token = sessao.token;
+  atualizandoCarrinho = (async () => {
+    try {
+      await carregarExibicao();
+      const achados = await produtosPorIds(token, linhasSemPrecoAtual().map((l) => l.produto_id));
+      if (sessao.token !== token) return;
+      for (const l of linhasSemPrecoAtual()) {
+        const p = achados.get(Number(l.produto_id));
+        if (!p) { atualizarLinha(l.produto_id, l.unidade, { precoTexto: null }); continue; }
+        const n = linhaCarrinho(apresentar(p), l.unidade || '', l.quantidade);
+        atualizarLinha(l.produto_id, l.unidade, { nome: n.nome, codigo: n.codigo, unidadeNome: n.unidadeNome, precoTexto: n.precoTexto, seu_preco: n.seu_preco, disponivel: n.disponivel, fotos: n.fotos });
+      }
+    } catch { /* sem preço agora: a revisão do pedido confere tudo */ } finally { atualizandoCarrinho = null; }
+  })();
+}
+
 export async function desenharCatalogo() {
+  atualizarCarrinhoGuardado();
   const grid = $('grid'); const pag = $('g360Pag');
   pag.innerHTML = '';
   document.querySelector('.bar').style.display = '';

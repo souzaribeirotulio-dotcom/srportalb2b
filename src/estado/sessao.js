@@ -9,6 +9,7 @@
    ===================================================================== */
 import { entrar as entrarApi, sair as sairApi, trocarSenha as trocarSenhaApi, consultarComprador, definirGancho, ErroApi } from '../api/g360.js';
 import { abrirSessaoPonte, ErroPonte } from '../api/ponte.js';
+import { vincularCarrinho, desvincularCarrinho } from './carrinho.js';
 import { supabaseComprador, supabaseConfigurado, LOJA } from '../api/supabase.js';
 
 const CHAVE_TOKEN = `sr-g360-comprador-${LOJA}`;
@@ -42,6 +43,7 @@ export const sessao = {
 };
 
 function limparEstado() {
+  desvincularCarrinho();
   estado.token = null;
   guardarToken(null);
   estado.comprador = null;
@@ -148,9 +150,13 @@ export async function entrar(usuario, senha) {
   estado.inatividadeMin = Number(d.loja?.sessao_minutos) || 8;
   estado.ultimaAtividade = Date.now();
   vigiar();
+  vincularCarrinho(chaveCarrinho());
   await abrirVinculo();
   return d;
 }
+
+/** Carrinho guardado no navegador: um por loja e comprador. */
+function chaveCarrinho() { return `sr-carrinho-${LOJA}-${estado.comprador?.codigo || ''}`; }
 
 /** Sair: DELETE sessao na API e signOut local no Supabase. */
 export async function sair() {
@@ -193,6 +199,7 @@ export async function restaurarSessao() {
   estado.inatividadeMin = Number(d.loja?.sessao_minutos) || 8;
   estado.ultimaAtividade = Date.now();
   vigiar();
+  vincularCarrinho(chaveCarrinho());
   // F5: os cards não esperam o vínculo do Supabase (só a Minha Lista precisa dele).
   abrirVinculo().catch(() => false);
   return !!estado.token;
