@@ -1029,7 +1029,8 @@ async function abrirFicha(k) {
       <div class="full"><div class="okmsg" id="kG360M" aria-live="polite"></div><button type="button" class="btn sec" id="kAbrirG360" style="margin-top:6px" ${d.codigo_g360 ? '' : 'hidden'}>📋 Abrir ficha no G360 (alterar cadastro e liberar acesso)</button></div>
       <div class="full"><label for="kVend">Vendedor responsável</label><select class="inp" id="kVend"><option value="">—</option>${vendOpc.map((v) => `<option ${v === d.vendedor ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
         ${vend.length ? '' : '<div class="okmsg" style="color:var(--tx3)">Cadastre os vendedores em Configurações.</div>'}</div></div>
-    <div class="ci2" style="display:block;margin-top:12px"><b>Formas de pagamento, preço e crédito</b><small>São configurados no cadastro do cliente no G360. O portal mostra para o cliente o que o G360 liberar.</small></div>
+    <div class="ci2" style="display:block;margin-top:12px"><b>Formas de pagamento no portal</b><small>Preço e crédito vêm do cadastro do cliente no G360. Aqui você escolhe quais condições de pagamento liberadas pelo G360 aparecem para este cliente.</small>
+      <div id="kCond" style="margin-top:10px">${d.codigo_g360 ? '' : '<div class="hint" style="margin:0">Disponível depois de ligar a ficha a um cliente do G360 (código do cliente).</div>'}</div></div>
     <div class="csec">Acesso</div>
     <div class="ci2" style="display:block"><small>A senha é criada pelo próprio cliente. O botão abaixo envia o link de acesso para o e-mail cadastrado <b>no G360</b> (vale 30 minutos e só uma vez). O cliente também pode usar "Primeiro acesso" no portal.</small>
       <div class="row" style="margin-top:10px"><button class="btn sec" id="kLink" type="button">✉ Enviar link de acesso</button><span class="hint" id="kLinkM" style="margin:0 0 0 10px" aria-live="polite"></span></div></div>
@@ -1038,6 +1039,7 @@ async function abrirFicha(k) {
   abrirModal('mAdm');
   const fechar = () => fecharModal('mAdm');
   $('kX').onclick = fechar; $('kC').onclick = fechar;
+  if (d.codigo_g360) painelCondicoes($('kCond'), Number(d.codigo_g360));
   $('mAdm').onclick = (e) => { if (e.target.id === 'mAdm') fechar(); };
   setTimeout(() => (k ? $('kRaz') : $('kCnpj')).focus(), 60);
 
@@ -1354,6 +1356,43 @@ async function desenharMargens(carregarMais = false) {
   carregarMiniaturas(alvo);
 }
 
+/* ---------------- Condições de pagamento no portal ---------------- */
+
+/** Caixinhas das condições de pagamento: comprador 0 = vale para todos (Configurações); código = só este cliente (ficha).
+ *  A lista vem das condições que o G360 já liberou e que apareceram no fechamento do pedido dos clientes. */
+async function painelCondicoes(alvo, comprador = 0) {
+  if (!alvo) return;
+  alvo.innerHTML = '<div class="hint" style="margin:0">Carregando as condições…</div>';
+  let d;
+  try { d = (await painel('condicoes_ler', comprador ? { comprador } : {})).dados; }
+  catch (e) { alvo.innerHTML = `<div class="okmsg bad">${esc(e.message)}</div>`; return; }
+  const todos = new Set(d.ocultas_todos.map(Number));
+  const doCliente = new Set(d.ocultas_cliente.map(Number));
+  if (!d.condicoes.length) {
+    alvo.innerHTML = `<div class="hint" style="margin:0">${comprador
+      ? 'Ainda não sabemos quais condições o G360 libera para este cliente. A lista aparece aqui depois que ele abrir o fechamento do pedido no portal pela primeira vez.'
+      : 'A lista aparece aqui depois que algum cliente abrir o fechamento do pedido no portal. O G360 não informa as condições para o painel.'}</div>`;
+    return;
+  }
+  const dt = (t) => new Date(t).toLocaleDateString('pt-BR');
+  alvo.innerHTML = `<div style="display:grid;gap:6px">${d.condicoes.map((c) => {
+      const geral = todos.has(c.id);
+      const marcado = comprador ? !geral && !doCliente.has(c.id) : !geral;
+      return `<label class="hint" style="display:flex;gap:8px;align-items:center;margin:0;cursor:${geral && comprador ? 'default' : 'pointer'}">
+        <input type="checkbox" data-cond="${c.id}" ${marcado ? 'checked' : ''} ${geral && comprador ? 'disabled' : ''} style="width:18px;height:18px;accent-color:var(--lima)">
+        <span><b style="color:var(--tx)">${esc(c.descricao)}</b> <span style="color:var(--tx3)">· cód. ${c.id}${comprador ? ` · liberada pelo G360 (visto em ${esc(dt(c.visto_em))})` : ` · liberada para ${c.clientes} cliente${c.clientes === 1 ? '' : 's'}`}${geral && comprador ? ' · escondida para todos em Configurações' : ''}</span></span></label>`;
+    }).join('')}</div>
+    <div class="row" style="margin-top:10px;align-items:center"><button class="btn pri" type="button" data-cond-salvar>Salvar formas de pagamento</button><span class="hint" data-cond-res style="margin:0 0 0 10px" aria-live="polite"></span></div>
+    <div class="hint" style="margin:6px 0 0">Desmarcada = o cliente não vê essa opção no portal. Se todas ficarem desmarcadas, ele não consegue fechar o pedido e o portal pede para falar com o vendedor.</div>`;
+  alvo.querySelector('[data-cond-salvar]').onclick = async (ev) => {
+    const b = ev.currentTarget; const res = alvo.querySelector('[data-cond-res]');
+    const ocultas = [...alvo.querySelectorAll('[data-cond]')].filter((i) => !i.checked && !i.disabled).map((i) => Number(i.dataset.cond));
+    b.disabled = true;
+    try { await painel('condicoes_salvar', { comprador, condicoes: ocultas }); res.textContent = 'Salvo ✓ — vale no próximo fechamento de pedido'; }
+    catch (e) { res.textContent = e.message; } finally { b.disabled = false; }
+  };
+}
+
 /* ---------------- Configurações: categorias do portal ---------------- */
 
 async function desenharConfig() {
@@ -1378,7 +1417,10 @@ async function desenharConfig() {
         <div class="row" style="margin-top:10px;align-items:center;gap:8px"><span class="hint" style="margin:0">Mostrar só produtos com mais de</span><div class="pin" style="width:110px"><input id="cfEstMin" inputmode="decimal" value="${esc(String(Number(cfgLoja?.estoque_minimo) || 0).replace('.', ','))}" style="text-align:right"><span>un.</span></div><span class="hint" style="margin:0">disponíveis (0 = todos com estoque). Vale no catálogo e na busca, quando o G360 manda a quantidade.</span></div>
         <div class="row" style="margin-top:10px;align-items:center;gap:8px"><span class="hint" style="margin:0">Margem mínima para alerta</span><div class="pin" style="width:110px"><input id="cfMg" inputmode="decimal" value="${esc(String(limiteMargem()).replace('.', ','))}" style="text-align:right"><span>%</span></div>
           <button class="btn pri" id="cfCatSalvar">Salvar</button><span class="hint" id="cfCatRes" style="margin:0 0 0 6px"></span></div>
-        <small class="hint" style="display:block;margin:6px 0 0">A margem mínima vale para toda a equipe: alertas em Produtos, Margens e Negociações.</small></div>`;
+        <small class="hint" style="display:block;margin:6px 0 0">A margem mínima vale para toda a equipe: alertas em Produtos, Margens e Negociações.</small></div>
+      <div class="ci2" style="display:block"><b>Formas de pagamento no portal (todos os clientes)</b><small>O G360 decide quais condições cada cliente pode usar. Aqui você esconde do portal as que não quer oferecer. Para um cliente só, use a ficha dele em Clientes.</small>
+        <div id="cfCond" style="margin-top:10px"></div></div>`;
+    painelCondicoes($('cfCond'), 0);
     alvo.querySelectorAll('#cfCats input').forEach((inp) => inp.addEventListener('input', () => { lista[Number(inp.parentElement.dataset.i)].para = inp.value; }));
     alvo.querySelectorAll('#cfCats button').forEach((b) => b.addEventListener('click', () => {
       const i = Number(b.parentElement.dataset.i);

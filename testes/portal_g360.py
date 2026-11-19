@@ -762,6 +762,36 @@ with sync_playwright() as pw:
     checar(sim.lista[1165] == set() and sim.lista[2001] == {101}, 'painel esvazia só a lista deste cliente')
     n.fechar()
 
+    # Formas de pagamento: a equipe esconde condições no portal (todos ou um cliente)
+    etapa[0] = 'Etapa 18 (pagamento)'
+    sim = Sim()
+    n = N(pw, sim); pg = n.pg
+    n.entrar(U1, S1)
+    pg.locator('#grid .card[data-id="104"] .add').click(); pg.wait_for_function("document.getElementById('cartN').textContent === '1'")
+    n.abrir_checkout(); pg.wait_for_selector('input[name=pg]')
+    checar(pg.locator('input[name=pg]').count() == 2 and sim.cond_vistas.get(1165) == [(1, 'À vista'), (2, '30/60 dias')], f'cliente vê as 2 condições e o portal guarda o que o G360 liberou: {sim.cond_vistas}')
+    pg.click('#cX'); n.fechar()
+    sim.cond_ocultas[1165] = [2]
+    n = N(pw, sim); pg = n.pg
+    n.entrar(U1, S1); pg.locator('#grid .card[data-id="104"] .add').click(); pg.wait_for_function("document.getElementById('cartN').textContent === '1'")
+    n.abrir_checkout(); pg.wait_for_selector('input[name=pg]')
+    checar(pg.locator('input[name=pg]').count() == 1 and 'À vista' in n.tc('#chkBox') and '30/60' not in n.tc('#chkBox'), 'condição escondida para este cliente não aparece no fechamento')
+    pg.click('#cX'); n.fechar()
+    sim.cond_ocultas[0] = [1]
+    n = N(pw, sim); pg = n.pg
+    n.entrar(U1, S1); pg.locator('#grid .card[data-id="104"] .add').click(); pg.wait_for_function("document.getElementById('cartN').textContent === '1'")
+    n.abrir_checkout(); pg.wait_for_selector('#chkBox .rv-aviso.bad')
+    pg.wait_for_timeout(800)
+    checar('Fale com o seu vendedor' in n.tc('#chkBox') and pg.is_disabled('#cOk'), 'todas escondidas: aviso e envio bloqueado')
+    pg.click('#cX'); n.fechar()
+    sim.cond_ocultas = {}
+    n = N(pw, sim, '/painel', largura=1280); pg = n.pg
+    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
+    pg.click('[data-at="cfg"]'); pg.wait_for_selector('#cfCond [data-cond="2"]')
+    pg.uncheck('#cfCond [data-cond="2"]'); pg.click('#cfCond [data-cond-salvar]'); pg.wait_for_selector('#cfCond [data-cond-res]:has-text("Salvo")')
+    checar(sim.cond_ocultas.get(0) == [2], f'Configurações escondem para todos: {sim.cond_ocultas}')
+    n.fechar()
+
     # Etapa 5 passo 3 e Etapa 10 passo 4 (pacote 18/11 tarde): F5 mantém a sessão na aba; outra aba pede login
     etapa[0] = 'Etapa 15 (F5)'
     sim = Sim()
@@ -824,5 +854,5 @@ with sync_playwright() as pw:
     pg.reload(); pg.wait_for_selector('#aUsu'); checar(True, 'depois de sair, o F5 não traz a sessão do painel de volta')
     n.fechar()
 
-print('FALHAS:' if falhas else 'Portal (layout original) + Etapas 1, 2 e 5 a 17: todos os testes passaram.')
+print('FALHAS:' if falhas else 'Portal (layout original) + Etapas 1, 2 e 5 a 18: todos os testes passaram.')
 for f in falhas: print(' -', f)

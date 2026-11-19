@@ -343,6 +343,35 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     if (error) throw error;
     return [200, { ok: true }];
   }
+  if (acao === "condicoes_ler") {
+    // Condições de pagamento: as que o G360 já liberou (vistas no fechamento do pedido dos clientes) e as escondidas.
+    // comprador = código do cliente (ficha) ou ausente (todos os clientes, em Configurações).
+    const comprador = d.comprador === undefined || d.comprador === null ? 0 : Number(d.comprador);
+    if (!Number.isSafeInteger(comprador) || comprador < 0) return [400, { mensagem: "Cliente inválido." }];
+    let q = admin.from("portal_condicoes_vistas").select("comprador_codigo, condicao_id, descricao, visto_em").eq("loja", loja).limit(5000);
+    if (comprador > 0) q = q.eq("comprador_codigo", comprador);
+    const { data: vistas, error } = await q;
+    if (error) throw error;
+    const { data: ocultas, error: e2 } = await admin.from("portal_condicoes_ocultas").select("comprador_codigo, condicoes")
+      .eq("loja", loja).in("comprador_codigo", comprador > 0 ? [0, comprador] : [0]);
+    if (e2) throw e2;
+    const por = new Map<number, { id: number; descricao: string; clientes: number; visto_em: string }>();
+    for (const v of vistas ?? []) {
+      const r = por.get(v.condicao_id) ?? { id: v.condicao_id, descricao: v.descricao, clientes: 0, visto_em: v.visto_em };
+      r.clientes += 1; if (v.visto_em > r.visto_em) { r.visto_em = v.visto_em; r.descricao = v.descricao; }
+      por.set(v.condicao_id, r);
+    }
+    const de = (c: number) => ((ocultas ?? []).find((o) => Number(o.comprador_codigo) === c)?.condicoes ?? []) as number[];
+    return [200, { dados: { condicoes: [...por.values()].sort((a, b) => a.descricao.localeCompare(b.descricao, "pt")), ocultas_todos: de(0), ocultas_cliente: comprador > 0 ? de(comprador) : [] } }];
+  }
+  if (acao === "condicoes_salvar") {
+    const comprador = d.comprador === undefined || d.comprador === null ? 0 : Number(d.comprador);
+    if (!Number.isSafeInteger(comprador) || comprador < 0) return [400, { mensagem: "Cliente inválido." }];
+    const condicoes = [...new Set((Array.isArray(d.condicoes) ? d.condicoes : []).map(Number).filter((n) => Number.isSafeInteger(n) && n > 0))].slice(0, 200);
+    const { error } = await admin.from("portal_condicoes_ocultas").upsert({ loja, comprador_codigo: comprador, condicoes, atualizado_em: new Date().toISOString() }, { onConflict: "loja,comprador_codigo" });
+    if (error) throw error;
+    return [200, { ok: true }];
+  }
   if (acao === "ocorrencias_listar") {
     const { data, error } = await admin.from("ocorrencias_g360")
       .select("registrada_em, codigo, operacao, comprador_codigo, request_id").eq("loja", loja)

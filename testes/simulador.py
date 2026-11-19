@@ -27,6 +27,7 @@ class Sim:
     def __init__(self, sessao_minutos=8, troca_senha=True):
         self.loja = {'nome': 'Loja Exemplo Fictícia', 'troca_senha': troca_senha, 'sessao_minutos': sessao_minutos, 'imagens': None, 'pedido_minimo': '150.00', 'bloqueia_sem_estoque': True}
         self.vitrine_aberta = True; self.vitrine_chamadas = []
+        self.cond_vistas = {}; self.cond_ocultas = {}
         self.compradores = {
             '11.111.111/0001-11': {'senha': 'Teste12', 'codigo': 1165, 'nome': 'Comprador Fictício Um LTDA', 'fantasia': 'Fictício Um', 'bloq': False},
             '22.222.222/0001-22': {'senha': 'Teste34', 'codigo': 1919, 'nome': 'Comprador Fictício Dois LTDA', 'fantasia': 'Fictício Dois', 'bloq': False},
@@ -456,6 +457,14 @@ class Sim:
                 if 'descricao' in d: r['descricao'] = d['descricao'] or None
                 if 'oculto' in d: r['oculto'] = d['oculto'] is True
                 return res(200, {'ok': True})
+            if ac == 'condicoes_ler':
+                comp = int(d.get('comprador') or 0); por = {}
+                for cod, cs in self.cond_vistas.items():
+                    if comp and cod != comp: continue
+                    for i, desc in cs: r = por.setdefault(i, {'id': i, 'descricao': desc, 'clientes': 0, 'visto_em': '2026-11-18T22:00:00+00:00'}); r['clientes'] += 1
+                return res(200, {'dados': {'condicoes': sorted(por.values(), key=lambda x: x['descricao']), 'ocultas_todos': self.cond_ocultas.get(0, []), 'ocultas_cliente': self.cond_ocultas.get(comp, []) if comp else []}})
+            if ac == 'condicoes_salvar':
+                self.cond_ocultas[int(d.get('comprador') or 0)] = [int(x) for x in d.get('condicoes', [])]; return res(200, {'ok': True})
             if ac == 'visiveis_ler': return res(200, {'dados': self.visiveis})
             if ac == 'visiveis_gravar':
                 self.visiveis = {'visiveis': d['visiveis'], 'estoque_baixo': d['estoque_baixo'], 'sem_estoque': d['sem_estoque'], 'estoque_minimo': d['estoque_minimo'], 'atualizado_em': '2026-11-18T22:00:00+00:00'}
@@ -563,6 +572,12 @@ class Sim:
             return route.fulfill(status=404, headers=cab, body='')
         if tabela == 'portal_clips':
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps([c for c in self.clips if c['ativo']]))
+        if tabela == 'rpc/portal_condicoes_sincronizar':
+            if not valido: return route.fulfill(status=400, headers=cab, content_type='application/json', body=json.dumps({'message': 'sessao'}))
+            b = json.loads(req.post_data or '{}'); cod = s['codigo']
+            self.cond_vistas[cod] = [(int(c['id']), c['descricao']) for c in b.get('p_condicoes', [])]
+            oc = sorted(set(self.cond_ocultas.get(0, [])) | set(self.cond_ocultas.get(cod, [])))
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps(oc))
         if tabela == 'rpc/portal_visiveis_gravar':
             if not valido: return route.fulfill(status=400, headers=cab, content_type='application/json', body=json.dumps({'message': 'sessao'}))
             b = json.loads(req.post_data or '{}')

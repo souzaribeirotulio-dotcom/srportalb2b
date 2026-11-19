@@ -7,7 +7,8 @@
 import { registrarPedido } from '../estado/eventos.js';
 import { nomeDoItem } from '../catalogo/exibicao.js';
 import { consultarOpcoes, revisarPedido } from '../api/g360.js';
-import { sessao } from '../estado/sessao.js';
+import { sessao, garantirVinculo } from '../estado/sessao.js';
+import { supabaseComprador } from '../api/supabase.js';
 import { itensParaApi, linhasCarrinho, esvaziar, versaoCarrinho } from '../estado/carrinho.js';
 import { pendenteDoComprador, prepararEnvio, executarEnvio, atualizarAssinatura, apagarPendente } from '../estado/envio.js';
 import { registrarPendenciasFornecedor } from '../estado/ocorrencias.js';
@@ -65,6 +66,10 @@ export async function abrirCheckout(contexto) {
   box.innerHTML = `${cabecalho()}<div class="empty2">Carregando as opções de entrega e pagamento…</div>`;
   try {
     const dados = await consultarOpcoes(sessao.token);
+    // Condições que a equipe escondeu no painel (para todos ou só para este cliente). O G360 continua decidindo o que é liberado.
+    const liberadas = dados.pagamento.condicoes;
+    const ocultas = await condicoesOcultas(liberadas);
+    dados.pagamento = { ...dados.pagamento, condicoes: liberadas.filter((c) => !ocultas.has(Number(c.id))), escondidasTodas: liberadas.length > 0 && liberadas.every((c) => ocultas.has(Number(c.id))) };
     opcoes = dados;
     if (!dados.modalidades.includes(escolha.modalidade)) escolha.modalidade = dados.modalidades[0] || null;
     if (!dados.enderecos.some((e) => e.id === Number(escolha.endereco_id))) escolha.endereco_id = (dados.enderecos.find((e) => e.principal) || dados.enderecos[0])?.id ?? null;
@@ -77,6 +82,18 @@ export async function abrirCheckout(contexto) {
     $('cX').onclick = fechar;
     mostrarMensagemErro($('cErr'), e, { aoTentarDeNovo: () => abrirCheckout(ctx) });
   }
+}
+
+/** Guarda no Supabase as condições que o G360 liberou para o comprador (a equipe vê na ficha) e devolve as escondidas.
+ *  Sem o Supabase agora, não esconde nada: o G360 já só libera o que o cadastro permite. */
+async function condicoesOcultas(condicoes) {
+  try {
+    if (!(await garantirVinculo())) return new Set();
+    const sb = supabaseComprador(); if (!sb) return new Set();
+    const { data, error } = await sb.rpc('portal_condicoes_sincronizar', { p_condicoes: condicoes.map((c) => ({ id: Number(c.id), descricao: String(c.descricao || '').slice(0, 120) })) });
+    if (error) return new Set();
+    return new Set((data || []).map(Number));
+  } catch { return new Set(); }
 }
 
 function fechar() { if (ocupado) return; fecharModal('mChk'); }
@@ -97,6 +114,7 @@ function desenharBase() {
         <button type="button" class="addu" id="qAdd">+ Entregar em outro endereço</button><div id="cNovoEnd"></div></div></div>` : ''}
     ${op.pagamento.exigido !== 'nenhum' ? `<div class="chk-sec"><label>Condição de pagamento</label>
       <div class="pay">${op.pagamento.condicoes.length ? op.pagamento.condicoes.map((c) => `<label><input type="radio" name="pg" value="${c.id}" ${Number(escolha.condicao_id) === c.id ? 'checked' : ''}><span>${esc(c.descricao)}<small>${c.pedido_minimo ? `Pedido mínimo ${esc(dinheiro(c.pedido_minimo))}` : ''}${c.parcelas > 1 ? `${c.pedido_minimo ? ' · ' : ''}${c.parcelas} parcelas` : ''}</small></span></label>`).join('')
+        : op.pagamento.escondidasTodas ? '<div class="rv-aviso bad">Nenhuma condição de pagamento disponível no portal para o seu cadastro. Fale com o seu vendedor da Souza Ribeiro.</div>'
         : '<div class="rv-aviso">Nenhuma condição de pagamento liberada para o seu cadastro. A revisão vai indicar o que fazer.</div>'}</div></div>` : ''}
     <label for="cObs">Observação (opcional)</label><textarea id="cObs" rows="2" maxlength="400" placeholder="Ex.: entregar pela manhã, falar com João">${esc(escolha.observacao)}</textarea>
     <div class="cont-obs"><span id="cObsN">${escolha.observacao.length}</span>/400</div>
@@ -172,11 +190,13 @@ function desenharResumo() {
     ${htmlPendencias(r.pendencias)}
     ${bloqueado ? '<div class="rv-aviso bad">Seu cadastro está com compras bloqueadas: não é possível enviar o pedido.</div>' : ''}
     ${!r.pode_enviar && !bloqueado ? `<div class="hint">${soFornecedor ? 'Essa pendência depende da Souza Ribeiro. Escolha outra opção (por exemplo, Retirada) ou fale com o seu vendedor.' : 'Ajuste o que está indicado acima: a revisão é refeita sozinha.'}</div>` : ''}`;
-  const ok = $('cOk'); if (ok) ok.disabled = !(r.pode_enviar && !bloqueado && revisaoValida());
+  const semCondicao = opcoes?.pagamento?.exigido !== 'nenhum' && opcoes?.pagamento?.escondidasTodas === true;
+  const ok = $('cOk'); if (ok) ok.disabled = !(r.pode_enviar && !bloqueado && !semCondicao && revisaoValida());
 }
 
 async function enviar() {
   if (!revisaoValida() || !revisao.dados.pode_enviar || sessao.comprador?.compra_bloqueada) return;
+  if (opcoes?.pagamento?.exigido !== 'nenhum' && opcoes?.pagamento?.escondidasTodas) return;
   const corpo = { ...revisao.corpo, assinatura: revisao.dados.assinatura };
   const semAss = (c) => { const { assinatura, ...resto } = c; void assinatura; return JSON.stringify(resto); };
   // Mesmo carrinho depois de REVISAO_ALTERADA: mesma chave, assinatura nova. Carrinho diferente: chave nova.
