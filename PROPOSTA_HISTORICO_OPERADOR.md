@@ -34,7 +34,7 @@ operationId: consultarHistoricoComprasCliente
 Authorization: Bearer <token do operador>
 ```
 
-**Permissões (sugestão).** Ver o histórico exige o acesso **00500** (`consultar_clientes`). O cliente tem de estar no recorte do operador, igual à ficha: com "Vendedor exclusivo", fora da carteira, a resposta é 404. O `valor_unitario` vem preenchido só para quem tem `consultar_precos_cliente` (01100 + 00500). Sem esse acesso, vem `null`, como o custo com `ver_custo`.
+**Permissões (sugestão).** Ver o histórico exige o acesso **00500** (`consultar_clientes`). O cliente tem de estar no recorte do operador, igual à ficha: com "Vendedor exclusivo", fora da carteira, a resposta é 404 `CLIENTE_NAO_LOCALIZADO`. O `valor_unitario` vem preenchido só para quem tem `consultar_precos_cliente` (01100 + 00500). Sem esse acesso, vem `null`, como o custo com `ver_custo`.
 
 **Parâmetros (query)**, no mesmo padrão do `GET historico-compras`:
 
