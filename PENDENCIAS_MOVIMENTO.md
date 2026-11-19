@@ -142,3 +142,7 @@ Pedido: incluir o vendedor (id e nome) no pedido e na ficha do cliente do operad
 ## Quem é o operador logado (19/11)
 O painel vai ter perfis (gerente e vendedor) e o vendedor só pode ver os clientes dele nas partes que ficam no Supabase do portal (fichas do portal, negociações, Minha Lista, vendas). `POST operadores/sessoes` devolve só `token`, `tipo` e `expira_em`, e não há rota que diga quem é o operador do token.
 Pedido: uma rota como `GET operadores/sessao` (ou campos no 201 do login) com o id, o apelido e o vendedor vinculado ao operador, e a lista de acessos dele (ex.: 01110, 00502). Hoje o portal precisa conferir cliente por cliente com `GET operadores/clientes/{cliente}` para saber se está no recorte do vendedor.
+
+## Histórico de compras do cliente para o operador, com último preço (19/11)
+`GET historico-compras` só funciona com a sessão do próprio comprador e não traz o preço pago (só data, quantidade e unidades da última compra). O painel do operador não tem rota de histórico.
+Pedido: uma rota como `GET operadores/clientes/{cliente}/historico-compras?meses=3` (com o recorte de vendedor) que traga, por produto, a data, a quantidade, a unidade vendida (`unidade_id`) e o valor unitário efetivo da última compra. Com ela, o vendedor monta a Minha Lista do cliente e congela os preços em um passo, sem depender de PDF.
