@@ -8,6 +8,7 @@ import { registrarPedido } from '../estado/eventos.js';
 import { nomeDoItem } from '../catalogo/exibicao.js';
 import { consultarOpcoes, revisarPedido } from '../api/g360.js';
 import { sessao, garantirVinculo } from '../estado/sessao.js';
+import { sempreBloqueada } from '../estado/condicoes.js';
 import { supabaseComprador } from '../api/supabase.js';
 import { itensParaApi, linhasCarrinho, esvaziar, versaoCarrinho } from '../estado/carrinho.js';
 import { pendenteDoComprador, prepararEnvio, executarEnvio, atualizarAssinatura, apagarPendente } from '../estado/envio.js';
@@ -69,6 +70,7 @@ export async function abrirCheckout(contexto) {
     // Condições que a equipe escondeu no painel (para todos ou só para este cliente). O G360 continua decidindo o que é liberado.
     const liberadas = dados.pagamento.condicoes;
     const ocultas = await condicoesOcultas(liberadas);
+    for (const c of liberadas) if (sempreBloqueada(c)) ocultas.add(Number(c.id));
     dados.pagamento = { ...dados.pagamento, condicoes: liberadas.filter((c) => !ocultas.has(Number(c.id))), escondidasTodas: liberadas.length > 0 && liberadas.every((c) => ocultas.has(Number(c.id))) };
     opcoes = dados;
     if (!dados.modalidades.includes(escolha.modalidade)) escolha.modalidade = dados.modalidades[0] || null;

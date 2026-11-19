@@ -217,7 +217,8 @@ class Sim:
                 {'id': 7, 'descricao': 'Matriz', 'endereco': 'Rua Exemplo', 'numero': '100', 'complemento': '', 'cidade': 'Cidade Exemplo', 'cep': '38400-000', 'principal': True}],
                 'pagamento': {'exigido': 'parcelas', 'condicoes': [
                     {'id': 1, 'descricao': 'À vista', 'parcelas': 1, 'dias': [0], 'pedido_minimo': None, 'parcela_minima': None, 'taxa_por_parcela': None, 'padrao': True, 'pix': False},
-                    {'id': 2, 'descricao': '30/60 dias', 'parcelas': 2, 'dias': [30, 60], 'pedido_minimo': '200.00', 'parcela_minima': None, 'taxa_por_parcela': None, 'padrao': False, 'pix': False}]}})
+                    {'id': 2, 'descricao': '30/60 dias', 'parcelas': 2, 'dias': [30, 60], 'pedido_minimo': '200.00', 'parcela_minima': None, 'taxa_por_parcela': None, 'padrao': False, 'pix': False},
+                    {'id': 3, 'descricao': 'A Combinar', 'parcelas': 1, 'dias': [0], 'pedido_minimo': None, 'parcela_minima': None, 'taxa_por_parcela': None, 'padrao': False, 'pix': False}]}})
         mm = re.match(r'enderecos/cep/(\d{5}-?\d{3})$', caminho)
         if mm:
             c = mm.group(1).replace('-', '')

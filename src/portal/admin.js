@@ -6,6 +6,7 @@
      token do G360: não existe conta separada do painel.
    Preço, custo e margem vêm da API; nada é calculado aqui.
    ===================================================================== */
+import { sempreBloqueada } from '../estado/condicoes.js';
 import {
   entrarOperador, sairOperador, consultarClienteOperador, buscarProdutosOperador, consultarPrecosOperador,
   listarPrecosCongelados, incluirPrecoCongelado, alterarPrecoCongelado, encerrarPrecoCongelado,
@@ -1376,6 +1377,8 @@ async function painelCondicoes(alvo, comprador = 0) {
   }
   const dt = (t) => new Date(t).toLocaleDateString('pt-BR');
   alvo.innerHTML = `<div style="display:grid;gap:6px">${d.condicoes.map((c) => {
+      if (sempreBloqueada(c)) return `<label class="hint" style="display:flex;gap:8px;align-items:center;margin:0">
+        <input type="checkbox" disabled style="width:18px;height:18px"><span><b style="color:var(--tx)">${esc(c.descricao)}</b> <span style="color:var(--tx3)">· cód. ${c.id} · sempre bloqueada no portal, para todos os clientes</span></span></label>`;
       const geral = todos.has(c.id);
       const marcado = comprador ? !geral && !doCliente.has(c.id) : !geral;
       return `<label class="hint" style="display:flex;gap:8px;align-items:center;margin:0;cursor:${geral && comprador ? 'default' : 'pointer'}">
