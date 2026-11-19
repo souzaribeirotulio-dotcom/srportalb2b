@@ -23,6 +23,7 @@ import { abrirExportacaoFotos } from './exportarfotos.js';
 import { abrirNovoClienteG360 } from './novocliente.js';
 import { abrirLotesFotos, comEspera } from './lotesfotos.js';
 import { abrirCacaCapa } from './cacacapa.js';
+import { abrirImportarVendas } from './importarvendas.js';
 import { definirEncerramentoOperador, definirAtividadeOperador } from '../estado/sessao.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { dinheiro, numeroPainel, dataBr } from '../ui/formato.js';
@@ -782,8 +783,18 @@ async function montarLista(c) {
     alvo.innerHTML = `<div class="panel" style="margin:12px 18px 16px"><div style="padding:14px 16px 4px;position:relative"><button class="fxx" data-fechar style="position:absolute;right:12px;top:10px" title="Fechar">×</button><b>Minha Lista de ${esc(c.nome)}</b>
       <small class="hint" style="display:block;margin:2px 0 0">O cliente vê esta lista ao entrar, com preço e estoque do momento. Ele pode tirar ou pôr produtos depois.</small></div>
       <div class="fxurl" style="margin:10px 16px"><input id="mlQ" placeholder="Buscar produto para adicionar (nome ou código)" aria-label="Buscar produto"><button class="btn sec" id="mlBuscar">Buscar</button></div>
+      <div style="margin:0 16px 8px"><button class="tool ab" id="mlPdf" type="button">📄 Importar relatório de vendas (PDF do G360)</button></div><div id="mlPdfBox"></div>
       <div id="mlRes"></div><div id="mlItens">${carregandoHtml('Carregando a lista…')}</div></div>`;
     alvo.querySelector('[data-fechar]').onclick = () => { alvo.innerHTML = ''; };
+    $('mlPdf').onclick = async () => {
+      if ($('mlPdfBox').innerHTML) { $('mlPdfBox').innerHTML = ''; return; }
+      if (!ativos) { try { await carregarExibicao(); const cods = await codigosAtivosPublicos(); ativos = cods ? new Set(cods) : null; } catch { /* sem a lista: trata todos como ativos */ } }
+      abrirImportarVendas({
+        alvo: $('mlPdfBox'), cliente: c, token: () => op.token, painel, limiteMargem, noPortal,
+        aoMudarLista: (novos) => { if (Array.isArray(novos)) ids = novos; itens(); },
+        aoSessaoEncerrada: (e) => encerrarOperador(e.message),
+      });
+    };
     $('mlBuscar').onclick = buscar; $('mlQ').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); buscar(); } };
     $('mlQ').addEventListener('input', adiar(() => { if ($('mlQ').value.trim().length >= 3) buscar(); }, 450));
     await itens();

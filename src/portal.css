@@ -255,3 +255,12 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
 #mConf .box.conf { max-width: 420px; border-radius: 20px !important; text-align: center; }
 #mConf .box.conf h3 { font-size: 19px; }
 #mConf .act { justify-content: center; }
+
+/* Importar relatório de vendas (PDF) */
+.ivtab{width:100%;border-collapse:collapse;font-size:13px}
+.ivtab th{position:sticky;top:0;background:var(--n950);text-align:left;font-weight:600;padding:8px;border-bottom:1px solid var(--linha2)}
+.ivtab td{padding:8px;border-bottom:1px solid var(--linha2);vertical-align:top}
+.ivtab td small{display:block;opacity:.75;margin-top:2px}
+.ivtab tr.off td{opacity:.55}
+.ivtab .ruim{color:#ff8a8a}
+@media (max-width:760px){.ivtab th:nth-child(5),.ivtab td:nth-child(5){display:none}}
