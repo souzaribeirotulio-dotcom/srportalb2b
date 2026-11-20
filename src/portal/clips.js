@@ -47,12 +47,32 @@ export function clipDoProduto(p) {
   return lista?.find((c) => Number(c.produto_id) === Number(p?.id)) || null;
 }
 
+/* Altura do feed = o que sobra da tela visível entre o cabeçalho e a barra de abas.
+   No celular usa a área visível de verdade (visualViewport), que muda quando a barra do navegador
+   aparece ou some, e a página não rola: o clip fica sempre inteiro, sem cortar em cima nem sobrar embaixo. */
 function tamanho() {
-  const h = window.innerHeight - (document.querySelector('header')?.offsetHeight || 0)
-    - (getComputedStyle(document.querySelector('.tabbar')).display !== 'none' ? document.querySelector('.tabbar').offsetHeight : 0)
-    - (window.innerWidth > 640 ? 24 : 0);
-  $('clipsFeed').style.setProperty('--ch', `${Math.max(420, h)}px`);
+  const f = $('clipsFeed'); if (!f) return;
+  const celular = window.innerWidth <= 640;
+  const header = document.querySelector('header');
+  const tab = document.querySelector('.tabbar');
+  if (celular) {
+    // No celular o feed fica preso na tela (CSS), entre o cabeçalho e as abas: só passamos onde eles estão.
+    if (window.scrollY) window.scrollTo(0, 0);
+    const alto = window.innerHeight;
+    const topo = header ? Math.max(0, Math.round(header.getBoundingClientRect().bottom)) : 0;
+    const baixo = tab && getComputedStyle(tab).display !== 'none' ? Math.max(0, Math.round(alto - tab.getBoundingClientRect().top)) : 0;
+    document.body.style.setProperty('--clips-topo', `${topo}px`);
+    document.body.style.setProperty('--clips-baixo', `${baixo}px`);
+    if (!observaBordas && 'ResizeObserver' in window) {
+      observaBordas = new ResizeObserver(() => { if (!$('vClips').hidden) tamanho(); });
+      [header, tab].filter(Boolean).forEach((el) => observaBordas.observe(el));
+    }
+    return;
+  }
+  const h = window.innerHeight - (header?.offsetHeight || 0) - 24;
+  f.style.setProperty('--ch', `${Math.max(420, h)}px`);
 }
+let observaBordas = null;
 
 export function pausarClips() {
   document.querySelectorAll('#clipsFeed video').forEach((v) => v.pause());
@@ -172,5 +192,8 @@ export function ligarClips() {
     if (e.key === 'ArrowDown') { e.preventDefault(); passo(1); }
     if (e.key === 'ArrowUp') { e.preventDefault(); passo(-1); }
   });
-  window.addEventListener('resize', () => { if (!$('vClips').hidden) tamanho(); });
+  const ajustar = () => { if (!$('vClips').hidden) tamanho(); };
+  window.addEventListener('resize', ajustar);
+  window.addEventListener('orientationchange', () => setTimeout(ajustar, 300));
+  window.visualViewport?.addEventListener('resize', ajustar);
 }

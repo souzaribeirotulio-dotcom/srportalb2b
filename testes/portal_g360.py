@@ -556,6 +556,10 @@ with sync_playwright() as pw:
     checar(pg.locator('#grid .card[data-id="102"]').count() == 0, 'produto oculto fora do catálogo')
     n.ir('clips'); pg.wait_for_selector('#clipsFeed .clip')
     checar(pg.locator('#clipsFeed .clip').count() == 1 and 'Clip de teste' in n.tc('#clipsFeed'), 'feed de clips')
+    if pg.viewport_size['width'] <= 640:
+        pg.evaluate('window.scrollTo(0, 400)'); pg.wait_for_timeout(200); pg.evaluate("window.dispatchEvent(new Event('resize'))"); pg.wait_for_timeout(200)
+        g_ = pg.evaluate("(() => { const c = document.querySelector('#clipsFeed .clip').getBoundingClientRect(); const h = document.querySelector('header').getBoundingClientRect(); const t = document.querySelector('.tabbar').getBoundingClientRect(); const s = document.getElementById('souzinha-widget'); return { topo: c.top - h.bottom, baixo: t.top - c.bottom, rolou: window.scrollY, souzinha: s ? getComputedStyle(s).display : 'none' }; })()")
+        checar(abs(g_['topo']) <= 1 and abs(g_['baixo']) <= 1 and g_['rolou'] == 0 and g_['souzinha'] == 'none', f'clip inteiro entre o cabeçalho e as abas no celular: {g_}')
     n.ir('cat'); pg.wait_for_selector('#grid .card[data-id="101"]')
     pg.click('.card[data-id="101"] .name'); pg.wait_for_selector('#mDet.open #dNegociar')
     pg.click('#dNegociar'); pg.wait_for_selector('#mCad.open #ngEnviar')
