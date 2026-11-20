@@ -575,8 +575,9 @@ class Sim:
                 pid = int(q['produto_id'][0].replace('eq.', ''))
                 self.lista.get(s['codigo'], set()).discard(pid); return route.fulfill(status=204, headers=cab, body='')
         if p.startswith('/storage/v1/object/upload/sign/portal-clips/'):
-            self.uploads.append(p); return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({'Key': p}))
+            self.uploads.append(p); self.upload_corpos = getattr(self, 'upload_corpos', []) + [(req.post_data_buffer or b'', dict(req.headers))]; return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({'Key': p}))
         if p.startswith('/storage/v1/object/public/portal-clips/'):
+            if getattr(self, 'clip_publico', None): return route.fulfill(status=200, headers={**cab, 'Content-Type': 'video/mp4'}, body=self.clip_publico)
             return route.fulfill(status=404, headers=cab, body='')
         if tabela == 'portal_clips':
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps([c for c in self.clips if c['ativo']]))
