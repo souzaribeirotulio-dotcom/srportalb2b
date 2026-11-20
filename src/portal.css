@@ -264,3 +264,7 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
 .ivtab tr.off td{opacity:.55}
 .ivtab .ruim{color:#ff8a8a}
 @media (max-width:760px){.ivtab th:nth-child(5),.ivtab td:nth-child(5){display:none}}
+
+/* Clips: cartão enquanto o produto ainda carrega */
+.ccard.ccarga .cn { opacity: .6; }
+.ccard.ccarga .cimgw { background: rgba(255,255,255,.08); }

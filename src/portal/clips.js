@@ -32,13 +32,14 @@ let mudo = true;
 let opcoes = {};
 
 /** Clips ativos (cache da sessão da página). */
+let listaEm = 0;
 export async function carregarClips(forcar = false) {
-  if (lista && !forcar) return lista;
+  if (lista && !forcar && Date.now() - listaEm < 120_000) return lista;
   if (!supabaseConfigurado()) { lista = []; return lista; }
   const { data, error } = await supabaseComprador().from('portal_clips').select('id, produto_id, codigo, titulo, caminho')
     .eq('loja', LOJA).order('criado_em', { ascending: false }).limit(200);
   if (error) throw new Error('Os clips estão indisponíveis no momento. Tente de novo em instantes.');
-  lista = data || [];
+  lista = data || []; listaEm = Date.now();
   return lista;
 }
 
@@ -78,65 +79,79 @@ export function pausarClips() {
   document.querySelectorAll('#clipsFeed video').forEach((v) => v.pause());
 }
 
-/** opcoes: { exigirLogin(fn), abrirDetalhe(p), alternarLista(p) → Promise<bool>, naLista(p) → bool|null } */
+function htmlCard(p) {
+  const comprar = sessao.ativa && podeComprar(p);
+  const capa = !sessao.ativa && p.imagem ? urlVitrine(p.imagem) : null;
+  return `${sessao.ativa ? `<div class="cimgw" data-a="ver">${htmlFoto(p, 'g360-foto')}</div>` : (capa ? `<img src="${esc(capa)}" alt="" referrerpolicy="no-referrer" data-a="ver">` : '<div class="cimgw" data-a="ver"></div>')}
+        <div><div class="cn" data-a="ver">${esc(p.nome)}</div>${comprar ? `<div class="cp">${htmlPreco(opcoesUnidade(p)[0])}</div>` : ''}${sessao.ativa ? htmlEstoque(p) + htmlDisponivel(p) : ''}</div>
+        ${sessao.ativa
+    ? `<div class="cb"><div class="qty"><button type="button" data-d="-1" ${comprar ? '' : 'disabled'} aria-label="Diminuir">−</button><input type="text" inputmode="decimal" value="1" maxlength="13" aria-label="Quantidade" ${comprar ? '' : 'disabled'}><button type="button" data-d="1" ${comprar ? '' : 'disabled'} aria-label="Aumentar">+</button></div>
+            <button type="button" class="add" data-a="add" ${comprar ? '' : 'disabled'}><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button></div>`
+    : '<div class="cb"><button type="button" class="lockp" style="margin:0" data-a="entrar">Entre para ver os preços</button></div>'}`;
+}
+
+function htmlLado(p) {
+  const naLista = sessao.ativa ? opcoes.naLista?.(p) : null;
+  return `${naLista === null || naLista === undefined ? '' : `<div><button type="button" class="cbtn ${naLista ? 'on' : ''}" data-a="fav" aria-label="Minha Lista">★</button><small>Lista</small></div>`}
+        <div><button type="button" class="cbtn" data-a="ver" aria-label="Ver detalhes">👁</button><small>Detalhes</small></div>`;
+}
+
+/** Começa a baixar o vídeo (o 1º já com dados para tocar; o seguinte só o começo). */
+function preparar(v, como) {
+  if (!v || v.src) return;
+  v.preload = como; v.src = v.dataset.src;
+}
+
+let desenhoN = 0;
+/** opcoes: { exigirLogin(fn), abrirDetalhe(p), alternarLista(p) → Promise<bool>, naLista(p) → bool|null }
+ *  Os vídeos aparecem e começam a tocar logo; os cartões dos produtos (preço, estoque) chegam em seguida. */
 export async function desenharClips(abrirId, op = {}) {
   opcoes = op;
+  const meu = ++desenhoN;
   const f = $('clipsFeed');
   tamanho();
   if (observador) observador.disconnect();
   f.innerHTML = '<div class="cempty"><div>Carregando os clips…</div></div>';
-  let clips; let produtos = new Map();
-  try {
-    await carregarExibicao();
-    clips = await carregarClips(true);
-    const ids = [...new Set(clips.map((c) => Number(c.produto_id)))];
-    for (let i = 0; i < ids.length; i += 50) {
-      const parte = ids.slice(i, i + 50);
-      const { dados } = sessao.ativa ? await listarProdutos(sessao.token, { ids: parte, limite: 50 }) : await listarVitrine({ ids: parte, limite: 50 });
-      dados.forEach((p) => produtos.set(Number(p.id), apresentar(p)));
-    }
-  } catch (e) {
-    f.innerHTML = `<div class="cempty"><div><b style="font-size:16px;color:var(--tx)">Não foi possível carregar os clips.</b><br>${esc(e.message || 'Confira a conexão e tente de novo.')}<br><button type="button" class="tool" id="cTentar" style="margin-top:12px">Tentar de novo</button></div></div>`;
+  const erro = (e) => {
+    f.innerHTML = `<div class="cempty"><div><b style="font-size:16px;color:var(--tx)">Não foi possível carregar os clips.</b><br>${esc(e?.message || 'Confira a conexão e tente de novo.')}<br><button type="button" class="tool" id="cTentar" style="margin-top:12px">Tentar de novo</button></div></div>`;
     $('cTentar').onclick = () => desenharClips(abrirId, opcoes);
-    return;
-  }
-  // Só clips de produtos que o cliente pode ver (fora do catálogo ou ocultos não aparecem).
-  const itens = embaralhar(clips.filter((c) => produtos.has(Number(c.produto_id)) && !oculto(produtos.get(Number(c.produto_id)))));
+  };
+  let clips;
+  try { clips = await carregarClips(); } catch (e) { if (meu === desenhoN) erro(e); return; }
+  if (meu !== desenhoN) return;
   // Ordem aleatória a cada vez que o cliente abre o Clips; o clip pedido (botão "Ver clip" do produto) vem primeiro.
+  const itens = embaralhar(clips);
   const pedido = abrirId ? itens.findIndex((c) => String(c.id) === String(abrirId)) : -1;
   if (pedido > 0) itens.unshift(...itens.splice(pedido, 1));
   if (!itens.length) {
     f.innerHTML = '<div class="cempty"><div><b style="font-size:18px;color:var(--tx)">Nenhum clip ainda</b><br>Os vídeos dos produtos aparecem aqui.</div></div>';
     return;
   }
-  f._produtos = produtos;
-  f.innerHTML = itens.map((c, i) => {
-    const p = produtos.get(Number(c.produto_id));
-    const comprar = sessao.ativa && podeComprar(p);
-    const naLista = sessao.ativa ? opcoes.naLista?.(p) : null;
-    const capa = !sessao.ativa && p.imagem ? urlVitrine(p.imagem) : null;
-    return `<section class="clip paused" data-id="${esc(c.id)}" data-p="${Number(p.id)}">
+  // Produtos (preço, estoque, se aparece no portal) em paralelo com o vídeo.
+  const ids = [...new Set(itens.map((c) => Number(c.produto_id)))];
+  const produtosP = (async () => {
+    await carregarExibicao();
+    const partes = [];
+    for (let i = 0; i < ids.length; i += 50) partes.push(ids.slice(i, i + 50));
+    const res = await Promise.all(partes.map((parte) => (sessao.ativa ? listarProdutos(sessao.token, { ids: parte, limite: 50 }) : listarVitrine({ ids: parte, limite: 50 }))));
+    const m = new Map(); res.forEach(({ dados }) => dados.forEach((p) => m.set(Number(p.id), apresentar(p))));
+    return m;
+  })();
+  f._produtos = new Map();
+  f.innerHTML = itens.map((c, i) => `<section class="clip paused" data-id="${esc(c.id)}" data-p="${Number(c.produto_id)}">
       <video playsinline loop muted preload="none" data-src="${esc(urlClip(c.caminho))}"></video><div class="grad"></div><div class="cbar"><i></i></div>
       <div class="cpause"><span>▶</span></div>
-      <div class="ctop"><b>Clips <em>SR</em> <small style="font-size:11px;font-weight:600;color:var(--tx2)">${i + 1}/${itens.length}</small></b><button type="button" class="cbtn" data-a="mute" aria-label="Som">${mudo ? '🔇' : '🔊'}</button></div>
-      <div class="cside">${naLista === null || naLista === undefined ? '' : `<div><button type="button" class="cbtn ${naLista ? 'on' : ''}" data-a="fav" aria-label="Minha Lista">★</button><small>Lista</small></div>`}
-        <div><button type="button" class="cbtn" data-a="ver" aria-label="Ver detalhes">👁</button><small>Detalhes</small></div></div>
+      <div class="ctop"><b>Clips <em>SR</em> <small class="cnum" style="font-size:11px;font-weight:600;color:var(--tx2)">${i + 1}/${itens.length}</small></b><button type="button" class="cbtn" data-a="mute" aria-label="Som">${mudo ? '🔇' : '🔊'}</button></div>
+      <div class="cside"></div>
       ${c.titulo ? `<div class="cttl">${esc(c.titulo)}</div>` : ''}
-      <div class="ccard">${sessao.ativa ? `<div class="cimgw" data-a="ver">${htmlFoto(p, 'g360-foto')}</div>` : (capa ? `<img src="${esc(capa)}" alt="" referrerpolicy="no-referrer" data-a="ver">` : '<div class="cimgw" data-a="ver"></div>')}
-        <div><div class="cn" data-a="ver">${esc(p.nome)}</div>${comprar ? `<div class="cp">${htmlPreco(opcoesUnidade(p)[0])}</div>` : ''}${sessao.ativa ? htmlEstoque(p) + htmlDisponivel(p) : ''}</div>
-        ${sessao.ativa
-    ? `<div class="cb"><div class="qty"><button type="button" data-d="-1" ${comprar ? '' : 'disabled'} aria-label="Diminuir">−</button><input type="text" inputmode="decimal" value="1" maxlength="13" aria-label="Quantidade" ${comprar ? '' : 'disabled'}><button type="button" data-d="1" ${comprar ? '' : 'disabled'} aria-label="Aumentar">+</button></div>
-            <button type="button" class="add" data-a="add" ${comprar ? '' : 'disabled'}><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button></div>`
-    : '<div class="cb"><button type="button" class="lockp" style="margin:0" data-a="entrar">Entre para ver os preços</button></div>'}
-      </div></section>`;
-  }).join('');
-  if (sessao.ativa) ligarFotos(f);
+      <div class="ccard ccarga"><div class="cimgw"></div><div><div class="cn">Carregando o produto…</div></div></div></section>`).join('');
   observador = new IntersectionObserver((es) => es.forEach((en) => {
     const s = en.target; const v = s.querySelector('video');
     if (en.isIntersecting) {
-      if (!v.src) v.src = v.dataset.src;
+      preparar(v, 'auto');
       v.muted = mudo;
       v.play().then(() => s.classList.remove('paused')).catch(() => s.classList.add('paused'));
+      preparar(s.nextElementSibling?.querySelector('video'), 'metadata'); // o próximo já fica pronto para a troca
     } else if (v.src) {
       // Como nos apps de vídeo: saiu da tela, volta para o começo. Ao rolar de volta, recomeça do zero.
       v.pause();
@@ -151,7 +166,25 @@ export async function desenharClips(abrirId, op = {}) {
     v.onpause = () => s.classList.add('paused'); v.onplay = () => s.classList.remove('paused');
     v.onerror = () => { s.classList.add('paused'); };
   });
+  preparar(f.querySelector('.clip video'), 'auto');
   f.scrollTop = 0;
+
+  let produtos;
+  try { produtos = await produtosP; } catch (e) { if (meu === desenhoN) erro(e); return; }
+  if (meu !== desenhoN) return;
+  f._produtos = produtos;
+  // Só clips de produtos que o cliente pode ver (fora do catálogo ou ocultos saem do feed).
+  f.querySelectorAll('.clip').forEach((s) => {
+    const p = produtos.get(Number(s.dataset.p));
+    if (!p || oculto(p)) { observador.unobserve(s); s.querySelector('video')?.pause(); s.remove(); return; }
+    const card = s.querySelector('.ccard'); card.classList.remove('ccarga'); card.innerHTML = htmlCard(p);
+    s.querySelector('.cside').innerHTML = htmlLado(p);
+  });
+  const ficaram = [...f.querySelectorAll('.clip')];
+  if (!ficaram.length) { f.innerHTML = '<div class="cempty"><div><b style="font-size:18px;color:var(--tx)">Nenhum clip ainda</b><br>Os vídeos dos produtos aparecem aqui.</div></div>'; return; }
+  ficaram.forEach((s, i) => { const n = s.querySelector('.cnum'); if (n) n.textContent = `${i + 1}/${ficaram.length}`; });
+  preparar(ficaram[0].querySelector('video'), 'auto');
+  if (sessao.ativa) ligarFotos(f);
 }
 
 let ligado = false;

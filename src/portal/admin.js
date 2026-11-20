@@ -148,6 +148,8 @@ function ligar() {
   $('aVis').addEventListener('click', atualizarProdutosDoPortal);
   $('aLotes').insertAdjacentHTML('beforebegin', '<button class="btn sec" id="aExpFotos" style="height:36px">⬇ Exportar fotos</button>');
   $('aExpFotos').addEventListener('click', () => abrirExportacaoFotos({ token: () => op.token, painel, aoSessaoEncerrada: (e) => encerrarOperador(e.message) }));
+  $('aExpFotos').insertAdjacentHTML('afterend', '<button class="btn sec" id="aOtimClips" style="height:36px" title="Põe o índice dos vídeos já enviados no começo do arquivo, para começarem a tocar mais rápido">⚡ Otimizar clips</button>');
+  $('aOtimClips').addEventListener('click', otimizarClipsEnviados);
   $('aLotes').addEventListener('click', () => abrirLotesFotos({ token: () => op.token, painel, aoSessaoEncerrada: (e) => encerrarOperador(e.message) }));
   $('aImpFotos').addEventListener('click', () => abrirImportacaoFotos({
     token: () => op.token,
@@ -577,10 +579,17 @@ function abrirEditorProduto(r) {
     if (!arq) return;
     if (!['video/mp4', 'video/webm', 'video/quicktime'].includes(arq.type)) { res.textContent = 'Envie o vídeo em MP4, WebM ou MOV.'; return; }
     if (arq.size > 50 * 1024 * 1024) { res.textContent = 'O vídeo pode ter até 50 MB.'; return; }
-    res.textContent = `Enviando ${arq.name}…`;
+    res.textContent = `Preparando ${arq.name}…`;
     try {
-      const up = (await painel('clip_upload_url', { tipo: arq.type, tamanho: arq.size })).dados;
-      const { error } = await supabaseComprador().storage.from('portal-clips').uploadToSignedUrl(up.caminho, up.token, arq, { contentType: arq.type });
+      // Índice do vídeo no começo do arquivo: no portal o clip começa a tocar sem esperar o fim do download.
+      let envio = arq;
+      if (arq.type !== 'video/webm') {
+        try { const { inicioRapido } = await import('./mp4rapido.js'); const r = inicioRapido(await arq.arrayBuffer()); if (r) envio = new Blob([r], { type: arq.type }); } catch { /* manda como veio */ }
+      }
+      res.textContent = `Enviando ${arq.name}…`;
+      const up = (await painel('clip_upload_url', { tipo: arq.type, tamanho: envio.size })).dados;
+      // Cada envio tem nome novo: o aparelho pode guardar o vídeo por 1 ano.
+      const { error } = await supabaseComprador().storage.from('portal-clips').uploadToSignedUrl(up.caminho, up.token, envio, { contentType: arq.type, cacheControl: '31536000' });
       if (error) throw new Error('Não foi possível enviar o vídeo agora. Tente de novo em instantes.');
       const novo = (await painel('clip_salvar', { produto_id: Number(p.id), codigo: String(p.codigo), caminho: up.caminho, titulo: ed.querySelector('.eTit').value.trim() })).dados;
       clipsAdm.unshift({ id: novo.id, produto_id: Number(p.id), codigo: String(p.codigo), titulo: ed.querySelector('.eTit').value.trim() || null, caminho: up.caminho, ativo: true, criado_em: new Date().toISOString() });
@@ -1661,4 +1670,38 @@ function desenharOcorrencias() {
         : vazio('Nenhuma ocorrência registrada.'));
     $('ocAt').onclick = listar;
   }
+}
+
+/* Clips enviados antes do "início rápido": baixa cada vídeo, põe o índice no começo e envia de novo
+   (novo arquivo + novo registro; o antigo é apagado). Vídeo que já está certo fica como está. */
+async function otimizarClipsEnviados() {
+  const b = $('aOtimClips'); if (b.disabled) return;
+  b.disabled = true; const txt = b.textContent;
+  const base = `${String(import.meta.env.VITE_SUPABASE_URL || '').trim()}/storage/v1/object/public/portal-clips/`;
+  let feitos = 0; let certos = 0; let falhas = 0;
+  try {
+    const { inicioRapido } = await import('./mp4rapido.js');
+    const todos = (await painel('clips_listar')).dados || [];
+    for (const [i, c] of todos.entries()) {
+      b.textContent = `Otimizando ${i + 1} de ${todos.length}…`;
+      try {
+        if (!/\.(mp4|mov)$/i.test(c.caminho)) { certos++; continue; }
+        const r = await fetch(base + c.caminho.split('/').map(encodeURIComponent).join('/'), { credentials: 'omit' });
+        if (!r.ok) throw new Error('download');
+        const novo = inicioRapido(await r.arrayBuffer());
+        if (!novo) { certos++; continue; }
+        const tipo = /\.mov$/i.test(c.caminho) ? 'video/quicktime' : 'video/mp4';
+        const up = (await painel('clip_upload_url', { tipo, tamanho: novo.byteLength })).dados;
+        const { error } = await supabaseComprador().storage.from('portal-clips').uploadToSignedUrl(up.caminho, up.token, new Blob([novo], { type: tipo }), { contentType: tipo, cacheControl: '31536000' });
+        if (error) throw error;
+        const criado = (await painel('clip_salvar', { produto_id: Number(c.produto_id), codigo: String(c.codigo || ''), caminho: up.caminho, titulo: c.titulo || '' })).dados;
+        if (c.ativo === false && criado?.id) await painel('clip_salvar', { id: criado.id, ativo: false }); // continua desligado
+        await painel('clip_apagar', { id: c.id });
+        feitos++;
+      } catch (e) { if (e?.status === 401) return; falhas++; }
+    }
+    clipsAdm = null;
+    toast(`Clips: ${feitos} otimizado${feitos === 1 ? '' : 's'}${certos ? `, ${certos} já estava${certos === 1 ? '' : 'm'} certo${certos === 1 ? '' : 's'}` : ''}${falhas ? `, ${falhas} com erro (tente de novo)` : ''} ✓`);
+  } catch (e) { toast(e.message || 'Não foi possível otimizar agora. Tente de novo.'); }
+  finally { b.disabled = false; b.textContent = txt; }
 }
