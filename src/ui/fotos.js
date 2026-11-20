@@ -5,7 +5,28 @@
 import { obterFotoProduto, urlFotoVitrine } from '../api/g360.js';
 import { sessao } from '../estado/sessao.js';
 
-const cache = new Map();      // "id/item" → Blob | 'falha' | Promise
+const cache = new Map();      // "id/item" → Blob | 'falha' | { ate } (falha passageira) | Promise
+// Foto que não existe (404) fica como 'falha' de vez. Falha passageira (limite de chamadas, servidor
+// ocupado, rede) tenta de novo algumas vezes e, se ainda falhar, só fica de lado por 1 minuto:
+// a próxima vez que a tela desenhar o produto, a foto é pedida de novo.
+const TENTATIVAS = [3, 8, 20]; // segundos de espera entre as tentativas
+const ESPERA_FALHA_MS = 60_000;
+const dorme = (s) => new Promise((ok) => setTimeout(ok, s * 1000));
+const definitiva = (e) => e?.status === 404 || e?.status === 400 || e?.status === 403;
+async function baixar(id, item) {
+  for (let t = 0; ; t++) {
+    try { return await obterFotoProduto(sessao.token, id, item); } catch (e) {
+      if (definitiva(e) || e?.status === 401 || t >= TENTATIVAS.length) throw e;
+      await dorme(Math.max(TENTATIVAS[t], Number(e?.retryAfter) || 0));
+    }
+  }
+}
+function lerCache(chave) {
+  const g = cache.get(chave);
+  if (g && typeof g === 'object' && 'ate' in g) { if (Date.now() < g.ate) return 'falha'; cache.delete(chave); return undefined; }
+  return g;
+}
+const guardarFalha = (chave, e) => cache.set(chave, definitiva(e) ? 'falha' : { ate: Date.now() + ESPERA_FALHA_MS });
 let urlsDaTela = [];
 let observador = null;
 const fila = [];
@@ -43,14 +64,13 @@ function proxima() {
     const el = fila.shift();
     if (!el.isConnected) continue;
     const chave = `${el.dataset.produto}/${el.dataset.item}`;
-    const guardado = cache.get(chave);
+    const guardado = lerCache(chave);
     if (guardado instanceof Blob) { mostrar(el, guardado); continue; }
     if (guardado === 'falha') { semFoto(el); continue; }
     emAndamento += 1;
-    const token = sessao.token;
-    obterFotoProduto(token, el.dataset.produto, el.dataset.item)
+    baixar(el.dataset.produto, el.dataset.item)
       .then((blob) => { cache.set(chave, blob); if (el.isConnected) mostrar(el, blob); })
-      .catch(() => { cache.set(chave, 'falha'); if (el.isConnected) semFoto(el); }) // espaço reservado, sem mensagem nem ocorrência
+      .catch((e) => { guardarFalha(chave, e); if (el.isConnected) semFoto(el); }) // espaço reservado, sem mensagem nem ocorrência
       .finally(() => { emAndamento -= 1; proxima(); });
   }
 }
@@ -62,7 +82,7 @@ export function ligarFotos(raiz) {
   if (!els.length) return;
   const carregar = (el) => {
     const chave = `${el.dataset.produto}/${el.dataset.item}`;
-    const guardado = cache.get(chave);
+    const guardado = lerCache(chave);
     if (guardado instanceof Blob) { mostrar(el, guardado); return; }
     if (guardado === 'falha') { semFoto(el); return; }
     fila.push(el); proxima();
@@ -92,11 +112,11 @@ export function htmlFoto(produto, classe = '') {
 const PASSO_MS = 1600;
 function blobDaFoto(id, item) {
   const chave = `${id}/${item}`;
-  const g = cache.get(chave);
+  const g = lerCache(chave);
   if (g instanceof Blob) return Promise.resolve(g);
   if (g === 'falha') return Promise.reject(new Error('falha'));
   if (g instanceof Promise) return g;
-  const p = obterFotoProduto(sessao.token, id, item).then((b) => { cache.set(chave, b); return b; }, (e) => { cache.set(chave, 'falha'); throw e; });
+  const p = baixar(id, item).then((b) => { cache.set(chave, b); return b; }, (e) => { guardarFalha(chave, e); throw e; });
   cache.set(chave, p);
   return p;
 }
