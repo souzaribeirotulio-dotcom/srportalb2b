@@ -82,6 +82,7 @@ export async function desenharMinhaLista(ctx) {
     ${linhas.map(htmlLinha).join('')}
     <div class="sticky"><div class="tt"><span id="lN"></span> Total estimado:<b id="lT"></b></div>
       ${salvos.size ? '<button type="button" class="btn out" id="lEsv" title="Tira todos os produtos da sua lista">Esvaziar minha lista</button>' : ''}<button type="button" class="btn out" id="lClr" title="Apaga só as quantidades digitadas">Limpar quantidades</button><button type="button" class="btn out" id="lAdd">Adicionar ao carrinho</button><button type="button" class="btn pri" id="lBuy">Fechar pedido agora</button></div>`;
+  medirBarra(painel.querySelector('.sticky'));
   ligarFotos(painel);
   atualizarTotais();
   $('lClr').onclick = () => { LQ = new Map(); desenharMinhaLista(ctx); };
@@ -202,4 +203,13 @@ async function repetirUltimo(ctx) {
     comprarDeNovo(ctx, p.itens);
     desenharMinhaLista(ctx);
   } catch (e) { toast(e.message); }
+}
+
+/** No celular a barra de botões fica presa embaixo: o rodapé ganha o espaço da altura dela. */
+let observador = null;
+function medirBarra(barra) {
+  observador?.disconnect();
+  if (!barra || typeof ResizeObserver === 'undefined') return;
+  observador = new ResizeObserver(() => document.body.style.setProperty('--barra-lista', `${Math.ceil(barra.getBoundingClientRect().height)}px`));
+  observador.observe(barra);
 }

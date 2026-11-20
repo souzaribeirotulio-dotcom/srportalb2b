@@ -448,7 +448,7 @@ textarea{resize:vertical}
  .lrow{grid-template-columns:56px 1fr auto;grid-template-areas:"img nm nm" "pr qty sub";column-gap:10px;row-gap:10px;padding:12px}
  .lrow.h{display:none}.lrow img{grid-area:img;width:56px;height:56px}.lrow .nm{grid-area:nm}.lrow .hist{display:none}
  .lrow .pr{grid-area:pr;display:block!important}.lrow .qty{grid-area:qty}.lrow .qty input{width:42px;flex:none}.lrow .sub2{grid-area:sub;align-self:center;min-width:72px}
- #vLista{padding-bottom:130px}
+ #vLista{padding-bottom:16px}#vLista:not([hidden]){z-index:2}body:has(#vLista:not([hidden]) .sticky) footer{padding-bottom:calc(var(--barra-lista,170px) + 16px)}
  .sticky{position:fixed;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom));z-index:34;padding:10px 12px;gap:8px}
  .sticky .tt{flex:1 1 100%;display:flex;justify-content:space-between;align-items:baseline}.sticky .tt b{font-size:20px}
  .sticky #lClr{display:none}.sticky .btn{flex:1;height:42px;font-size:13px;padding:0 10px}
