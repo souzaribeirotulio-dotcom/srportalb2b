@@ -20,7 +20,7 @@ const ABREV = [
     ['REFORCADO', 'Reforçado'], ['TERMICA', 'Térmica'], ['NITRILICA', 'Nitrílica'], ['SABAO', 'Sabão'], ['PO', 'Pó'],
     ['DIVISOES', 'Divisões'], ['CRIST', 'Cristal'], ['DEPOSITO', 'Depósito'], ['NESTLE', 'Nestlé'], ['YPE', 'Ypê'], ['ATACADAO', 'Atacadão'], ['LIMAO', 'Limão'], ['MACA', 'Maçã'], ['PRATICO', 'Prático'], ['ECONOMICO', 'Econômico'], ['MAQUINA', 'Máquina'], ['AGUA', 'Água'], ['LAMINA', 'Lâmina'], ['ORGANICA', 'Orgânica'], ['GENERICO', 'Genérico'], ['ANTIDERRAPANTE', 'Antiderrapante'], ['ESPATULA', 'Espátula'], ['PLASTICOS', 'Plásticos'], ['PAPELAO', 'Papelão'], ['ALGODAO', 'Algodão'], ['TECNICO', 'Técnico'], ['ELETRICO', 'Elétrico'], ['HIGIENICA', 'Higiênica'], ['CERAMICA', 'Cerâmica'], ['METALICO', 'Metálico'], ['FEIJAO', 'Feijão'], ['ORGANICO', 'Orgânico'], ['ACIDO', 'Ácido'], ['ANTISSEPTICO', 'Antisséptico'],
   ].map(([w, por]) => [ab(w), `$1${por}`]),
-  [/\bTAM\.?\s+/gi, 'Tam. '], [/\bMIC\.?\s*/gi, 'Mic. '],
+  [/\bTAM\.?\s+/gi, 'Tam. '], [/\bMIC(?:\.\s*|\s+)(?=\S)/gi, 'Mic. '],
 ]
 const EMBALAGENS = { CX: 'Caixa', PC: 'Pacote', PCT: 'Pacote', FD: 'Fardo', RL: 'Rolo', GL: 'Galão', FR: 'Frasco', UN: 'Unidade', DZ: 'Dúzia', CT: 'Cartela', BD: 'Balde', SC: 'Saco' };
 
