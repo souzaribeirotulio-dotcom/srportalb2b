@@ -72,6 +72,9 @@ export function nomeEcommerce(nomeG360, marca = '') {
   if (!temMinuscula) for (const [re, por] of ABREV) s = s.replace(re, por);
   s = s.replace(/\s+/g, ' ').trim();
   const corpo = temMinuscula ? s : s.split(' ').map((w, i) => palavra(w, i === 0)).join(' ');
+  // Marca já escrita no nome de outro jeito ("CASAFLOR" e a marca "CASA FLOR"): não repete no fim.
+  const junto = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (marcaFmt && junto(marcaFmt).length >= 4 && junto(corpo).includes(junto(marcaFmt))) marcaFmt = '';
   return [corpo, emb, marcaFmt].filter(Boolean).join(' ').replace(/\s+/g, ' ').replace(/\s+([,)])/g, '$1').trim().slice(0, 160);
 }
 
