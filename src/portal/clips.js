@@ -19,6 +19,13 @@ import { htmlDisponivel, conferir, somar } from './estoque.js';
 const URL_SUPABASE = String(import.meta.env.VITE_SUPABASE_URL || '').trim();
 const urlClip = (caminho) => `${URL_SUPABASE}/storage/v1/object/public/portal-clips/${caminho.split('/').map(encodeURIComponent).join('/')}`;
 
+/** Embaralha uma cópia da lista (Fisher-Yates). */
+function embaralhar(a) {
+  const b = [...a];
+  for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; }
+  return b;
+}
+
 let lista = null; // [{id, produto_id, codigo, titulo, caminho}]
 let observador = null;
 let mudo = true;
@@ -74,7 +81,10 @@ export async function desenharClips(abrirId, op = {}) {
     return;
   }
   // Só clips de produtos que o cliente pode ver (fora do catálogo ou ocultos não aparecem).
-  const itens = clips.filter((c) => produtos.has(Number(c.produto_id)) && !oculto(produtos.get(Number(c.produto_id))));
+  const itens = embaralhar(clips.filter((c) => produtos.has(Number(c.produto_id)) && !oculto(produtos.get(Number(c.produto_id)))));
+  // Ordem aleatória a cada vez que o cliente abre o Clips; o clip pedido (botão "Ver clip" do produto) vem primeiro.
+  const pedido = abrirId ? itens.findIndex((c) => String(c.id) === String(abrirId)) : -1;
+  if (pedido > 0) itens.unshift(...itens.splice(pedido, 1));
   if (!itens.length) {
     f.innerHTML = '<div class="cempty"><div><b style="font-size:18px;color:var(--tx)">Nenhum clip ainda</b><br>Os vídeos dos produtos aparecem aqui.</div></div>';
     return;
@@ -121,8 +131,7 @@ export async function desenharClips(abrirId, op = {}) {
     v.onpause = () => s.classList.add('paused'); v.onplay = () => s.classList.remove('paused');
     v.onerror = () => { s.classList.add('paused'); };
   });
-  const alvo = abrirId && f.querySelector(`.clip[data-id="${CSS.escape(abrirId)}"]`);
-  f.scrollTop = alvo ? alvo.offsetTop : 0;
+  f.scrollTop = 0;
 }
 
 let ligado = false;
