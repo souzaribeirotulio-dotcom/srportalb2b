@@ -584,7 +584,7 @@ function abrirEditorProduto(r) {
       // Índice do vídeo no começo do arquivo: no portal o clip começa a tocar sem esperar o fim do download.
       let envio = arq;
       if (arq.type !== 'video/webm') {
-        try { const { inicioRapido } = await import('./mp4rapido.js'); const r = inicioRapido(await arq.arrayBuffer()); if (r) envio = new Blob([r], { type: arq.type }); } catch { /* manda como veio */ }
+        try { const { prepararVideo } = await import('./mp4rapido.js'); const r = prepararVideo(await arq.arrayBuffer()); if (r) envio = new Blob([r], { type: arq.type }); } catch { /* manda como veio */ }
       }
       res.textContent = `Enviando ${arq.name}…`;
       const up = (await painel('clip_upload_url', { tipo: arq.type, tamanho: envio.size })).dados;
@@ -1680,7 +1680,7 @@ async function otimizarClipsEnviados() {
   const base = `${String(import.meta.env.VITE_SUPABASE_URL || '').trim()}/storage/v1/object/public/portal-clips/`;
   let feitos = 0; let certos = 0; let falhas = 0;
   try {
-    const { inicioRapido } = await import('./mp4rapido.js');
+    const { prepararVideo } = await import('./mp4rapido.js');
     const todos = (await painel('clips_listar')).dados || [];
     for (const [i, c] of todos.entries()) {
       b.textContent = `Otimizando ${i + 1} de ${todos.length}…`;
@@ -1688,7 +1688,7 @@ async function otimizarClipsEnviados() {
         if (!/\.(mp4|mov)$/i.test(c.caminho)) { certos++; continue; }
         const r = await fetch(base + c.caminho.split('/').map(encodeURIComponent).join('/'), { credentials: 'omit' });
         if (!r.ok) throw new Error('download');
-        const novo = inicioRapido(await r.arrayBuffer());
+        const novo = prepararVideo(await r.arrayBuffer());
         if (!novo) { certos++; continue; }
         const tipo = /\.mov$/i.test(c.caminho) ? 'video/quicktime' : 'video/mp4';
         const up = (await painel('clip_upload_url', { tipo, tamanho: novo.byteLength })).dados;

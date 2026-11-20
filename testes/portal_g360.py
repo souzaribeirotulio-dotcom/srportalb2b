@@ -530,10 +530,12 @@ with sync_playwright() as pw:
     pg.wait_for_selector('.aedit .eclip'); checar(len(sim.clips) == 1 and sim.clips[0]['produto_id'] == 104 and sim.uploads, f'clip enviado: {sim.clips}')
     env_ = sim.upload_corpos[-1][0]
     # Botão "Otimizar clips": o vídeo antigo (índice no fim) é reenviado com início rápido e o registro antigo sai
-    sim.clip_publico = bruto_; id_velho = sim.clips[0]['id']; n_up = len(sim.upload_corpos)
+    # vídeo fragmentado (moof/mdat, como os baixados de rede social): vira MP4 normal, que o iPhone toca
+    subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=180x320:rate=15', '-t', '2', '-c:v', 'libx264', '-preset', 'veryfast', '-movflags', 'frag_keyframe+empty_moov', '/tmp/clip_frag.mp4'], check=True)
+    sim.clip_publico = open('/tmp/clip_frag.mp4', 'rb').read(); id_velho = sim.clips[0]['id']; n_up = len(sim.upload_corpos)
     pg.click('#aOtimClips'); pg.wait_for_function("!document.getElementById('aOtimClips').disabled", timeout=20000)
     env2_ = sim.upload_corpos[-1][0] if len(sim.upload_corpos) > n_up else b''
-    checar(len(sim.upload_corpos) == n_up + 1 and env2_.find(b'moov') < env2_.find(b'mdat') and len(sim.clips) == 1 and sim.clips[0]['id'] != id_velho, f'otimizar clips já enviados: uploads {len(sim.upload_corpos) - n_up}, clips {[c["id"] == id_velho for c in sim.clips]}')
+    checar(len(sim.upload_corpos) == n_up + 1 and b'moof' not in env2_ and -1 < env2_.find(b'moov') < env2_.find(b'mdat') and len(sim.clips) == 1 and sim.clips[0]['id'] != id_velho, f'otimizar clips já enviados: uploads {len(sim.upload_corpos) - n_up}, clips {[c["id"] == id_velho for c in sim.clips]}')
     sim.clip_publico = None
     checar(b'moov' in env_ and env_.find(b'moov') < env_.find(b'mdat') and len(bruto_) <= len(env_) < len(bruto_) + 1000, f'clip enviado com início rápido: moov {env_.find(b"moov")} mdat {env_.find(b"mdat")} tam {len(env_)}/{len(bruto_)}')
     pg.fill('#aQ', 'P-102'); pg.press('#aQ', 'Enter'); pg.wait_for_selector('.arow[data-id="102"]')
