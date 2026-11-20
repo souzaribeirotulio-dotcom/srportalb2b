@@ -107,7 +107,12 @@ export async function desenharClips(abrirId, op = {}) {
       if (!v.src) v.src = v.dataset.src;
       v.muted = mudo;
       v.play().then(() => s.classList.remove('paused')).catch(() => s.classList.add('paused'));
-    } else v.pause();
+    } else if (v.src) {
+      // Como nos apps de vídeo: saiu da tela, volta para o começo. Ao rolar de volta, recomeça do zero.
+      v.pause();
+      try { v.currentTime = 0; } catch { /* ainda sem dados: já começa do zero */ }
+      const bar = s.querySelector('.cbar i'); if (bar) bar.style.width = '0%';
+    }
   }), { root: f, threshold: 0.65 });
   f.querySelectorAll('.clip').forEach((s) => {
     observador.observe(s);
