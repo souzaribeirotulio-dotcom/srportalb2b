@@ -18,10 +18,10 @@ import { limparOcorrenciasSessao } from './estado/ocorrencias.js';
 import { liberarFotosDaTela, limparCacheFotos } from './ui/fotos.js';
 import { telaPedirLink } from './telas/pedir-link.js';
 import { telaDefinirSenha, receberTokenDoLink } from './telas/definir-senha.js';
-import { mostrarAdmin, sairDaTelaAdmin } from './portal/admin.js';
 import { mostrarLoja, limparLoja, fecharTudo, prepararCasca } from './portal/loja.js';
 import { limparCheckout } from './portal/checkout.js';
 import { ligarCamadas } from './ui/camadas.js';
+import { carregarExibicao, codigosAtivosPublicos } from './catalogo/exibicao.js';
 import { limparListaTela } from './portal/lista.js';
 
 // Versão publicada no rodapé (para conferir se o navegador está com a versão nova).
@@ -76,6 +76,10 @@ function carregarLoja() {
   }
   return lojaPromessa;
 }
+
+/* O painel da equipe é baixado só quando alguém abre /painel: o cliente não carrega esse código. */
+let painelCarregado = null;
+function carregarPainel() { return import('./portal/admin.js').then((m) => { painelCarregado = m; return m; }); }
 
 function caminho() { return location.pathname.replace(/\/+$/, '') || '/'; }
 
@@ -137,10 +141,12 @@ async function desenhar() {
   if (c === '/painel') {
     modo('loja');
     prepararCasca({ loja: sessao.loja ? { ...loja, ...sessao.loja } : loja, ir, aoEntrar: () => desenhar() });
-    mostrarAdmin({ loja, ir });
+    const adm = await carregarPainel();
+    if (minhaTela !== numeroTela) return;
+    adm.mostrarAdmin({ loja, ir });
     return;
   }
-  sairDaTelaAdmin();
+  painelCarregado?.sairDaTelaAdmin();
 
   if (CARTAO[c]) {
     modo('cartao');
@@ -168,6 +174,8 @@ if (ATIVO) {
   montarRaiz();
   ligarCamadas();
   window.addEventListener('popstate', desenhar);
+  // A lista de nomes do catálogo e a da vitrine já começam a baixar junto com a conferência da sessão.
+  if (caminho() !== '/painel') { carregarExibicao(); codigosAtivosPublicos(); }
   // F5 com sessão guardada na aba: confere com GET me antes de mostrar telas privadas.
   restaurarSessao().catch(() => false).then(() => desenhar());
 }

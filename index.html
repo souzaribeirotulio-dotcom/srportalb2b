@@ -672,12 +672,12 @@ body:has(.mod.open) #souzinha-widget .sz-fab{display:none}
 <!-- ===================== CAMADA DE SERVIÇOS =====================
      A escolha do adaptador fica em servicos/configuracao.js (ponto único de troca).
      Os scripts de serviço abaixo são carregados antes das telas. -->
-<script src="/servicos/configuracao.js"></script>
-<script src="/servicos/contrato.js"></script>
-<script src="/servicos/dados-ficticios.js"></script>
-<script src="/servicos/adaptador-mock.js"></script>
-<script src="/servicos/adaptador-movimento.js"></script>
-<script src="/servicos/servicos.js"></script>
+<!-- Com o adaptador da Movimento, os dados fictícios e o adaptador de demonstração não são carregados.
+     Os scripts de serviço vão com defer: não travam a montagem da página e rodam antes do src/main.js, na ordem. -->
+<script defer src="/servicos/configuracao.js"></script>
+<script defer src="/servicos/contrato.js"></script>
+<script defer src="/servicos/adaptador-movimento.js"></script>
+<script defer src="/servicos/servicos.js"></script>
 <script>
 /* Inicialização: busca catálogo, configuração e sessões no serviço e só então carrega as telas. */
 (async function(){
