@@ -392,6 +392,8 @@ class Sim:
             pid = int(mm.group(1)); g = self.galeria.setdefault(pid, [])
             gal = lambda: {'fotos': g, 'capa': g[0]['item'] if g else None, 'maximo': 12}
             sub = mm.group(2)
+            if sub is None and m == 'GET' and getattr(self, 'galeria_cair', 0) > 0:
+                self.galeria_cair -= 1; return route.abort()   # servidor sobrecarregado: resposta sem CORS chega como falha de rede
             if sub is None and m == 'GET' and pid in self.fotos_erro: return self.erro(route, 404, 'NAO_ENCONTRADO', 'Produto não encontrado.', 'integracao')
             if sub is None and m == 'GET': return self.ok(route, gal())
             if sub is None and m == 'POST':

@@ -3,7 +3,7 @@
  * e baixa um .xlsx no mesmo padrão da planilha de teste que o ChatGPT entende
  * (código, descrição, marca, categoria, unidade, LINK DA FOTO em amarelo, observações e
  * os três nomes de arquivo CODIGO_capa/ambiente/uso.jpg). Os lotes ficam gravados no Supabase. */
-import { buscarProdutosOperador, listarFotosOperador, interpretarErro, ErroApi, esperaPara } from '../api/g360.js';
+import { buscarProdutosOperador, listarFotosOperador, listarVitrine, interpretarErro, ErroApi, esperaPara } from '../api/g360.js';
 import { carregarExibicao, registro, nomeExibicao, categoriaExibicao, pesoCurva } from '../catalogo/exibicao.js';
 import { $, esc, toast, abrirModal, fecharModal } from './comum.js';
 
@@ -74,10 +74,44 @@ export async function comEspera(fn) {
   }
 }
 
+/** Para leituras (listar galeria, buscar produto): também insiste quando a conexão cai ou o servidor não responde,
+ * porque é o que acontece quando muita gente da mesma rede usa o painel ao mesmo tempo (limite por IP e loja).
+ * Espera 5, 10, 20 e 40 s antes de desistir. aoEsperar(segundos) mostra a espera na tela. */
+export async function comEsperaLeitura(fn, aoEsperar) {
+  for (let t = 0; ; t++) {
+    try { return await fn(); } catch (e) {
+      const rede = e instanceof ErroApi && (e.tipo === 'rede' || e.tipo === 'tempo');
+      const tentar = e instanceof ErroApi && e.responsavel === 'tentar_de_novo';
+      if (!(rede || tentar) || t >= 4) throw e;
+      const s = rede ? [5, 10, 20, 40][Math.min(t, 3)] : esperaPara(e, t);
+      aoEsperar?.(s); await sleep(s);
+    }
+  }
+}
+
+/** Ritmo das consultas de galeria: no máximo uma a cada 450 ms (≈130 por minuto), para sobrar limite para o resto da equipe. */
+let ultimaGaleria = 0;
+async function noRitmo(fn) {
+  const agora = Date.now(); const vez = Math.max(agora, ultimaGaleria + 450); ultimaGaleria = vez;
+  if (vez > agora) await sleep((vez - agora) / 1000);
+  return fn();
+}
+
+/** Códigos que a vitrine já mostra com foto (uma consulta para 50 produtos). Vitrine fechada: devolve null. */
+let ultimaVitrine = 0;
+async function comFotoPelaVitrine(codigos) {
+  try {
+    const espera = ultimaVitrine + 2100 - Date.now(); if (espera > 0) await sleep(espera / 1000);
+    ultimaVitrine = Date.now();
+    const { dados } = await comEspera(() => listarVitrine({ codigos, limite: 50 }));
+    return new Set(dados.filter((p) => Array.isArray(p.fotos) && p.fotos.length).map((p) => String(p.codigo)));
+  } catch { return null; }
+}
+
 export async function produtosDosCodigos(codigos, token = ctx.token) {
   const porCod = new Map();
   for (let i = 0; i < codigos.length; i += 50) {
-    const { dados } = await comEspera(() => buscarProdutosOperador(token(), { codigos: codigos.slice(i, i + 50), limite: 50 }));
+    const { dados } = await comEsperaLeitura(() => buscarProdutosOperador(token(), { codigos: codigos.slice(i, i + 50), limite: 50 }));
     dados.forEach((p) => porCod.set(String(p.codigo), p));
   }
   return codigos.map((c) => porCod.get(String(c))).filter(Boolean);
@@ -98,22 +132,39 @@ export async function montarLote(o) {
   // Um produto que a API não deixa conferir (foto, produto fora da loja…) é deixado de lado; o lote segue.
   // Para tudo só em sessão encerrada, sem acesso ou sem conexão. Depois de parar, ninguém mais escreve o progresso,
   // para a mensagem de erro não ser apagada pelas conferências que ainda estavam a caminho.
-  const progresso = () => { if (!fatal) o.aoProgresso?.(`Conferindo quem já tem foto no G360… ${escolhidos.length} de ${o.qtd} produtos sem foto (${conferidos} conferidos${falhas ? `, ${falhas} sem resposta do G360 deixados de lado` : ''})`); };
+  let comFoto = 0; let aguardando = 0; let vitrineAberta = true; let quedas = 0;
+  const progresso = () => { if (!fatal) o.aoProgresso?.(`Conferindo quem já tem foto no G360… ${escolhidos.length} de ${o.qtd} produtos sem foto (${conferidos} conferidos${comFoto ? `, ${comFoto} já com foto` : ''}${falhas ? `, ${falhas} sem resposta do G360 deixados de lado` : ''})${aguardando ? ` · servidor ocupado, tentando de novo em ${aguardando} s…` : ''}`); };
+  const aoEsperar = (s) => { aguardando = s; progresso(); setTimeout(() => { aguardando = 0; }, s * 1000); };
   const conferirFotos = async (lista) => {
-    const fila = lista.filter((p) => !tomados.has(String(p.codigo)) && !registro(p)?.oculto);
+    let fila = lista.filter((p) => !tomados.has(String(p.codigo)) && !registro(p)?.oculto);
+    // A vitrine diz de uma vez quais já têm foto: esses nem passam pela galeria.
+    if (vitrineAberta) {
+      const vistos = new Set();
+      for (let k = 0; k < fila.length; k += 50) {
+        const r = await comFotoPelaVitrine(fila.slice(k, k + 50).map((p) => String(p.codigo)));
+        if (!r) { vitrineAberta = false; vistos.clear(); break; }
+        r.forEach((c) => vistos.add(c));
+      }
+      const antes = fila.length; fila = fila.filter((p) => !vistos.has(String(p.codigo)));
+      comFoto += antes - fila.length; conferidos += antes - fila.length;
+    }
+    progresso();
     let i = 0;
-    await Promise.all(Array.from({ length: 4 }, async () => {
+    await Promise.all(Array.from({ length: 2 }, async () => {
       while (!fatal && i < fila.length && escolhidos.length < o.qtd) {
         const p = fila[i++];
         let g;
-        try { g = await comEspera(() => listarFotosOperador(usar.token(), p.id)); }
+        try { g = await comEsperaLeitura(() => noRitmo(() => listarFotosOperador(usar.token(), p.id)), aoEsperar); }
         catch (e) {
-          if (!(e instanceof ErroApi) || e.status === 401 || e.status === 403 || e.tipo === 'rede' || e.tipo === 'tempo') { fatal = fatal || e; return; }
+          if (!(e instanceof ErroApi) || e.status === 401 || e.status === 403) { fatal = fatal || e; return; }
+          // Sem conexão mesmo depois de esperar: pula só este produto; três seguidos = servidor fora, para.
+          if (e.tipo === 'rede' || e.tipo === 'tempo') { quedas++; if (quedas >= 3) { fatal = fatal || e; return; } } else quedas = 0;
           falhas++; ultimoErro = e;
           if (falhas >= 20 && falhas > conferidos) { fatal = e; return; } // quase tudo falhando: para e mostra o erro
           progresso(); continue;
         }
-        conferidos++;
+        conferidos++; quedas = 0;
+        if (g.fotos?.length) comFoto++;
         if (!g.fotos?.length && escolhidos.length < o.qtd) { escolhidos.push(p); tomados.add(String(p.codigo)); }
         progresso();
       }
@@ -128,7 +179,7 @@ export async function montarLote(o) {
     for (let i = 0; i < ordem.length && escolhidos.length < o.qtd; i += 50) await conferirFotos(await produtosDosCodigos(ordem.slice(i, i + 50), usar.token));
   } else {
     for (let pagina = 1, total = Infinity; (pagina - 1) * 50 < total && escolhidos.length < o.qtd; pagina++) {
-      const r = await comEspera(() => buscarProdutosOperador(usar.token(), { pagina, limite: 50 }));
+      const r = await comEsperaLeitura(() => buscarProdutosOperador(usar.token(), { pagina, limite: 50 }), aoEsperar);
       total = r.paginacao?.total ?? 0;
       await conferirFotos(r.dados);
     }
