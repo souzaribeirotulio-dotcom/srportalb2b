@@ -220,6 +220,11 @@ with sync_playwright() as pw:
     checar('produtos/119/fotos/1' not in sim.fotos_pedidas, f'foto fora da tela baixada: {sim.fotos_pedidas} scroll={pg.evaluate("window.scrollY")} topo119={pg.evaluate("document.querySelector(\'.card[data-id=\"119\"]\')?.getBoundingClientRect().top")} alt={pg.evaluate("innerHeight")}')
     pg.locator('.card[data-id="105"]').scroll_into_view_if_needed(); pg.locator('.card[data-id="104"]').scroll_into_view_if_needed()
     pg.wait_for_selector('.card[data-id="104"] .g360-foto img', timeout=10000)
+    sim.foto_cair = {'119': 1}  # a foto falha uma vez (servidor ocupado): tenta de novo e aparece, sem ficar "Sem foto"
+    pg.locator('.card[data-id="119"]').scroll_into_view_if_needed()
+    pg.wait_for_selector('.card[data-id="119"] .g360-foto img', timeout=15000)
+    checar(sim.fotos_pedidas.count('produtos/119/fotos/1') == 2, f'foto pedida de novo depois da falha: {sim.fotos_pedidas.count("produtos/119/fotos/1")}')
+    pg.locator('.card[data-id="104"]').scroll_into_view_if_needed()
     foto = [x for x in sim.chamadas if x[1] == 'produtos/104/fotos/1'][0]
     checar(foto[2].get('authorization', '').startswith('Bearer '), 'foto sem Bearer')
     pg.wait_for_timeout(600)
