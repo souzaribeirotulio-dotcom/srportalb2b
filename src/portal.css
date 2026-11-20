@@ -268,3 +268,6 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
 /* Clips: cartão enquanto o produto ainda carrega */
 .ccard.ccarga .cn { opacity: .6; }
 .ccard.ccarga .cimgw { background: rgba(255,255,255,.08); }
+
+/* Antes do primeiro desenho do catálogo (internet lenta), a tela não fica em branco */
+#grid:empty::before { content: 'Carregando produtos…'; display: block; grid-column: 1 / -1; text-align: center; padding: 48px 16px; color: var(--tx2); }

@@ -68,11 +68,27 @@ function montarRaiz() {
 
 function logoSrc() { return document.querySelector('header .logo img')?.getAttribute('src') || ''; }
 
-/** GET loja uma vez por carregamento da página; numa falha, a próxima chamada tenta de novo. */
+/** GET loja uma vez por carregamento da página; numa falha, a próxima chamada tenta de novo.
+ *  A última resposta (nome e configurações públicas da loja) fica guardada no aparelho: da segunda visita
+ *  em diante a tela abre na hora com ela, e a resposta nova chega por trás. Internet lenta não deixa
+ *  a página parada esperando. */
+const CHAVE_LOJA = `g360:${String(import.meta.env.VITE_G360_LOJA || '').trim()}:loja`;
+function lojaGuardada() { try { const t = localStorage.getItem(CHAVE_LOJA); return t ? JSON.parse(t) : null; } catch { return null; } }
 function carregarLoja() {
   if (!lojaPromessa) {
-    lojaPromessa = apresentarLoja().then((loja) => { document.title = `${loja.nome} | Portal B2B`; return loja; })
-      .catch((e) => { lojaPromessa = null; throw e; });
+    const rede = apresentarLoja().then((loja) => {
+      document.title = `${loja.nome} | Portal B2B`;
+      try { localStorage.setItem(CHAVE_LOJA, JSON.stringify(loja)); } catch { /* sem espaço: segue sem cópia */ }
+      return loja;
+    });
+    const guardada = lojaGuardada();
+    if (guardada?.nome) {
+      document.title = `${guardada.nome} | Portal B2B`;
+      lojaPromessa = Promise.resolve(guardada);
+      rede.then((loja) => { lojaPromessa = Promise.resolve(loja); }, () => { lojaPromessa = null; });
+    } else {
+      lojaPromessa = rede.catch((e) => { lojaPromessa = null; throw e; });
+    }
   }
   return lojaPromessa;
 }
