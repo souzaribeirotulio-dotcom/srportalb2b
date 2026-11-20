@@ -483,10 +483,21 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     const lista = (Array.isArray(d.sinonimos) ? d.sinonimos : []).slice(0, 2000).map((x) => x as Record<string, unknown>)
       .map((x) => ({ loja, termo: texto(x.termo, 60).toLowerCase(), equivalentes: (Array.isArray(x.equivalentes) ? x.equivalentes : []).map((e) => texto(e, 60).toLowerCase()).filter(Boolean).slice(0, 20), atualizado_em: new Date().toISOString() }))
       .filter((x) => x.termo && x.equivalentes.length);
-    const { error: e1 } = await admin.from("portal_sinonimos").delete().eq("loja", loja);
-    if (e1) throw e1;
-    if (lista.length) { const { error } = await admin.from("portal_sinonimos").upsert(lista, { onConflict: "loja,termo" }); if (error) throw error; }
-    return [200, { gravados: lista.length }];
+    // A mesma palavra em duas linhas vira uma só (o banco recusa gravar a mesma chave duas vezes de uma vez).
+    const unicos = new Map<string, typeof lista[number]>();
+    for (const x of lista) {
+      const ja = unicos.get(x.termo);
+      unicos.set(x.termo, ja ? { ...ja, equivalentes: [...new Set([...ja.equivalentes, ...x.equivalentes])].slice(0, 20) } : x);
+    }
+    const final = [...unicos.values()];
+    // Grava primeiro e só depois apaga o que saiu da lista: se a gravação falhar, a lista antiga continua valendo.
+    if (final.length) { const { error } = await admin.from("portal_sinonimos").upsert(final, { onConflict: "loja,termo" }); if (error) throw error; }
+    const manter = new Set(final.map((x) => x.termo));
+    const { data: atuais, error: e0 } = await admin.from("portal_sinonimos").select("termo").eq("loja", loja);
+    if (e0) throw e0;
+    const sair = (atuais ?? []).map((x) => x.termo).filter((t) => !manter.has(t));
+    for (let i = 0; i < sair.length; i += 200) { const { error } = await admin.from("portal_sinonimos").delete().eq("loja", loja).in("termo", sair.slice(i, i + 200)); if (error) throw error; }
+    return [200, { gravados: final.length }];
   }
   if (acao === "clientes_listar") {
     // Quem já entrou no portal: contas abertas pela ponte (app_metadata) + nome e acessos gravados no login.
@@ -624,8 +635,8 @@ Deno.serve(async (req) => {
   try {
     const [s, b] = await executar(String(corpo.acao || ""), (corpo.dados ?? {}) as Record<string, unknown>, token);
     return json(s, b);
-  } catch {
-    console.warn("painel-g360: falha no banco", String(corpo.acao || ""));
+  } catch (e) {
+    console.warn("painel-g360: falha no banco", String(corpo.acao || ""), String((e as { code?: string })?.code ?? ""), String((e as Error)?.message ?? "").slice(0, 160));
     return json(500, { mensagem: "Não foi possível concluir agora. Tente de novo em instantes." });
   }
 });
