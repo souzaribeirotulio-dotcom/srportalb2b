@@ -11,33 +11,73 @@ const estado = { carregado: false, carregando: null, porCodigo: new Map(), porId
 
 export const CATEGORIAS_PADRAO = ['Limpeza', 'Descartáveis', 'Embalagens', 'Copa & Alimentos', 'Higiene', 'Utensílios & EPI', 'Papelaria', 'Outros'];
 
-/** Carrega (uma vez) os nomes e as categorias. Falha → segue com o nome automático. */
+/* Cópia local da lista (nomes, categorias, sinônimos e configuração): da segunda visita em diante o catálogo
+   aparece na hora com ela, e a lista nova chega por trás. São dados públicos do catálogo, nada do comprador. */
+const CHAVE_LOCAL = `g360:${LOJA}:exibicao:v1`;
+const COLUNAS = 'codigo, produto_id, nome, categoria, origem, nome_g360, curva, ean, oculto';
+
+function aplicar(d) {
+  estado.categorias = d.categorias?.length ? d.categorias : CATEGORIAS_PADRAO;
+  estado.sinonimos = d.sinonimos || []; definirSinonimos(estado.sinonimos);
+  const porCodigo = new Map(); const porId = new Map();
+  for (const r of d.linhas || []) { porCodigo.set(String(r.codigo), r); if (r.produto_id) porId.set(Number(r.produto_id), r); }
+  estado.porCodigo = porCodigo; estado.porId = porId;
+  indexar([...porCodigo.values()].filter((r) => !r.oculto));
+  estado.soEstoque = d.soEstoque === true; estado.estoqueMinimo = Number(d.estoqueMinimo) || 0;
+}
+
+/** Busca tudo no Supabase de uma vez: as páginas da lista saem juntas, e as descrições (poucas) à parte. */
+async function baixar() {
+  const sb = supabaseComprador();
+  const pagina = (de, contar) => sb.from('portal_produtos_exibicao').select(COLUNAS, contar ? { count: 'exact' } : undefined)
+    .eq('loja', LOJA).order('codigo').range(de, de + 999);
+  const [cats, sin, cfg, desc, p1] = await Promise.all([
+    sb.from('portal_categorias').select('nome, ordem').eq('loja', LOJA).order('ordem'),
+    sb.from('portal_sinonimos').select('termo, equivalentes').eq('loja', LOJA),
+    sb.rpc('portal_config_publica', { p_loja: LOJA }).then((r) => r, () => ({ data: null })),
+    sb.from('portal_produtos_exibicao').select('codigo, descricao').eq('loja', LOJA).not('descricao', 'is', null).limit(5000),
+    pagina(0, true),
+  ]);
+  if (p1.error) throw p1.error;
+  const total = Math.min(p1.count ?? p1.data.length, 20000);
+  const resto = [];
+  for (let de = 1000; de < total; de += 1000) resto.push(pagina(de, false));
+  const paginas = await Promise.all(resto);
+  const linhas = [...p1.data];
+  for (const r of paginas) { if (r.error) throw r.error; linhas.push(...r.data); }
+  const textos = new Map((desc.data || []).map((x) => [String(x.codigo), x.descricao]));
+  linhas.forEach((r) => { if (textos.has(String(r.codigo))) r.descricao = textos.get(String(r.codigo)); });
+  const c = cfg?.data;
+  return {
+    categorias: (cats.data || []).map((x) => x.nome), sinonimos: sin.data || [], linhas,
+    soEstoque: c?.so_estoque === true, estoqueMinimo: Number(c?.estoque_minimo) || 0,
+  };
+}
+
+function lerLocal() { try { const t = localStorage.getItem(CHAVE_LOCAL); return t ? JSON.parse(t) : null; } catch { return null; } }
+function gravarLocal(d) { try { localStorage.setItem(CHAVE_LOCAL, JSON.stringify(d)); } catch { /* sem espaço ou bloqueado: segue sem cópia */ } }
+
+/** Carrega (uma vez) os nomes e as categorias. Falha → segue com o nome automático.
+ *  Com cópia local, responde na hora com ela e atualiza por trás (aoAtualizar avisa quem quiser redesenhar). */
+let aoAtualizar = null;
+export function aoAtualizarExibicao(fn) { aoAtualizar = fn; }
 export function carregarExibicao(forcar = false) {
   if (estado.carregado && !forcar) return Promise.resolve(estado);
   if (estado.carregando && !forcar) return estado.carregando;
-  estado.carregando = (async () => {
-    if (!supabaseConfigurado()) { estado.categorias = CATEGORIAS_PADRAO; estado.carregado = true; return estado; }
-    const sb = supabaseComprador();
-    try {
-      const { data: cats } = await sb.from('portal_categorias').select('nome, ordem').eq('loja', LOJA).order('ordem');
-      estado.categorias = cats?.length ? cats.map((c) => c.nome) : CATEGORIAS_PADRAO;
-      const { data: sin } = await sb.from('portal_sinonimos').select('termo, equivalentes').eq('loja', LOJA);
-      estado.sinonimos = sin || []; definirSinonimos(estado.sinonimos);
-      const porCodigo = new Map(); const porId = new Map();
-      for (let de = 0; de < 20000; de += 1000) {
-        const { data, error } = await sb.from('portal_produtos_exibicao').select('codigo, produto_id, nome, categoria, origem, nome_g360, curva, descricao, ean, oculto')
-          .eq('loja', LOJA).order('codigo').range(de, de + 999);
-        if (error) throw error;
-        data.forEach((r) => { porCodigo.set(String(r.codigo), r); if (r.produto_id) porId.set(Number(r.produto_id), r); });
-        if (data.length < 1000) break;
-      }
-      estado.porCodigo = porCodigo; estado.porId = porId;
-      indexar([...porCodigo.values()].filter((r) => !r.oculto));
-      try { const { data: cfg } = await sb.rpc('portal_config_publica', { p_loja: LOJA }); estado.soEstoque = cfg?.so_estoque === true; estado.estoqueMinimo = Number(cfg?.estoque_minimo) || 0; } catch { estado.soEstoque = false; estado.estoqueMinimo = 0; }
-    } catch { if (!estado.categorias.length) estado.categorias = CATEGORIAS_PADRAO; }
+  if (!supabaseConfigurado()) { estado.categorias = CATEGORIAS_PADRAO; estado.carregado = true; return Promise.resolve(estado); }
+  const local = !forcar && !estado.carregado ? lerLocal() : null;
+  const rede = baixar().then((d) => { aplicar(d); gravarLocal(d); return true; }, () => false);
+  if (local?.linhas?.length) {
+    aplicar(local);
+    estado.carregado = true;
+    rede.then((ok) => { if (ok) aoAtualizar?.(); });
+    return Promise.resolve(estado);
+  }
+  estado.carregando = rede.then((ok) => {
+    if (!ok && !estado.categorias.length) estado.categorias = CATEGORIAS_PADRAO;
     estado.carregado = true; estado.carregando = null;
     return estado;
-  })();
+  });
   return estado.carregando;
 }
 
