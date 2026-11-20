@@ -10,6 +10,7 @@ import {
 } from '../api/g360.js';
 import { paraJpeg } from './jpeg.js';
 import { $, esc, toast } from './comum.js';
+import { comEsperaLeitura } from './lotesfotos.js';
 
 const TIPOS = ['capa', 'ambiente', 'uso'];
 const ROTULO = { capa: 'Capa', ambiente: 'Ambiente', uso: 'Em uso' };
@@ -121,7 +122,7 @@ async function localizar() {
     // Só para tudo em sessão encerrada, sem acesso ou licença; depois disso ninguém mais escreve o progresso.
     await emParalelo(achados, 4, async (it) => {
       if (fatal) return;
-      try { it.galeria = await comEspera(() => listarFotosOperador(ctx.token(), it.produto.id)); }
+      try { it.galeria = await comEsperaLeitura(() => listarFotosOperador(ctx.token(), it.produto.id)); }
       catch (e) {
         if (e instanceof ErroApi && (e.status === 401 || e.status === 403 || e.status === 423 || PARAR_TUDO.has(e.codigo))) { fatal = fatal || e; return; }
         const i = e instanceof ErroApi ? interpretarErro(e) : { mensagem: e.message };
@@ -290,7 +291,7 @@ async function incluirSemDuplicar(id, dados, descricao, antes) {
     catch (e) {
       if (!(e instanceof ErroApi) || (e.tipo !== 'rede' && e.tipo !== 'tempo') || tentativa >= 2) throw e;
       await sleep(3);
-      const g = await comEspera(() => listarFotosOperador(ctx.token(), id));
+      const g = await comEsperaLeitura(() => listarFotosOperador(ctx.token(), id));
       const nova = g.fotos.find((x) => !antes.includes(x.item));
       if (nova) return { ...g, item: nova.item };
     }

@@ -6,7 +6,7 @@
  * "Não achei" grava o produto no lote como "fotografar no estoque". */
 import { listarFotosOperador, incluirFotoOperador, definirCapaOperador, removerFotoOperador, interpretarErro, ErroApi } from '../api/g360.js';
 import { carregarExibicao, nomeExibicao, categoriaExibicao } from '../catalogo/exibicao.js';
-import { montarLote, produtosDosCodigos, comEspera } from './lotesfotos.js';
+import { montarLote, produtosDosCodigos, comEspera, comEsperaLeitura } from './lotesfotos.js';
 import { $, esc, toast } from './comum.js';
 
 const LADO = 1200;
@@ -96,7 +96,7 @@ async function iniciar(lote, produtos) {
 async function conferirAtual() {
   const it = st?.itens[st.i]; if (!it || it.estado !== 'conferir') return;
   try {
-    const g = await comEspera(() => listarFotosOperador(ctx.token(), it.p.id));
+    const g = await comEsperaLeitura(() => listarFotosOperador(ctx.token(), it.p.id));
     it.estado = g.fotos?.length ? 'tinha' : 'fazer';
   } catch (e) { if (e instanceof ErroApi && e.status === 401) return falha(e); it.estado = 'fazer'; }
   if (it.estado === 'tinha' && st.itens[st.i] === it) { proximo(); return; }
@@ -315,7 +315,7 @@ async function rodarFila() {
       // Colou de novo neste produto: as fotos enviadas antes por aqui saem antes de entrar as novas.
       for (const item of it.itensEnviados || []) { try { await comEspera(() => removerFotoOperador(ctx.token(), it.p.id, item)); } catch { /* fica na galeria */ } }
       it.itensEnviados = [];
-      const antes = await comEspera(() => listarFotosOperador(ctx.token(), it.p.id));
+      const antes = await comEsperaLeitura(() => listarFotosOperador(ctx.token(), it.p.id));
       const livres = (antes.maximo || MAX_FOTOS) - (antes.fotos?.length || 0);
       if (livres <= 0) throw new Error('A galeria deste produto já tem 12 fotos.');
       let capa = null;

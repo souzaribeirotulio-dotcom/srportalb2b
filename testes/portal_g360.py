@@ -727,8 +727,10 @@ with sync_playwright() as pw:
     pg.click('#aCaca'); pg.wait_for_selector('#ccFull.open #ccPegar')
     livres = [p for p in sim.produtos if p['codigo'] not in set(cods1 + cods2) and not sim.galeria.get(int(p['id']))]
     sim.fotos_erro = {int(livres[0]['id'])}  # a API recusa conferir um produto: o lote segue sem ele
+    sim.galeria_cair = 1  # uma conferência cai no meio (como no limite por IP em produção): espera e continua
     pg.fill('#ccNome', 'João Teste'); pg.fill('#ccQtd', '3'); pg.select_option('#ccModo', 'todos'); pg.click('#ccPegar')
-    pg.wait_for_selector('#ccArq', state='attached')
+    pg.wait_for_selector('#ccMsg:has-text("tentando de novo")', timeout=10000)
+    pg.wait_for_selector('#ccArq', state='attached', timeout=30000)
     lote = sim.lotes[-1]; checar(len(lote['codigos']) == 3 and not set(lote['codigos']) & set(cods1 + cods2), f"lote do caça-capa sem repetir: {lote['codigos']}")
     checar(livres[0]['codigo'] not in lote['codigos'], 'produto que o G360 não deixou conferir fica fora e o lote é montado mesmo assim')
     sim.fotos_erro = set()
