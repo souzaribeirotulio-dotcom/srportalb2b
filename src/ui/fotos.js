@@ -43,29 +43,6 @@ export function liberarFotosDaTela() {
   fila.length = 0;
 }
 
-/* Arte que vai até a borda (infográfico, foto de ambiente): sem a margem branca do card.
-   Olha a borda da imagem num quadro pequeno; se a borda não é branca, a imagem ocupa o card todo
-   (e, se for quase quadrada, preenche sem sobrar faixa). Foto de produto em fundo branco continua igual. */
-export function ajustarBorda(img) {
-  const ver = () => {
-    try {
-      const n = 24; const cv = document.createElement('canvas'); cv.width = n; cv.height = n;
-      const c2 = cv.getContext('2d', { willReadFrequently: true }); c2.drawImage(img, 0, 0, n, n);
-      const d = c2.getImageData(0, 0, n, n).data; let borda = 0; let cor = 0;
-      for (let y = 0; y < n; y += 1) for (let x = 0; x < n; x += 1) {
-        if (x > 1 && x < n - 2 && y > 1 && y < n - 2) continue;
-        const i = (y * n + x) * 4; borda += 1;
-        if (d[i + 3] > 200 && (d[i] < 232 || d[i + 1] < 232 || d[i + 2] < 232)) cor += 1;
-      }
-      if (cor / borda < 0.35) return;
-      img.classList.add('sangra');
-      const r = img.naturalWidth / Math.max(1, img.naturalHeight);
-      if (r > 0.88 && r < 1.14) img.classList.add('cheia');
-    } catch { /* imagem de outro site sem permissão de leitura: fica como está */ }
-  };
-  if (img.complete && img.naturalWidth) ver(); else img.addEventListener('load', ver, { once: true });
-}
-
 function mostrar(el, blob) {
   const url = URL.createObjectURL(blob);
   urlsDaTela.push(url);
@@ -73,7 +50,6 @@ function mostrar(el, blob) {
   img.alt = el.dataset.alt || '';
   img.decoding = 'async';
   img.src = url;
-  ajustarBorda(img);
   el.replaceChildren(img);
   el.classList.add('com-foto');
 }
@@ -168,7 +144,6 @@ export function ligarTrocaFotos(raiz) {
       im.className = 'iextra'; im.alt = ''; im.decoding = 'async';
       if (publico) im.referrerPolicy = 'no-referrer';
       im.src = src;
-      if (!publico) ajustarBorda(im);
       await new Promise((ok) => { if (im.complete) ok(); else { im.onload = ok; im.onerror = ok; } });
       extras.set(j, im); el.appendChild(im);
       return im;

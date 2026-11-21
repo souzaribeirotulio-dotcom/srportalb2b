@@ -252,16 +252,9 @@ with sync_playwright() as pw:
     checar('produtos/119/fotos/1' not in sim.fotos_pedidas, f'foto fora da tela baixada: {sim.fotos_pedidas} scroll={pg.evaluate("window.scrollY")} topo119={pg.evaluate("document.querySelector(\'.card[data-id=\"119\"]\')?.getBoundingClientRect().top")} alt={pg.evaluate("innerHeight")}')
     pg.locator('.card[data-id="105"]').scroll_into_view_if_needed(); pg.locator('.card[data-id="104"]').scroll_into_view_if_needed()
     pg.wait_for_selector('.card[data-id="104"] .g360-foto img', timeout=10000)
-    pg.wait_for_function("document.querySelector('.card[data-id=\"104\"] .g360-foto img').classList.contains('sangra')", timeout=5000)
-    cls = pg.eval_on_selector('.card[data-id="104"] .g360-foto img', 'e => e.className')
-    checar('sangra' in cls and 'cheia' in cls, f'arte até a borda ocupa o card inteiro: {cls}')
-    caixa = pg.evaluate("(() => { const i = document.querySelector('.card[data-id=\"104\"] .g360-foto img').getBoundingClientRect(), c = document.querySelector('.card[data-id=\"104\"] .img').getBoundingClientRect(); return [Math.round(i.width - c.width), Math.round(i.left - c.left)] })()")
-    checar(caixa == [0, 0], f'foto sangrada do tamanho do quadro: {caixa}')
     sim.foto_cair = {'119': 1}  # a foto falha uma vez (servidor ocupado): tenta de novo e aparece, sem ficar "Sem foto"
     pg.locator('.card[data-id="119"]').scroll_into_view_if_needed()
     pg.wait_for_selector('.card[data-id="119"] .g360-foto img', timeout=15000)
-    pg.wait_for_timeout(300)
-    checar('sangra' not in pg.eval_on_selector('.card[data-id="119"] .g360-foto img', 'e => e.className'), 'foto de fundo branco mantém a margem')
     checar(sim.fotos_pedidas.count('produtos/119/fotos/1') == 2, f'foto pedida de novo depois da falha: {sim.fotos_pedidas.count("produtos/119/fotos/1")}')
     pg.locator('.card[data-id="104"]').scroll_into_view_if_needed()
     foto = [x for x in sim.chamadas if x[1] == 'produtos/104/fotos/1'][0]
