@@ -54,8 +54,11 @@ export async function desenharBanners(el, aoClicar) {
     ${varios ? `<button type="button" class="bnr-seta p" aria-label="Banner anterior">‹</button><button type="button" class="bnr-seta n" aria-label="Próximo banner">›</button>
     <div class="bnr-pontos">${bs.map((b, i) => `<button type="button" data-p="${i}" aria-label="Ir para o banner ${i + 1}"${i === 0 ? ' aria-current="true"' : ''}></button>`).join('')}</div>` : ''}`;
   const trilho = el.querySelector('.bnr-trilho');
-  const atual = () => Math.round(trilho.scrollLeft / Math.max(1, trilho.clientWidth));
-  const ir = (i) => { const n = bs.length; trilho.scrollTo({ left: ((i + n) % n) * trilho.clientWidth, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
+  // Posição pelos próprios cartões: no celular cada um ocupa menos que a tela (o próximo aparece ao lado).
+  const slides = [...trilho.querySelectorAll('.bnr-slide')];
+  const pos = (k) => slides[k].offsetLeft - slides[0].offsetLeft;
+  const atual = () => { let m = 0; slides.forEach((_, k) => { if (Math.abs(pos(k) - trilho.scrollLeft) < Math.abs(pos(m) - trilho.scrollLeft)) m = k; }); return m; };
+  const ir = (i) => { const n = bs.length; trilho.scrollTo({ left: pos((i + n) % n), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
   el._ir = ir; el._atual = atual;
   trilho.addEventListener('scroll', () => {
     const i = atual();
