@@ -65,11 +65,20 @@ async function escolherLote(aviso = '') {
       const r = await montarLote({ token: ctx.token, painel: ctx.painel, qtd: Math.max(1, Math.min(500, Math.round(Number($('ccQtd').value) || 100))), responsavel: $('ccNome').value.trim().slice(0, 80), modo: $('ccModo').value, aoProgresso: (t) => { $('ccMsg').textContent = t; } });
       if (r.semLista) { $('ccMsg').innerHTML = '<span class="ruim">Ainda não temos a lista do que aparece no portal. Entre uma vez como cliente ou escolha "Todos do G360 sem foto".</span>'; b.disabled = false; b.textContent = 'Pegar produtos e começar'; return; }
       if (r.vazio) { $('ccMsg').textContent = 'Nenhum produto sem foto ficou de fora dos lotes. 🎉'; b.disabled = false; b.textContent = 'Pegar produtos e começar'; return; }
+      if (r.tomadosPorOutro) { $('ccMsg').textContent = 'Outra pessoa pegou estes mesmos produtos agora há pouco. Clique de novo para separar outros.'; b.disabled = false; b.textContent = 'Pegar produtos e começar'; return; }
+      if (r.removidos) toast(`${r.removidos} produtos já estavam com outra pessoa e saíram do seu lote.`);
       iniciar(r.lote, r.produtos);
     } catch (e) { b.disabled = false; b.textContent = 'Pegar produtos e começar'; falha(e, $('ccMsg')); }
   };
   c.querySelectorAll('[data-lote]').forEach((b) => b.onclick = async () => {
     const l = lotes.find((x) => x.id === b.dataset.lote);
+    // Lote de outra pessoa: pede um segundo clique, para duas pessoas não fazerem o mesmo lote sem querer.
+    const eu = $('ccNome').value.trim().toLowerCase();
+    if (l.responsavel && l.responsavel.trim().toLowerCase() !== eu && b.dataset.conf !== '1') {
+      b.dataset.conf = '1'; b.textContent = `É do ${l.responsavel} — clique de novo`;
+      setTimeout(() => { if (b.isConnected && !b.disabled) { b.dataset.conf = ''; b.textContent = 'Continuar'; } }, 5000);
+      return;
+    }
     b.disabled = true; b.textContent = 'Abrindo…';
     try { iniciar(l, await produtosDosCodigos(l.codigos, ctx.token)); } catch (e) { b.disabled = false; b.textContent = 'Continuar'; falha(e); }
   });

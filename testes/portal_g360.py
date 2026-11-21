@@ -910,6 +910,17 @@ with sync_playwright() as pw:
     post3 = [x for x in sim.chamadas if x[0] == 'POST' and x[1] == f'operadores/produtos/{pid3}/fotos']
     im3 = _I.open(io.BytesIO(base64.b64decode(post3[0][3]['foto'].split(',', 1)[1]))).convert('RGB')
     checar(im3.getpixel((600, 600))[0] > 150 and im3.getpixel((600, 600))[1] < 100, 'a foto escolhida como capa (roxa) foi a primeira')
+    # Duas pessoas ao mesmo tempo: quem grava depois não leva o que a outra já pegou
+    pg.click('#ccNovo'); pg.wait_for_selector('#ccPegar')
+    pg.fill('#ccNome', 'Ana Teste')
+    bt_ = pg.locator(f'[data-lote="{lote["id"]}"]'); bt_.click()
+    checar('É do João Teste' in bt_.inner_text(), f'continuar lote de outra pessoa pede confirmação: {bt_.inner_text()}')
+    tomados_ = {c for x in sim.lotes for c in x['codigos']}
+    sem_foto_ = [p['codigo'] for p in sim.produtos if p['codigo'] not in tomados_ and not sim.galeria.get(int(p['id']))]
+    sim.intruso = {'n': 1, 'codigos': sem_foto_}
+    n_lotes_ = len(sim.lotes); pg.fill('#ccQtd', '2'); pg.click('#ccPegar')
+    pg.wait_for_selector('#ccMsg:has-text("Outra pessoa pegou")', timeout=30000)
+    checar(len(sim.lotes) == n_lotes_ + 1 and sim.lotes[-1]['responsavel'] == 'Maria', 'produtos pegos por outra pessoa no meio do caminho não entram em lote repetido (teste que tem de dar errado)')
     n.fechar()
 
     # Visitante: só os produtos que aparecem no portal (lista do último acesso de cliente)

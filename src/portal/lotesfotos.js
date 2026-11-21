@@ -185,8 +185,15 @@ export async function montarLote(o) {
     }
   }
   if (!escolhidos.length) { if (ultimoErro) throw ultimoErro; return { vazio: true }; }
-  const lote = (await usar.painel('lote_salvar', { codigos: escolhidos.map((p) => String(p.codigo)), responsavel: o.responsavel })).dados;
-  return { lote, produtos: escolhidos };
+  // Outra pessoa pode ter gravado um lote enquanto este era conferido: tira o que ela já pegou.
+  // (O banco confere de novo ao gravar, um lote de cada vez, para o caso de dois cliques no mesmo instante.)
+  const agora = new Set(((await usar.painel('lotes_listar')).dados || []).flatMap((l) => l.codigos.map(String)));
+  const livres = escolhidos.filter((p) => !agora.has(String(p.codigo)));
+  if (!livres.length) return { tomadosPorOutro: escolhidos.length };
+  const lote = (await usar.painel('lote_salvar', { codigos: livres.map((p) => String(p.codigo)), responsavel: o.responsavel })).dados;
+  const noLote = new Set((lote.codigos || livres.map((p) => p.codigo)).map(String));
+  const produtos = livres.filter((p) => noLote.has(String(p.codigo)));
+  return { lote, produtos, removidos: escolhidos.length - produtos.length };
 }
 
 async function gerar() {
@@ -197,8 +204,9 @@ async function gerar() {
     const r = await montarLote({ token: ctx.token, painel: ctx.painel, qtd, responsavel: $('lfResp').value.trim().slice(0, 80), modo: $('lfModo').value, aoProgresso: (t) => msg(`<div class="hint">${esc(t)}</div>`) });
     if (r.semLista) { msg('<div class="rv-aviso">Ainda não temos a lista do que aparece no portal (ela nasce quando um cliente entra). Entre uma vez como cliente ou escolha "Todos do G360 sem foto".</div>'); return; }
     if (r.vazio) { msg('<div class="rv-aviso">Nenhum produto sem foto ficou de fora das planilhas já geradas. 🎉</div>'); return; }
+    if (r.tomadosPorOutro) { msg('<div class="rv-aviso">Outra pessoa pegou estes mesmos produtos agora há pouco. Clique em "Gerar" de novo para separar outros.</div>'); return; }
     await baixar(r.lote, r.produtos);
-    msg(`<div class="okmsg">✓ Lote ${Number(r.lote.numero)} com ${r.produtos.length} produtos baixado${r.produtos.length < qtd ? ` (só havia ${r.produtos.length} sem foto)` : ''}.</div>`);
+    msg(`<div class="okmsg">✓ Lote ${Number(r.lote.numero)} com ${r.produtos.length} produtos baixado${r.removidos ? ` (${r.removidos} já estavam com outra pessoa e ficaram de fora)` : r.produtos.length < qtd ? ` (só havia ${r.produtos.length} sem foto)` : ''}.</div>`);
     await carregarLotes();
   } catch (e) { erro(e); }
   finally { gerando = false; if ($('lfGerar')) { $('lfGerar').disabled = false; $('lfGerar').textContent = 'Gerar e baixar planilha'; } }
