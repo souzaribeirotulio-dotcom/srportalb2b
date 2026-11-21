@@ -42,6 +42,9 @@
  /* Letra de 16px: com menos que isso o iPhone dá zoom ao tocar no campo. */
  #souzinha-widget .sz-input{font-size:16px}
  #souzinha-widget .sz-panel{bottom:auto;overscroll-behavior:contain}
+ /* Fundo atrás da janela, maior que a tela: as barras transparentes do iPhone (endereço, setas do teclado)
+    mostram este fundo, e não os produtos da página. */
+ #souzinha-widget.sz-open::before{content:"";position:fixed;left:0;right:0;top:-100vh;bottom:-100vh;background:#0b2109;z-index:310;touch-action:none}
  body:has(#vLista:not([hidden]) .sticky) #souzinha-widget:not(.sz-open) .sz-fab{bottom:calc(196px + env(safe-area-inset-bottom,0px))}
 }
 @media(prefers-reduced-motion:reduce){#souzinha-widget .sz-fab{transition:none}}
