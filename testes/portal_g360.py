@@ -859,6 +859,8 @@ with sync_playwright() as pw:
     pg.focus('#souzinha-widget .sz-input'); pg.wait_for_timeout(150)
     sz = pg.evaluate("(() => { const p = document.querySelector('#souzinha-widget .sz-panel').getBoundingClientRect(); return { fs: getComputedStyle(document.querySelector('#souzinha-widget .sz-input')).fontSize, top: p.top, h: p.height, vh: visualViewport.height }; })()")
     checar(sz['fs'] == '16px' and abs(sz['top']) < 1 and abs(sz['h'] - sz['vh']) < 1, f'Souzinha no celular: campo 16px e janela do tamanho da parte visível: {sz}')
+    fundo = pg.evaluate("(() => { const e = document.elementFromPoint(195, 895); return e && e.closest('#souzinha-widget') ? 'souzinha' : (e && (e.id || e.className)); })()")
+    checar(fundo == 'souzinha', f'com a Souzinha aberta, nada da página aparece embaixo: {fundo}')
     pg.click('#souzinha-widget .sz-close'); pg.wait_for_selector('#souzinha-widget:not(.sz-open)', state='attached')
     checar(pg.evaluate("document.querySelector('#souzinha-widget .sz-panel').style.height") == '', 'fechar a Souzinha devolve o tamanho normal')
     pg.click('#lEsv'); pg.wait_for_timeout(200)
