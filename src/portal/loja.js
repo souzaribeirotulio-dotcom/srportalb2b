@@ -355,7 +355,7 @@ function conviteEntrar(grid, extra = '') {
   grid.innerHTML = `<div class="empty g360-convite">${extra}<b>Entre para ver o catálogo e os seus preços.</b>
     <p>O portal é exclusivo para empresas clientes da Souza Ribeiro.</p>
     <div class="act" style="justify-content:center"><button type="button" class="btn pri" id="gEntrar">Entrar</button><button type="button" class="btn out" id="gPrimeiro">Primeiro acesso</button><button type="button" class="btn out" id="gCadastro">Quero ser cliente</button></div></div>`;
-  $('gCadastro').onclick = () => abrirCadastro(ctx);
+  $('gCadastro').onclick = () => abrirCadastro(ctxCadastro());
   $('gEntrar').onclick = () => abrirLogin();
   $('gPrimeiro').onclick = () => ctx.ir('/primeiro-acesso');
   if (ctx.loja.troca_senha !== true) $('gPrimeiro').style.display = 'none';
@@ -596,7 +596,7 @@ let depoisDoLogin = null;
 
 function ligarLogin() {
   $('lgCad').textContent = 'Quero ser cliente';
-  $('lgCad').onclick = () => { fecharModal('mLogin'); abrirCadastro(ctx); };
+  $('lgCad').onclick = () => { fecharModal('mLogin'); abrirCadastro(ctxCadastro()); };
   $('lgEsqL').textContent = 'Primeiro acesso ou esqueci minha senha';
   $('lgEsqL').onclick = () => { fecharModal('mLogin'); ctx.ir('/primeiro-acesso'); };
   $('lgAdm').textContent = 'Acesso da equipe Souza Ribeiro';
@@ -634,6 +634,11 @@ function ligarLogin() {
       $('lgS').focus();
     } finally { $('lgOk').disabled = false; $('lgOk').textContent = 'Entrar'; }
   };
+}
+
+/** "Quero ser cliente" com atalhos para quem já tem cadastro: Entrar (com o documento já digitado) e Primeiro acesso. */
+function ctxCadastro() {
+  return { ...ctx, abrirLogin: (documento) => { abrirLogin(); if (documento) { $('lgC').value = documento; setTimeout(() => $('lgS').focus(), 80); } } };
 }
 
 export function abrirLogin(depois = null, mensagemErro = null, mensagemOk = null) {

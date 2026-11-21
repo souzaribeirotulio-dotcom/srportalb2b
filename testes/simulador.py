@@ -558,6 +558,11 @@ class Sim:
                     if c.get('id') == d.get('id'): c['status'] = d['status']; c['observacao_equipe'] = d.get('observacao') or None; return res(200, {'ok': True})
                 return res(404, {'mensagem': 'Cadastro não encontrado.'})
             return res(400, {'mensagem': 'Ação desconhecida.'})
+        if p == '/rest/v1/rpc/portal_cadastro_situacao':
+            corpo = json.loads(req.post_data or '{}'); doc = re.sub(r'[^A-Za-z0-9]', '', corpo.get('p_documento', '')).upper()
+            k = next((c for c in self.cadastros if c['documento'] == doc), None)
+            st = None if not k else ('aprovado' if k.get('codigo_g360') else k.get('status', 'pendente'))
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps(st))
         if p == '/rest/v1/rpc/portal_cadastro_solicitar':
             corpo = json.loads(req.post_data or '{}'); d = corpo.get('d', {})
             doc = re.sub(r'[^A-Za-z0-9]', '', d.get('documento', '')).upper()
