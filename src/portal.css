@@ -304,3 +304,7 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
 .kcad .kja2 { font-size: 13px; color: var(--tx2); margin-top: 4px; line-height: 1.45; }
 .kcad .kja3 { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .kcad .kja3 .btn { height: 40px; padding: 0 16px; flex: 1; min-width: 130px; }
+
+/* A foto do detalhe aceita deslizar para o lado: o navegador só cuida da rolagem vertical ali. */
+#detBox .gmain { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+#detBox .gmain img { -webkit-user-drag: none; pointer-events: none; }
