@@ -215,6 +215,13 @@ with sync_playwright() as pw:
     checar('R$ 125,00' in c.locator('.price').text_content(), 'troca de embalagem')
     pg.click('.card[data-id="104"] .name'); pg.wait_for_selector('#mDet.open #dAdd')
     checar('Características' in n.tc('#detBox') and 'P-104' in n.tc('#detBox'), 'detalhe do produto')
+    def arrastar(dx, dy=0):
+        b = pg.locator('#detBox .gmain').bounding_box(); x, y = b['x'] + b['width'] / 2, b['y'] + b['height'] / 2
+        pg.mouse.move(x, y); pg.mouse.down(); pg.mouse.move(x + dx, y + dy, steps=5); pg.mouse.up(); pg.wait_for_timeout(100)
+    foto_on = lambda: pg.eval_on_selector('#detBox .gth.on', 'e => e.dataset.k')
+    arrastar(-120); checar(foto_on() == '1', f'deslizar para a esquerda mostra a próxima foto: {foto_on()}')
+    arrastar(120); checar(foto_on() == '0', f'deslizar para a direita volta a foto: {foto_on()}')
+    arrastar(-20, 150); checar(foto_on() == '0', 'arrastar na vertical não troca a foto')
     pg.keyboard.press('Escape'); pg.wait_for_selector('#mDet:not(.open)', state='attached'); checar(True, 'ESC fecha o detalhe do produto')
     pg.hover('.card[data-id="101"] .img'); pg.click('.card[data-id="101"] .eye'); pg.wait_for_selector('#mDet.open #dAdd')
     t_ = n.tc('#detBox'); checar('Descrição' in t_ and 'Vendido por' in t_ and len(t_.split('Descrição')[1]) > 40, f'olhinho abre detalhe com descrição: {t_[:200]}')

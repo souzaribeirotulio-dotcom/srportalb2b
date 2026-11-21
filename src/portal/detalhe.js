@@ -56,6 +56,21 @@ const $id = (id) => document.getElementById(id);
 let ligado = false;
 export function ligarDetalhe() {
   if (ligado) return; ligado = true;
+  // Deslizar a foto para o lado troca de foto (celular e mouse); arrastar na vertical continua rolando a tela.
+  let toque = null;
+  $id('mDet').addEventListener('pointerdown', (e) => {
+    if (!atual || (atual.p.fotos || []).length < 2 || !e.target.closest('.gmain') || e.target.closest('[data-g]')) return;
+    toque = { x: e.clientX, y: e.clientY };
+  });
+  const soltar = (e) => {
+    if (!toque || !atual) { toque = null; return; }
+    const dx = e.clientX - toque.x; const dy = e.clientY - toque.y; toque = null;
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const n = (atual.p.fotos || []).length;
+    atual.foto = (atual.foto + (dx < 0 ? 1 : -1) + n) % n; desenhar();
+  };
+  $id('mDet').addEventListener('pointerup', soltar);
+  $id('mDet').addEventListener('pointercancel', () => { toque = null; });
   $id('mDet').addEventListener('click', async (e) => {
     if (!atual) return;
     if (e.target === $id('mDet') || e.target.closest('#dX')) { fecharModal('mDet'); return; }
