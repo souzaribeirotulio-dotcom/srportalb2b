@@ -308,3 +308,8 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
 /* A foto do detalhe aceita deslizar para o lado: o navegador só cuida da rolagem vertical ali. */
 #detBox .gmain { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 #detBox .gmain img { -webkit-user-drag: none; pointer-events: none; }
+/* Arte até a borda (ajustarBorda em fotos.js): ocupa o card inteiro, sem a margem branca. */
+.img .g360-foto { --pad: 14px; }
+@media (max-width: 640px) { .img .g360-foto { --pad: 10px; } }
+.img .g360-foto img.sangra { position: absolute; inset: calc(-1 * var(--pad)); width: calc(100% + 2 * var(--pad)); height: calc(100% + 2 * var(--pad)); max-width: none; max-height: none; object-fit: contain; }
+.img .g360-foto img.sangra.cheia { object-fit: cover; }

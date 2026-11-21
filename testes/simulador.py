@@ -9,6 +9,8 @@ API = '/b2b/v1/lojas/96da1e99a3f327f0/'
 SUPA = 'evaylnnzuqxhmunkdiqx.supabase.co'
 LOJA = '96da1e99a3f327f0'
 GIF = base64.b64decode('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==')
+# arte que vai até a borda (fundo azul), para conferir que ela ocupa o card inteiro
+AZUL = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAACgAAAAoCAIAAAADnC86AAAAQUlEQVR4Xu3QQQ3AMBDAsK5gy5/BppLIPWYTiJRnnXdN2BPRSzhjdcbqjNUZqzNWZ6zOWJ2xOmN1xuqM1Zn/rf4AYpoBtcursfcAAAAASUVORK5CYII=')
 CORS = {'Access-Control-Allow-Origin': BASE, 'Access-Control-Allow-Headers': 'Authorization, Content-Type, Idempotency-Key',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'}
 
@@ -216,7 +218,7 @@ class Sim:
             if mm.group(1) == '105': return self.erro(route, 404, 'NAO_ENCONTRADO', 'Foto não encontrada.', 'integracao')
             if mm.group(1) in getattr(self, 'foto_cair', {}) and self.foto_cair[mm.group(1)] > 0:
                 self.foto_cair[mm.group(1)] -= 1; return route.abort()   # limite por IP/servidor ocupado: chega como falha de rede
-            return route.fulfill(status=200, headers={**CORS, 'Content-Type': 'image/gif'}, body=GIF)
+            return route.fulfill(status=200, headers={**CORS, 'Content-Type': 'image/png' if mm.group(1) == '104' else 'image/gif'}, body=AZUL if mm.group(1) == '104' else GIF)
         if caminho == 'opcoes':
             return self.ok(route, {'modalidades': ['entrega', 'retirada'], 'enderecos': [
                 {'id': 7, 'descricao': 'Matriz', 'endereco': 'Rua Exemplo', 'numero': '100', 'complemento': '', 'cidade': 'Cidade Exemplo', 'cep': '38400-000', 'principal': True}],
