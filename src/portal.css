@@ -1,3 +1,5 @@
+/* Toques rápidos (ex.: + + + na quantidade) não viram zoom de duplo toque no celular; a pinça continua ampliando. */
+html{touch-action:manipulation}
 /* Ajustes do layout original para a integração com o G360. */
 body.g360-legado .adm-only, body.g360-legado .edbar, body.g360-legado #edt,
 body.g360-legado #vAdm, body.g360-legado .demo-faixa,
