@@ -313,7 +313,10 @@ async function resultadoBusca() {
   if (!busca || busca.chave !== chave) {
     const marca = filtros.marca ? Number(filtros.marca) : undefined;
     const locais = buscarLocal(filtros.q, { categoria: filtros.grupo, max: 150 });
-    const pontos = new Map(locais.map((l, i) => [l.codigo, 1000 - i]));
+    const pontos = new Map(locais.map((l) => [l.codigo, l.pontos]));
+    // Faixa de relevância: o que bate bem com a busca vem antes do que só bate de leve (ex.: só o começo de uma palavra).
+    const maxPontos = Math.max(1, ...locais.map((l) => l.pontos));
+    const faixa = (p) => { const v = pontos.get(String(p.codigo)) || 0; return v >= maxPontos * 0.8 ? 2 : v >= maxPontos * 0.5 ? 1 : 0; };
     const achados = new Map();
     // 1) Os mais relevantes pelo nome do portal: o que já foi consultado há pouco não vai de novo à API.
     const faltam = [];
@@ -332,13 +335,13 @@ async function resultadoBusca() {
     const api = res[res.length - 1];
     if (api.status === 'fulfilled') {
       api.value.dados.map(apresentar).filter((p) => !filtros.grupo || p.categoria === filtros.grupo)
-        .forEach((p) => { guardarRecente(p); if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); if (!pontos.has(String(p.codigo))) pontos.set(String(p.codigo), 100); } });
+        .forEach((p) => { guardarRecente(p); if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); if (!pontos.has(String(p.codigo))) pontos.set(String(p.codigo), maxPontos * 0.6); } });
     }
     const falha = res.find((r) => r.status === 'rejected');
     if (falha && (!achados.size || falha.reason?.status === 401)) throw falha.reason;
-    // Ordem: com estoque primeiro; entre os que batem com a busca, os mais vendidos (curva A, B, C); depois a relevância.
-    const todos = [...achados.values()].filter((p) => !oculto(p) && !abaixoDoMinimo(p) && (!soEstoque() || temEstoque(p))).sort((a, b) => (temEstoque(b) - temEstoque(a)) || (pesoCurva(a) - pesoCurva(b))
-      || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
+    // Ordem: com estoque primeiro; depois o que mais bate com a busca; na mesma faixa, os mais vendidos (curva A, B, C).
+    const todos = [...achados.values()].filter((p) => !oculto(p) && !abaixoDoMinimo(p) && (!soEstoque() || temEstoque(p))).sort((a, b) => (temEstoque(b) - temEstoque(a)) || (faixa(b) - faixa(a))
+      || (pesoCurva(a) - pesoCurva(b)) || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
     busca = { chave, itens: todos, semEstoque: todos.filter((p) => !temEstoque(p)).length, ordem: '' };
     if (!falha) {
       buscasRecentes.set(chave, { itens: [...todos], semEstoque: busca.semEstoque, t: Date.now() });

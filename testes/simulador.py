@@ -74,7 +74,9 @@ class Sim:
         self.sinonimos = [{'termo': 'durex', 'equivalentes': ['fita adesiva']}]
         self.eventos = []; self.acessos = {}; self.ensinos = []
         self.categorias = ['Limpeza', 'Descartáveis', 'Embalagens', 'Copa & Alimentos', 'Higiene', 'Utensílios & EPI', 'Papelaria', 'Outros']
-        self.exibicao = {'P-104': {'codigo': 'P-104', 'produto_id': None, 'nome': 'Copo Descartável Exemplo 200ml (Pacote c/ 100 un)', 'categoria': 'Descartáveis', 'origem': 'legado'}}
+        self.exibicao = {'P-104': {'codigo': 'P-104', 'produto_id': None, 'nome': 'Copo Descartável Exemplo 200ml (Pacote c/ 100 un)', 'categoria': 'Descartáveis', 'origem': 'legado'},
+                         'P-140': {'codigo': 'P-140', 'produto_id': None, 'nome': 'Saco Lixo Exemplo Super Reforçado 100L', 'categoria': 'Limpeza', 'origem': 'legado'},
+                         'P-141': {'codigo': 'P-141', 'produto_id': None, 'nome': 'Limpa Piso Exemplo Super Limpo 2L', 'categoria': 'Limpeza', 'origem': 'legado'}}
 
     # ---------- utilidades ----------
     def comprador_json(self, doc):
