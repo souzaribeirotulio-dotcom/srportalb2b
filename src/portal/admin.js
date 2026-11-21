@@ -357,6 +357,7 @@ function pintarNegociacoes() {
     try {
       await incluirPrecoCongelado(op.token, n.comprador_codigo, { produto: Number(n.produto_id), unidade_id: n.unidade_id || null, valor, inicio, fim: ate });
     } catch (e) { b.disabled = false; b.textContent = 'Aprovar e congelar'; mostrarMensagemErro(el.querySelector('.ngcusto'), e); return; }
+    await paraMinhaLista(n.comprador_codigo, [n.produto_id]);
     try { await painel('negociacao_decidir', { id: n.id, status: 'aprovada', preco_aprovado: valor, valido_ate: ate, resposta }); }
     catch (e) { toast(`Preço congelado no G360, mas a resposta ao cliente não foi gravada: ${e.message}`); }
     toast('Aprovada ✓ — preço congelado no G360'); desenharNegociacoes();
@@ -882,7 +883,8 @@ async function montarLista(c) {
       b.disabled = true; b.textContent = 'Gravando no G360…';
       try {
         await incluirPrecoCongelado(op.token, c.codigo, { produto: Number(p.id), unidade_id: null, valor, inicio, fim });
-        toast(`Preço congelado no G360 ✓ ${dinheiro(valor)}`); itens();
+        const naLista = await paraMinhaLista(c.codigo, [p.id]);
+        toast(`Preço congelado no G360 ✓ ${dinheiro(valor)}${naLista ? ' · na Minha Lista' : ''}`); itens();
       } catch (e) { b.disabled = false; b.textContent = 'Congelar no G360'; if (e.status === 401) { encerrarOperador(e.message); return; } mostrarMensagemErro(err, e); }
     };
   }
@@ -1323,6 +1325,14 @@ async function sugerirProdutosCong() {
   } catch { /* a lista só some; o erro aparece ao congelar */ }
 }
 
+/** Produto com preço congelado vai para a Minha Lista do cliente (sem repetir). Falha aqui não desfaz o congelamento. */
+async function paraMinhaLista(comprador, ids) {
+  const lista = [...new Set(ids.map(Number).filter((n) => Number.isSafeInteger(n) && n > 0))];
+  if (!lista.length) return 0;
+  try { await painel('lista_incluir', { comprador: Number(comprador), produto_ids: lista }); return lista.length; }
+  catch (e) { toast(`Preço congelado, mas não entrou na Minha Lista do cliente: ${e.message}`); return 0; }
+}
+
 async function congelar() {
   const res = $('cgRes'); res.innerHTML = '';
   if (!cong.cliente) { toast('Escolha o cliente pelo CNPJ primeiro.'); return; }
@@ -1336,7 +1346,8 @@ async function congelar() {
   try {
     await incluirPrecoCongelado(op.token, cong.cliente.codigo, { produto: p.id, unidade_id: null, valor, inicio, fim });
     $('cgQ').value = ''; $('cgP').value = ''; cong.produto = null;
-    toast('Preço congelado no G360 ✓');
+    const naLista = await paraMinhaLista(cong.cliente.codigo, [p.id]);
+    toast(`Preço congelado no G360 ✓${naLista ? ' · na Minha Lista do cliente' : ''}`);
     carregarCongelados();
   } catch (e) { mostrarMensagemErro(res, e); } finally { $('cgAdd').disabled = false; }
 }
@@ -1362,7 +1373,8 @@ async function carregarCongelados() {
 function pintarCongelados() {
   const alvo = $('cgPanel');
   if (!cong.itens.length) { alvo.innerHTML = vazio('Nenhum preço congelado para este cliente. Busque um produto acima e informe o preço.'); return; }
-  alvo.innerHTML = cong.itens.map((r) => {
+  const ativos = cong.itens.filter((r) => r.situacao === 'ativo').length;
+  alvo.innerHTML = (ativos ? `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 18px 4px"><small class="hint" style="margin:0">Todo preço congelado por aqui já entra na Minha Lista do cliente.</small><button class="tool" id="cgLista" type="button">★ Pôr os ${ativos} congelados na Minha Lista</button></div>` : '') + cong.itens.map((r) => {
     const p = cong.precos.get(Number(r.produto)); const ativo = r.situacao === 'ativo';
     return `<div class="crow" data-id="${Number(r.id)}" style="${ativo ? '' : 'opacity:.55'}"><div class="g360-mini" data-foto="${Number(r.produto)}"><span>…</span></div>
       <div class="nm">${esc(p?.nome || `Produto ${r.produto}`)}<small>Cód. ${esc(p?.codigo || r.produto)} · ${esc(r.unidade_id || p?.unidade || 'unidade base')} · ${esc(dataBr(r.inicio))} a ${esc(dataBr(r.fim))}${ativo ? '' : ' · encerrado'}${dispPainel(p)}</small></div>
@@ -1375,6 +1387,14 @@ function pintarCongelados() {
 }
 
 async function cliqueCongelado(e) {
+  const bl = e.target.closest('#cgLista');
+  if (bl) {
+    bl.disabled = true; bl.textContent = 'Colocando na Minha Lista…';
+    const n = await paraMinhaLista(cong.cliente.codigo, cong.itens.filter((r) => r.situacao === 'ativo').map((r) => r.produto));
+    bl.textContent = n ? `★ ${n} produtos na Minha Lista ✓` : '★ Tentar de novo'; bl.disabled = !n ? false : true;
+    if (n) toast(`${n} produtos com preço congelado estão na Minha Lista do cliente`);
+    return;
+  }
   const b = e.target.closest('[data-rm]'); if (!b) return;
   if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = 'Encerrar?'; b.style.width = 'auto'; return; }
   b.disabled = true;

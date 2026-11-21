@@ -500,9 +500,17 @@ with sync_playwright() as pw:
     pg.click('[data-at="prod"]'); pg.fill('#aQ', 'P-101'); pg.press('#aQ', 'Enter'); pg.wait_for_selector('.arow[data-id="101"]')
     t = n.tc('#aPanel'); checar('5,1234' in t and '45,5' in t, f'preço/custo/margem no Produtos')
     pg.click('.arow[data-id="101"] [data-cg]'); pg.wait_for_selector('#atCong:not([hidden])')
+    lista_antes_ = {k: set(v) for k, v in sim.lista.items()}
+    for v_ in sim.lista.values(): v_.discard(101)
     pg.fill('#cgP', '9,75'); pg.click('#cgAdd'); pg.wait_for_selector('#cgPanel .crow')
     inc = [x for x in sim.chamadas if x[0] == 'POST' and 'precos-congelados' in x[1]][-1][3]
     checar(inc['valor'] == '9.75' and inc['produto'] == 101 and inc['unidade_id'] is None, f'preço congelado: {inc}')
+    pg.wait_for_function("document.getElementById('toast').textContent.includes('Minha Lista')", timeout=5000)
+    checar(any(101 in v_ for v_ in sim.lista.values()), f'preço congelado entra sozinho na Minha Lista do cliente: {sim.lista}')
+    for v_ in sim.lista.values(): v_.clear()
+    pg.click('#cgLista'); pg.wait_for_function("document.getElementById('cgLista').textContent.includes('✓')")
+    checar(any(101 in v_ for v_ in sim.lista.values()), f'botão leva os congelados ativos para a Minha Lista: {sim.lista}')
+    sim.lista.clear(); sim.lista.update(lista_antes_)
     pg.click('[data-at="prod"]'); pg.fill('#aQ', 'P-104'); pg.press('#aQ', 'Enter'); pg.wait_for_selector('.arow[data-id="104"]')
     pg.click('.arow[data-id="104"] [data-ed]'); pg.wait_for_selector('#mod.open #fxTh img')
     pg.click('#mOk')
