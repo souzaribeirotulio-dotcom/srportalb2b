@@ -328,14 +328,11 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
 .bnr-pontos button::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, .55); box-shadow: 0 0 0 1px rgba(0, 0, 0, .25); transition: width .2s; }
 .bnr-pontos button[aria-current]::before { width: 20px; border-radius: 4px; background: #fff; }
 @media (max-width: 640px) {
-  /* Celular: cartões arredondados com um pedaço do próximo aparecendo (convida a deslizar). */
-  .bnr { padding: 0; margin-top: 12px; }
-  .bnr-trilho { border-radius: 0; gap: 10px; padding: 0 14px; scroll-padding: 0 14px; }
-  .bnr-slide { flex: 0 0 84%; aspect-ratio: 1 / 1; border-radius: 16px; }
-  .bnr-slide:only-child { flex-basis: 100%; }
-  .bnr-slide:not(:has(source)) { aspect-ratio: 16 / 5; flex-basis: 100%; }
+  /* Celular: banner de ponta a ponta na largura, baixo (2:1), sem cantos; bolinhas por cima, no rodapé da imagem. */
+  .bnr { padding: 0; margin-top: 0; }
+  .bnr-trilho { border-radius: 0; }
+  .bnr-slide { flex: 0 0 100%; aspect-ratio: 2 / 1; }
+  .bnr-slide:not(:has(source)) { aspect-ratio: 16 / 5; }
   .bnr-seta { display: none; }
-  .bnr-pontos { position: static; margin-top: 6px; }
-  .bnr-pontos button::before { background: var(--tx3, #7d9473); box-shadow: none; }
-  .bnr-pontos button[aria-current]::before { background: var(--lima, #b2e04a); }
+  .bnr-pontos { bottom: 4px; }
 }

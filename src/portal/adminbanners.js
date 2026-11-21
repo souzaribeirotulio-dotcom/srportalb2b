@@ -58,7 +58,7 @@ export async function desenharBannersPainel(alvo, { painel }) {
     const form = editando ? formHtml(editando) : '';
     alvo.innerHTML = `<div style="padding:16px 18px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-        <div><b>Banners do catálogo</b><small class="hint" style="display:block;margin:2px 0 0">Aparecem no topo do catálogo, para clientes e visitantes, na ordem abaixo. Tamanho recomendado: 1600×500 px (computador) e 1080×1080 px (celular).</small></div>
+        <div><b>Banners do catálogo</b><small class="hint" style="display:block;margin:2px 0 0">Aparecem no topo do catálogo, para clientes e visitantes, na ordem abaixo. Tamanho recomendado: 1600×500 px (computador) e 1080×540 px (celular).</small></div>
         ${editando ? '' : '<button class="btn pri" id="bnNovo" type="button">＋ Novo banner</button>'}
       </div>
       ${form}
@@ -83,7 +83,7 @@ export async function desenharBannersPainel(alvo, { painel }) {
       <div class="fgrid" style="margin-top:10px">
         <div class="full"><label for="bnTit">Título (o que o banner diz — é lido para quem não enxerga a imagem)</label><input class="inp" id="bnTit" maxlength="120" value="${esc(b.titulo || '')}" placeholder="Ex.: Natal Souza Ribeiro — tudo para a sua empresa"></div>
         <div><label for="bnImg">Imagem do computador ${b.img_desktop ? '(deixe vazio para manter)' : '(obrigatória)'}</label><input class="inp" id="bnImg" type="file" accept="image/jpeg,image/png,image/webp">${b.img_desktop ? `<img src="${esc(urlBanner(b.img_desktop))}" alt="" style="width:100%;max-width:320px;aspect-ratio:16/5;object-fit:cover;border-radius:8px;margin-top:6px">` : ''}</div>
-        <div><label for="bnCel">Imagem do celular (opcional, quadrada)</label><input class="inp" id="bnCel" type="file" accept="image/jpeg,image/png,image/webp">${b.img_celular ? `<img src="${esc(urlBanner(b.img_celular))}" alt="" style="width:120px;aspect-ratio:1;object-fit:cover;border-radius:8px;margin-top:6px"><label style="display:flex;gap:6px;align-items:center;margin-top:4px;font-size:13px"><input type="checkbox" id="bnCelTira"> Tirar a imagem do celular</label>` : ''}</div>
+        <div><label for="bnCel">Imagem do celular (opcional, 1080×540)</label><input class="inp" id="bnCel" type="file" accept="image/jpeg,image/png,image/webp">${b.img_celular ? `<img src="${esc(urlBanner(b.img_celular))}" alt="" style="width:160px;aspect-ratio:2/1;object-fit:cover;border-radius:8px;margin-top:6px"><label style="display:flex;gap:6px;align-items:center;margin-top:4px;font-size:13px"><input type="checkbox" id="bnCelTira"> Tirar a imagem do celular</label>` : ''}</div>
         <div><label for="bnTipo">Ao tocar, leva para</label><select class="inp" id="bnTipo">${Object.entries(DESTINOS).map(([k, t]) => `<option value="${k}" ${k === (b.destino_tipo || 'nenhum') ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
         <div id="bnValBox"></div>
         <div><label for="bnIni">Começa em (opcional)</label><input class="inp" id="bnIni" type="date" value="${esc(b.inicio || '')}"></div>
