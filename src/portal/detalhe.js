@@ -14,7 +14,11 @@ let atual = null;
 
 const htmlFotoItem = (p, item, classe) => `<div class="foto ${classe}" data-produto="${Number(p.id)}" data-item="${Number(item)}" data-alt="${esc(p.nome)}"><span>Carregando…</span></div>`;
 
-/** opcoes: { naLista: true|false|null, aoFavoritar: async (p, estava) => novoEstado, aoClip: fn|null, aoNegociar: fn(p, op, qtd)|null } */
+/** Quantos slides tem a galeria: as fotos e, no fim, o vídeo do produto (quando houver clip). */
+const totalSlides = () => (atual.p.fotos || []).length + (atual.videoUrl ? 1 : 0);
+const htmlVideo = () => `<div class="foto g360-foto dvideo"><video src="${esc(atual.videoUrl)}" controls playsinline muted autoplay loop preload="metadata" aria-label="Vídeo do produto"></video></div>`;
+
+/** opcoes: { videoUrl: url do clip|null, naLista: true|false|null, aoFavoritar: async (p, estava) => novoEstado, aoClip: fn|null, aoNegociar: fn(p, op, qtd)|null } */
 export function abrirDetalhe(p, opcoes = {}) {
   atual = { p, un: '', foto: 0, ...opcoes };
   desenhar();
@@ -29,9 +33,9 @@ function desenhar() {
   const ficha = fichaDoProduto(p, registro(p));
   const caract = [...ficha.caracteristicas, ...ops.slice(1).map((o) => ['Embalagem disponível', `${o.nome}${o.descricao ? ` — ${o.descricao}` : ''}`])];
   $id('detBox').innerHTML = `<div class="gal">
-      <div class="gmain">${fotos.length ? htmlFotoItem(p, fotos[atual.foto] ?? fotos[0], 'g360-foto') : '<div class="foto vazia g360-foto"><span>Sem foto</span></div>'}
-        ${fotos.length > 1 ? '<button class="gnav p" data-g="-1" aria-label="Foto anterior">‹</button><button class="gnav n" data-g="1" aria-label="Próxima foto">›</button>' : ''}</div>
-      ${fotos.length > 1 ? `<div class="gthumbs">${fotos.map((f, k) => `<button type="button" class="gth ${k === atual.foto ? 'on' : ''}" data-k="${k}" aria-label="Foto ${k + 1}">${htmlFotoItem(p, f, '')}</button>`).join('')}</div>` : ''}
+      <div class="gmain">${atual.videoUrl && atual.foto === fotos.length ? htmlVideo() : fotos.length ? htmlFotoItem(p, fotos[atual.foto] ?? fotos[0], 'g360-foto') : '<div class="foto vazia g360-foto"><span>Sem foto</span></div>'}
+        ${totalSlides() > 1 ? '<button class="gnav p" data-g="-1" aria-label="Anterior">‹</button><button class="gnav n" data-g="1" aria-label="Próxima">›</button>' : ''}</div>
+      ${totalSlides() > 1 ? `<div class="gthumbs">${fotos.map((f, k) => `<button type="button" class="gth ${k === atual.foto ? 'on' : ''}" data-k="${k}" aria-label="Foto ${k + 1}">${htmlFotoItem(p, f, '')}</button>`).join('')}${atual.videoUrl ? `<button type="button" class="gth gvid ${atual.foto === fotos.length ? 'on' : ''}" data-k="${fotos.length}" aria-label="Vídeo do produto">▶</button>` : ''}</div>` : ''}
     </div>
     <div class="dinfo"><button class="x" id="dX" aria-label="Fechar">×</button>
       <div class="brand">${esc(typeof p.marca === 'object' ? p.marca?.nome || '' : p.marca || '')}</div>
@@ -53,30 +57,34 @@ function desenhar() {
 }
 
 const $id = (id) => document.getElementById(id);
+/** Fecha a janela e para o vídeo, se estiver tocando. */
+function fechar() { $id('detBox')?.querySelector('video')?.pause(); fecharModal('mDet'); }
 let ligado = false;
 export function ligarDetalhe() {
   if (ligado) return; ligado = true;
+  // Fechou a janela por qualquer caminho (Esc, fundo, botão): o vídeo para.
+  new MutationObserver(() => { if (!$id('mDet').classList.contains('open')) $id('detBox')?.querySelector('video')?.pause(); })
+    .observe($id('mDet'), { attributes: true, attributeFilter: ['class'] });
   // Deslizar a foto para o lado troca de foto (celular e mouse); arrastar na vertical continua rolando a tela.
   let toque = null;
   $id('mDet').addEventListener('pointerdown', (e) => {
-    if (!atual || (atual.p.fotos || []).length < 2 || !e.target.closest('.gmain') || e.target.closest('[data-g]')) return;
+    if (!atual || totalSlides() < 2 || !e.target.closest('.gmain') || e.target.closest('[data-g]') || e.target.closest('video')) return;
     toque = { x: e.clientX, y: e.clientY };
   });
   const soltar = (e) => {
     if (!toque || !atual) { toque = null; return; }
     const dx = e.clientX - toque.x; const dy = e.clientY - toque.y; toque = null;
     if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    const n = (atual.p.fotos || []).length;
+    const n = totalSlides();
     atual.foto = (atual.foto + (dx < 0 ? 1 : -1) + n) % n; desenhar();
   };
   $id('mDet').addEventListener('pointerup', soltar);
   $id('mDet').addEventListener('pointercancel', () => { toque = null; });
   $id('mDet').addEventListener('click', async (e) => {
     if (!atual) return;
-    if (e.target === $id('mDet') || e.target.closest('#dX')) { fecharModal('mDet'); return; }
+    if (e.target === $id('mDet') || e.target.closest('#dX')) { fechar(); return; }
     const g = e.target.closest('[data-g]');
-    const fotos = atual.p.fotos || [];
-    if (g) { atual.foto = (atual.foto + Number(g.dataset.g) + fotos.length) % fotos.length; desenhar(); return; }
+    if (g) { const n = totalSlides(); atual.foto = (atual.foto + Number(g.dataset.g) + n) % n; desenhar(); return; }
     const th = e.target.closest('[data-k]');
     if (th) { atual.foto = Number(th.dataset.k); desenhar(); return; }
     const un = e.target.closest('.unsel [data-un]');
@@ -94,14 +102,14 @@ export function ligarDetalhe() {
       const r = adicionar(linhaCarrinho(atual.p, atual.un, q));
       if (r === 'limite') { toast('O carrinho aceita até 100 linhas. Envie este pedido ou remova itens.'); return; }
       toast(`${r === 'somado' ? 'Quantidade somada' : 'Adicionado ao carrinho'} · ${atual.p.nome.slice(0, 40)}`);
-      fecharModal('mDet'); return;
+      fechar(); return;
     }
     if (e.target.closest('#dFav') && atual.aoFavoritar) {
       const b = $id('dFav'); b.disabled = true;
       try { atual.naLista = await atual.aoFavoritar(atual.p, atual.naLista); desenhar(); } catch (err) { toast(err.message); b.disabled = false; }
       return;
     }
-    if (e.target.closest('#dClip')) { fecharModal('mDet'); atual.aoClip(); }
-    if (e.target.closest('#dNegociar')) { const q = normalizarQuantidade($id('dQ').value) || '1'; fecharModal('mDet'); atual.aoNegociar(atual.p, unidadeEscolhida(atual.p, atual.un), q); }
+    if (e.target.closest('#dClip')) { fechar(); atual.aoClip(); }
+    if (e.target.closest('#dNegociar')) { const q = normalizarQuantidade($id('dQ').value) || '1'; fechar(); atual.aoNegociar(atual.p, unidadeEscolhida(atual.p, atual.un), q); }
   });
 }

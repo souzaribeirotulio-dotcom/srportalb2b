@@ -616,7 +616,19 @@ with sync_playwright() as pw:
         g_ = pg.evaluate("(() => { const c = document.querySelector('#clipsFeed .clip').getBoundingClientRect(); const h = document.querySelector('header').getBoundingClientRect(); const t = document.querySelector('.tabbar').getBoundingClientRect(); const s = document.getElementById('souzinha-widget'); return { topo: c.top - h.bottom, baixo: t.top - c.bottom, rolou: window.scrollY, souzinha: s ? getComputedStyle(s).display : 'none' }; })()")
         checar(abs(g_['topo']) <= 1 and abs(g_['baixo']) <= 1 and g_['rolou'] == 0 and g_['souzinha'] == 'none', f'clip inteiro entre o cabeçalho e as abas no celular: {g_}')
     n.ir('cat'); pg.wait_for_selector('#grid .card[data-id="101"]')
+    # O clip aparece na galeria do detalhe, depois das fotos: deslizando (ou pela miniatura ▶) chega no vídeo.
+    pg.click('.card[data-id="104"] .name'); pg.wait_for_selector('#mDet.open #detBox .gth.gvid')
+    nf_ = pg.locator('#detBox .gth:not(.gvid)').count()
+    checar(pg.locator('#detBox .gthumbs .gth').last.evaluate('e => e.classList.contains("gvid")') and pg.locator('#detBox .gmain video').count() == 0, 'vídeo é o último da galeria')
+    for _ in range(nf_):
+        b_ = pg.locator('#detBox .gmain').bounding_box(); y_ = b_['y'] + b_['height'] / 2
+        pg.mouse.move(b_['x'] + b_['width'] * 0.8, y_); pg.mouse.down(); pg.mouse.move(b_['x'] + b_['width'] * 0.2, y_, steps=4); pg.mouse.up()
+    pg.wait_for_selector('#detBox .gmain video')
+    checar('portal-clips/' in pg.get_attribute('#detBox .gmain video', 'src') and pg.locator('#detBox .gth.gvid.on').count() == 1, 'deslizar chega no vídeo do produto')
+    pg.click('#dX')
+    pg.wait_for_timeout(200); checar(pg.evaluate("document.querySelector('#detBox video')?.paused !== false"), 'fechar a janela para o vídeo')
     pg.click('.card[data-id="101"] .name'); pg.wait_for_selector('#mDet.open #dNegociar')
+    checar(pg.locator('#detBox .gth.gvid').count() == 0 and pg.locator('#detBox video').count() == 0, 'produto sem clip não mostra vídeo na galeria')
     pg.click('#dNegociar'); pg.wait_for_selector('#mCad.open #ngEnviar')
     pg.click('#ngEnviar'); checar('pelo menos um' in n.tc('#ngErr'), 'negociação sem preço recusada')
     pg.fill('.negit input', 'abc'); pg.click('#ngEnviar'); checar('Confira os preços' in n.tc('#ngErr'), 'preço inválido recusado')
