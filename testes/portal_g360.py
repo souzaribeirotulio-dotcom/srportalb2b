@@ -941,6 +941,23 @@ with sync_playwright() as pw:
     n_lotes_ = len(sim.lotes); pg.fill('#ccQtd', '2'); pg.click('#ccPegar')
     pg.wait_for_selector('#ccMsg:has-text("Outra pessoa pegou")', timeout=30000)
     checar(len(sim.lotes) == n_lotes_ + 1 and sim.lotes[-1]['responsavel'] == 'Maria', 'produtos pegos por outra pessoa no meio do caminho não entram em lote repetido (teste que tem de dar errado)')
+    # Sobras de lotes de dias anteriores: junta o que ficou parado sem foto; lote de hoje não é mexido
+    import time as _t
+    maria_ = sim.lotes[-1]; pr_ = {p['codigo']: p for p in sim.produtos}
+    velhos_ = [c for c in maria_['codigos'] if c != 'P-105' and not pr_[c].get('fotos') and not sim.galeria.get(int(pr_[c]['id']))]  # P-105: o simulador recusa a foto; com foto na vitrine já conta como feito
+    checar(len(velhos_) >= 3, f'produtos sem foto no lote antigo para o teste: {velhos_}')
+    de_hoje_ = velhos_[0]; maria_['codigos'].remove(de_hoje_); maria_['pulados'] = [velhos_[1]]
+    sim.lotes.append({'id': 'hoje-0000-lote', 'numero': max(x['numero'] for x in sim.lotes) + 1, 'responsavel': 'Bia', 'codigos': [de_hoje_], 'pulados': [], 'criado_em': _t.strftime('%Y-%m-%dT%H:%M:%S+00:00')})
+    pul_antes_ = {c for x in sim.lotes for c in x.get('pulados', [])}
+    pg.click('#ccX'); pg.click('#aCaca'); pg.wait_for_selector('#ccFull.open #ccPegar')
+    pg.fill('#ccNome', 'Caio Teste'); pg.fill('#ccQtd', '50'); pg.select_option('#ccModo', 'sobras'); pg.click('#ccPegar')
+    pg.wait_for_selector('#ccArq', state='attached', timeout=30000)
+    novo_ = sim.lotes[-1]; velhos_lotes_ = [x for x in sim.lotes[:-2]]
+    pul_ = pul_antes_
+    checar(novo_['responsavel'] == 'Caio Teste' and velhos_[1] in novo_['codigos'] and set(velhos_[2:]) <= set(novo_['codigos']), f'sobras: os sem foto dos lotes antigos: {novo_["codigos"]} (Maria: {velhos_})')
+    ix_ = novo_['codigos'].index(velhos_[1]); checar(all(c not in pul_ for c in novo_['codigos'][:ix_]), 'os "não achei" vêm por último')
+    checar(not set(novo_['codigos']) & {c for x in velhos_lotes_ for c in x['codigos']}, 'sobras saem dos lotes antigos')
+    checar(de_hoje_ not in novo_['codigos'] and sim.lotes[-2]['codigos'] == [de_hoje_], 'lote de hoje não é mexido (teste que tem de dar errado)')
     n.fechar()
 
     # Visitante: só os produtos que aparecem no portal (lista do último acesso de cliente)

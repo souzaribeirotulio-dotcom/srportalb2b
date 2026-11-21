@@ -434,6 +434,15 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     if (error) throw error;
     return [200, { dados: [...atual] }];
   }
+  if (acao === "lote_sobras") {
+    // Sobras de lotes de dias anteriores: tira de lá e grava num lote novo (função no banco, numa transação só).
+    const codigos = [...new Set((Array.isArray(d.codigos) ? d.codigos : []).map((c) => texto(c, 40)).filter(Boolean))].slice(0, 500);
+    if (!codigos.length) return [400, { mensagem: "Lote sem produtos." }];
+    const { data, error } = await admin.rpc("portal_lote_sobras", { p_loja: loja, p_codigos: codigos, p_responsavel: texto(d.responsavel, 80) || "" });
+    if (error) throw error;
+    const l = Array.isArray(data) ? data[0] : data;
+    return [200, { dados: l ? { id: l.id, numero: l.numero, responsavel: l.responsavel, codigos: l.codigos, pulados: l.pulados, criado_em: l.criado_em } : null }];
+  }
   if (acao === "lote_apagar") {
     const id = texto(d.id, 40);
     if (!/^[0-9a-f-]{36}$/.test(id)) return [400, { mensagem: "Lote inválido." }];
