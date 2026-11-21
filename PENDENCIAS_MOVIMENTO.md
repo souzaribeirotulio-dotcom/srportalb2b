@@ -147,3 +147,7 @@ Pedido: uma rota como `GET operadores/sessao` (ou campos no 201 do login) com o 
 Modelo detalhado do que pedimos (rota, campos, exemplos e perguntas): `PROPOSTA_HISTORICO_OPERADOR.md`.
 `GET historico-compras` só funciona com a sessão do próprio comprador e não traz o preço pago (só data, quantidade e unidades da última compra). O painel do operador não tem rota de histórico.
 Pedido: uma rota como `GET operadores/clientes/{cliente}/historico-compras?meses=3` (com o recorte de vendedor) que traga, por produto, a data, a quantidade, a unidade vendida (`unidade_id`) e o valor unitário efetivo da última compra. Com ela, o vendedor monta a Minha Lista do cliente e congela os preços em um passo, sem depender de PDF.
+
+## Saber, sem login, se um CNPJ/CPF já é cliente da loja (20/11)
+No "Quero ser cliente", a Souza Ribeiro quer avisar na hora que o documento já é cliente e mandar a pessoa para Entrar ou Primeiro acesso. Hoje o portal só sabe dos pedidos feitos pelo próprio portal (tabela do Supabase). O contrato não tem rota pública para isso; `POST operadores/cadastro/cnpj` exige operador, gasta cota e não serve para CPF, e o pedido de link responde a mesma mensagem de propósito.
+Pergunta/pedido: uma rota pública, com limite por IP, que diga só se o documento tem cadastro ativo na loja (sem nome nem contato), ou a orientação da Movimento para não abrir essa informação.
