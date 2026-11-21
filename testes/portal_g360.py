@@ -444,7 +444,7 @@ with sync_playwright() as pw:
     pg.wait_for_selector('#aRes .g360-msg'); checar('Usuário ou senha inválidos.' in n.tc('#aRes'), 'login operador errado')
     pg.fill('#aUsu', 'semlicenca'); pg.fill('#aSen', 'x'); pg.click('#aOk'); pg.wait_for_selector('text=Confira a disponibilidade da sua licença no G360.')
     pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
-    checar(pg.locator('#vAdm [data-at]').count() == 9, 'nove abas do painel antigo + ocorrências')
+    checar(pg.locator('#vAdm [data-at]').count() == 10, 'abas do painel antigo + ocorrências + banners')
     # Novo cliente (ficha do portal) com Buscar dados no G360
     pg.wait_for_selector('#clCad .empty2, #clCad .crow2[data-id]')
     pg.click('#clNovo'); pg.wait_for_selector('#mAdm.open #kCnpj')
@@ -573,6 +573,44 @@ with sync_playwright() as pw:
     pg.fill('#aQ', 'P-102'); pg.press('#aQ', 'Enter'); pg.wait_for_selector('.arow[data-id="102"]')
     pg.click('.arow[data-id="102"] [data-mais]'); pg.wait_for_selector('.aedit .eOculto'); pg.check('.aedit .eOculto'); pg.click('.aedit .eSalvar'); pg.wait_for_timeout(400)
     checar(sim.exibicao.get('P-102', {}).get('oculto') is True, 'produto ocultado')
+    # Banners: cadastro no painel (imagem comprimida no navegador) e carrossel no catálogo
+    import io
+    from PIL import Image as _Img
+    def _jpg(w, h, cor):
+        b = io.BytesIO(); _Img.new('RGB', (w, h), cor).save(b, 'PNG'); return b.getvalue()
+    pg.click('[data-at="ban"]'); pg.wait_for_selector('#bnNovo')
+    checar('Nenhum banner' in n.tc('#banPanel'), 'aba Banners vazia')
+    pg.click('#bnNovo'); pg.click('#bnSalva'); pg.wait_for_function("document.getElementById('bnMsg').textContent.includes('título')")
+    pg.fill('#bnTit', 'Natal Fictício'); pg.click('#bnSalva'); pg.wait_for_function("document.getElementById('bnMsg').textContent.includes('imagem do computador')")
+    checar(not sim.banners, 'banner sem título ou sem imagem não é salvo')
+    pg.set_input_files('#bnImg', files=[{'name': 'natal.png', 'mimeType': 'image/png', 'buffer': _jpg(2400, 750, (180, 20, 20))}])
+    pg.set_input_files('#bnCel', files=[{'name': 'natal-cel.png', 'mimeType': 'image/png', 'buffer': _jpg(1080, 1080, (20, 120, 20))}])
+    pg.select_option('#bnTipo', 'categoria'); pg.select_option('#bnVal', 'Limpeza')
+    pg.fill('#bnIni', '2026-11-01'); pg.fill('#bnFim', '2026-10-01'); pg.click('#bnSalva')
+    pg.wait_for_function("document.getElementById('bnMsg').textContent.includes('depois do início')")
+    pg.fill('#bnFim', '2026-12-25'); pg.click('#bnSalva'); pg.wait_for_selector('.bn-linha')
+    b_ = sim.banners[0] if sim.banners else {}
+    checar(len(sim.banners) == 1 and b_['destino_tipo'] == 'categoria' and b_['destino_valor'] == 'Limpeza' and b_['img_celular'] and b_['fim'] == '2026-12-25', f'banner salvo: {b_}')
+    checar(len(sim.banner_uploads) == 2 and all(0 < t <= 400 * 1024 for _, t in sim.banner_uploads), f'imagens comprimidas antes do envio: {sim.banner_uploads}')
+    pg.click('#bnNovo'); pg.fill('#bnTit', 'Luvas Fictícias'); pg.set_input_files('#bnImg', files=[{'name': 'l.png', 'mimeType': 'image/png', 'buffer': _jpg(1600, 500, (20, 20, 160))}])
+    pg.select_option('#bnTipo', 'busca'); pg.fill('#bnVal', 'copo'); pg.click('#bnSalva'); pg.wait_for_function("document.querySelectorAll('.bn-linha').length === 2")
+    pg.click('.bn-linha:nth-child(2) [data-sobe]'); pg.wait_for_function("document.querySelector('.bn-linha b').textContent === 'Luvas Fictícias'")
+    checar([b['titulo'] for b in sorted(sim.banners, key=lambda b: b['ordem'])] == ['Luvas Fictícias', 'Natal Fictício'], 'mudar a ordem dos banners')
+    n_ = N(pw, sim); vp = n_.pg
+    vp.wait_for_selector('#banners:not([hidden]) .bnr-slide')
+    checar(vp.locator('#banners .bnr-slide').count() == 2 and vp.locator('#banners .bnr-pontos button').count() == 2, 'carrossel com 2 banners para o visitante')
+    checar(vp.locator('#banners .bnr-slide').first.get_attribute('aria-label').startswith('Luvas Fictícias'), 'banner com o título para leitor de tela')
+    vp.locator('#banners .bnr-slide').nth(1).scroll_into_view_if_needed()
+    vp.click('#banners [data-p="1"]'); vp.wait_for_timeout(700)
+    vp.click('#banners .bnr-slide[data-i="1"]'); vp.wait_for_selector('.chip.on[data-c="Limpeza"]')
+    checar(vp.locator('#banners').is_hidden(), 'banner leva à categoria e some com a categoria escolhida')
+    n_.fechar()
+    pg.click('.bn-linha:nth-child(1) [data-liga]'); pg.wait_for_function("document.querySelector('.bn-linha [data-liga]').textContent === 'Ligar'")
+    pg.click('.bn-linha:nth-child(2) [data-apaga]'); pg.click('.bn-linha:nth-child(2) [data-apaga]'); pg.wait_for_function("document.querySelectorAll('.bn-linha').length === 1")
+    checar(len(sim.banners) == 1 and sim.banners[0]['ativo'] is False, f'desligar e apagar banner: {sim.banners}')
+    n_ = N(pw, sim); n_.pg.wait_for_selector('#grid .card'); n_.pg.wait_for_timeout(500)
+    checar(n_.pg.locator('#banners').is_hidden(), 'banner desligado não aparece (teste que tem de dar errado)')
+    n_.fechar(); sim.banners = []
     # Ficha do cliente no G360 (alterar cadastro, CEP pela API, liberar acesso e link)
     pg.click('[data-at="cli"]'); pg.wait_for_selector('#clCad .crow2[data-id] [data-g360]')
     pg.click('#clCad .crow2[data-id] [data-g360]'); pg.wait_for_selector('#mAdm.open #gSalvar')

@@ -308,3 +308,26 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
 /* A foto do detalhe aceita deslizar para o lado: o navegador só cuida da rolagem vertical ali. */
 #detBox .gmain { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 #detBox .gmain img { -webkit-user-drag: none; pointer-events: none; }
+
+/* Banners do topo do catálogo (carrossel com rolagem nativa). */
+.bnr { position: relative; max-width: 1360px; margin: 18px auto 0; padding: 0 22px; }
+.bnr-trilho { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; border-radius: 18px; overscroll-behavior-x: contain; outline: none; }
+.bnr-trilho::-webkit-scrollbar { display: none; }
+.bnr-slide { flex: 0 0 100%; scroll-snap-align: start; border: 0; padding: 0; margin: 0; background: var(--n900, #0d220c); cursor: pointer; display: block; aspect-ratio: 16 / 5; overflow: hidden; }
+.bnr-slide[tabindex="-1"] { cursor: default; }
+.bnr-slide picture, .bnr-slide img { display: block; width: 100%; height: 100%; object-fit: cover; user-select: none; -webkit-user-drag: none; }
+.bnr-slide:focus-visible { outline: 3px solid var(--lima, #b2e04a); outline-offset: -3px; }
+.bnr-seta { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(8, 27, 6, .55); color: #fff; font-size: 26px; line-height: 1; cursor: pointer; display: grid; place-items: center; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.bnr-seta.p { left: 34px; } .bnr-seta.n { right: 34px; }
+.bnr-seta:hover { background: rgba(8, 27, 6, .8); }
+.bnr-pontos { position: absolute; left: 0; right: 0; bottom: 10px; display: flex; justify-content: center; gap: 2px; pointer-events: none; }
+.bnr-pontos button { pointer-events: auto; width: 22px; height: 22px; border: 0; background: transparent; padding: 0; cursor: pointer; display: grid; place-items: center; }
+.bnr-pontos button::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, .55); box-shadow: 0 0 0 1px rgba(0, 0, 0, .25); transition: width .2s; }
+.bnr-pontos button[aria-current]::before { width: 20px; border-radius: 4px; background: #fff; }
+@media (max-width: 640px) {
+  .bnr { padding: 0 14px; margin-top: 12px; }
+  .bnr-slide { aspect-ratio: 1 / 1; }
+  .bnr-slide:not(:has(source)) { aspect-ratio: 16 / 5; }
+  .bnr-seta { display: none; }
+  .bnr-trilho { border-radius: 14px; }
+}

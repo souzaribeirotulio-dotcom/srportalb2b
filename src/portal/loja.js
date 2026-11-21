@@ -29,6 +29,7 @@ import { desenharClips, ligarClips, pausarClips, carregarClips, clipDoProduto } 
 import { abrirNegociacao, desenharMinhasNegociacoes } from './negociacao.js';
 import { htmlDisponivel, conferir, somar } from './estoque.js';
 import { abrirCadastro } from './cadastro.js';
+import { desenharBanners, pausarBanners } from './banners.js';
 
 const filtros = { q: '', grupo: '', marca: '', pagina: 1 };
 let classificacoes = null;
@@ -165,6 +166,7 @@ export function mostrarLoja(contexto, rota, params = [], estado = {}) {
   document.querySelectorAll('.view').forEach((el) => { el.hidden = el.id !== { cat: 'vCat', lista: 'vLista', ped: 'vPed', clips: 'vClips' }[rota]; });
   document.body.classList.toggle('clipsmode', rota === 'clips');
   if (rota !== 'clips') pausarClips();
+  if (rota !== 'cat') pausarBanners();
   document.querySelector('header nav').style.display = rota === 'cat' ? '' : 'none';
   desenharTopo();
   window.scrollTo(0, 0);
@@ -409,7 +411,40 @@ function atualizarCarrinhoGuardado() {
   })();
 }
 
+/* ---------------- banners ---------------- */
+
+// Banners só na vitrine principal: some durante uma busca ou com categoria escolhida.
+function atualizarBanners() {
+  const el = $('banners'); if (!el) return;
+  if (ctx?.rota !== 'cat' || filtros.q || filtros.grupo) { el.hidden = true; pausarBanners(); return; }
+  desenharBanners(el, abrirDestinoBanner);
+}
+
+function rolarParaGrade() {
+  setTimeout(() => {
+    const topo = (document.querySelector('header')?.getBoundingClientRect().height || 0) + 12;
+    window.scrollTo({ top: Math.max(0, window.scrollY + $('grid').getBoundingClientRect().top - topo - 60), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }, 80);
+}
+
+async function abrirDestinoBanner(b) {
+  const v = String(b.destino_valor || '');
+  if (b.destino_tipo === 'categoria' || b.destino_tipo === 'busca') {
+    filtros.grupo = b.destino_tipo === 'categoria' ? v : '';
+    filtros.q = b.destino_tipo === 'busca' ? v : ''; $('q').value = filtros.q;
+    filtros.pagina = 1; desenharChips(); desenharCatalogo(); rolarParaGrade();
+  } else if (b.destino_tipo === 'produto') {
+    if (!sessao.ativa) { filtros.grupo = ''; filtros.q = v; $('q').value = v; filtros.pagina = 1; desenharChips(); desenharCatalogo(); rolarParaGrade(); return; }
+    try {
+      const { dados } = await buscarProdutos(sessao.token, { codigos: [v], limite: 1 });
+      if (dados[0]) abrirDetalheLoja(apresentar(dados[0])); else toast('Este produto não está disponível no momento.');
+    } catch (e) { toast(e.message); }
+  } else if (b.destino_tipo === 'lista') exigirLogin(() => ctx.ir('/minha-lista'));
+  else if (b.destino_tipo === 'cadastro') abrirCadastro(ctxCadastro());
+}
+
 export async function desenharCatalogo() {
+  atualizarBanners();
   atualizarCarrinhoGuardado();
   sincronizarCarrinho();
   const grid = $('grid'); const pag = $('g360Pag');

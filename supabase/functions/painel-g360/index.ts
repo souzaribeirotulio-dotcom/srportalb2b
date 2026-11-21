@@ -314,6 +314,67 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     if (data?.[0]?.caminho) await admin.storage.from("portal-clips").remove([data[0].caminho]);
     return [200, { ok: true }];
   }
+  if (acao === "banners_listar") {
+    const { data, error } = await admin.from("portal_banners").select("id, titulo, img_desktop, img_celular, destino_tipo, destino_valor, ordem, inicio, fim, ativo, criado_em").eq("loja", loja).order("ordem").order("criado_em").limit(100);
+    if (error) throw error;
+    return [200, { dados: data }];
+  }
+  if (acao === "banner_upload_url") {
+    // URL assinada para o navegador enviar a imagem (já comprimida por ele) direto ao Storage.
+    const ext = ({ "image/jpeg": "jpg", "image/webp": "webp", "image/png": "png" } as Record<string, string>)[texto(d.tipo, 40)];
+    const tam = Number(d.tamanho);
+    if (!ext) return [400, { mensagem: "Envie a imagem em JPG, WebP ou PNG." }];
+    if (!(tam > 0 && tam <= 3 * 1024 * 1024)) return [400, { mensagem: "A imagem pode ter até 3 MB." }];
+    const caminho = `${loja}/${crypto.randomUUID()}.${ext}`;
+    const { data, error } = await admin.storage.from("portal-banners").createSignedUploadUrl(caminho);
+    if (error) throw error;
+    return [200, { dados: { caminho, url: data.signedUrl, token: data.token } }];
+  }
+  if (acao === "banner_salvar") {
+    const id = texto(d.id, 40);
+    const img = (v: unknown) => { const c = texto(v, 80); return c && new RegExp(`^${loja}/[0-9a-f-]{36}\\.(jpg|webp|png)$`).test(c) ? c : null; };
+    const data_ = (v: unknown) => { const c = texto(v, 10); return /^\d{4}-\d{2}-\d{2}$/.test(c) ? c : null; };
+    const linha: Record<string, unknown> = {};
+    if ("titulo" in d) { linha.titulo = texto(d.titulo, 120); if (!linha.titulo) return [400, { mensagem: "Dê um título ao banner (é o texto lido para quem não enxerga a imagem)." }]; }
+    if ("img_desktop" in d) { linha.img_desktop = img(d.img_desktop); if (!linha.img_desktop) return [400, { mensagem: "Envie a imagem do computador." }]; }
+    if ("img_celular" in d) linha.img_celular = img(d.img_celular);
+    if ("destino_tipo" in d) {
+      const t = texto(d.destino_tipo, 20);
+      if (!["nenhum", "categoria", "busca", "produto", "lista", "cadastro"].includes(t)) return [400, { mensagem: "Destino inválido." }];
+      linha.destino_tipo = t; linha.destino_valor = ["categoria", "busca", "produto"].includes(t) ? (texto(d.destino_valor, 120) || null) : null;
+      if (["categoria", "busca", "produto"].includes(t) && !linha.destino_valor) return [400, { mensagem: "Informe para onde o banner leva." }];
+    }
+    if ("ordem" in d) { const o = Number(d.ordem); linha.ordem = Number.isSafeInteger(o) ? Math.max(-1000, Math.min(1000, o)) : 0; }
+    if ("inicio" in d) linha.inicio = data_(d.inicio);
+    if ("fim" in d) linha.fim = data_(d.fim);
+    if (linha.inicio && linha.fim && String(linha.fim) < String(linha.inicio)) return [400, { mensagem: "O fim do período tem de ser depois do início." }];
+    if ("ativo" in d) linha.ativo = d.ativo !== false;
+    if (id) {
+      if (!/^[0-9a-f-]{36}$/.test(id)) return [400, { mensagem: "Banner inválido." }];
+      const antes = (await admin.from("portal_banners").select("img_desktop, img_celular").eq("id", id).eq("loja", loja).maybeSingle()).data;
+      const { error } = await admin.from("portal_banners").update(linha).eq("id", id).eq("loja", loja);
+      if (error) throw error;
+      // Imagem trocada: apaga a antiga do Storage.
+      const velhas: string[] = [];
+      if (antes && "img_desktop" in linha && antes.img_desktop && antes.img_desktop !== linha.img_desktop) velhas.push(antes.img_desktop);
+      if (antes && "img_celular" in linha && antes.img_celular && antes.img_celular !== linha.img_celular) velhas.push(antes.img_celular);
+      if (velhas.length) await admin.storage.from("portal-banners").remove(velhas);
+      return [200, { ok: true }];
+    }
+    if (!linha.titulo || !linha.img_desktop) return [400, { mensagem: "Título e imagem do computador são obrigatórios." }];
+    const { data, error } = await admin.from("portal_banners").insert({ ...linha, loja }).select("id");
+    if (error) throw error;
+    return [200, { dados: data?.[0] }];
+  }
+  if (acao === "banner_apagar") {
+    const id = texto(d.id, 40);
+    if (!/^[0-9a-f-]{36}$/.test(id)) return [400, { mensagem: "Banner inválido." }];
+    const { data, error } = await admin.from("portal_banners").delete().eq("id", id).eq("loja", loja).select("img_desktop, img_celular");
+    if (error) throw error;
+    const arqs = [data?.[0]?.img_desktop, data?.[0]?.img_celular].filter(Boolean) as string[];
+    if (arqs.length) await admin.storage.from("portal-banners").remove(arqs);
+    return [200, { ok: true }];
+  }
   if (acao === "negociacoes_listar") {
     const { data, error } = await admin.from("portal_negociacoes").select("*").eq("loja", loja).order("criado_em", { ascending: false }).limit(300);
     if (error) throw error;

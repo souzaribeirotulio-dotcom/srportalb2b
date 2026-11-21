@@ -121,6 +121,8 @@ function ligar() {
   // Abas do portal antigo + Ocorrências.
   const abas = v.querySelector('.atabs');
   if (!abas.querySelector('[data-at="ocor"]')) abas.insertAdjacentHTML('beforeend', '<button data-at="ocor">Ocorrências</button>');
+  if (!abas.querySelector('[data-at="ban"]')) abas.querySelector('[data-at="cfg"]').insertAdjacentHTML('beforebegin', '<button data-at="ban">🖼️ Banners</button>');
+  if (!$('atBan')) v.insertAdjacentHTML('beforeend', '<div id="atBan" hidden><div class="panel" id="banPanel"></div></div>');
   if (!$('atOcor')) v.insertAdjacentHTML('beforeend', '<div id="atOcor" hidden><div class="panel" id="ocPanel"></div></div>');
   if (!$('aLogin')) v.querySelector('.ph').insertAdjacentHTML('afterend', '<div id="aLogin" hidden></div>');
   abas.querySelectorAll('[data-at]').forEach((b) => b.addEventListener('click', () => { aba = b.dataset.at; desenharAba(); }));
@@ -265,7 +267,7 @@ function telaLogin() {
 
 function desenharAba() {
   document.querySelectorAll('#vAdm [data-at]').forEach((b) => b.classList.toggle('on', b.dataset.at === aba));
-  const ids = { cli: 'atCli', prod: 'atProd', cong: 'atCong', mrg: 'atMrg', intel: 'atIntel', neg: 'atNeg', souzinha: 'atSouzinha', cfg: 'atCfg', ocor: 'atOcor' };
+  const ids = { cli: 'atCli', prod: 'atProd', cong: 'atCong', mrg: 'atMrg', intel: 'atIntel', neg: 'atNeg', souzinha: 'atSouzinha', cfg: 'atCfg', ocor: 'atOcor', ban: 'atBan' };
   Object.entries(ids).forEach(([k, id]) => { $(id).hidden = k !== aba; });
   if (aba === 'cli') desenharClientes();
   else if (aba === 'prod') desenharProdutos(!prod.lista);
@@ -276,6 +278,7 @@ function desenharAba() {
   else if (aba === 'intel') desenharInteligencia();
   else if (aba === 'souzinha') desenharEscola();
   else if (aba === 'neg') desenharNegociacoes();
+  else if (aba === 'ban') import('./adminbanners.js').then((m) => m.desenharBannersPainel($('banPanel'), { painel })).catch((e) => toast(e.message));
 }
 
 /* ---------------- Negociações ---------------- */
