@@ -21,7 +21,7 @@ export async function carregarBanners() {
   pedido ??= (async () => {
     try {
       const { data, error } = await supabaseComprador().from('portal_banners')
-        .select('id, titulo, img_desktop, img_celular, destino_tipo, destino_valor, ordem')
+        .select('id, titulo, img_desktop, img_celular, video_desktop, video_celular, destino_tipo, destino_valor, ordem')
         .eq('loja', LOJA).order('ordem').order('criado_em').limit(12);
       if (error) throw error;
       lista = data || []; listaEm = Date.now();
@@ -33,6 +33,25 @@ export async function carregarBanners() {
 
 let timer = null;
 function parar() { clearInterval(timer); timer = null; }
+const celular = () => matchMedia('(max-width: 640px)').matches;
+// Vídeo só para quem não pediu menos movimento nem economia de dados; senão fica a imagem.
+const podeVideo = () => !matchMedia('(prefers-reduced-motion: reduce)').matches && !navigator.connection?.saveData;
+const videoDe = (b) => (podeVideo() ? (celular() ? (b.video_celular || b.video_desktop) : (b.video_desktop || b.video_celular)) : null);
+
+/** Toca o vídeo do banner da vez (do começo) e pausa os outros. Devolve o vídeo tocando, se houver. */
+function tocarAtual(el, i) {
+  let tocando = null;
+  el.querySelectorAll('.bnr-slide').forEach((s, k) => {
+    const v = s.querySelector('video'); if (!v) return;
+    if (k === i && !el.hidden && !document.hidden) {
+      if (!v.src) { v.src = v.dataset.src; v.preload = 'auto'; }
+      if (v.paused) { try { v.currentTime = 0; } catch { /* ainda sem dados */ } }
+      v.play().then(() => s.classList.add('com-video')).catch(() => s.classList.remove('com-video'));
+      tocando = v;
+    } else if (!v.paused) v.pause();
+  });
+  return tocando;
+}
 
 /** Desenha o carrossel em `el`. aoClicar(banner) decide o que acontece no toque. */
 export async function desenharBanners(el, aoClicar) {
@@ -40,7 +59,7 @@ export async function desenharBanners(el, aoClicar) {
   const bs = await carregarBanners();
   parar();
   if (!bs.length) { el.hidden = true; el.innerHTML = ''; return; }
-  const chave = bs.map((b) => `${b.id}:${b.img_desktop}:${b.img_celular}`).join('|');
+  const chave = bs.map((b) => `${b.id}:${b.img_desktop}:${b.img_celular}:${b.video_desktop}:${b.video_celular}`).join('|') + (celular() ? ':c' : ':d');
   if (el.dataset.chave === chave && !el.hidden) { iniciar(el); return; }
   el.dataset.chave = chave;
   el.hidden = false;
@@ -49,6 +68,7 @@ export async function desenharBanners(el, aoClicar) {
       ${bs.map((b, i) => `<button type="button" class="bnr-slide" data-i="${i}" aria-label="${esc(b.titulo)}${varios ? ` (${i + 1} de ${bs.length})` : ''}" ${b.destino_tipo === 'nenhum' ? 'tabindex="-1"' : ''}>
         <picture>${b.img_celular ? `<source media="(max-width: 640px)" srcset="${esc(urlBanner(b.img_celular))}">` : ''}
           <img src="${esc(urlBanner(b.img_desktop))}" alt="" ${i === 0 ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async" draggable="false"></picture>
+        ${videoDe(b) ? `<video muted playsinline preload="none" disablepictureinpicture data-src="${esc(urlBanner(videoDe(b)))}" aria-hidden="true"></video>` : ''}
       </button>`).join('')}
     </div>
     ${varios ? `<button type="button" class="bnr-seta p" aria-label="Banner anterior">‹</button><button type="button" class="bnr-seta n" aria-label="Próximo banner">›</button>
@@ -60,8 +80,10 @@ export async function desenharBanners(el, aoClicar) {
   const atual = () => { let m = 0; slides.forEach((_, k) => { if (Math.abs(pos(k) - trilho.scrollLeft) < Math.abs(pos(m) - trilho.scrollLeft)) m = k; }); return m; };
   const ir = (i) => { const n = bs.length; trilho.scrollTo({ left: pos((i + n) % n), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
   el._ir = ir; el._atual = atual;
+  let ultimo = -1;
   trilho.addEventListener('scroll', () => {
     const i = atual();
+    if (i !== ultimo && Math.abs(trilho.scrollLeft - pos(i)) < 4) { ultimo = i; tocarAtual(el, i); }
     el.querySelectorAll('[data-p]').forEach((p) => { if (Number(p.dataset.p) === i) p.setAttribute('aria-current', 'true'); else p.removeAttribute('aria-current'); });
   }, { passive: true });
   el.addEventListener('click', (e) => {
@@ -72,6 +94,18 @@ export async function desenharBanners(el, aoClicar) {
   // Mexeu (dedo, mouse em cima, teclado): para de passar sozinho até sair da tela.
   ['pointerdown', 'mouseenter', 'focusin', 'wheel'].forEach((ev) => el.addEventListener(ev, parar, { passive: true }));
   el.addEventListener('mouseleave', () => iniciar(el));
+  // Vídeo terminou: vai para o próximo banner (com um só banner, recomeça).
+  el.querySelectorAll('video').forEach((v) => v.addEventListener('ended', () => {
+    if (bs.length < 2) { v.currentTime = 0; v.play().catch(() => {}); return; }
+    if (!el._parado) ir(atual() + 1); else { v.currentTime = 0; v.play().catch(() => {}); }
+  }));
+  el.addEventListener('pointerdown', () => { el._parado = true; }, { passive: true });
+  // Fora da tela ou aba escondida: pausa o vídeo; voltou: toca de novo.
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(([e]) => { el._visivel = e.isIntersecting; if (e.isIntersecting) tocarAtual(el, atual()); else el.querySelectorAll('video').forEach((v) => v.pause()); }, { threshold: .3 }).observe(el);
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) el.querySelectorAll('video').forEach((v) => v.pause()); else if (el._visivel !== false) tocarAtual(el, atual()); });
+  tocarAtual(el, 0);
   iniciar(el);
 }
 
@@ -80,8 +114,11 @@ function iniciar(el) {
   if (!el?._ir || el.querySelectorAll('.bnr-slide').length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   timer = setInterval(() => {
     if (document.hidden || el.hidden || !el.isConnected || el.offsetParent === null) return;
+    // Banner com vídeo tocando: espera o vídeo terminar (o 'ended' passa para o próximo).
+    const v = el.querySelectorAll('.bnr-slide')[el._atual()]?.querySelector('video');
+    if (v && !v.paused && !v.ended) return;
     el._ir(el._atual() + 1);
   }, INTERVALO);
 }
 
-export function pausarBanners() { parar(); }
+export function pausarBanners() { parar(); document.querySelectorAll('#banners video').forEach((v) => v.pause()); }

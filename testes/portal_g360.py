@@ -610,6 +610,16 @@ with sync_playwright() as pw:
     checar(len(sim.banners) == 1 and sim.banners[0]['ativo'] is False, f'desligar e apagar banner: {sim.banners}')
     n_ = N(pw, sim); n_.pg.wait_for_selector('#grid .card'); n_.pg.wait_for_timeout(500)
     checar(n_.pg.locator('#banners').is_hidden(), 'banner desligado não aparece (teste que tem de dar errado)')
+    n_.fechar()
+    # Banner com vídeo: sem imagem escolhida, a capa sai do próprio vídeo; o portal põe o vídeo por cima da capa
+    subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=1600x500:rate=30', '-t', '2', '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '/tmp/banner_teste.mp4'], check=True)
+    vid_ = open('/tmp/banner_teste.mp4', 'rb').read(); sim.banner_video = vid_; n_up_ = len(sim.banner_uploads)
+    pg.click('#bnNovo'); pg.fill('#bnTit', 'Conheça o portal'); pg.set_input_files('#bnVid', files=[{'name': 'b.mp4', 'mimeType': 'video/mp4', 'buffer': vid_}])
+    pg.click('#bnSalva'); pg.wait_for_function("[...document.querySelectorAll('.bn-linha')].some(e => e.textContent.includes('com vídeo'))", timeout=20000)
+    bv_ = next((b for b in sim.banners if b['titulo'] == 'Conheça o portal'), {})
+    checar(bool(bv_.get('video_desktop', '').endswith('.mp4')) and bool(bv_.get('img_desktop', '').endswith('.jpg')) and len(sim.banner_uploads) == n_up_ + 2, f'banner com vídeo e capa tirada do vídeo: {bv_}')
+    n_ = N(pw, sim, largura=1280); n_.pg.wait_for_selector('#banners .bnr-slide video')
+    checar(n_.pg.locator('#banners video').get_attribute('data-src').endswith('.mp4') and n_.pg.evaluate("document.querySelector('#banners video').muted"), 'vídeo do banner sem som, por cima da capa')
     n_.fechar(); sim.banners = []
     # Ficha do cliente no G360 (alterar cadastro, CEP pela API, liberar acesso e link)
     pg.click('[data-at="cli"]'); pg.wait_for_selector('#clCad .crow2[data-id] [data-g360]')

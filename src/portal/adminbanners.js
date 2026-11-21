@@ -35,6 +35,32 @@ async function comprimir(arq, larguraMax) {
   return { blob, w: img.naturalWidth, h: img.naturalHeight };
 }
 
+/** Capa tirada do próprio vídeo (quadro de 0,5 s), para quando só o vídeo foi escolhido. */
+function capaDoVideo(arq) {
+  return new Promise((ok, falha) => {
+    const v = document.createElement('video'); const u = URL.createObjectURL(arq);
+    v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = u;
+    v.onloadeddata = () => { v.currentTime = Math.min(0.5, (v.duration || 1) / 2); };
+    v.onseeked = () => {
+      const cv = document.createElement('canvas'); cv.width = v.videoWidth; cv.height = v.videoHeight;
+      cv.getContext('2d').drawImage(v, 0, 0);
+      cv.toBlob((b) => { URL.revokeObjectURL(u); if (b) ok(new File([b], 'capa.jpg', { type: 'image/jpeg' })); else falha(new Error('Não consegui tirar a capa do vídeo. Escolha uma imagem.')); }, 'image/jpeg', .9);
+    };
+    v.onerror = () => { URL.revokeObjectURL(u); falha(new Error('Não consegui abrir o vídeo. Use MP4 (H.264).')); };
+  });
+}
+
+async function enviarVideo(painel, arq) {
+  if (arq.type !== 'video/mp4') throw new Error('O vídeo do banner tem de ser MP4.');
+  if (arq.size > 8 * 1024 * 1024) throw new Error('O vídeo do banner pode ter até 8 MB. Use um vídeo mais curto ou mais leve.');
+  let envio = arq;
+  try { const { prepararVideo } = await import('./mp4rapido.js'); const r = prepararVideo(await arq.arrayBuffer()); if (r) envio = new Blob([r], { type: 'video/mp4' }); } catch { /* vai como veio */ }
+  const up = (await painel('banner_upload_url', { tipo: 'video/mp4', tamanho: envio.size })).dados;
+  const { error } = await supabaseComprador().storage.from('portal-banners').uploadToSignedUrl(up.caminho, up.token, envio, { contentType: 'video/mp4', cacheControl: '31536000' });
+  if (error) throw new Error('Não foi possível enviar o vídeo agora. Tente de novo em instantes.');
+  return up.caminho;
+}
+
 async function enviar(painel, arq, larguraMax) {
   const { blob, w, h } = await comprimir(arq, larguraMax);
   const up = (await painel('banner_upload_url', { tipo: 'image/jpeg', tamanho: blob.size })).dados;
@@ -70,7 +96,7 @@ export async function desenharBannersPainel(alvo, { painel }) {
     const dest = DESTINOS[b.destino_tipo] + (b.destino_valor ? `: ${b.destino_valor}` : '');
     return `<div class="bn-linha" data-id="${esc(b.id)}" style="display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--linha,#ffffff1a);flex-wrap:wrap">
       <img src="${esc(urlBanner(b.img_desktop))}" alt="" style="width:160px;aspect-ratio:16/5;object-fit:cover;border-radius:8px;background:#fff" loading="lazy">
-      <div style="flex:1;min-width:180px"><b>${esc(b.titulo)}</b><small class="hint" style="display:block;margin:2px 0 0">Leva para: ${esc(dest)}${b.img_celular ? ' · com imagem de celular' : ''}</small>
+      <div style="flex:1;min-width:180px"><b>${esc(b.titulo)}</b><small class="hint" style="display:block;margin:2px 0 0">Leva para: ${esc(dest)}${b.img_celular ? ' · com imagem de celular' : ''}${b.video_desktop || b.video_celular ? ' · 🎬 com vídeo' : ''}</small>
         <small style="color:${cor};font-weight:700">${esc(sit)}</small></div>
       <div class="row" style="gap:6px;flex-wrap:wrap">
         <button class="tool" data-sobe ${i === 0 ? 'disabled' : ''} aria-label="Subir">↑</button><button class="tool" data-desce ${i === lista.length - 1 ? 'disabled' : ''} aria-label="Descer">↓</button>
@@ -82,8 +108,10 @@ export async function desenharBannersPainel(alvo, { painel }) {
       <b>${b.id ? 'Editar banner' : 'Novo banner'}</b>
       <div class="fgrid" style="margin-top:10px">
         <div class="full"><label for="bnTit">Título (o que o banner diz — é lido para quem não enxerga a imagem)</label><input class="inp" id="bnTit" maxlength="120" value="${esc(b.titulo || '')}" placeholder="Ex.: Natal Souza Ribeiro — tudo para a sua empresa"></div>
-        <div><label for="bnImg">Imagem do computador ${b.img_desktop ? '(deixe vazio para manter)' : '(obrigatória)'}</label><input class="inp" id="bnImg" type="file" accept="image/jpeg,image/png,image/webp">${b.img_desktop ? `<img src="${esc(urlBanner(b.img_desktop))}" alt="" style="width:100%;max-width:320px;aspect-ratio:16/5;object-fit:cover;border-radius:8px;margin-top:6px">` : ''}</div>
+        <div><label for="bnImg">Imagem do computador ${b.img_desktop ? '(deixe vazio para manter)' : '(obrigatória; com vídeo, pode deixar vazio que eu tiro a capa do vídeo)'}</label><input class="inp" id="bnImg" type="file" accept="image/jpeg,image/png,image/webp">${b.img_desktop ? `<img src="${esc(urlBanner(b.img_desktop))}" alt="" style="width:100%;max-width:320px;aspect-ratio:16/5;object-fit:cover;border-radius:8px;margin-top:6px">` : ''}</div>
         <div><label for="bnCel">Imagem do celular (opcional, 1080×540)</label><input class="inp" id="bnCel" type="file" accept="image/jpeg,image/png,image/webp">${b.img_celular ? `<img src="${esc(urlBanner(b.img_celular))}" alt="" style="width:160px;aspect-ratio:2/1;object-fit:cover;border-radius:8px;margin-top:6px"><label style="display:flex;gap:6px;align-items:center;margin-top:4px;font-size:13px"><input type="checkbox" id="bnCelTira"> Tirar a imagem do celular</label>` : ''}</div>
+        <div><label for="bnVid">Vídeo do computador (opcional, MP4 até 8 MB, sem som)</label><input class="inp" id="bnVid" type="file" accept="video/mp4">${b.video_desktop ? '<small class="hint" style="display:block">Já tem vídeo. <label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" id="bnVidTira"> Tirar</label></small>' : ''}</div>
+        <div><label for="bnVidC">Vídeo do celular (opcional, MP4 1080×540)</label><input class="inp" id="bnVidC" type="file" accept="video/mp4">${b.video_celular ? '<small class="hint" style="display:block">Já tem vídeo. <label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" id="bnVidCTira"> Tirar</label></small>' : ''}</div>
         <div><label for="bnTipo">Ao tocar, leva para</label><select class="inp" id="bnTipo">${Object.entries(DESTINOS).map(([k, t]) => `<option value="${k}" ${k === (b.destino_tipo || 'nenhum') ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
         <div id="bnValBox"></div>
         <div><label for="bnIni">Começa em (opcional)</label><input class="inp" id="bnIni" type="date" value="${esc(b.inicio || '')}"></div>
@@ -110,15 +138,22 @@ export async function desenharBannersPainel(alvo, { painel }) {
       e.preventDefault();
       const msg = f.querySelector('#bnMsg'); const btn = f.querySelector('#bnSalva');
       const titulo = f.querySelector('#bnTit').value.trim();
-      const img = f.querySelector('#bnImg').files[0]; const cel = f.querySelector('#bnCel').files[0];
+      let img = f.querySelector('#bnImg').files[0]; let cel = f.querySelector('#bnCel').files[0];
+      const vid = f.querySelector('#bnVid').files[0]; const vidC = f.querySelector('#bnVidC').files[0];
       if (!titulo) { msg.textContent = 'Dê um título ao banner.'; f.querySelector('#bnTit').focus(); return; }
-      if (!img && !editando.img_desktop) { msg.textContent = 'Escolha a imagem do computador.'; return; }
+      if (!img && !editando.img_desktop && !vid) { msg.textContent = 'Escolha a imagem do computador.'; return; }
       const ini = f.querySelector('#bnIni').value; const fim = f.querySelector('#bnFim').value;
       if (ini && fim && fim < ini) { msg.textContent = 'O fim do período tem de ser depois do início.'; return; }
       const dados = { titulo, destino_tipo: tipo.value, destino_valor: f.querySelector('#bnVal')?.value.trim() || '', inicio: ini, fim, ordem: editando.ordem ?? 0 };
       if (['categoria', 'busca', 'produto'].includes(dados.destino_tipo) && !dados.destino_valor) { msg.textContent = 'Informe para onde o banner leva.'; return; }
       btn.disabled = true;
       try {
+        if (!img && !editando.img_desktop && vid) { msg.textContent = 'Tirando a capa do vídeo…'; img = await capaDoVideo(vid); }
+        if (!cel && !editando.img_celular && vidC) cel = await capaDoVideo(vidC);
+        if (vid) { msg.textContent = 'Enviando o vídeo do computador…'; dados.video_desktop = await enviarVideo(painel, vid); }
+        else if (f.querySelector('#bnVidTira')?.checked) dados.video_desktop = '';
+        if (vidC) { msg.textContent = 'Enviando o vídeo do celular…'; dados.video_celular = await enviarVideo(painel, vidC); }
+        else if (f.querySelector('#bnVidCTira')?.checked) dados.video_celular = '';
         if (img) {
           msg.textContent = 'Enviando a imagem do computador…';
           const r = await enviar(painel, img, 1920); dados.img_desktop = r.caminho;

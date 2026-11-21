@@ -315,16 +315,16 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     return [200, { ok: true }];
   }
   if (acao === "banners_listar") {
-    const { data, error } = await admin.from("portal_banners").select("id, titulo, img_desktop, img_celular, destino_tipo, destino_valor, ordem, inicio, fim, ativo, criado_em").eq("loja", loja).order("ordem").order("criado_em").limit(100);
+    const { data, error } = await admin.from("portal_banners").select("id, titulo, img_desktop, img_celular, video_desktop, video_celular, destino_tipo, destino_valor, ordem, inicio, fim, ativo, criado_em").eq("loja", loja).order("ordem").order("criado_em").limit(100);
     if (error) throw error;
     return [200, { dados: data }];
   }
   if (acao === "banner_upload_url") {
     // URL assinada para o navegador enviar a imagem (já comprimida por ele) direto ao Storage.
-    const ext = ({ "image/jpeg": "jpg", "image/webp": "webp", "image/png": "png" } as Record<string, string>)[texto(d.tipo, 40)];
+    const ext = ({ "image/jpeg": "jpg", "image/webp": "webp", "image/png": "png", "video/mp4": "mp4" } as Record<string, string>)[texto(d.tipo, 40)];
     const tam = Number(d.tamanho);
-    if (!ext) return [400, { mensagem: "Envie a imagem em JPG, WebP ou PNG." }];
-    if (!(tam > 0 && tam <= 3 * 1024 * 1024)) return [400, { mensagem: "A imagem pode ter até 3 MB." }];
+    if (!ext) return [400, { mensagem: "Envie a imagem em JPG, WebP ou PNG, ou o vídeo em MP4." }];
+    if (ext === "mp4" ? !(tam > 0 && tam <= 8 * 1024 * 1024) : !(tam > 0 && tam <= 3 * 1024 * 1024)) return [400, { mensagem: ext === "mp4" ? "O vídeo do banner pode ter até 8 MB." : "A imagem pode ter até 3 MB." }];
     const caminho = `${loja}/${crypto.randomUUID()}.${ext}`;
     const { data, error } = await admin.storage.from("portal-banners").createSignedUploadUrl(caminho);
     if (error) throw error;
@@ -338,6 +338,9 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     if ("titulo" in d) { linha.titulo = texto(d.titulo, 120); if (!linha.titulo) return [400, { mensagem: "Dê um título ao banner (é o texto lido para quem não enxerga a imagem)." }]; }
     if ("img_desktop" in d) { linha.img_desktop = img(d.img_desktop); if (!linha.img_desktop) return [400, { mensagem: "Envie a imagem do computador." }]; }
     if ("img_celular" in d) linha.img_celular = img(d.img_celular);
+    const video = (v: unknown) => { const c = texto(v, 80); return c && new RegExp(`^${loja}/[0-9a-f-]{36}\\.mp4$`).test(c) ? c : null; };
+    if ("video_desktop" in d) linha.video_desktop = video(d.video_desktop);
+    if ("video_celular" in d) linha.video_celular = video(d.video_celular);
     if ("destino_tipo" in d) {
       const t = texto(d.destino_tipo, 20);
       if (!["nenhum", "categoria", "busca", "produto", "lista", "cadastro"].includes(t)) return [400, { mensagem: "Destino inválido." }];
@@ -351,13 +354,15 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     if ("ativo" in d) linha.ativo = d.ativo !== false;
     if (id) {
       if (!/^[0-9a-f-]{36}$/.test(id)) return [400, { mensagem: "Banner inválido." }];
-      const antes = (await admin.from("portal_banners").select("img_desktop, img_celular").eq("id", id).eq("loja", loja).maybeSingle()).data;
+      const antes = (await admin.from("portal_banners").select("img_desktop, img_celular, video_desktop, video_celular").eq("id", id).eq("loja", loja).maybeSingle()).data as Record<string, string | null> | null;
       const { error } = await admin.from("portal_banners").update(linha).eq("id", id).eq("loja", loja);
       if (error) throw error;
       // Imagem trocada: apaga a antiga do Storage.
       const velhas: string[] = [];
-      if (antes && "img_desktop" in linha && antes.img_desktop && antes.img_desktop !== linha.img_desktop) velhas.push(antes.img_desktop);
-      if (antes && "img_celular" in linha && antes.img_celular && antes.img_celular !== linha.img_celular) velhas.push(antes.img_celular);
+      for (const k of ["img_desktop", "img_celular", "video_desktop", "video_celular"]) {
+        const v = antes?.[k];
+        if (v && k in linha && v !== linha[k]) velhas.push(v);
+      }
       if (velhas.length) await admin.storage.from("portal-banners").remove(velhas);
       return [200, { ok: true }];
     }
@@ -369,9 +374,9 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
   if (acao === "banner_apagar") {
     const id = texto(d.id, 40);
     if (!/^[0-9a-f-]{36}$/.test(id)) return [400, { mensagem: "Banner inválido." }];
-    const { data, error } = await admin.from("portal_banners").delete().eq("id", id).eq("loja", loja).select("img_desktop, img_celular");
+    const { data, error } = await admin.from("portal_banners").delete().eq("id", id).eq("loja", loja).select("img_desktop, img_celular, video_desktop, video_celular");
     if (error) throw error;
-    const arqs = [data?.[0]?.img_desktop, data?.[0]?.img_celular].filter(Boolean) as string[];
+    const arqs = [data?.[0]?.img_desktop, data?.[0]?.img_celular, data?.[0]?.video_desktop, data?.[0]?.video_celular].filter(Boolean) as string[];
     if (arqs.length) await admin.storage.from("portal-banners").remove(arqs);
     return [200, { ok: true }];
   }
