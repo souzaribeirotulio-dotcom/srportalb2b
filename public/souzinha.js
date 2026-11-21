@@ -42,10 +42,21 @@ function open(){
  }
  // No celular, não levantar o teclado antes de o comprador pedir.
  if(!matchMedia('(max-width:700px)').matches)input.focus({preventScroll:true});
+ encaixar();
  scroll();
 }
+// No celular, a janela acompanha a parte visível da tela: quando o teclado sobe, ela encolhe
+// em vez de a página de trás rolar.
+const vv=window.visualViewport;
+function encaixar(){
+ if(!vv||!root.classList.contains('sz-open')||!matchMedia('(max-width:700px)').matches){panel.style.top=panel.style.height='';return;}
+ panel.style.top=vv.offsetTop+'px';panel.style.height=vv.height+'px';
+ scroll();
+}
+if(vv){vv.addEventListener('resize',encaixar);vv.addEventListener('scroll',encaixar);}
 function close(){
  root.classList.remove('sz-open');
+ panel.style.top=panel.style.height='';
  document.body.classList.remove('sz-chat-open');
  fab.setAttribute('aria-expanded','false');
  (formerFocus&&formerFocus.isConnected?formerFocus:fab).focus({preventScroll:true});
