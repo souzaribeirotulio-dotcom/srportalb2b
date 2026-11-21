@@ -106,6 +106,8 @@ export function indexar(linhas) {
   indice = linhas.map((r) => ({
     codigo: String(r.codigo), produto_id: r.produto_id, categoria: r.categoria, nome: r.nome,
     palavras: [...new Set(tokens(`${r.nome} ${r.nome_g360 || ''}`))], cod: normalizar(r.codigo).replace(/\s/g, ''),
+    // Nome "colado" (sem espaços), para achar "superlimpo" em "Super Limpo" e "papel toalha" em "PAPELTOALHA".
+    junto: `${normalizar(r.nome).replace(/\s/g, '')}|${normalizar(r.nome_g360 || '').replace(/\s/g, '')}`,
   }));
 }
 
@@ -126,12 +128,15 @@ function buscarUma(consulta, { categoria = '', max = 150 } = {}) {
   const qs = tokens(consulta);
   if (!qs.length) return [];
   const cod = normalizar(consulta).replace(/\s/g, '');
+  const colado = qs.join('');
   const res = []; const parciais = [];
   for (const it of indice) {
     if (categoria && it.categoria !== categoria) continue;
     if (cod && it.cod === cod) { res.push({ ...it, pontos: 1000 }); continue; }
     let soma = 0; let bateu = 0;
     qs.forEach((q, i) => { const p = pontoPalavra(q, it.palavras); if (p) { bateu += 1; soma += p + (i === 0 && it.palavras[0]?.startsWith(q) ? 3 : 0); } });
+    // A busca inteira aparece no nome, junta ou separada ("superlimpo" ↔ "Super Limpo"): é o que a pessoa procurava.
+    if (colado.length >= 5 && it.junto.includes(colado) && !it.palavras.some((w) => w.includes(colado))) { bateu = qs.length; soma = Math.max(soma, qs.length * 6) + 20; }
     if (bateu === qs.length) res.push({ ...it, pontos: soma + 10 });
     else if (qs.length >= 3 && bateu >= Math.ceil(qs.length * 0.66)) parciais.push({ ...it, pontos: soma });
   }
