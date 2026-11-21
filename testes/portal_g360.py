@@ -386,7 +386,7 @@ with sync_playwright() as pw:
     n.ir('lista'); pg.wait_for_selector('#lPanel .lrow[data-id="101"]')
     checar('R$ 11,50' in pg.locator('.lrow[data-id="101"]').text_content(), 'Minha Lista sem preço atual')
     checar(not pg.locator('.lrow[data-id="104"]').count(), 'produto só comprado (não salvo) não entra sozinho na Minha Lista')
-    checar(not pg.locator('.lrow[data-fora="999"]').count() and 'não está no portal agora' in n.tc('#lPanel'), 'produto salvo fora do catálogo fica escondido, com aviso')
+    checar(not pg.locator('.lrow[data-fora="999"]').count() and 'está indisponível no momento' in n.tc('#lPanel'), 'produto salvo fora do catálogo fica escondido, com aviso')
     busca = [x for x in sim.chamadas if x[1] == 'produtos/busca'][-1][3]
     checar(busca.get('limite') == 50 and {101, 999} <= set(busca.get('ids')), f'filtro ids/limite: {busca}')
     sim.lista[1165].discard(999); sim.lista[1165].add(104)
@@ -873,7 +873,7 @@ with sync_playwright() as pw:
     n.ir('lista'); pg.wait_for_selector('#lPanel .lrow[data-id="101"]')
     ids = sorted(int(x) for x in pg.eval_on_selector_all('#lPanel .lrow[data-id]', 'e => e.map(x => x.dataset.id)'))
     checar(ids == [101, 104], f'lista do cliente só com produtos salvos e ativos no portal: {ids}')
-    checar('1 produto da sua lista não está no portal agora' in n.tc('#lPanel'), 'aviso do produto salvo fora do portal')
+    checar('1 produto da sua lista está indisponível no momento' in n.tc('#lPanel'), 'aviso do produto salvo fora do portal')
     pg.evaluate('window.scrollTo(0, document.body.scrollHeight)'); pg.wait_for_timeout(300)
     rod_, bar_ = pg.locator('footer').bounding_box(), pg.locator('#lPanel .sticky').bounding_box()
     txt_ = pg.evaluate("(() => { const r = document.createRange(); r.selectNodeContents(document.querySelector('footer')); const b = r.getBoundingClientRect(); return b.bottom; })()")

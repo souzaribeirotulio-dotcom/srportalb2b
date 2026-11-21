@@ -73,10 +73,11 @@ export async function desenharMinhaLista(ctx) {
   // Só produtos ativos no portal. Os outros ficam guardados e voltam sozinhos quando o produto voltar ao portal.
   const noPortal = (p) => !!p && !oculto(p) && (!ativos || ativos.has(String(p.codigo)));
   const escondidos = ids.filter((id) => salvos.has(id) && !noPortal(achados.get(id))).length;
-  const avisoEsc = escondidos ? `<div class="rv-aviso" style="margin:12px">${escondidos} produto${escondidos === 1 ? '' : 's'} da sua lista não ${escondidos === 1 ? 'está' : 'estão'} no portal agora e ${escondidos === 1 ? 'fica escondido' : 'ficam escondidos'}. Volta${escondidos === 1 ? '' : 'm'} sozinho${escondidos === 1 ? '' : 's'} quando ${escondidos === 1 ? 'voltar' : 'voltarem'} ao portal.</div>` : '';
+  const um = escondidos === 1;
+  const avisoEsc = escondidos ? `<div class="rv-aviso" style="margin:12px">${um ? '1 produto da sua lista está indisponível' : `${escondidos} produtos da sua lista estão indisponíveis`} no momento. Assim que ${um ? 'voltar, ele aparece' : 'voltarem, eles aparecem'} aqui de novo.</div>` : '';
   linhas = ids.filter((id) => noPortal(achados.get(id))).map((id) => ({ id, p: achados.get(id), salvo: salvos.has(id), compra: compras.get(id) }))
     .sort((a, b) => String(a.p?.nome || 'zz').localeCompare(String(b.p?.nome || 'zz'), 'pt'));
-  if (!linhas.length) { vazia(escondidos ? `<br><small>${escondidos} produto${escondidos === 1 ? '' : 's'} salvo${escondidos === 1 ? '' : 's'} fora do portal agora.</small>` : ''); if (salvos.size) ligarEsvaziar(ctx, salvos.size); return; }
+  if (!linhas.length) { vazia(escondidos ? `<br><small>${um ? '1 produto salvo está indisponível' : `${escondidos} produtos salvos estão indisponíveis`} no momento e volta${um ? '' : 'm'} a aparecer aqui quando estiver${um ? '' : 'em'} disponíve${um ? 'l' : 'is'}.</small>` : ''); if (salvos.size) ligarEsvaziar(ctx, salvos.size); return; }
   painel.innerHTML = `${avisoLista ? `<div class="rv-aviso bad" style="margin:12px">${esc(avisoLista)}</div>` : ''}${avisoEsc}
     <div class="lrow h"><div></div><div>Produto</div><div>Histórico</div><div>Preço</div><div>Quantidade</div><div style="text-align:right">Subtotal</div></div>
     ${linhas.map(htmlLinha).join('')}
