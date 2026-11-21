@@ -25,7 +25,7 @@ import { resultadoPublico, htmlCartaoPublico, chipsPublicos, marcasPublicas, lim
 import { abrirCheckout } from './checkout.js';
 import { desenharMinhaLista } from './lista.js';
 import { desenharPedidos } from './pedidos.js';
-import { desenharClips, ligarClips, pausarClips, carregarClips, clipDoProduto } from './clips.js';
+import { desenharClips, ligarClips, pausarClips, carregarClips, clipDoProduto, urlClip } from './clips.js';
 import { abrirNegociacao, desenharMinhasNegociacoes } from './negociacao.js';
 import { htmlDisponivel, conferir, somar } from './estoque.js';
 import { abrirCadastro } from './cadastro.js';
@@ -504,6 +504,7 @@ function abrirDetalheLoja(p, aoMudarLista) {
       return !estava;
     },
     aoClip: clip ? () => ctx.ir('/clips', { clip: clip.id }) : null,
+    videoUrl: clip ? urlClip(clip.caminho) : null,
     aoNegociar: sessao.ativa && sessao.supabaseOk ? (prod, op, qtd) => abrirNegociacao([{ produto: prod, op, quantidade: qtd }]) : null,
   });
 }

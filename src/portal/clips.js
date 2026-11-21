@@ -17,7 +17,7 @@ import { htmlFoto, ligarFotos } from '../ui/fotos.js';
 import { htmlDisponivel, conferir, somar } from './estoque.js';
 
 const URL_SUPABASE = String(import.meta.env.VITE_SUPABASE_URL || '').trim();
-const urlClip = (caminho) => `${URL_SUPABASE}/storage/v1/object/public/portal-clips/${caminho.split('/').map(encodeURIComponent).join('/')}`;
+export const urlClip = (caminho) => `${URL_SUPABASE}/storage/v1/object/public/portal-clips/${caminho.split('/').map(encodeURIComponent).join('/')}`;
 
 /** Embaralha uma cópia da lista (Fisher-Yates). */
 function embaralhar(a) {
