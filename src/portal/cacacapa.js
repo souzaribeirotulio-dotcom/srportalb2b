@@ -55,16 +55,16 @@ async function escolherLote(aviso = '') {
     <div class="csec" style="margin-top:0">Pegar produtos novos</div>
     <div class="fgrid"><div><label for="ccNome">Seu nome</label><input class="inp" id="ccNome" maxlength="80" placeholder="Ex.: Maria"></div>
       <div><label for="ccQtd">Quantos produtos</label><input class="inp" id="ccQtd" type="number" min="1" max="500" value="100"></div>
-      <div class="full"><label for="ccModo">Quais produtos</label><select class="inp" id="ccModo"><option value="visivel">Aparecendo no portal e sem foto (mais vendidos primeiro)</option><option value="todos">Todos do G360 sem foto</option></select></div></div>
+      <div class="full"><label for="ccModo">Quais produtos</label><select class="inp" id="ccModo"><option value="visivel">Aparecendo no portal e sem foto (mais vendidos primeiro)</option><option value="todos">Todos do G360 sem foto</option><option value="sobras">Sobras de lotes de dias anteriores (sem foto)</option></select></div></div>
     <div id="ccMsg" class="hint" aria-live="polite"></div>
     <div class="act" style="justify-content:flex-start"><button class="btn pri" id="ccPegar" type="button">Pegar produtos e começar</button></div>
-    ${lotes.length ? `<div class="csec">Ou continuar um lote</div>${lotes.map((l) => `<div class="crow" style="grid-template-columns:1fr auto"><div class="nm"><b>Lote ${Number(l.numero)}</b>${l.responsavel ? ` · ${esc(l.responsavel)}` : ''}<small>${l.codigos.length} produtos${l.pulados?.length ? ` · ${l.pulados.length} sem foto encontrada` : ''}</small></div><button class="tool" data-lote="${esc(l.id)}">Continuar</button></div>`).join('')}` : ''}</div>`;
+    ${lotes.some((l) => l.codigos.length) ? `<div class="csec">Ou continuar um lote</div>${lotes.filter((l) => l.codigos.length).map((l) => `<div class="crow" style="grid-template-columns:1fr auto"><div class="nm"><b>Lote ${Number(l.numero)}</b>${l.responsavel ? ` · ${esc(l.responsavel)}` : ''}<small>${l.codigos.length} produtos${l.pulados?.length ? ` · ${l.pulados.length} sem foto encontrada` : ''}</small></div><button class="tool" data-lote="${esc(l.id)}">Continuar</button></div>`).join('')}` : ''}</div>`;
   $('ccPegar').onclick = async () => {
     const b = $('ccPegar'); b.disabled = true; b.textContent = 'Separando os produtos…';
     try {
       const r = await montarLote({ token: ctx.token, painel: ctx.painel, qtd: Math.max(1, Math.min(500, Math.round(Number($('ccQtd').value) || 100))), responsavel: $('ccNome').value.trim().slice(0, 80), modo: $('ccModo').value, aoProgresso: (t) => { $('ccMsg').textContent = t; } });
       if (r.semLista) { $('ccMsg').innerHTML = '<span class="ruim">Ainda não temos a lista do que aparece no portal. Entre uma vez como cliente ou escolha "Todos do G360 sem foto".</span>'; b.disabled = false; b.textContent = 'Pegar produtos e começar'; return; }
-      if (r.vazio) { $('ccMsg').textContent = 'Nenhum produto sem foto ficou de fora dos lotes. 🎉'; b.disabled = false; b.textContent = 'Pegar produtos e começar'; return; }
+      if (r.vazio) { $('ccMsg').textContent = $('ccModo').value === 'sobras' ? 'Não sobrou produto sem foto nos lotes de dias anteriores. 🎉' : 'Nenhum produto sem foto ficou de fora dos lotes. Escolha "Sobras de lotes de dias anteriores" para pegar o que ficou parado.'; b.disabled = false; b.textContent = 'Pegar produtos e começar'; return; }
       if (r.tomadosPorOutro) { $('ccMsg').textContent = 'Outra pessoa pegou estes mesmos produtos agora há pouco. Clique de novo para separar outros.'; b.disabled = false; b.textContent = 'Pegar produtos e começar'; return; }
       if (r.removidos) toast(`${r.removidos} produtos já estavam com outra pessoa e saíram do seu lote.`);
       iniciar(r.lote, r.produtos);

@@ -136,7 +136,7 @@ export async function montarLote(o) {
   const progresso = () => { if (!fatal) o.aoProgresso?.(`Conferindo quem já tem foto no G360… ${escolhidos.length} de ${o.qtd} produtos sem foto (${conferidos} conferidos${comFoto ? `, ${comFoto} já com foto` : ''}${falhas ? `, ${falhas} sem resposta do G360 deixados de lado` : ''})${aguardando ? ` · servidor ocupado, tentando de novo em ${aguardando} s…` : ''}`); };
   const aoEsperar = (s) => { aguardando = s; progresso(); setTimeout(() => { aguardando = 0; }, s * 1000); };
   const conferirFotos = async (lista) => {
-    let fila = lista.filter((p) => !tomados.has(String(p.codigo)) && !registro(p)?.oculto);
+    let fila = lista.filter((p) => (o.modo === 'sobras' || !tomados.has(String(p.codigo))) && !registro(p)?.oculto);
     // A vitrine diz de uma vez quais já têm foto: esses nem passam pela galeria.
     if (vitrineAberta) {
       const vistos = new Set();
@@ -171,6 +171,23 @@ export async function montarLote(o) {
     }));
     if (fatal) throw fatal;
   };
+  if (o.modo === 'sobras') {
+    // Produtos parados em lotes de dias anteriores: primeiro os que ninguém tentou, depois os "não achei foto".
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+    const velhos = existentes.filter((l) => new Date(l.criado_em) < hoje);
+    const pulados = new Set(velhos.flatMap((l) => (l.pulados || []).map(String)));
+    const vis = (await usar.painel('visiveis_ler')).dados?.visiveis;
+    const naVitrine = vis?.length ? new Set(vis.map(String)) : null;
+    const ordem = [...new Set(velhos.flatMap((l) => l.codigos.map(String)))].filter((c) => !naVitrine || naVitrine.has(c))
+      .map((c, i) => ({ c, i, w: (pulados.has(c) ? 10 : 0) + pesoCurva({ codigo: c }) })).sort((a, b) => a.w - b.w || a.i - b.i).map((x) => x.c);
+    for (let i = 0; i < ordem.length && escolhidos.length < o.qtd; i += 50) await conferirFotos(await produtosDosCodigos(ordem.slice(i, i + 50), usar.token));
+    if (!escolhidos.length) { if (ultimoErro) throw ultimoErro; return { vazio: true }; }
+    const lote = (await usar.painel('lote_sobras', { codigos: escolhidos.map((p) => String(p.codigo)), responsavel: o.responsavel })).dados;
+    const noLote = new Set((lote?.codigos || []).map(String));
+    const produtos = escolhidos.filter((p) => noLote.has(String(p.codigo)));
+    if (!produtos.length) return { tomadosPorOutro: escolhidos.length };
+    return { lote, produtos, removidos: escolhidos.length - produtos.length };
+  }
   if (o.modo === 'visivel') {
     const vis = (await usar.painel('visiveis_ler')).dados;
     if (!vis?.visiveis?.length) return { semLista: true };

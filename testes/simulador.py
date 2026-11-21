@@ -491,6 +491,15 @@ class Sim:
                 ja = {c for x in self.lotes for c in x['codigos']}
                 l = {'id': str(uuid.uuid4()), 'numero': max([x['numero'] for x in self.lotes] or [0]) + 1, 'responsavel': d.get('responsavel') or None, 'codigos': [c for c in d['codigos'] if c not in ja], 'pulados': [], 'criado_em': '2026-11-18T13:00:00+00:00'}
                 self.lotes.append(l); return res(200, {'dados': l})
+            if ac == 'lote_sobras':
+                # Como a função portal_lote_sobras: tira dos lotes de dias anteriores e grava um lote novo
+                hoje = time.strftime('%Y-%m-%d')
+                for x in self.lotes:
+                    if x['criado_em'][:10] < hoje:
+                        x['codigos'] = [c for c in x['codigos'] if c not in d['codigos']]; x['pulados'] = [c for c in x.get('pulados', []) if c not in d['codigos']]
+                ja = {c for x in self.lotes for c in x['codigos']}
+                l = {'id': str(uuid.uuid4()), 'numero': max([x['numero'] for x in self.lotes] or [0]) + 1, 'responsavel': d.get('responsavel') or None, 'codigos': [c for c in d['codigos'] if c not in ja], 'pulados': [], 'criado_em': time.strftime('%Y-%m-%dT%H:%M:%S+00:00')}
+                self.lotes.append(l); return res(200, {'dados': l})
             if ac == 'lote_pular':
                 l = next(x for x in self.lotes if x['id'] == d['id']); pul = set(l.get('pulados', []))
                 (pul.discard if d.get('pular') is False else pul.add)(d['codigo']); l['pulados'] = sorted(pul); return res(200, {'dados': l['pulados']})
