@@ -18,13 +18,16 @@ export function iniciarSouzinha(ctx) {
   if (iniciado) return; iniciado = true;
   carregarExibicao();
   window.Servicos = window.Servicos || {};
-  window.Servicos.assistentePerguntar = async ({ message, history, candidates }) => {
+  const perguntar = async ({ message, history, candidates }) => {
     try {
       const r = await fetch('/api/souzinha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, history, candidates }), credentials: 'omit' });
       const d = await r.json().catch(() => ({}));
       return r.ok ? d : { error: d.error || 'Não consegui responder agora. Tente novamente em instantes.' };
     } catch { return { error: 'Não foi possível falar com o servidor. Confira a conexão e tente de novo.' }; }
   };
+  // Fixa a operação: os scripts antigos (com defer) rodam depois e não podem trocá-la pela versão "pendente".
+  const fixar = () => { if (window.Servicos?.assistentePerguntar !== perguntar) { window.Servicos = { ...(window.Servicos || {}), assistentePerguntar: perguntar }; } };
+  fixar(); document.addEventListener('DOMContentLoaded', fixar); window.addEventListener('load', fixar);
   const porCodigo = (cod) => registro({ codigo: String(cod) });
   const produtoApi = async (cod) => {
     const { dados } = await buscarProdutos(sessao.token, { codigos: [String(cod)], limite: 1 });

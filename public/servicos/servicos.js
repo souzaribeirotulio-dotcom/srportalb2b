@@ -7,5 +7,7 @@ const ad=(window.SR_ADAPTADORES||{})[nome];
 if(!ad)throw new Error('Adaptador de serviços "'+nome+'" não foi carregado. Confira servicos/configuracao.js e index.html.');
 const faltando=Object.keys(window.SR_CONTRATO||{}).filter(op=>typeof ad[op]!=='function');
 if(faltando.length)console.warn('Adaptador "'+nome+'" sem as operações:',faltando.join(', '));
-window.Servicos=ad;
+// O portal (src/main.js) pode carregar antes deste arquivo e já ter ligado operações próprias
+// (ex.: assistentePerguntar da Souzinha). Essas continuam valendo; o adaptador só completa o que falta.
+window.Servicos=Object.assign({},ad,window.Servicos||{});
 })();
