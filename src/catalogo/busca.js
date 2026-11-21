@@ -92,7 +92,11 @@ function pontoPalavra(q, palavras) {
     for (const f of formas) {
       if (w === f) return 6;
       if (f.length >= 2 && w.startsWith(f)) melhor = Math.max(melhor, f === q ? 4 : 3);           // "deterg" → "detergente"
-      else if (w.length >= 3 && f.startsWith(w) && f.length > w.length) melhor = Math.max(melhor, 3); // "descartavel" → "desc"
+      else if (w.length >= 3 && f.startsWith(w) && f.length > w.length) {
+        // "descartavel" → "desc" é abreviação (3). Mas se o resto também é palavra ("superlimpo" → "super" + "limpo"),
+        // a busca era de duas palavras juntas, e bater só a primeira vale pouco (1).
+        melhor = Math.max(melhor, composta(f) ? 1 : 3);
+      }
       else if (f.length >= 5 && w.length >= 4 && quase(f, w)) melhor = Math.max(melhor, 2);           // 1 letra errada
     }
   }
@@ -100,6 +104,17 @@ function pontoPalavra(q, palavras) {
 }
 
 let indice = null; // [{ codigo, produto_id, palavras, nome, categoria }]
+let VOCABULARIO = new Set(); // palavras de 3+ letras que existem nos nomes
+const COMPOSTAS = new Map();
+/** A busca é duas palavras do catálogo coladas? ("superlimpo" = "super" + "limpo"; "descartavel" não é.) */
+function composta(f) {
+  if (!COMPOSTAS.has(f)) {
+    let sim = false;
+    for (let i = 3; i <= f.length - 3 && !sim; i += 1) sim = VOCABULARIO.has(f.slice(0, i)) && VOCABULARIO.has(f.slice(i));
+    COMPOSTAS.set(f, sim);
+  }
+  return COMPOSTAS.get(f);
+}
 
 /** Monta o índice a partir dos registros do portal (nome do portal + nome do G360 + código). */
 export function indexar(linhas) {
@@ -109,6 +124,7 @@ export function indexar(linhas) {
     // Nome "colado" (sem espaços), para achar "superlimpo" em "Super Limpo" e "papel toalha" em "PAPELTOALHA".
     junto: `${normalizar(r.nome).replace(/\s/g, '')}|${normalizar(r.nome_g360 || '').replace(/\s/g, '')}`,
   }));
+  VOCABULARIO = new Set(indice.flatMap((it) => it.palavras).filter((w) => w.length >= 3 && /^[a-z]+$/.test(w))); COMPOSTAS.clear();
 }
 
 export function indexado() { return !!indice; }
@@ -125,7 +141,8 @@ export function buscarLocal(consulta, opcoes = {}) {
 
 function buscarUma(consulta, { categoria = '', max = 150 } = {}) {
   if (!indice) return [];
-  const qs = tokens(consulta);
+  // "alcool70" → "alcool 70": letra colada em número vira duas palavras (códigos como "P-110" não passam por aqui).
+  const qs = tokens(consulta).flatMap((q) => (/^[a-z]{3,}\d+$/.test(q) ? q.match(/^([a-z]+)(\d+)$/).slice(1) : [q]));
   if (!qs.length) return [];
   const cod = normalizar(consulta).replace(/\s/g, '');
   const colado = qs.join('');
@@ -136,7 +153,10 @@ function buscarUma(consulta, { categoria = '', max = 150 } = {}) {
     let soma = 0; let bateu = 0;
     qs.forEach((q, i) => { const p = pontoPalavra(q, it.palavras); if (p) { bateu += 1; soma += p + (i === 0 && it.palavras[0]?.startsWith(q) ? 3 : 0); } });
     // A busca inteira aparece no nome, junta ou separada ("superlimpo" ↔ "Super Limpo"): é o que a pessoa procurava.
-    if (colado.length >= 5 && it.junto.includes(colado) && !it.palavras.some((w) => w.includes(colado))) { bateu = qs.length; soma = Math.max(soma, qs.length * 6) + 20; }
+    // Vale o mesmo que a palavra exata: "Multi Uso" e "Multiuso" ficam empatados para "multiuso".
+    if (colado.length >= 5 && it.junto.includes(colado) && !it.palavras.some((w) => w.includes(colado))) {
+      bateu = qs.length; soma = Math.max(soma, qs.length * 6 + (it.junto.startsWith(colado) ? 3 : 0));
+    }
     if (bateu === qs.length) res.push({ ...it, pontos: soma + 10 });
     else if (qs.length >= 3 && bateu >= Math.ceil(qs.length * 0.66)) parciais.push({ ...it, pontos: soma });
   }
