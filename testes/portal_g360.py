@@ -81,11 +81,23 @@ with sync_playwright() as pw:
     # Quero ser cliente: cadastro de quem ainda não é cliente
     n.pg.click('#lgX'); n.pg.click('#gCadastro'); n.pg.wait_for_selector('#mCad.open #kDoc')
     n.pg.click('#kEnviar')
-    checar('CNPJ' in n.tc('#kDocErr') and 'WhatsApp' in n.tc('#kWhatsErr'), 'cadastro vazio sem avisos por campo')
+    checar('CNPJ' in n.tc('#kDocErr') and 'WhatsApp' in n.tc('#kWhatsErr') and 'ramo' in n.tc('#kSegErr'), 'cadastro vazio sem avisos por campo')
+    # CNPJ numérico: busca pública (fictícia aqui) preenche empresa, endereço, IE e sugere o ramo
+    import json as _j
+    _ws = {'razao_social': 'SALAO FICTICIO LTDA', 'estabelecimento': {'nome_fantasia': 'Salão Exemplo', 'situacao_cadastral': 'Ativa', 'cep': '38400000',
+           'tipo_logradouro': 'Rua', 'logradouro': 'Exemplo', 'numero': '10', 'bairro': 'Centro', 'cidade': {'nome': 'Cidade Exemplo'}, 'estado': {'sigla': 'MG'},
+           'email': 'contato@example.invalid', 'atividade_principal': {'descricao': 'Cabeleireiros, manicure e pedicure'},
+           'inscricoes_estaduais': [{'inscricao_estadual': '0012345670099', 'ativo': True, 'estado': {'sigla': 'MG'}}]}}
+    n.pg.route('**/publica.cnpj.ws/**', lambda r: r.fulfill(status=200, content_type='application/json', headers={'Access-Control-Allow-Origin': '*'}, body=_j.dumps(_ws)))
+    n.pg.route('**/open.cnpja.com/**', lambda r: r.fulfill(status=404, headers={'Access-Control-Allow-Origin': '*'}, body='{}'))
+    n.pg.route('**/brasilapi.com.br/**', lambda r: r.fulfill(status=404, headers={'Access-Control-Allow-Origin': '*'}, body='{}'))
+    n.pg.fill('#kDoc', '11222333000181'); n.pg.wait_for_selector('#kResumo:not([hidden])')
+    checar(n.pg.input_value('#kIe') == '0012345670099' and 'IE 0012345670099' in n.tc('#kResumo') and n.pg.input_value('#kSeg') == 'Salão de beleza ou estética' and n.pg.input_value('#kCidade') == 'Cidade Exemplo',
+           f"CNPJ preenche IE, endereço e ramo: ie={n.pg.input_value('#kIe')} seg={n.pg.input_value('#kSeg')}")
     for i, v in [('kDoc', '12.ABC.345/01DE-35'), ('kRazao', 'Empresa Fictícia LTDA'), ('kResp', 'Pessoa Fictícia'), ('kWhats', '(34) 99999-0000'),
                  ('kEmail', 'compras@example.invalid'), ('kRua', 'Rua Exemplo'), ('kNum', '10'), ('kCidade', 'Cidade Exemplo'), ('kBairro', 'Centro')]:
         n.pg.fill('#' + i, v)
-    n.pg.fill('#kCep', '38400000')
+    n.pg.fill('#kCep', '38400000'); n.pg.select_option('#kSeg', 'Escritório')
     checar(n.pg.evaluate("document.documentElement.classList.contains('g360-travado')"), 'janela aberta: o fundo não rola')
     n.pg.keyboard.press('Escape'); n.pg.wait_for_selector('#mConf.open')
     checar('Sair sem salvar' in n.tc('#mConf'), 'ESC com dados preenchidos pergunta antes de fechar')
@@ -99,6 +111,7 @@ with sync_playwright() as pw:
     n.pg.click('#kEnviar'); n.pg.wait_for_selector('#cadBox .ok')
     checar(sim.cadastros[0]['whats'] == '6499997015', f"WhatsApp com +55 aceito e gravado só com DDD + número: {sim.cadastros[0]['whats']}")
     checar(len(sim.cadastros) == 1 and sim.cadastros[0]['documento'] == '12ABC34501DE35' and sim.cadastros[0]['loja'] == '96da1e99a3f327f0', f'cadastro não chegou: {sim.cadastros}')
+    checar(sim.cadastros[0].get('segmento') == 'Escritório', f"ramo do negócio gravado: {sim.cadastros[0].get('segmento')}")
     n.pg.screenshot(path=f'{OUT}/portal_cadastro_enviado_390.png')
     n.pg.keyboard.press('Escape'); n.pg.wait_for_selector('#mCad:not(.open)', state='attached')
     checar(n.pg.locator('#mConf.open').count() == 0 and not n.pg.evaluate("document.documentElement.classList.contains('g360-travado')"), 'cadastro enviado: ESC fecha sem perguntar e o fundo volta a rolar')

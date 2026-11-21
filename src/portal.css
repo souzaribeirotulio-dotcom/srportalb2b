@@ -271,3 +271,29 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
 
 /* Antes do primeiro desenho do catálogo (internet lenta), a tela não fica em branco */
 #grid:empty::before { content: 'Carregando produtos…'; display: block; grid-column: 1 / -1; text-align: center; padding: 48px 16px; color: var(--tx2); }
+
+/* Quero ser cliente */
+.kcad .ksec { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--linha); }
+.kcad .ksec:first-of-type { border-top: 0; padding-top: 0; }
+.kcad .ktit { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; margin-bottom: 2px; }
+.kcad .ktit span { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--limas); color: var(--lima); font-size: 12.5px; border: 1px solid rgba(178,224,74,.3); }
+.kcad .kc label { text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--tx); font-weight: 600; margin: 12px 0 6px; }
+.kcad .kop { font-weight: 400; color: var(--tx3); }
+.kcad .kdica { margin: 4px 0 0; font-size: 12px; }
+.kcad .grade2k { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+.kcad .kcid { grid-template-columns: 1fr 90px; }
+.kcad .kchk { display: flex !important; align-items: center; gap: 8px; text-transform: none !important; letter-spacing: 0 !important; font-size: 13px !important; color: var(--tx) !important; font-weight: 500 !important; margin: 8px 0 0 !important; cursor: pointer; }
+.kcad .kchk input { width: 18px; height: 18px; accent-color: var(--lima); }
+.kcad .kresumo { margin: 10px 0 4px; padding: 12px 14px; border-radius: 12px; background: rgba(178,224,74,.07); border: 1px solid rgba(178,224,74,.25); }
+.kcad .kr1 { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
+.kcad .kr1 b { font-size: 14.5px; }
+.kcad .kr2 { font-size: 12.5px; color: var(--tx2); margin-top: 3px; }
+.kcad .kst { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.kcad .kst.ok { background: var(--limas); color: var(--lima); }
+.kcad .kst.bad { background: rgba(255,138,138,.15); color: #ff8a8a; }
+.kcad .kresumo .tool { margin-top: 10px; }
+.kcad .kbusca::before { content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 6px; border: 2px solid var(--lima); border-right-color: transparent; border-radius: 50%; animation: kgira .8s linear infinite; vertical-align: -2px; }
+@keyframes kgira { to { transform: rotate(360deg); } }
+.kcad .kact { position: sticky; bottom: -24px; margin: 18px -24px -24px; padding: 14px 24px calc(14px + env(safe-area-inset-bottom)); background: linear-gradient(180deg, rgba(10,31,7,.85), #0a1f07 40%); border-top: 1px solid var(--linha); }
+@media (max-width: 640px) { .kcad .kact { bottom: calc(-20px - env(safe-area-inset-bottom)); margin: 18px -16px calc(-20px - env(safe-area-inset-bottom)); padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); } }
+@media (max-width: 420px) { .kcad .grade2k { grid-template-columns: 1fr; } .kcad .kcid { grid-template-columns: 1fr 90px; } }

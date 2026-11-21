@@ -981,7 +981,7 @@ function pintarCadastros() {
     + (L.length ? L.map((k) => `<div class="crow2" data-id="${esc(k.id)}">
       <div class="nm"><b>${esc(k.fantasia || k.razao_social)}</b><small>${esc(fmtDoc(k.documento))} · ${esc(k.razao_social)}</small>
         <small>IE: ${esc(k.inscricao_estadual || 'não informada')}${k.email ? ` · ${esc(k.email)}` : ''}</small>
-        <small>${esc(k.origem || (k.criado_por === 'equipe' ? 'Cadastrado pela equipe' : 'Quero ser cliente'))}${k.whats ? ` · ${esc(fmtTel(k.whats))}` : ''}${k.vendedor ? ` · Vendedor: ${esc(k.vendedor)}` : ''}</small>
+        <small>${k.segmento ? `<b style="color:var(--lima)">${esc(k.segmento)}</b> · ` : ''}${esc(k.origem || (k.criado_por === 'equipe' ? 'Cadastrado pela equipe' : 'Quero ser cliente'))}${k.whats ? ` · ${esc(fmtTel(k.whats))}` : ''}${k.vendedor ? ` · Vendedor: ${esc(k.vendedor)}` : ''}</small>
         ${k.observacao_equipe ? `<small>Obs.: ${esc(k.observacao_equipe)}</small>` : ''}</div>
       <div class="sm sm2">${k.codigo_g360 ? esc(k.codigo_g360) : '<span style="color:var(--tx3)">—</span>'}</div>
       <div class="sm">${esc(k.cidade || '')}${k.uf ? `/${esc(k.uf)}` : ''}${k.codigo_g360 ? `<span class="som"> · cód. ${esc(k.codigo_g360)}</span>` : ''}</div>
