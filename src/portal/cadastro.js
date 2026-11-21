@@ -99,6 +99,15 @@ export async function consultarCnpj(d) {
   return r;
 }
 
+/** Situação do documento no portal: 'pendente', 'aprovado', 'recusado' ou null (sem cadastro). Falha → null. */
+async function situacaoNoPortal(doc) {
+  try {
+    const sb = supabaseComprador(); if (!sb) return null;
+    const { data, error } = await sb.rpc('portal_cadastro_situacao', { p_loja: LOJA, p_documento: doc });
+    return error ? null : (data || null);
+  } catch { return null; }
+}
+
 export function abrirCadastro(ctx) {
   const opcoes = (lista) => `<option value="">Selecione…</option>${lista.map((o) => `<option>${esc(o)}</option>`).join('')}`;
   $('cadBox').innerHTML = `<div class="kcad"><h3>Quero ser cliente</h3>
@@ -107,6 +116,7 @@ export function abrirCadastro(ctx) {
     <div class="ksec"><div class="ktit"><span>1</span>Sua empresa</div>
       ${campo('kDoc', 'CNPJ ou CPF', 'maxlength="18" autocomplete="off" autocapitalize="characters" inputmode="text" enterkeyhint="next" placeholder="00.000.000/0000-00"', true)}
       <div class="hint" id="kDocSt" aria-live="polite"></div>
+      <div id="kJa" class="kja" hidden></div>
       <div id="kResumo" class="kresumo" hidden></div>
       <div id="kEmpresa">
         ${campo('kRazao', 'Razão social', 'maxlength="200" autocomplete="organization"', true)}
@@ -158,11 +168,37 @@ export function abrirCadastro(ctx) {
     document.querySelector('label[for="kRazao"]').innerHTML = pf ? 'Nome completo' : 'Razão social';
   };
   const mostrarCampos = () => { $('kEmpresa').hidden = false; $('kResumo').hidden = true; };
+  // Documento que já tem cadastro no portal: avisa na hora e mostra o caminho certo (entrar ou aguardar).
+  let jaConsultado = ''; let jaCadastrado = null;
+  const conferirJaCadastrado = async () => {
+    const c = doc.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    const completo = c.length === 14 || (c.length === 11 && /^\d+$/.test(c));
+    if (!completo) { jaConsultado = ''; jaCadastrado = null; $('kJa').hidden = true; $('kEnviar').disabled = false; return; }
+    if (c === jaConsultado) return; jaConsultado = c;
+    const st = await situacaoNoPortal(c);
+    if (doc.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase() !== c) return;
+    jaCadastrado = st;
+    const caixa = $('kJa');
+    if (!st) { caixa.hidden = true; $('kEnviar').disabled = false; return; }
+    const tipo = c.length === 11 ? 'CPF' : 'CNPJ';
+    const textos = {
+      aprovado: [`Este ${tipo} já está cadastrado no portal.`, 'É só entrar com ele e a sua senha. Se ainda não criou a senha ou esqueceu, use <b>Primeiro acesso</b>: o link chega no e-mail cadastrado.'],
+      pendente: [`Já recebemos um cadastro com este ${tipo}.`, 'A equipe da Souza Ribeiro está analisando e fala com você pelo WhatsApp. Depois da aprovação, use <b>Primeiro acesso</b> para criar a senha.'],
+      recusado: [`Já existe um cadastro com este ${tipo}.`, 'Para mais informações, fale com a equipe da Souza Ribeiro.'],
+    }[st] || [`Este ${tipo} já está cadastrado no portal.`, ''];
+    caixa.innerHTML = `<div class="kja1">✓ ${textos[0]}</div>${textos[1] ? `<div class="kja2">${textos[1]}</div>` : ''}
+      ${st === 'aprovado' || st === 'pendente' ? `<div class="kja3">${st === 'aprovado' ? '<button type="button" class="btn pri" id="kJaEntrar">Entrar</button>' : ''}${ctx.loja?.troca_senha !== false ? '<button type="button" class="btn sec" id="kJaPrimeiro">Primeiro acesso</button>' : ''}</div>` : ''}`;
+    caixa.hidden = false;
+    $('kEnviar').disabled = true;
+    $('kJaEntrar')?.addEventListener('click', () => { fecharModal('mCad'); ctx.abrirLogin?.(doc.value); });
+    $('kJaPrimeiro')?.addEventListener('click', () => { fecharModal('mCad'); ctx.ir?.('/primeiro-acesso'); });
+  };
   let ultimaConsulta = '';
   doc.addEventListener('input', async () => {
     const pos = doc.selectionStart === doc.value.length; doc.value = mascaraDoc(doc.value); if (pos) doc.setSelectionRange(doc.value.length, doc.value.length);
     $('kDocErr').textContent = ''; doc.removeAttribute('aria-invalid');
     ajustarTipo();
+    conferirJaCadastrado();
     const d = so(doc.value);
     if (d.length !== 14 || /[A-Za-z]/.test(doc.value)) { $('kDocSt').textContent = ''; if (!$('kResumo').hidden) mostrarCampos(); return; }
     if (d === ultimaConsulta) return; ultimaConsulta = d;
@@ -222,6 +258,7 @@ export function abrirCadastro(ctx) {
   $('kEmail').addEventListener('blur', () => { $('kEmail').value = $('kEmail').value.trim().toLowerCase(); });
 
   $('kEnviar').onclick = async () => {
+    if (jaCadastrado) { $('kJa').scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
     const v = (id) => $(id).value.trim();
     const erros = {};
     const pf = ePf();

@@ -115,6 +115,15 @@ with sync_playwright() as pw:
     n.pg.screenshot(path=f'{OUT}/portal_cadastro_enviado_390.png')
     n.pg.keyboard.press('Escape'); n.pg.wait_for_selector('#mCad:not(.open)', state='attached')
     checar(n.pg.locator('#mConf.open').count() == 0 and not n.pg.evaluate("document.documentElement.classList.contains('g360-travado')"), 'cadastro enviado: ESC fecha sem perguntar e o fundo volta a rolar')
+    # O mesmo documento de novo: o portal avisa na hora que já tem cadastro e não deixa enviar outro
+    n.pg.click('#gCadastro'); n.pg.wait_for_selector('#mCad.open #kDoc'); n.pg.fill('#kDoc', '12.ABC.345/01DE-35')
+    n.pg.wait_for_selector('#kJa:not([hidden])')
+    checar('Já recebemos um cadastro com este CNPJ' in n.tc('#kJa') and n.pg.locator('#kEnviar').is_disabled() and len(sim.cadastros) == 1, f"CNPJ já cadastrado avisado na hora: {n.tc('#kJa')}")
+    sim.cadastros[0]['codigo_g360'] = 501; n.pg.fill('#kDoc', ''); n.pg.fill('#kDoc', '12.ABC.345/01DE-35'); n.pg.wait_for_selector('#kJaEntrar')
+    checar('já está cadastrado no portal' in n.tc('#kJa'), 'cadastro aprovado: aviso para entrar')
+    n.pg.click('#kJaEntrar'); n.pg.wait_for_selector('#mLogin.open')
+    checar(n.pg.input_value('#lgC').replace('.', '').replace('/', '').replace('-', '').upper().startswith('12ABC') and n.pg.locator('#mCad.open').count() == 0, f"Entrar abre o login com o documento: {n.pg.input_value('#lgC')}")
+    n.pg.keyboard.press('Escape')
     n.fechar()
     sim = Sim(); sim.cenario['loja'] = {'falhar': (503, 'INDISPONIVEL', 'Serviço temporariamente indisponível.', 'tentar_de_novo')}
     n = N(pw, sim)

@@ -297,3 +297,8 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
 .kcad .kact { position: sticky; bottom: -24px; margin: 18px -24px -24px; padding: 14px 24px calc(14px + env(safe-area-inset-bottom)); background: linear-gradient(180deg, rgba(10,31,7,.85), #0a1f07 40%); border-top: 1px solid var(--linha); }
 @media (max-width: 640px) { .kcad .kact { bottom: calc(-20px - env(safe-area-inset-bottom)); margin: 18px -16px calc(-20px - env(safe-area-inset-bottom)); padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); } }
 @media (max-width: 420px) { .kcad .grade2k { grid-template-columns: 1fr; } .kcad .kcid { grid-template-columns: 1fr 90px; } }
+.kcad .kja { margin: 10px 0 4px; padding: 12px 14px; border-radius: 12px; background: rgba(178,224,74,.1); border: 1px solid rgba(178,224,74,.4); }
+.kcad .kja1 { font-weight: 700; color: var(--lima); font-size: 14.5px; }
+.kcad .kja2 { font-size: 13px; color: var(--tx2); margin-top: 4px; line-height: 1.45; }
+.kcad .kja3 { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.kcad .kja3 .btn { height: 40px; padding: 0 16px; flex: 1; min-width: 130px; }
