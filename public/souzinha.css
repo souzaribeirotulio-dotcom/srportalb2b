@@ -38,7 +38,11 @@
  #souzinha-widget .sz-head{padding:calc(10px + env(safe-area-inset-top,0px)) 13px 10px;min-height:calc(72px + env(safe-area-inset-top,0px))}
  #souzinha-widget .sz-messages{padding:16px 13px}
  #souzinha-widget .sz-actions{gap:7px}
- body.sz-chat-open{overflow:hidden;overscroll-behavior:none}
+ body.sz-chat-open{overflow:hidden;overscroll-behavior:none;background:#0b2109}
+ html:has(body.sz-chat-open){background:#0b2109}
+ /* Com a conversa aberta, a página fica invisível (sem perder a posição): o iPhone mostra o conteúdo da página
+    por trás das barras transparentes dele, e elemento fixo nenhum consegue cobrir essa faixa. */
+ body.sz-chat-open>:not(#souzinha-widget){visibility:hidden!important}
  /* Letra de 16px: com menos que isso o iPhone dá zoom ao tocar no campo. */
  #souzinha-widget .sz-input{font-size:16px}
  #souzinha-widget .sz-panel{bottom:auto;overscroll-behavior:contain}
