@@ -116,11 +116,24 @@ function composta(f) {
   return COMPOSTAS.get(f);
 }
 
+// Tamanhos de luva, avental, roupa etc. "(P)", "Tam. G", "GG". Número antes ("500 g", "10 m") é medida, não tamanho.
+const TAMANHOS = new Set(['pp', 'p', 'm', 'g', 'gg', 'xg', 'xgg', 'eg', 'egg', 'xp', 'xxg']);
+function tamanhosDe(texto) {
+  const w = normalizar(texto).split(' '); const out = new Set();
+  w.forEach((x, i) => { if (TAMANHOS.has(x) && !/\d$/.test(w[i - 1] || '')) out.add(x); });
+  return out;
+}
+/** Tamanho pedido na busca. O "p" só conta no fim ("luva p"), porque no meio costuma ser "para" ("saco p lixo"). */
+function tamanhoDaBusca(consulta) {
+  const w = normalizar(consulta).split(' ').filter(Boolean);
+  return w.filter((x, i) => TAMANHOS.has(x) && (x !== 'p' || i === w.length - 1) && i > 0 && !/\d$/.test(w[i - 1]));
+}
+
 /** Monta o índice a partir dos registros do portal (nome do portal + nome do G360 + código). */
 export function indexar(linhas) {
   indice = linhas.map((r) => ({
     codigo: String(r.codigo), produto_id: r.produto_id, categoria: r.categoria, nome: r.nome,
-    palavras: [...new Set(tokens(`${r.nome} ${r.nome_g360 || ''}`))], cod: normalizar(r.codigo).replace(/\s/g, ''),
+    palavras: [...new Set(tokens(`${r.nome} ${r.nome_g360 || ''}`))], tam: new Set([...tamanhosDe(r.nome), ...tamanhosDe(r.nome_g360)]), cod: normalizar(r.codigo).replace(/\s/g, ''),
     // Nome "colado" (sem espaços), para achar "superlimpo" em "Super Limpo" e "papel toalha" em "PAPELTOALHA".
     junto: `${normalizar(r.nome).replace(/\s/g, '')}|${normalizar(r.nome_g360 || '').replace(/\s/g, '')}`,
   }));
@@ -142,7 +155,9 @@ export function buscarLocal(consulta, opcoes = {}) {
 function buscarUma(consulta, { categoria = '', max = 150 } = {}) {
   if (!indice) return [];
   // "alcool70" → "alcool 70": letra colada em número vira duas palavras (códigos como "P-110" não passam por aqui).
-  const qs = tokens(consulta).flatMap((q) => (/^[a-z]{3,}\d+$/.test(q) ? q.match(/^([a-z]+)(\d+)$/).slice(1) : [q]));
+  // O tamanho ("luva nitrilica p") não é exigido: ele sobe quem é do tamanho, e os outros tamanhos vêm logo depois.
+  const tams = tamanhoDaBusca(consulta);
+  const qs = tokens(consulta).filter((q) => !tams.includes(q)).flatMap((q) => (/^[a-z]{3,}\d+$/.test(q) ? q.match(/^([a-z]+)(\d+)$/).slice(1) : [q]));
   if (!qs.length) return [];
   const cod = normalizar(consulta).replace(/\s/g, '');
   const colado = qs.join('');
@@ -157,6 +172,7 @@ function buscarUma(consulta, { categoria = '', max = 150 } = {}) {
     if (colado.length >= 5 && it.junto.includes(colado) && !it.palavras.some((w) => w.includes(colado))) {
       bateu = qs.length; soma = Math.max(soma, qs.length * 6 + (it.junto.startsWith(colado) ? 3 : 0));
     }
+    if (tams.length && tams.some((t) => it.tam.has(t))) soma += 12;
     if (bateu === qs.length) res.push({ ...it, pontos: soma + 10 });
     else if (qs.length >= 3 && bateu >= Math.ceil(qs.length * 0.66)) parciais.push({ ...it, pontos: soma });
   }
