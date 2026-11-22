@@ -684,6 +684,9 @@ function ligarLogin() {
   doc.placeholder = 'Digite com ou sem pontuação'; doc.inputMode = 'text'; doc.maxLength = 32; doc.autocapitalize = 'characters';
   $('lgS').maxLength = 64;
   if (!$('lgRes')) $('lgE').insertAdjacentHTML('afterend', '<div id="lgRes" aria-live="polite"></div><p class="hint" id="lgSessao"></p>');
+  if (!$('lgContW')) $('lgE').insertAdjacentHTML('beforebegin', `<div class="lg-cont" id="lgContW" hidden>
+    <label for="lgCont"><input type="checkbox" id="lgCont"><span>Continuar conectado</span></label>
+    <small>Não marque em computador compartilhado.</small></div>`);
   $('lgX').onclick = () => { fecharModal('mLogin'); depoisDoLogin = null; };
   // Formulário de verdade: o navegador oferece salvar o CNPJ e a senha e preenche no próximo login.
   // O Enter na senha envia o formulário (clique no botão Entrar); a página não recarrega.
@@ -697,7 +700,8 @@ function ligarLogin() {
     if (!senha) { $('lgE').textContent = 'Digite a senha.'; $('lgS').focus(); return; }
     $('lgOk').disabled = true; $('lgOk').textContent = 'Entrando…';
     try {
-      await entrar(usuario, senha);
+      const continuar = !$('lgContW').hidden && $('lgCont').checked;
+      await entrar(usuario, senha, continuar);
       $('lgS').value = '';
       fecharModal('mLogin');
       ctx.aoEntrar();
@@ -723,7 +727,14 @@ export function abrirLogin(depois = null, mensagemErro = null, mensagemOk = null
   $('lgE').textContent = mensagemErro || '';
   $('lgRes').innerHTML = mensagemOk ? `<div class="rv-aviso">${esc(mensagemOk)}</div>` : '';
   const min = Number(ctx?.loja?.sessao_minutos);
-  $('lgSessao').textContent = Number.isFinite(min) ? `Por segurança, a sessão encerra após ${min} minuto${min === 1 ? '' : 's'} sem uso.` : '';
+  // Continuar conectado: só com continuar_conectado_dias > 0 em GET loja; sem o campo, vale zero.
+  const dias = Number(ctx?.loja?.continuar_conectado_dias);
+  const comLonga = Number.isFinite(dias) && dias > 0;
+  $('lgContW').hidden = !comLonga;
+  $('lgCont').checked = false; // sempre começa desmarcada
+  $('lgSessao').textContent = Number.isFinite(min)
+    ? `Por segurança, a sessão encerra após ${min} minuto${min === 1 ? '' : 's'} sem uso${comLonga ? ', a menos que você marque Continuar conectado' : ''}.`
+    : '';
   const semTroca = ctx?.loja?.troca_senha !== true;
   $('lgEsqL').style.display = semTroca ? 'none' : '';
   abrirModal('mLogin');

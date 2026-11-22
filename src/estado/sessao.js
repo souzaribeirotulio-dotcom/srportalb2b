@@ -1,9 +1,13 @@
 /* =====================================================================
    Sessão do comprador (seção 7 do CLAUDE.md).
-   - Token da API na memória e no sessionStorage da aba (chave só dele), para o F5
-     não derrubar a sessão. Fechar a aba ou abrir outra pede login. Nada de
-     localStorage, cookie ou URL. Ao recarregar: GET me e abrir_sessao de novo.
-   - Inatividade contada a partir da última chamada autenticada aceita.
+   - Sessão normal: token na memória e no sessionStorage da aba (g360:<loja>:comprador:sessao),
+     para o F5 não derrubar a sessão. Fechar a aba ou o app pede login.
+   - "Continuar conectado" efetivo (resposta do POST sessoes): token no localStorage
+     (g360:<loja>:comprador:persistente). Vale ao fechar e abrir o app; o G360 renova
+     o prazo pelo uso, até 90 dias do login. Sem inatividade em minutos nesse caso.
+   - Antes de guardar um token novo, e ao sair / 401, as duas chaves são apagadas.
+     Nada de cookie ou URL. Ao reabrir: GET me e abrir_sessao de novo.
+   - Inatividade (só na sessão normal) contada a partir da última chamada autenticada aceita.
    - Vínculo do Supabase (Minha Lista, ocorrências) conferido antes de ler
      ou gravar; vencido, reabre pela ponte com o token em memória.
    ===================================================================== */
@@ -12,9 +16,26 @@ import { abrirSessaoPonte, ErroPonte } from '../api/ponte.js';
 import { vincularCarrinho, desvincularCarrinho } from './carrinho.js';
 import { supabaseComprador, supabaseConfigurado, LOJA } from '../api/supabase.js';
 
-const CHAVE_TOKEN = `sr-g360-comprador-${LOJA}`;
-function guardarToken(t) { try { if (t) sessionStorage.setItem(CHAVE_TOKEN, t); else sessionStorage.removeItem(CHAVE_TOKEN); } catch { /* sem storage: vale só a memória */ } }
-function tokenGuardado() { try { return sessionStorage.getItem(CHAVE_TOKEN); } catch { return null; } }
+const CHAVE_SESSAO = `g360:${LOJA}:comprador:sessao`;
+const CHAVE_PERSISTENTE = `g360:${LOJA}:comprador:persistente`;
+const CHAVE_ANTIGA = `sr-g360-comprador-${LOJA}`; // versão anterior (só sessionStorage)
+
+function apagarTokens() {
+  try { sessionStorage.removeItem(CHAVE_SESSAO); sessionStorage.removeItem(CHAVE_ANTIGA); } catch { /* sem storage */ }
+  try { localStorage.removeItem(CHAVE_PERSISTENTE); } catch { /* sem storage */ }
+}
+/** Guarda o token: apaga os dois lugares e grava no localStorage só com Continuar conectado efetivo. */
+function guardarToken(t, persistente = false) {
+  apagarTokens();
+  if (!t) return;
+  try { (persistente ? localStorage : sessionStorage).setItem(persistente ? CHAVE_PERSISTENTE : CHAVE_SESSAO, t); } catch { /* sem storage: vale só a memória */ }
+}
+/** Token guardado: primeiro o da aba (sessão normal), depois o persistente. */
+function tokenGuardado() {
+  try { const t = sessionStorage.getItem(CHAVE_SESSAO) || sessionStorage.getItem(CHAVE_ANTIGA); if (t) return { token: t, persistente: false }; } catch { /* sem storage */ }
+  try { const t = localStorage.getItem(CHAVE_PERSISTENTE); if (t) return { token: t, persistente: true }; } catch { /* sem storage */ }
+  return null;
+}
 
 const MARGEM_VINCULO_MS = 15000;
 
@@ -27,6 +48,7 @@ const estado = {
   ultimaAtividade: 0,
   vinculoExpira: 0,
   supabaseOk: false,
+  longa: false, // Continuar conectado efetivo
 };
 let relogio = null;
 const ouvintes = new Set();
@@ -40,6 +62,7 @@ export const sessao = {
   get comprador() { return estado.comprador; },
   get loja() { return estado.loja; },
   get supabaseOk() { return estado.supabaseOk; },
+  get continuarConectado() { return estado.longa; },
 };
 
 function limparEstado() {
@@ -51,6 +74,7 @@ function limparEstado() {
   estado.ultimaAtividade = 0;
   estado.vinculoExpira = 0;
   estado.supabaseOk = false;
+  estado.longa = false;
   if (relogio) { clearInterval(relogio); relogio = null; }
 }
 
@@ -72,6 +96,9 @@ function vigiar() {
   // Só confere o relógio local: não faz chamada para manter a sessão viva.
   relogio = setInterval(() => {
     if (!estado.token) return;
+    // Sessão longa: sem inatividade em minutos e sem encerrar pelo expira_em antigo
+    // (o G360 renova pelo uso). Quem decide é o GET me / o primeiro 401.
+    if (estado.longa) return;
     const agora = Date.now();
     if (agora - estado.ultimaAtividade > estado.inatividadeMin * 60000) {
       encerrarSessao('inatividade', 'Sua sessão terminou por inatividade. Entre novamente.');
@@ -116,7 +143,7 @@ async function abrirVinculoAgora() {
     estado.vinculoExpira = Date.parse(r.api_vinculo_expira_em) || 0;
     const exp = Date.parse(r.api_expira_em);
     if (exp) estado.expiraEm = exp;
-    if (Number.isInteger(r.api_inatividade_minutos) && r.api_inatividade_minutos > 0) estado.inatividadeMin = r.api_inatividade_minutos;
+    if (!estado.longa && Number.isInteger(r.api_inatividade_minutos) && r.api_inatividade_minutos > 0) estado.inatividadeMin = r.api_inatividade_minutos;
     estado.supabaseOk = true;
     return true;
   } catch (e) {
@@ -140,10 +167,11 @@ export async function garantirVinculo() {
 }
 
 /** Login: POST sessoes e, em seguida, abrir_sessao na ponte. */
-export async function entrar(usuario, senha) {
-  const d = await entrarApi(usuario, senha);
+export async function entrar(usuario, senha, continuarConectado = false) {
+  const d = await entrarApi(usuario, senha, continuarConectado);
   estado.token = d.token;
-  guardarToken(d.token); // substitui o de outro comprador, se houver
+  estado.longa = d.continuar_conectado === true; // vale o efetivo da resposta, não a caixa
+  guardarToken(d.token, estado.longa); // apaga os dois lugares (inclusive de outro comprador) e guarda o novo
   estado.comprador = d.comprador;
   estado.loja = d.loja;
   estado.expiraEm = Date.parse(d.expira_em) || 0;
@@ -168,7 +196,9 @@ export async function sair() {
 /** PUT senha: o token novo substitui o anterior; as sessões do Supabase são encerradas em todo lugar. */
 export async function trocarSenha(senhaAtual, senhaNova) {
   const d = await trocarSenhaApi(estado.token, senhaAtual, senhaNova);
-  guardarToken(d.token);
+  // O token novo é de sessão normal: sai do localStorage e vai para a aba.
+  guardarToken(d.token, false);
+  estado.longa = false;
   const sb = supabaseComprador();
   if (sb) { try { await sb.auth.signOut({ scope: 'global' }); } catch { /* segue */ } }
   estado.token = d.token;
@@ -182,17 +212,19 @@ export async function trocarSenha(senhaAtual, senhaNova) {
 }
 
 /**
- * Depois do F5: com um token guardado na aba, confere com GET me antes de mostrar qualquer tela privada.
+ * Depois do F5 (ou ao reabrir o app com Continuar conectado): com um token guardado, confere com GET me antes de mostrar qualquer tela privada.
  * 200 → segue logado e reabre o vínculo do Supabase. 401 → apaga o token (a tela mostra o login).
  * Falha de rede → segue sem sessão nesta carga, sem apagar o token.
  */
 export async function restaurarSessao() {
-  const t = tokenGuardado();
-  if (!t || estado.token) return false;
+  const g = tokenGuardado();
+  if (!g || estado.token) return false;
+  const t = g.token;
   let d;
   try { d = await consultarComprador(t); }
   catch (e) { if (e instanceof ErroApi && e.status === 401) guardarToken(null); return false; }
   estado.token = t;
+  estado.longa = g.persistente;
   estado.comprador = d.comprador;
   estado.loja = d.loja;
   estado.expiraEm = Date.parse(d.expira_em) || 0;

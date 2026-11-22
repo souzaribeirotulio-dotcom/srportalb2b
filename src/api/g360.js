@@ -184,7 +184,7 @@ export function esperaPara(erro, tentativa = 0) {
 
 /* ---------------- Operações do contrato ---------------- */
 
-/** GET loja — apresentarLoja: { nome, troca_senha, sessao_minutos } */
+/** GET loja — apresentarLoja: { nome, troca_senha, sessao_minutos, continuar_conectado_dias, pedido_minimo } */
 export async function apresentarLoja() {
   const r = await requisitar('GET', 'loja');
   return r.dados;
@@ -204,9 +204,12 @@ export async function gravarSenhaPorLink(token, senhaNova) {
 
 /* ---------------- Sessão do comprador (Etapa 5) ---------------- */
 
-/** POST sessoes — criarSessao. 201: { token, tipo, expira_em, comprador, loja }. */
-export async function entrar(usuario, senha) {
-  const r = await requisitar('POST', 'sessoes', { corpo: { usuario, senha } });
+/** POST sessoes — criarSessao. 201: { token, tipo, expira_em, continuar_conectado, comprador, loja }.
+ *  continuar_conectado só vai no corpo quando a caixa foi marcada (e a loja tem o recurso ligado). */
+export async function entrar(usuario, senha, continuarConectado = false) {
+  const corpo = { usuario, senha };
+  if (continuarConectado === true) corpo.continuar_conectado = true;
+  const r = await requisitar('POST', 'sessoes', { corpo });
   return r.dados;
 }
 
