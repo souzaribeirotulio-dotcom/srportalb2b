@@ -254,6 +254,10 @@ function modoAppEquipe(ligar) {
   const ic = document.querySelector('link[rel="apple-touch-icon"]');
   if (ic) ic.href = ligar ? '/icones/equipe-180.png' : '/apple-touch-icon.png';
   if (ligar) document.title = 'SR Equipe | Painel';
+  // No app instalado, quem usa o painel passa a abrir o app direto nele (ver o script no topo do index.html).
+  if (ligar && (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true)) {
+    try { localStorage.setItem('sr:app:abrir-em', '/painel'); } catch { /* sem armazenamento */ }
+  }
 }
 
 let gestor = null; // null = ainda não conferido nesta sessão do painel
