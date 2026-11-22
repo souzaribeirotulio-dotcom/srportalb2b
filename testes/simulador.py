@@ -497,8 +497,11 @@ class Sim:
                 for x in self.lotes:
                     if x['criado_em'][:10] < hoje:
                         x['codigos'] = [c for c in x['codigos'] if c not in d['codigos']]; x['pulados'] = [c for c in x.get('pulados', []) if c not in d['codigos']]
+                self.lotes = [x for x in self.lotes if x['codigos']]  # lote antigo que esvaziou é apagado (o banco não aceita lote vazio)
                 ja = {c for x in self.lotes for c in x['codigos']}
-                l = {'id': str(uuid.uuid4()), 'numero': max([x['numero'] for x in self.lotes] or [0]) + 1, 'responsavel': d.get('responsavel') or None, 'codigos': [c for c in d['codigos'] if c not in ja], 'pulados': [], 'criado_em': time.strftime('%Y-%m-%dT%H:%M:%S+00:00')}
+                livres = [c for c in d['codigos'] if c not in ja]
+                if not livres: return res(200, {'dados': None})
+                l = {'id': str(uuid.uuid4()), 'numero': max([x['numero'] for x in self.lotes] or [0]) + 1, 'responsavel': d.get('responsavel') or None, 'codigos': livres, 'pulados': [], 'criado_em': time.strftime('%Y-%m-%dT%H:%M:%S+00:00')}
                 self.lotes.append(l); return res(200, {'dados': l})
             if ac == 'lote_pular':
                 l = next(x for x in self.lotes if x['id'] == d['id']); pul = set(l.get('pulados', []))
