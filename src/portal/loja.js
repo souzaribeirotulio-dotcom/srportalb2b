@@ -29,6 +29,7 @@ import { desenharClips, ligarClips, pausarClips, carregarClips, clipDoProduto, u
 import { abrirNegociacao, desenharMinhasNegociacoes } from './negociacao.js';
 import { htmlDisponivel, conferir, somar } from './estoque.js';
 import { abrirCadastro } from './cadastro.js';
+import { situacaoAvisos, ativarAvisos, desativarAvisos, testarAviso } from '../estado/avisos.js';
 
 const filtros = { q: '', grupo: '', marca: '', pagina: 1 };
 let classificacoes = null;
@@ -744,6 +745,7 @@ export function abrirConta() {
       ${c.segmento?.descricao ? `<div><span>Segmento</span><b>${esc(c.segmento.descricao)}</b></div>` : ''}
     </div>
     ${c.compra_bloqueada ? '<div class="rv-aviso bad">Compras bloqueadas no momento. Fale com o seu vendedor.</div>' : ''}
+    <section class="avisos-conta" aria-labelledby="avTit"><h3 id="avTit" style="margin-top:18px">Avisos neste celular</h3><div id="avCorpo" aria-live="polite"><div class="hint">Verificando…</div></div></section>
     ${troca ? `<h3 style="margin-top:18px">Trocar senha</h3>
       <label for="tAtual">Senha atual</label><input id="tAtual" type="password" maxlength="64" autocomplete="current-password">
       <label for="tNova1">Senha nova</label><input id="tNova1" type="password" maxlength="8" autocomplete="new-password" aria-describedby="tRegra">
@@ -753,6 +755,7 @@ export function abrirConta() {
       : '<div class="hint" style="margin-top:14px">A senha de acesso é definida pela Souza Ribeiro. Para trocar a sua, fale com o seu vendedor.</div>'}
     <div class="act"><button type="button" class="btn del" id="cSair">Sair da conta</button><button type="button" class="btn sec" id="cFechar">Fechar</button>${troca ? '<button type="button" class="btn pri" id="cTrocar">Trocar senha</button>' : ''}</div>`;
   abrirModal('mConta');
+  desenharAvisos();
   $('cFechar').onclick = () => fecharModal('mConta');
   $('cSair').onclick = () => { fecharModal('mConta'); sair(); };
   const b = $('cTrocar'); if (!b) return;
@@ -768,6 +771,35 @@ export function abrirConta() {
       atual.value = n1.value = n2.value = '';
       $('tRes').innerHTML = '<div class="rv-aviso"><b>Senha trocada.</b> Use a senha nova no próximo acesso. As outras sessões abertas foram encerradas.</div>';
     } catch (e) { mostrarMensagemErro($('tRes'), e); } finally { b.disabled = false; }
+  };
+}
+
+/* ---------------- avisos no celular (Minha conta) ---------------- */
+
+async function desenharAvisos(msg = '') {
+  const el = $('avCorpo'); if (!el) return;
+  const st = await situacaoAvisos();
+  const extra = msg ? `<div class="rv-aviso" style="margin-top:8px">${esc(msg)}</div>` : '';
+  if (st === 'instalar_primeiro') { el.innerHTML = '<div class="hint">No iPhone, os avisos funcionam com o app instalado. Instale pelo link "Instalar app no celular", no rodapé, e abra o portal pelo ícone na tela de início.</div>' + extra; return; }
+  if (st === 'sem_suporte') { el.innerHTML = '<div class="hint">Este navegador não recebe avisos. No iPhone, use o app instalado (iOS 16.4 ou mais novo).</div>' + extra; return; }
+  if (st === 'bloqueado') { el.innerHTML = '<div class="hint">Os avisos estão bloqueados para este app. Para liberar: Ajustes do celular → Notificações → Souza Ribeiro → Permitir Notificações.</div>' + extra; return; }
+  if (st === 'ativo') {
+    el.innerHTML = `<div class="hint">Avisos <b>ativados</b> neste celular.</div>
+      <div class="avisos-acoes"><button type="button" class="btn pri" id="avTeste">Enviar aviso de teste</button><button type="button" class="btn sec" id="avDesl">Desativar</button></div>${extra}`;
+    $('avTeste').onclick = async () => {
+      $('avTeste').disabled = true;
+      try { const r = await testarAviso(); desenharAvisos(r.enviados ? 'Aviso de teste enviado. Ele chega em alguns segundos.' : 'Não foi possível entregar o aviso neste celular. Desative e ative de novo.'); }
+      catch (e) { desenharAvisos(e.message); }
+    };
+    $('avDesl').onclick = async () => { $('avDesl').disabled = true; try { await desativarAvisos(); desenharAvisos('Avisos desativados neste celular.'); } catch { desenharAvisos('Não foi possível desativar agora. Tente de novo.'); } };
+    return;
+  }
+  el.innerHTML = `<div class="hint">Receba aqui no celular os avisos do seu pedido. O celular vai pedir a sua permissão.</div>
+    <div class="avisos-acoes"><button type="button" class="btn pri" id="avAtivar">Ativar avisos</button></div>${extra}`;
+  $('avAtivar').onclick = async () => {
+    $('avAtivar').disabled = true; $('avAtivar').textContent = 'Ativando…';
+    try { await ativarAvisos(); desenharAvisos('Pronto! Avisos ativados. Toque em "Enviar aviso de teste" para conferir.'); }
+    catch (e) { desenharAvisos(e.message); }
   };
 }
 
