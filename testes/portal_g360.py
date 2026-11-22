@@ -267,6 +267,17 @@ with sync_playwright() as pw:
     pg.click('#gAnt'); pg.wait_for_function("document.getElementById('g360Pag').textContent.includes('Página 1')")
     pg.locator('.card[data-id="105"]').scroll_into_view_if_needed(); pg.locator('.card[data-id="104"]').scroll_into_view_if_needed(); pg.wait_for_timeout(700)
     checar(sim.fotos_pedidas.count('produtos/105/fotos/1') == 1 and sim.fotos_pedidas.count('produtos/104/fotos/1') == 1, 'foto pedida de novo')
+    # Páginas sem repetir: a API entrega o catálogo aos poucos (aqui, de 10 em 10, com a curva fora de ordem);
+    # o que já apareceu na página 1 não pode reaparecer na 2, e a página 1 continua igual ao voltar.
+    sim.limite_api = 10; pg.reload()
+    pg.wait_for_function("document.querySelectorAll('#grid .card').length === 24")
+    p1_ = pg.eval_on_selector_all('#grid .card', 'els => els.map(e => e.dataset.id)')
+    pg.click('#gProx'); pg.wait_for_function("document.getElementById('g360Pag').textContent.includes('Página 2')")
+    p2_ = pg.eval_on_selector_all('#grid .card', 'els => els.map(e => e.dataset.id)')
+    checar(p2_ and not set(p1_) & set(p2_) and len(set(p1_ + p2_)) == len(p1_ + p2_), f'página 2 não repete a 1 (teste que tem de dar errado se repetir): {sorted(set(p1_) & set(p2_))}')
+    pg.click('#gAnt'); pg.wait_for_function("document.getElementById('g360Pag').textContent.includes('Página 1')")
+    checar(pg.eval_on_selector_all('#grid .card', 'els => els.map(e => e.dataset.id)') == p1_, 'página 1 igual ao voltar')
+    del sim.limite_api
     pg.fill('#q', 'P-121'); pg.press('#q', 'Enter'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('Mostrando 1 de 1 resultado')")
     pg.fill('#q', 'nada-existe'); pg.press('#q', 'Enter'); pg.wait_for_selector('#gLimpar')
     pg.click('#gLimpar'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('Mostrando 24') && document.querySelectorAll('#grid .card').length === 24")

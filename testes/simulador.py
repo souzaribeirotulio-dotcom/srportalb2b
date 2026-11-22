@@ -108,7 +108,7 @@ class Sim:
         if f.get('marca') not in (None, ''): res = [p for p in res if p['marca_detalhe']['codigo'] == int(f['marca'])]
         if f.get('ids'): ids = {int(x) for x in f['ids']}; res = [p for p in res if p['id'] in ids]
         if f.get('codigos'): cs = set(f['codigos'] if isinstance(f['codigos'], list) else f['codigos'].split(',')); res = [p for p in res if p['codigo'] in cs]
-        pag, lim = int(f.get('pagina') or 1), int(f.get('limite') or 20)
+        pag, lim = int(f.get('pagina') or 1), min(int(f.get('limite') or 20), getattr(self, 'limite_api', 500))
         return res[(pag - 1) * lim: pag * lim], {'pagina': pag, 'limite': lim, 'total': len(res)}
 
     def revisar(self, doc, corpo):
