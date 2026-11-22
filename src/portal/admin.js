@@ -10,7 +10,7 @@ import { sempreBloqueada } from '../estado/condicoes.js';
 import {
   entrarOperador, sairOperador, consultarClienteOperador, buscarProdutosOperador, consultarPrecosOperador,
   listarPrecosCongelados, incluirPrecoCongelado, alterarPrecoCongelado, encerrarPrecoCongelado,
-  consultarFichaClienteOperador, consultarCepOperador, listarFotosOperador, obterFotoOperador, incluirFotoOperador, definirCapaOperador, ordenarFotosOperador, removerFotoOperador,
+  consultarFichaClienteOperador, alterarAcessoClienteOperador, consultarCepOperador, listarFotosOperador, obterFotoOperador, incluirFotoOperador, definirCapaOperador, ordenarFotosOperador, removerFotoOperador,
 } from '../api/g360.js';
 import { chamarPainel } from '../api/painel.js';
 import { pedirLink } from '../api/ponte.js';
@@ -38,7 +38,7 @@ import { situacaoPainelPush } from '../api/push.js';
 const op = { token: null, expira: 0, ultima: 0, minutos: 8, aviso: null };
 let ctx = null;            // { loja, ir }
 let relogio = null;
-let aba = 'cli';
+let aba = 'ini';
 let ligado = false;
 let urls = [];             // object URLs das fotos da tela (liberadas ao sair)
 const capas = new Map();   // id → url da capa | null (sem foto) — cache da sessão do painel
@@ -113,7 +113,7 @@ export function mostrarAdmin(contexto) {
   restaurarOp();
   // Aviso tocado no celular abre a aba certa (/painel?aba=neg, /painel?aba=cli).
   const abaPedida = new URLSearchParams(location.search).get('aba');
-  if (abaPedida && ['cli', 'prod', 'cong', 'mrg', 'intel', 'neg', 'souzinha', 'cfg', 'ocor'].includes(abaPedida)) aba = abaPedida;
+  if (abaPedida && ['ini', 'visita', 'cli', 'prod', 'cong', 'mrg', 'intel', 'neg', 'souzinha', 'cfg', 'ocor', 'mais'].includes(abaPedida)) aba = abaPedida;
   modoAppEquipe(true);
   document.body.classList.add('g360-painel');
   document.querySelectorAll('.view').forEach((el) => { el.hidden = el.id !== 'vAdm'; });
@@ -134,15 +134,24 @@ function ligar() {
   ligado = true;
   const v = $('vAdm');
   // Cabeçalho: o que o painel do G360 não faz (exportar/importar arquivo) fica fora.
-  v.querySelector('.ph').innerHTML = `<div><h2>Painel do <em>administrador</em></h2><p>Clientes, preços, margens e fotos direto do G360. As fotos aparecem no catálogo dos clientes.</p></div>
+  v.querySelector('.ph').innerHTML = `<div><h2>Painel da <em>equipe</em></h2><p>Clientes, preços, margens e fotos direto do G360. As fotos aparecem no catálogo dos clientes.</p></div>
     <div class="row"><span class="hint" id="aQuem" style="margin:0"></span><button class="tool" id="aSair">Sair do admin</button></div>`;
   // Abas do portal antigo + Ocorrências.
   const abas = v.querySelector('.atabs');
   if (!abas.querySelector('[data-at="ocor"]')) abas.insertAdjacentHTML('beforeend', '<button data-at="ocor">Ocorrências</button>');
   if (!$('atOcor')) v.insertAdjacentHTML('beforeend', '<div id="atOcor" hidden><div class="panel" id="ocPanel"></div></div>');
+  if (!abas.querySelector('[data-at="ini"]')) abas.insertAdjacentHTML('afterbegin', '<button data-at="ini">Início</button><button data-at="visita">➕ Preparar cliente</button>');
+  if (!$('atIni')) v.insertAdjacentHTML('beforeend', '<div id="atIni" hidden><div id="iniPanel"></div></div><div id="atVisita" hidden><div class="panel vis" id="visPanel"></div></div><div id="atMais" hidden><div id="maisPanel"></div></div>');
+  if (!$('eqBar')) document.body.insertAdjacentHTML('beforeend', `<nav class="eqbar" id="eqBar" aria-label="Painel da equipe">
+    <button data-eq="ini"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Início</button>
+    <button data-eq="visita"><svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="4"/><path d="M2 21c0-4 4-6 8-6s8 2 8 6M19 8v6M16 11h6"/></svg>Novo cliente</button>
+    <button data-eq="cli"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5c2 .6 3.5 2.4 3.5 5.5"/></svg>Clientes<i class="eqn" id="eqCli"></i></button>
+    <button data-eq="neg"><svg viewBox="0 0 24 24"><path d="M4 6h16v10H8l-4 4z"/><path d="M9 11h6"/></svg>Negociações<i class="eqn" id="eqNeg"></i></button>
+    <button data-eq="mais"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>Mais</button></nav>`);
+  document.querySelectorAll('#eqBar [data-eq]').forEach((b) => b.addEventListener('click', () => irAba(b.dataset.eq)));
   if (!$('aLogin')) v.querySelector('.ph').insertAdjacentHTML('afterend', '<div id="aLogin" hidden></div>');
   if (!$('aAvisos')) v.querySelector('.ph').insertAdjacentHTML('afterend', '<div id="aAvisos" class="av-painel" hidden aria-live="polite"></div>');
-  abas.querySelectorAll('[data-at]').forEach((b) => b.addEventListener('click', () => { aba = b.dataset.at; desenharAba(); }));
+  abas.querySelectorAll('[data-at]').forEach((b) => b.addEventListener('click', () => irAba(b.dataset.at)));
   $('aSair').addEventListener('click', async () => {
     const t = op.token;
     try { await sairOperador(t); } catch { /* sai localmente de qualquer jeito */ }
@@ -169,6 +178,10 @@ function ligar() {
   $('aExpFotos').addEventListener('click', () => abrirExportacaoFotos({ token: () => op.token, painel, aoSessaoEncerrada: (e) => encerrarOperador(e.message) }));
   $('aExpFotos').insertAdjacentHTML('afterend', '<button class="btn sec" id="aOtimClips" style="height:36px" title="Põe o índice dos vídeos já enviados no começo do arquivo, para começarem a tocar mais rápido">⚡ Otimizar clips</button>');
   $('aOtimClips').addEventListener('click', otimizarClipsEnviados);
+  // Ferramentas de produtos num botão só ("Ferramentas"): no celular começa fechado, no computador aberto.
+  { const caixa = $('aGerar').closest('.afil'); const det = document.createElement('details'); det.className = 'ferr';
+    det.innerHTML = '<summary>🧰 Ferramentas de produtos <small>(nomes, fotos, clips, planilhas)</small></summary>'; caixa.replaceWith(det); det.appendChild(caixa);
+    det.open = window.matchMedia('(min-width: 901px)').matches; }
   $('aLotes').addEventListener('click', () => abrirLotesFotos({ token: () => op.token, painel, aoSessaoEncerrada: (e) => encerrarOperador(e.message) }));
   $('aImpFotos').addEventListener('click', () => abrirImportacaoFotos({
     token: () => op.token,
@@ -333,11 +346,19 @@ function telaLogin() {
 
 /* ---------------- abas ---------------- */
 
+function irAba(nova) { aba = nova; desenharAba(); window.scrollTo(0, 0); }
+
 function desenharAba() {
   document.querySelectorAll('#vAdm [data-at]').forEach((b) => b.classList.toggle('on', b.dataset.at === aba));
-  const ids = { cli: 'atCli', prod: 'atProd', cong: 'atCong', mrg: 'atMrg', intel: 'atIntel', neg: 'atNeg', souzinha: 'atSouzinha', cfg: 'atCfg', ocor: 'atOcor' };
+  const MAIS = ['prod', 'cong', 'mrg', 'intel', 'souzinha', 'cfg', 'ocor', 'mais'];
+  document.querySelectorAll('#eqBar [data-eq]').forEach((b) => b.classList.toggle('on', b.dataset.eq === aba || (b.dataset.eq === 'mais' && MAIS.includes(aba))));
+  const ids = { ini: 'atIni', visita: 'atVisita', mais: 'atMais', cli: 'atCli', prod: 'atProd', cong: 'atCong', mrg: 'atMrg', intel: 'atIntel', neg: 'atNeg', souzinha: 'atSouzinha', cfg: 'atCfg', ocor: 'atOcor' };
   Object.entries(ids).forEach(([k, id]) => { $(id).hidden = k !== aba; });
-  if (aba === 'cli') desenharClientes();
+  if ($('aAvisos')) $('aAvisos').classList.toggle('so-inicio', aba !== 'ini');
+  if (aba === 'ini') desenharInicio();
+  else if (aba === 'visita') desenharVisita();
+  else if (aba === 'mais') desenharMais();
+  else if (aba === 'cli') desenharClientes();
   else if (aba === 'prod') desenharProdutos(!prod.lista);
   else if (aba === 'cong') desenharCong();
   else if (aba === 'mrg') desenharMargens(!mrg.carregado);
@@ -354,7 +375,7 @@ const SITN = { aberta: 'Aguardando', aprovada: 'Aprovada', recusada: 'Recusada',
 let negs = null;
 
 async function contarNegociacoes() {
-  try { negs = (await painel('negociacoes_listar')).dados || []; $('negN').textContent = negs.filter((n) => n.status === 'aberta').length || ''; } catch { /* badge fica vazio */ }
+  try { negs = (await painel('negociacoes_listar')).dados || []; $('negN').textContent = negs.filter((n) => n.status === 'aberta').length || ''; atualizarContadoresEq(); } catch { /* badge fica vazio */ }
 }
 
 const valorPainel = (t) => { const s = String(t || '').trim().replace(/\s|R\$/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'); return /^\d{1,11}(\.\d{1,4})?$/.test(s) && Number(s) > 0 ? s : null; };
@@ -860,16 +881,15 @@ function desenharClientes() {
 }
 
 /** Minha Lista do cliente montada pela equipe: ele já encontra pronta no login. */
-async function montarLista(c) {
-  const alvo = $('clLista');
+async function montarLista(c, alvo = $('clLista'), embutido = false) {
   let ids = [];
   const pintar = async () => {
-    alvo.innerHTML = `<div class="panel" style="margin:12px 18px 16px"><div style="padding:14px 16px 4px;position:relative"><button class="fxx" data-fechar style="position:absolute;right:12px;top:10px" title="Fechar">×</button><b>Minha Lista de ${esc(c.nome)}</b>
+    alvo.innerHTML = `<div class="panel" style="${embutido ? 'margin:0' : 'margin:12px 18px 16px'}"><div style="padding:14px 16px 4px;position:relative">${embutido ? '' : '<button class="fxx" data-fechar style="position:absolute;right:12px;top:10px" title="Fechar">×</button>'}<b>Minha Lista de ${esc(c.nome)}</b>
       <small class="hint" style="display:block;margin:2px 0 0">O cliente vê esta lista ao entrar, com preço e estoque do momento. Ele pode tirar ou pôr produtos depois.</small></div>
       <div class="fxurl" style="margin:10px 16px"><input id="mlQ" placeholder="Buscar produto para adicionar (nome ou código)" aria-label="Buscar produto"><button class="btn sec" id="mlBuscar">Buscar</button></div>
       <div style="margin:0 16px 8px"><button class="tool ab" id="mlPdf" type="button">📄 Importar relatório de vendas (PDF do G360)</button></div><div id="mlPdfBox"></div>
       <div id="mlRes"></div><div id="mlItens">${carregandoHtml('Carregando a lista…')}</div></div>`;
-    alvo.querySelector('[data-fechar]').onclick = () => { alvo.innerHTML = ''; };
+    if (!embutido) alvo.querySelector('[data-fechar]').onclick = () => { alvo.innerHTML = ''; };
     $('mlPdf').onclick = async () => {
       if ($('mlPdfBox').innerHTML) { $('mlPdfBox').innerHTML = ''; return; }
       if (!ativos) { try { await carregarExibicao(); const cods = await codigosAtivosPublicos(); ativos = cods ? new Set(cods) : null; } catch { /* sem a lista: trata todos como ativos */ } }
@@ -988,7 +1008,7 @@ async function montarLista(c) {
   alvo.innerHTML = carregandoHtml('Carregando a lista…');
   try { ids = (await painel('lista_ler', { comprador: c.codigo })).dados; } catch (e) { alvo.innerHTML = vazio(esc(e.message)); return; }
   await pintar();
-  alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (!embutido) alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 /** Clientes que já entraram no portal (contas abertas pela ponte + nome gravado no login). */
@@ -1054,6 +1074,7 @@ function pintarCadastros() {
     .filter((k) => (!st || k.status === st) && (!q || semAcento([k.razao_social, k.fantasia, k.documento, fmtDoc(k.documento), k.codigo_g360, k.cidade, k.vendedor, k.responsavel].join(' ')).includes(q) || (qd.length >= 4 && k.documento.includes(qd))))
     .sort((a, b) => (a.status === 'pendente' ? 0 : 1) - (b.status === 'pendente' ? 0 : 1) || String(b.criado_em).localeCompare(String(a.criado_em)));
   $('cliN').textContent = cadastros.filter((k) => k.status === 'pendente').length || '';
+  atualizarContadoresEq();
   alvo.innerHTML = `<div class="crow2 h"><div>Cliente (${L.length})</div><div>Cód. G360</div><div>Cidade</div><div>Situação</div><div></div></div>`
     + (L.length ? L.map((k) => `<div class="crow2" data-id="${esc(k.id)}">
       <div class="nm"><b>${esc(k.fantasia || k.razao_social)}</b><small>${esc(fmtDoc(k.documento))} · ${esc(k.razao_social)}</small>
@@ -1740,4 +1761,173 @@ async function otimizarClipsEnviados() {
     toast(`Clips: ${feitos} otimizado${feitos === 1 ? '' : 's'}${certos ? `, ${certos} já estava${certos === 1 ? '' : 'm'} certo${certos === 1 ? '' : 's'}` : ''}${falhas ? `, ${falhas} com erro (tente de novo)` : ''} ✓`);
   } catch (e) { toast(e.message || 'Não foi possível otimizar agora. Tente de novo.'); }
   finally { b.disabled = false; b.textContent = txt; }
+}
+
+
+/* =====================================================================
+   Preparar cliente (visita): tudo num caminho só, pensado para o celular.
+   1. CPF/CNPJ → acha o cliente no G360 (POST operadores/clientes/consulta, só CNPJ)
+      ou cadastra novo (o mesmo formulário do "Novo cliente", com a consulta da Receita).
+   2. Ficha: confere dados e e-mail (para onde vai o link).
+   3. Minha Lista e preços negociados (congelados no G360).
+   4. Formas de pagamento que aparecem para ele.
+   5. Liberar o acesso e enviar o link para ele criar a senha.
+   ===================================================================== */
+const visita = { codigo: null, ficha: null };
+
+function desenharVisita() {
+  const alvo = $('visPanel'); if (!alvo) return;
+  if (visita.codigo) { desenharVisitaCliente(); return; }
+  alvo.innerHTML = `<div class="vis-ini">
+    <h3>Preparar cliente</h3>
+    <p class="hint">Na visita: cadastre o cliente (ou abra um que já existe), monte a lista dele, combine os preços e mande o link. Ele só precisa criar a senha.</p>
+    <label for="visDoc">CNPJ ou CPF do cliente</label>
+    <div class="vis-busca"><input class="inp" id="visDoc" inputmode="text" autocapitalize="characters" maxlength="32" placeholder="00.000.000/0000-00" autocomplete="off">
+      <button class="btn pri" id="visIr" type="button">Continuar</button></div>
+    <div id="visErr" aria-live="polite"></div>
+    <p class="hint" style="margin-top:14px">Se o CNPJ já estiver no G360, o painel abre o cadastro dele. Se não estiver, abre o formulário de novo cliente, já com os dados da Receita.</p></div>`;
+  const ir = async () => {
+    const doc = docLimpo($('visDoc').value); const b = $('visIr'); $('visErr').innerHTML = '';
+    if (doc.length !== 11 && doc.length !== 14) { $('visErr').innerHTML = '<div class="okmsg bad">Digite o CNPJ (14 caracteres) ou o CPF (11 números) completo.</div>'; $('visDoc').focus(); return; }
+    b.disabled = true; b.textContent = 'Procurando no G360…';
+    try {
+      if (doc.length === 14) {
+        try { const c = await consultarClienteOperador(op.token, doc); abrirVisitaCliente(c.codigo); return; }
+        catch (e) { if (e.status === 401) { encerrarOperador(e.message); return; } if (e.status !== 404) { mostrarMensagemErro($('visErr'), e); return; } }
+      }
+      // Não achou (ou é CPF): cadastro novo. Se o G360 disser que já existe, o formulário mostra e abre a ficha.
+      abrirNovoClienteG360({ id: `visita-${doc}`, documento: doc }, {
+        token: () => op.token,
+        aoSessaoEncerrada: (e) => encerrarOperador(e.message),
+        vincular: async () => {},
+        abrirFicha: (codigo) => { fecharModal('mAdm'); abrirVisitaCliente(codigo); },
+      });
+    } finally { b.disabled = false; b.textContent = 'Continuar'; }
+  };
+  $('visIr').onclick = ir;
+  $('visDoc').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); ir(); } };
+  setTimeout(() => $('visDoc')?.focus(), 50);
+}
+
+function abrirVisitaCliente(codigo) {
+  visita.codigo = Number(codigo); visita.ficha = null;
+  if ($('clLista')) $('clLista').innerHTML = ''; // a lista do cliente fica numa tela só (mesmos campos)
+  if (aba !== 'visita') { aba = 'visita'; desenharAba(); } else desenharVisitaCliente();
+}
+
+async function desenharVisitaCliente() {
+  const alvo = $('visPanel');
+  alvo.innerHTML = carregandoHtml('Abrindo o cliente no G360…');
+  try { visita.ficha = await consultarFichaClienteOperador(op.token, visita.codigo); }
+  catch (e) { if (e.status === 401) { encerrarOperador(e.message); return; } erroEm(alvo, e, desenharVisitaCliente); return; }
+  const f = visita.ficha;
+  const nome = f.fantasia || f.nome || `Cliente ${f.id}`;
+  const email = String(f.email || '').trim();
+  alvo.innerHTML = `<div class="vis-topo"><button class="tool" id="visTrocar" type="button">‹ Outro cliente</button>
+      <div><b>${esc(nome)}</b><small>${esc(fmtDoc(f.documento))} · cód. ${esc(f.id)}${f.nome && f.fantasia ? ` · ${esc(f.nome)}` : ''}</small></div></div>
+    <ol class="vis-passos">
+      <li class="vis-p"><div class="vis-h"><span class="vis-n">1</span><b>Cadastro e e-mail</b></div>
+        <div class="vis-c">
+          <div class="hint" style="margin:0">E-mail que recebe o link: ${email ? `<b style="color:var(--tx)">${esc(email)}</b>` : '<b style="color:#ffb5ac">sem e-mail</b> — abra a ficha e preencha antes de enviar o link.'}</div>
+          <button class="btn sec" id="visFicha" type="button">Conferir ou editar a ficha</button></div></li>
+      <li class="vis-p"><div class="vis-h"><span class="vis-n">2</span><b>Lista do cliente e preços combinados</b></div>
+        <div class="vis-c"><p class="hint" style="margin:0 0 8px">Busque e adicione o que ele compra. Em cada produto, toque em <b>❄ Congelar</b> para gravar o preço combinado no G360 (ele vê como "Seu preço").</p><div id="visLista"></div></div></li>
+      <li class="vis-p"><div class="vis-h"><span class="vis-n">3</span><b>Formas de pagamento</b></div>
+        <div class="vis-c"><div id="visCond"></div></div></li>
+      <li class="vis-p"><div class="vis-h"><span class="vis-n">4</span><b>Liberar o acesso e enviar o link</b></div>
+        <div class="vis-c">
+          <div class="hint" style="margin:0 0 8px">Acesso ao portal: ${f.acesso_liberado ? '<span class="stt aprovado">Liberado</span>' : '<span class="stt reprovado">Bloqueado</span>'}. O link chega no e-mail, vale 30 minutos e serve para ele criar a senha.</div>
+          <button class="btn pri vis-enviar" id="visEnviar" type="button" ${email ? '' : 'disabled'}>${f.acesso_liberado ? '✉ Enviar link para criar a senha' : '✅ Liberar acesso e enviar link'}</button>
+          ${f.acesso_liberado || (f.pode_alterar_acesso && f.revisao !== null) ? '' : '<div class="okmsg bad">Seu usuário do G360 não pode liberar o acesso deste cliente (ou esta base ainda não permite pelo portal). Libere pelo G360 e depois envie o link aqui.</div>'}
+          <div id="visRes" aria-live="polite"></div></div></li>
+    </ol>`;
+  $('visTrocar').onclick = () => { visita.codigo = null; visita.ficha = null; desenharVisita(); };
+  $('visFicha').onclick = () => abrirFichaG360(f.id, { ...opcoesFichaG360(), aoMudar: () => { /* atualiza ao fechar */ } });
+  // Quando a ficha fecha, relê (e-mail ou acesso podem ter mudado).
+  const mAdm = $('mAdm');
+  if (mAdm && !mAdm._visObs) {
+    mAdm._visObs = new MutationObserver(() => { if (!mAdm.classList.contains('open') && aba === 'visita' && visita.codigo) desenharVisitaCliente(); });
+    mAdm._visObs.observe(mAdm, { attributes: true, attributeFilter: ['class'] });
+  }
+  montarLista({ codigo: f.id, nome }, $('visLista'), true);
+  painelCondicoes($('visCond'), f.id);
+  $('visEnviar').onclick = async (ev) => {
+    const b = ev.currentTarget; const res = $('visRes'); res.innerHTML = '';
+    if (!email) { res.innerHTML = '<div class="okmsg bad">Preencha o e-mail na ficha primeiro.</div>'; return; }
+    b.disabled = true;
+    try {
+      if (!f.acesso_liberado) {
+        if (!(f.pode_alterar_acesso && f.revisao !== null)) { res.innerHTML = '<div class="okmsg bad">Libere o acesso pelo G360 e toque aqui de novo.</div>'; return; }
+        b.textContent = 'Liberando no G360…';
+        await alterarAcessoClienteOperador(op.token, f.id, true, f.revisao);
+      }
+      b.textContent = 'Enviando o link…';
+      const msg = await pedirLink(f.documento);
+      res.innerHTML = `<div class="rv-aviso"><b>Pronto!</b> ${esc(msg)}<br>Peça para o cliente abrir o e-mail <b>${esc(email)}</b> e criar a senha. Depois é só entrar no portal: a lista e os preços já estão lá.</div>`;
+      toast('Link enviado ✓');
+      try { visita.ficha = await consultarFichaClienteOperador(op.token, f.id); } catch { /* segue */ }
+      b.textContent = '✉ Enviar o link de novo';
+    } catch (e) {
+      b.textContent = f.acesso_liberado ? '✉ Enviar link para criar a senha' : '✅ Liberar acesso e enviar link';
+      if (e.status === 401) { encerrarOperador(e.message); return; }
+      if (e.codigo === 'CADASTRO_ALTERADO') { desenharVisitaCliente(); return; }
+      mostrarMensagemErro(res, e);
+    } finally { b.disabled = false; }
+  };
+}
+
+
+/* =====================================================================
+   Início e "Mais" do app da equipe (celular): o que está pendente primeiro,
+   o resto a um toque. No computador as abas continuam em cima.
+   ===================================================================== */
+const AREAS = [
+  ['visita', '➕', 'Preparar cliente', 'Cadastro, lista, preços e link'],
+  ['cli', '👥', 'Clientes', 'Cadastros, fichas e listas'],
+  ['neg', '💬', 'Negociações', 'Pedidos de preço dos clientes'],
+  ['prod', '📦', 'Produtos', 'Nomes, fotos, preços e margens'],
+  ['cong', '❄', 'Preços congelados', 'Preços combinados por cliente'],
+  ['mrg', '📉', 'Margens', 'Preços abaixo da margem mínima'],
+  ['intel', '📊', 'Inteligência', 'Vendas e oportunidades'],
+  ['souzinha', '🎓', 'Escola do Souzinha', 'O que a assistente responde'],
+  ['cfg', '⚙', 'Configurações', 'Categorias, pagamento, banners'],
+  ['ocor', '⚠', 'Ocorrências', 'Avisos do G360 para a equipe'],
+];
+function gradeAreas(lista) {
+  return `<div class="eq-grade">${lista.map(([id, ic, t, d]) => `<button class="eq-area" data-ir="${id}"><span class="ic2">${ic}</span><b>${esc(t)}</b><small>${esc(d)}</small></button>`).join('')}</div>`;
+}
+function ligarGrade(alvo) { alvo.querySelectorAll('[data-ir]').forEach((b) => { b.onclick = () => irAba(b.dataset.ir); }); }
+
+async function desenharInicio() {
+  const alvo = $('iniPanel');
+  const nNeg = Array.isArray(negs) ? negs.filter((n) => n.status === 'aberta').length : null;
+  const nCad = Array.isArray(cadastros) ? cadastros.filter((k) => k.status === 'pendente').length : null;
+  const cartao = (id, n, t, vazio) => `<button class="eq-card ${n ? 'tem' : ''}" data-ir="${id}"><span class="eq-num">${n === null ? '…' : n}</span><span><b>${esc(t)}</b><small>${n === null ? 'Carregando…' : n ? 'Toque para resolver' : esc(vazio)}</small></span></button>`;
+  alvo.innerHTML = `<button class="eq-visita" data-ir="visita"><span class="ic2">➕</span><span><b>Preparar cliente (visita)</b><small>Cadastre, monte a lista, combine os preços e mande o link</small></span></button>
+    <h3 class="eq-tit">Para resolver</h3>
+    <div class="eq-cards">${cartao('neg', nNeg, 'Negociações aguardando', 'Nenhuma aguardando')}${cartao('cli', nCad, 'Cadastros para aprovar', 'Nenhum aguardando')}</div>
+    <h3 class="eq-tit">Todas as áreas</h3>${gradeAreas(AREAS.slice(1))}`;
+  ligarGrade(alvo);
+  // Contagens atualizadas (sem travar a tela).
+  const antes = `${nNeg}|${nCad}`;
+  await Promise.allSettled([
+    contarNegociacoes(),
+    (async () => { try { cadastros = (await painel('cadastros_listar')).dados || []; $('cliN').textContent = cadastros.filter((k) => k.status === 'pendente').length || ''; } catch { /* segue */ } })(),
+  ]);
+  atualizarContadoresEq();
+  const depois = `${Array.isArray(negs) ? negs.filter((n) => n.status === 'aberta').length : null}|${Array.isArray(cadastros) ? cadastros.filter((k) => k.status === 'pendente').length : null}`;
+  if (aba === 'ini' && antes !== depois) desenharInicio();
+}
+
+function desenharMais() {
+  const alvo = $('maisPanel');
+  alvo.innerHTML = `<h3 class="eq-tit" style="margin-top:4px">Todas as áreas</h3>${gradeAreas(AREAS)}`;
+  ligarGrade(alvo);
+}
+
+function atualizarContadoresEq() {
+  const nNeg = Array.isArray(negs) ? negs.filter((n) => n.status === 'aberta').length : 0;
+  const nCad = Array.isArray(cadastros) ? cadastros.filter((k) => k.status === 'pendente').length : 0;
+  if ($('eqNeg')) $('eqNeg').textContent = nNeg || '';
+  if ($('eqCli')) $('eqCli').textContent = nCad || '';
 }

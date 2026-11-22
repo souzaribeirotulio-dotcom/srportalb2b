@@ -464,7 +464,7 @@ with sync_playwright() as pw:
     pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'errada'); pg.click('#aOk')
     pg.wait_for_selector('#aRes .g360-msg'); checar('Usuário ou senha inválidos.' in n.tc('#aRes'), 'login operador errado')
     pg.fill('#aUsu', 'semlicenca'); pg.fill('#aSen', 'x'); pg.click('#aOk'); pg.wait_for_selector('text=Confira a disponibilidade da sua licença no G360.')
-    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
+    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="ini"].on')
     checar(pg.locator('#vAdm [data-at]').count() == 9, 'nove abas do painel antigo + ocorrências')
     # Novo cliente (ficha do portal) com Buscar dados no G360
     pg.wait_for_selector('#clCad .empty2, #clCad .crow2[data-id]')
@@ -573,7 +573,7 @@ with sync_playwright() as pw:
     # Etapa 12: descrição/ocultar/clips no painel, configuração, clips e negociação do comprador
     etapa[0] = 'Etapa 12'
     n = N(pw, sim, '/painel', largura=1280); pg = n.pg
-    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
+    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="ini"].on')
     pg.click('[data-at="prod"]'); pg.fill('#aQ', 'P-104'); pg.press('#aQ', 'Enter'); pg.wait_for_selector('.arow[data-id="104"]')
     pg.click('.arow[data-id="104"] [data-mais]'); pg.wait_for_selector('.aedit textarea')
     pg.fill('.aedit textarea', 'Descrição escrita pela equipe para o teste.'); pg.click('.aedit .eSalvar'); pg.wait_for_timeout(400)
@@ -669,7 +669,7 @@ with sync_playwright() as pw:
     checar('Aguardando resposta' in n.tc('#negClientView'), 'minhas negociações')
     n.fechar()
     n = N(pw, sim, '/painel', largura=1280); pg = n.pg
-    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
+    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="ini"].on')
     pg.wait_for_function("document.getElementById('negN').textContent === '1'")
     pg.click('[data-at="neg"]'); pg.wait_for_selector('.negadm [data-ok]')
     pg.fill('.negadm [data-v]', '4,75'); pg.click('.negadm [data-ok]'); pg.wait_for_function("!document.querySelector('.negadm [data-ok]')")
@@ -693,7 +693,7 @@ with sync_playwright() as pw:
                ('P-102_capa.jpg', _img('JPEG', 'white')), ('P-104_capa.jpg', _img('JPEG', 'gray')), ('X-999_capa.jpg', _img('JPEG', 'black')),
                ('foto qualquer.jpg', _img('JPEG', 'black')), ('__MACOSX/._P-101_capa.jpg', b'x')])
     n = N(pw, sim, '/painel', largura=1280); pg = n.pg
-    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
+    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="ini"].on')
     pg.click('[data-at="prod"]'); pg.click('#aImpFotos'); pg.wait_for_selector('#ifImp.open #impArq', state='attached')
     pg.set_input_files('#impArq', files=[{'name': 'vazio.zip', 'mimeType': 'application/zip', 'buffer': _zip([('nada.jpg', _img('JPEG', 'red'))])}])
     pg.wait_for_selector('#impMsg .rv-aviso'); checar('Nenhum arquivo no padrão' in n.tc('#impMsg'), 'ZIP sem nomes no padrão recusado')
@@ -730,7 +730,7 @@ with sync_playwright() as pw:
                           'inscricao_estadual': '', 'responsavel': 'Pessoa Fictícia', 'whats': '34999990000', 'telefone': None, 'email': 'novo@example.invalid', 'cep': '38400200', 'numero': '50',
                           'logradouro': 'Rua Nova', 'complemento': '', 'bairro': 'Bairro Dois', 'cidade': 'Cidade Exemplo', 'uf': 'MG', 'status': 'aprovado', 'codigo_g360': None, 'criado_por': 'portal', 'criado_em': '2026-11-18T10:00:00+00:00'})
     n = N(pw, sim, '/painel', largura=1280); pg = n.pg
-    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
+    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="ini"].on')
     sel = '#clCad .crow2[data-id="00000000-0000-4000-8000-000000000014"]'
     pg.wait_for_selector(f'{sel} [data-novo]'); pg.click(f'{sel} [data-novo]'); pg.wait_for_selector('#mAdm.open #nSalvar')
     cnpjs = [x for x in sim.chamadas if x[1] == 'operadores/cadastro/cnpj']
@@ -965,7 +965,7 @@ with sync_playwright() as pw:
     n.fechar()
     sim.lista[1165] = {101, 104, 105}
     n = N(pw, sim, '/painel', largura=1280); pg = n.pg
-    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
+    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="ini"].on')
     pg.wait_for_selector('#clPortal [data-mlc="1165"]'); pg.click('#clPortal [data-mlc="1165"]')
     pg.wait_for_selector('#mlItens .crow[data-id="105"]')
     checar('fora do portal (o cliente não vê)' in n.tc('#mlItens .crow[data-id="105"]') and 'fora do portal' not in n.tc('#mlItens .crow[data-id="101"]'), 'painel marca o produto que o cliente não vê')
@@ -1008,7 +1008,7 @@ with sync_playwright() as pw:
     pg.click('#cX'); n.fechar()
     sim.cond_ocultas = {}
     n = N(pw, sim, '/painel', largura=1280); pg = n.pg
-    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
+    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="ini"].on')
     pg.click('[data-at="cfg"]'); pg.wait_for_selector('#cfCond [data-cond="2"]')
     pg.uncheck('#cfCond [data-cond="2"]'); pg.click('#cfCond [data-cond-salvar]'); pg.wait_for_selector('#cfCond [data-cond-res]:has-text("Salvo")')
     checar(sim.cond_ocultas.get(0) == [2], f'Configurações escondem para todos: {sim.cond_ocultas}')
@@ -1085,11 +1085,11 @@ with sync_playwright() as pw:
     n.fechar()
     # Painel: F5 continua logado, sem novo login de operador
     n = N(pw, sim, '/painel', largura=1280); pg = n.pg
-    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
+    pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="ini"].on')
     pg.click('[data-at="prod"]'); pg.wait_for_selector('.arow[data-id="101"]')
     checar('Disponível: 30' in n.tc('.arow[data-id="101"]') and 'Disponível: 0' in n.tc('.arow[data-id="103"]'), 'painel mostra Disponível: N de cada produto')
     ops = len([c for c in sim.chamadas if c[1] == 'operadores/sessoes'])
-    pg.reload(); pg.wait_for_selector('#vAdm [data-at="cli"].on')
+    pg.reload(); pg.wait_for_selector('#vAdm [data-at="ini"].on')
     checar(len([c for c in sim.chamadas if c[1] == 'operadores/sessoes']) == ops, 'F5 no painel mantém o login do operador')
     pg.click('#aSair'); pg.wait_for_selector('#aUsu')
     checar(not pg.evaluate("Object.keys(sessionStorage).some(k => k.startsWith('sr-g360-operador-'))"), 'sair do painel apaga o token guardado')
