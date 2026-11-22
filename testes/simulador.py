@@ -488,6 +488,7 @@ class Sim:
                 if not r: r = self.exibicao[d['codigo']] = {'codigo': d['codigo'], 'produto_id': d.get('produto_id'), 'nome': d.get('nome'), 'categoria': d.get('categoria'), 'origem': 'automatico'}
                 if 'descricao' in d: r['descricao'] = d['descricao'] or None
                 if 'oculto' in d: r['oculto'] = d['oculto'] is True
+                if 'palavras_chave' in d: r['palavras_chave'] = ', '.join(dict.fromkeys(x.strip() for x in d['palavras_chave'].split(',') if x.strip())) or None
                 return res(200, {'ok': True})
             if ac == 'condicoes_ler':
                 comp = int(d.get('comprador') or 0); por = {}

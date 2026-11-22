@@ -569,6 +569,9 @@ with sync_playwright() as pw:
     pg.click('.arow[data-id="104"] [data-mais]'); pg.wait_for_selector('.aedit textarea')
     pg.fill('.aedit textarea', 'Descrição escrita pela equipe para o teste.'); pg.click('.aedit .eSalvar'); pg.wait_for_timeout(400)
     checar(sim.exibicao.get('P-104', {}).get('descricao') == 'Descrição escrita pela equipe para o teste.', f"descrição salva: {sim.exibicao.get('P-104')}")
+    # Palavras-chave da busca (o cliente não vê; só ajudam a achar)
+    pg.fill('.aedit .eChaves', 'trambolho ,  carrinho de faxina, trambolho'); pg.click('.aedit .eSalvar'); pg.wait_for_timeout(400)
+    checar(sim.exibicao.get('P-104', {}).get('palavras_chave') == 'trambolho, carrinho de faxina', f"palavras-chave salvas: {sim.exibicao.get('P-104')}")
     pg.set_input_files('.aedit .eArq', files=[{'name': 'clip.txt', 'mimeType': 'text/plain', 'buffer': b'x'}]); pg.wait_for_timeout(200)
     checar('MP4' in n.tc('.aedit .eClipRes') and not sim.clips, 'arquivo que não é vídeo recusado')
     # Vídeo de celular (índice no fim): o painel põe o índice no começo antes de enviar, sem recomprimir
@@ -669,6 +672,13 @@ with sync_playwright() as pw:
     n = N(pw, sim, '/'); pg = n.pg
     n.entrar(U1, S1)
     checar(pg.locator('#grid .card[data-id="102"]').count() == 0, 'produto oculto fora do catálogo')
+    pg.fill('#q', 'trambolho'); pg.press('#q', 'Enter'); pg.wait_for_selector('#grid .card[data-id="104"]')
+    checar(pg.locator('#grid .card').count() == 1 and 'trambolho' not in n.tc('#grid').lower(), 'palavra-chave acha o produto e não aparece para o cliente')
+    pg.fill('#q', 'carrinho de faxina'); pg.press('#q', 'Enter'); pg.wait_for_function("document.querySelectorAll('#grid .card').length >= 1")
+    checar(pg.locator('#grid .card').first.get_attribute('data-id') == '104', 'palavra-chave com mais de uma palavra')
+    # o que tem de dar errado: produto sem a palavra-chave não aparece
+    checar(pg.locator('#grid .card[data-id="101"]').count() == 0, 'produto sem a palavra-chave fica de fora (teste que tem de dar errado)')
+    pg.fill('#q', ''); pg.press('#q', 'Enter'); pg.wait_for_timeout(300)
     n.ir('clips'); pg.wait_for_selector('#clipsFeed .clip')
     checar(pg.locator('#clipsFeed .clip').count() == 1 and 'Clip de teste' in n.tc('#clipsFeed'), 'feed de clips')
     if pg.viewport_size['width'] <= 640:
