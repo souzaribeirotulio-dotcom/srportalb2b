@@ -74,19 +74,28 @@ function mostrarPassoIOS() {
     <div class="passo-ios-caixa">
       <h2 id="srPassoIOSTit">Instalar no iPhone</h2>
       <ol>
-        <li><span class="passo-ios-n">1</span><span>Toque no botão <b>Compartilhar</b> ${compartilhar} na barra do Safari.</span></li>
-        <li><span class="passo-ios-n">2</span><span>Role e toque em <b>Adicionar à Tela de Início</b> ${mais}.</span></li>
+        <li><span class="passo-ios-n">1</span><span>No menu <b>Compartilhar</b> ${compartilhar}, role a lista para baixo.</span></li>
+        <li><span class="passo-ios-n">2</span><span>Toque em <b>Adicionar à Tela de Início</b> ${mais}.</span></li>
         <li><span class="passo-ios-n">3</span><span>Toque em <b>Adicionar</b>. Pronto: o ícone da Souza Ribeiro aparece no seu celular.</span></li>
       </ol>
-      <p class="passo-ios-obs">Precisa estar aberto no Safari. Se estiver no Instagram ou no WhatsApp, abra o link no Safari primeiro.</p>
-      <button type="button" class="passo-ios-ok">Entendi</button>
+      ${navigator.share ? '<button type="button" class="passo-ios-abrir">Abrir o menu Compartilhar</button>' : ''}
+      <p class="passo-ios-obs">Não achou a opção? Feche o menu e toque no botão <b>Compartilhar</b> ${compartilhar} da barra do Safari. Precisa estar aberto no Safari: se estiver no Instagram ou no WhatsApp, abra o link no Safari primeiro.</p>
+      <button type="button" class="passo-ios-ok">Fechar</button>
     </div>`;
   const fechar = () => fundo.remove();
   fundo.querySelector('.passo-ios-ok').addEventListener('click', fechar);
+  fundo.querySelector('.passo-ios-abrir')?.addEventListener('click', abrirCompartilhar);
   fundo.addEventListener('click', (e) => { if (e.target === fundo) fechar(); });
   document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { fechar(); document.removeEventListener('keydown', esc); } });
   document.body.appendChild(fundo);
   fundo.querySelector('.passo-ios-ok').focus();
+}
+
+/* Abre o menu Compartilhar do iPhone (precisa vir de um toque). O site não consegue abrir
+   direto o "Adicionar à Tela de Início": a pessoa escolhe a opção no menu. */
+function abrirCompartilhar() {
+  if (!navigator.share) return;
+  navigator.share({ title: 'Souza Ribeiro', url: `${location.origin}/` }).catch(() => { /* fechou o menu */ });
 }
 
 async function instalar() {
@@ -99,7 +108,7 @@ async function instalar() {
     atualizarBotoes();
     return;
   }
-  if (ehIOS()) mostrarPassoIOS();
+  if (ehIOS()) { mostrarPassoIOS(); abrirCompartilhar(); } // o passo a passo fica por trás do menu
 }
 
 export function iniciarAppInstalavel() {
