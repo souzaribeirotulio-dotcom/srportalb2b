@@ -671,6 +671,14 @@ function mudancaCarrinho(e) {
 
 let depoisDoLogin = null;
 
+/* CPF/CNPJ lembrado: só no app instalado (o celular é do próprio cliente), nunca no navegador comum,
+   que pode ser um computador compartilhado. A senha NUNCA é guardada pelo portal: quem guarda e
+   preenche com o Face ID é o gerenciador de senhas do aparelho. "Usar outro CPF/CNPJ" apaga. */
+const CHAVE_DOC = `g360:${String(import.meta.env.VITE_G360_LOJA || '').trim()}:comprador:documento`;
+const ehAppInstalado = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+function docLembrado() { try { return ehAppInstalado() ? localStorage.getItem(CHAVE_DOC) || '' : ''; } catch { return ''; } }
+function lembrarDoc(d) { try { if (d && ehAppInstalado()) localStorage.setItem(CHAVE_DOC, d); else localStorage.removeItem(CHAVE_DOC); } catch { /* sem armazenamento */ } }
+
 function ligarLogin() {
   $('lgCad').textContent = 'Quero ser cliente';
   $('lgCad').onclick = () => { fecharModal('mLogin'); abrirCadastro(ctxCadastro()); };
@@ -683,6 +691,8 @@ function ligarLogin() {
   const doc = $('lgC');
   doc.placeholder = 'Digite com ou sem pontuação'; doc.inputMode = 'text'; doc.maxLength = 32; doc.autocapitalize = 'characters';
   $('lgS').maxLength = 64;
+  if (!$('lgOutro')) $('lgL').insertAdjacentHTML('afterend', '<button type="button" class="lg-outro" id="lgOutro" hidden>Usar outro CPF/CNPJ</button>');
+  $('lgOutro').onclick = () => { lembrarDoc(''); doc.value = ''; $('lgOutro').hidden = true; doc.focus(); };
   if (!$('lgRes')) $('lgE').insertAdjacentHTML('afterend', '<div id="lgRes" aria-live="polite"></div><p class="hint" id="lgSessao"></p>');
   if (!$('lgContW')) $('lgE').insertAdjacentHTML('beforebegin', `<div class="lg-cont" id="lgContW" hidden>
     <label for="lgCont"><input type="checkbox" id="lgCont"><span>Continuar conectado</span></label>
@@ -702,6 +712,7 @@ function ligarLogin() {
     try {
       const continuar = !$('lgContW').hidden && $('lgCont').checked;
       await entrar(usuario, senha, continuar);
+      lembrarDoc(usuario);
       // Para o iPhone/Safari (e o Chrome) oferecerem "Salvar senha": depois do login aceito,
       // o formulário sai da página ainda preenchido e volta vazio (mesmos elementos, mesmos eventos).
       const form = $('lgForm'); const lugar = document.createComment('lgForm');
@@ -743,9 +754,13 @@ export function abrirLogin(depois = null, mensagemErro = null, mensagemOk = null
     : '';
   const semTroca = ctx?.loja?.troca_senha !== true;
   $('lgEsqL').style.display = semTroca ? 'none' : '';
+  const lembrado = docLembrado();
+  if (lembrado && !$('lgC').value) $('lgC').value = lembrado;
+  $('lgOutro').hidden = !lembrado;
   abrirModal('mLogin');
-  // Foca o documento só se a pessoa ainda não clicou em outro campo do modal.
-  setTimeout(() => { if (!$('mLogin').contains(document.activeElement)) $('lgC').focus(); }, 50);
+  // Com o CPF/CNPJ já preenchido, vai direto para a senha; senão, para o documento
+  // (só se a pessoa ainda não clicou em outro campo do modal).
+  setTimeout(() => { if (!$('mLogin').contains(document.activeElement)) ($('lgC').value ? $('lgS') : $('lgC')).focus(); }, 50);
 }
 
 /* ---------------- Minha conta (modal original) ---------------- */
