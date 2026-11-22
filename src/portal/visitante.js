@@ -7,7 +7,7 @@
    ===================================================================== */
 import { listarVitrine, listarMarcasVitrine, urlVitrine } from '../api/g360.js';
 import { carregarExibicao, apresentar, codigosDaCategoria, pesoCurva, oculto, categorias as categoriasPortal, codigosAtivosPublicos, esquecerAtivosPublicos } from '../catalogo/exibicao.js';
-import { buscarLocal, variacoes } from '../catalogo/busca.js';
+import { buscarLocal, variacoes, corrigirBusca } from '../catalogo/busca.js';
 import { esc } from './comum.js';
 
 const POR_PAGINA = 24;
@@ -35,30 +35,46 @@ export async function resultadoPublico(filtros) {
   const ativos = await codigosAtivosPublicos(); const set = ativos ? new Set(ativos) : null;
   const ativo = (p) => !set || set.has(String(p.codigo));
   const marca = filtros.marca ? Number(filtros.marca) : undefined;
+  // Uma rodada da busca numa categoria ('' = catálogo inteiro).
+  const rodada = async (q, grupo) => {
+    const locais = buscarLocal(q, { categoria: grupo, max: 100 }).filter((l) => !set || set.has(String(l.codigo)));
+    const pontos = new Map(locais.map((l) => [l.codigo, l.pontos]));
+    const maxPontos = Math.max(1, ...locais.map((l) => l.pontos));
+    const faixa = (p) => { const v = pontos.get(String(p.codigo)) || 0; return v >= maxPontos * 0.8 ? 2 : v >= maxPontos * 0.5 ? 1 : 0; };
+    const achados = new Map();
+    for (let i = 0; i < locais.length; i += 50) {
+      const { dados } = await listarVitrine({ codigos: locais.slice(i, i + 50).map((l) => l.codigo), marca, limite: 50 });
+      dados.forEach((p) => achados.set(Number(p.id), apresentar(p)));
+    }
+    try {
+      const vs = variacoes(q);
+      const { dados } = await listarVitrine(vs.length > 1 ? { termos: [q, ...vs.slice(1)], marca, limite: 50 } : { q: q, marca, limite: 50 });
+      dados.map(apresentar).filter((p) => !grupo || p.categoria === grupo)
+        .forEach((p) => { if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); pontos.set(String(p.codigo), maxPontos * 0.6); } });
+    } catch (e) { if (!achados.size) throw e; }
+    const itens = [...achados.values()].filter((p) => !oculto(p) && ativo(p)).sort((a, b) => (faixa(b) - faixa(a)) || (pesoCurva(a) - pesoCurva(b))
+      || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
+    return itens;
+  };
+  const tentar = async (q, g) => { try { return await rodada(q, g); } catch { return []; } };
   if (filtros.q) {
     const chave = `q|${filtros.q}|${filtros.grupo}|${filtros.marca}`;
     if (!cache.has(chave)) {
-      const locais = buscarLocal(filtros.q, { categoria: filtros.grupo, max: 100 }).filter((l) => !set || set.has(String(l.codigo)));
-      const pontos = new Map(locais.map((l) => [l.codigo, l.pontos]));
-      const maxPontos = Math.max(1, ...locais.map((l) => l.pontos));
-      const faixa = (p) => { const v = pontos.get(String(p.codigo)) || 0; return v >= maxPontos * 0.8 ? 2 : v >= maxPontos * 0.5 ? 1 : 0; };
-      const achados = new Map();
-      for (let i = 0; i < locais.length; i += 50) {
-        const { dados } = await listarVitrine({ codigos: locais.slice(i, i + 50).map((l) => l.codigo), marca, limite: 50 });
-        dados.forEach((p) => achados.set(Number(p.id), apresentar(p)));
+      // 1) Na categoria. 2) Nada lá: catálogo inteiro. 3) Ainda nada: "Você quis dizer" ("liva" → "luva").
+      let itens = await rodada(filtros.q, filtros.grupo); let aviso = null;
+      if (!itens.length && filtros.grupo) { const t = await tentar(filtros.q, ''); if (t.length) { itens = t; aviso = { grupo: filtros.grupo }; } }
+      if (!itens.length) {
+        const certo = corrigirBusca(filtros.q);
+        if (certo) {
+          let t = await tentar(certo, filtros.grupo); let g = null;
+          if (!t.length && filtros.grupo) { t = await tentar(certo, ''); g = filtros.grupo; }
+          if (t.length) { itens = t; aviso = { corrigida: certo, grupo: g }; }
+        }
       }
-      try {
-        const vs = variacoes(filtros.q);
-        const { dados } = await listarVitrine(vs.length > 1 ? { termos: [filtros.q, ...vs.slice(1)], marca, limite: 50 } : { q: filtros.q, marca, limite: 50 });
-        dados.map(apresentar).filter((p) => !filtros.grupo || p.categoria === filtros.grupo)
-          .forEach((p) => { if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); pontos.set(String(p.codigo), maxPontos * 0.6); } });
-      } catch (e) { if (!achados.size) throw e; }
-      const itens = [...achados.values()].filter((p) => !oculto(p) && ativo(p)).sort((a, b) => (faixa(b) - faixa(a)) || (pesoCurva(a) - pesoCurva(b))
-        || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
-      cache.set(chave, { itens, total: itens.length });
+      cache.set(chave, { itens, total: itens.length, aviso });
     }
     const r = cache.get(chave); const ini = (filtros.pagina - 1) * POR_PAGINA;
-    return { itens: r.itens.slice(ini, ini + POR_PAGINA), total: r.total, paginas: Math.max(1, Math.ceil(r.total / POR_PAGINA)) };
+    return { itens: r.itens.slice(ini, ini + POR_PAGINA), total: r.total, aviso: r.aviso, paginas: Math.max(1, Math.ceil(r.total / POR_PAGINA)) };
   }
   // Sem busca: pela categoria do portal (códigos em blocos de 100) ou o catálogo inteiro paginado pela API.
   if (filtros.grupo) {

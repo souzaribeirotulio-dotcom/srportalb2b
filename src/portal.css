@@ -311,3 +311,6 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
 /* A foto do detalhe aceita deslizar para o lado: o navegador só cuida da rolagem vertical ali. */
 #detBox .gmain { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 #detBox .gmain img { -webkit-user-drag: none; pointer-events: none; }
+/* Busca: "Você quis dizer" e "nada nesta categoria" (acima da contagem). */
+.g360-aviso-busca { display: block; margin-bottom: 4px; color: var(--lima, #b2e04a); text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 500; }
+.g360-aviso-busca b { color: inherit; }
