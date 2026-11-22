@@ -1,0 +1,14 @@
+/* Chamadas à função estoque-g360 (aviso de estoque em queda). Só fetch + POST + Content-Type. */
+const URL_EST = String(import.meta.env.VITE_PONTE_URL || '').trim().replace(/\/ponte-g360$/, '/estoque-g360');
+
+export async function chamarEstoque(token, acao, extra = {}) {
+  if (!/\/estoque-g360$/.test(URL_EST)) throw new Error('Aviso de estoque não configurado neste site.');
+  let r;
+  try {
+    r = await fetch(URL_EST, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao, token, ...extra }), credentials: 'omit', signal: AbortSignal.timeout(30000) });
+  } catch { const e = new Error('Não foi possível falar com o servidor. Confira a conexão e tente de novo.'); e.status = 0; throw e; }
+  let d = {};
+  try { d = await r.json(); } catch { /* sem corpo */ }
+  if (!r.ok) { const e = new Error(d.mensagem || 'Não foi possível consultar o estoque agora.'); e.status = r.status; throw e; }
+  return d;
+}

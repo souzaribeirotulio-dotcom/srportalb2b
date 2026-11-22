@@ -36,6 +36,7 @@ import { situacaoAvisos, ativarAvisosPainel, desativarAvisosPainel, testarAvisoP
 import { situacaoPainelPush } from '../api/push.js';
 import { desenharDashboard } from './dashboard.js';
 import { lerDashboard } from '../api/dashboard.js';
+import { chamarEstoque } from '../api/estoque.js';
 
 const op = { token: null, expira: 0, ultima: 0, minutos: 8, aviso: null };
 let ctx = null;            // { loja, ir }
@@ -72,7 +73,7 @@ function usuarioLembrado() { try { return ehAppInstalado() ? localStorage.getIte
 function lembrarUsuario(u) { try { if (ehAppInstalado() && u) localStorage.setItem(CHAVE_OP_USU, u); } catch { /* sem armazenamento */ } }
 
 function encerrarOperador(mensagem) {
-  gestor = null;
+  gestor = null; estoqueOk = false; estoqueAlertas = null; estoqueLendo = false; estoqueVerificado = false;
   op.token = null; op.expira = 0; op.aviso = mensagem || null;
   guardarOp();
   document.body.classList.remove('g360-op');
@@ -115,7 +116,7 @@ export function mostrarAdmin(contexto) {
   restaurarOp();
   // Aviso tocado no celular abre a aba certa (/painel?aba=neg, /painel?aba=cli).
   const abaPedida = new URLSearchParams(location.search).get('aba');
-  if (abaPedida && ['ini', 'vendas', 'visita', 'cli', 'prod', 'cong', 'mrg', 'intel', 'neg', 'souzinha', 'cfg', 'ocor', 'mais'].includes(abaPedida)) aba = abaPedida;
+  if (abaPedida && ['ini', 'vendas', 'estoque', 'visita', 'cli', 'prod', 'cong', 'mrg', 'intel', 'neg', 'souzinha', 'cfg', 'ocor', 'mais'].includes(abaPedida)) aba = abaPedida;
   modoAppEquipe(true);
   document.body.classList.add('g360-painel');
   document.querySelectorAll('.view').forEach((el) => { el.hidden = el.id !== 'vAdm'; });
@@ -142,8 +143,8 @@ function ligar() {
   const abas = v.querySelector('.atabs');
   if (!abas.querySelector('[data-at="ocor"]')) abas.insertAdjacentHTML('beforeend', '<button data-at="ocor">Ocorrências</button>');
   if (!$('atOcor')) v.insertAdjacentHTML('beforeend', '<div id="atOcor" hidden><div class="panel" id="ocPanel"></div></div>');
-  if (!abas.querySelector('[data-at="ini"]')) abas.insertAdjacentHTML('afterbegin', '<button data-at="ini">Início</button><button data-at="vendas" hidden>📊 Vendas</button><button data-at="visita">➕ Preparar cliente</button>');
-  if (!$('atIni')) v.insertAdjacentHTML('beforeend', '<div id="atIni" hidden><div id="iniPanel"></div></div><div id="atVendas" hidden><div id="vendasPanel"></div></div><div id="atVisita" hidden><div class="panel vis" id="visPanel"></div></div><div id="atMais" hidden><div id="maisPanel"></div></div>');
+  if (!abas.querySelector('[data-at="ini"]')) abas.insertAdjacentHTML('afterbegin', '<button data-at="ini">Início</button><button data-at="vendas" hidden>📊 Vendas</button><button data-at="estoque" hidden>⚠ Estoque em queda <span class="mk" id="estN" style="background:rgba(255,107,107,.16);color:#ff8a8a"></span></button><button data-at="visita">➕ Preparar cliente</button>');
+  if (!$('atIni')) v.insertAdjacentHTML('beforeend', '<div id="atIni" hidden><div id="iniPanel"></div></div><div id="atVendas" hidden><div id="vendasPanel"></div></div><div id="atEstoque" hidden><div id="estPanel"></div></div><div id="atVisita" hidden><div class="panel vis" id="visPanel"></div></div><div id="atMais" hidden><div id="maisPanel"></div></div>');
   if (!$('eqBar')) document.body.insertAdjacentHTML('beforeend', `<nav class="eqbar" id="eqBar" aria-label="Painel da equipe">
     <button data-eq="ini"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Início</button>
     <button data-eq="visita"><svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="4"/><path d="M2 21c0-4 4-6 8-6s8 2 8 6M19 8v6M16 11h6"/></svg>Novo cliente</button>
@@ -253,6 +254,7 @@ function desenhar() {
   if (!logado) { telaLogin(); return; }
   desenharAba();
   desenharAvisosPainel();
+  iniciarMonitorEstoque();
   carregarConfigLoja().then(() => { if ($('mgLim')) $('mgLim').value = limiteMargem(); });
   contarNegociacoes();
 }
@@ -354,13 +356,14 @@ function irAba(nova) { aba = nova; desenharAba(); window.scrollTo(0, 0); }
 
 function desenharAba() {
   document.querySelectorAll('#vAdm [data-at]').forEach((b) => b.classList.toggle('on', b.dataset.at === aba));
-  const MAIS = ['vendas', 'prod', 'cong', 'mrg', 'intel', 'souzinha', 'cfg', 'ocor', 'mais'];
+  const MAIS = ['vendas', 'estoque', 'prod', 'cong', 'mrg', 'intel', 'souzinha', 'cfg', 'ocor', 'mais'];
   document.querySelectorAll('#eqBar [data-eq]').forEach((b) => b.classList.toggle('on', b.dataset.eq === aba || (b.dataset.eq === 'mais' && MAIS.includes(aba))));
-  const ids = { ini: 'atIni', vendas: 'atVendas', visita: 'atVisita', mais: 'atMais', cli: 'atCli', prod: 'atProd', cong: 'atCong', mrg: 'atMrg', intel: 'atIntel', neg: 'atNeg', souzinha: 'atSouzinha', cfg: 'atCfg', ocor: 'atOcor' };
+  const ids = { ini: 'atIni', vendas: 'atVendas', estoque: 'atEstoque', visita: 'atVisita', mais: 'atMais', cli: 'atCli', prod: 'atProd', cong: 'atCong', mrg: 'atMrg', intel: 'atIntel', neg: 'atNeg', souzinha: 'atSouzinha', cfg: 'atCfg', ocor: 'atOcor' };
   Object.entries(ids).forEach(([k, id]) => { $(id).hidden = k !== aba; });
   if ($('aAvisos')) $('aAvisos').classList.toggle('so-inicio', aba !== 'ini');
   if (aba === 'ini') desenharInicio();
   else if (aba === 'vendas') desenharDashboard($('vendasPanel'), { token: () => op.token, limiteMargem, aoSessaoEncerrada: (e) => encerrarOperador(e.message) });
+  else if (aba === 'estoque') desenharEstoque();
   else if (aba === 'visita') desenharVisita();
   else if (aba === 'mais') desenharMais();
   else if (aba === 'cli') desenharClientes();
@@ -1905,7 +1908,9 @@ const AREAS = [
   ['ocor', '⚠', 'Ocorrências', 'Avisos do G360 para a equipe'],
 ];
 const AREA_VENDAS = ['vendas', '📊', 'Vendas', 'Vendas, margens, produtos e clientes'];
+const AREA_ESTOQUE = ['estoque', '⚠', 'Estoque em queda', 'Produtos que estão acabando no G360'];
 function gradeAreas(lista) {
+  if (estoqueOk) lista = [AREA_ESTOQUE, ...lista];
   if (gestor) lista = [AREA_VENDAS, ...lista];
   return `<div class="eq-grade">${lista.map(([id, ic, t, d]) => `<button class="eq-area" data-ir="${id}"><span class="ic2">${ic}</span><b>${esc(t)}</b><small>${esc(d)}</small></button>`).join('')}</div>`;
 }
@@ -1917,6 +1922,7 @@ async function desenharInicio() {
   const nCad = Array.isArray(cadastros) ? cadastros.filter((k) => k.status === 'pendente').length : null;
   const cartao = (id, n, t, vazio) => `<button class="eq-card ${n ? 'tem' : ''}" data-ir="${id}"><span class="eq-num">${n === null ? '…' : n}</span><span><b>${esc(t)}</b><small>${n === null ? 'Carregando…' : n ? 'Toque para resolver' : esc(vazio)}</small></span></button>`;
   alvo.innerHTML = `${gestor ? '<button class="eq-vendas" data-ir="vendas" id="iniVendas"><div class="eqv-l"><b>📊 Vendas pelo portal · últimos 7 dias</b><span class="eqv-ir">Ver painel ›</span></div><div class="eqv-n"><div><b>…</b><small>vendas</small></div></div></button>' : ''}
+    ${estoqueOk ? `<button class="eq-estoque" data-ir="estoque" id="iniEst"><span class="ic2">⚠</span><span><b>Estoque em queda</b><small>${estoqueAlertas === null ? 'Conferindo…' : estoqueAlertas ? `${estoqueAlertas} produto${estoqueAlertas === 1 ? '' : 's'} caindo rápido · toque para ver` : 'Nenhum produto caindo rápido'}</small></span><span class="eq-num">${estoqueAlertas ?? '…'}</span></button>` : ''}
     <button class="eq-visita" data-ir="visita"><span class="ic2">➕</span><span><b>Preparar cliente (visita)</b><small>Cadastre, monte a lista, combine os preços e mande o link</small></span></button>
     <h3 class="eq-tit">Para resolver</h3>
     <div class="eq-cards">${cartao('neg', nNeg, 'Negociações aguardando', 'Nenhuma aguardando')}${cartao('cli', nCad, 'Cadastros para aprovar', 'Nenhum aguardando')}</div>
@@ -1960,4 +1966,86 @@ async function resumoVendasInicio() {
   if (resumoVendas && Date.now() - resumoVendas.quando < 60_000) { pintarResumo(resumoVendas.dados); return; }
   try { const d = await lerDashboard(op.token, 7); resumoVendas = { quando: Date.now(), dados: d }; pintarResumo(d); }
   catch (e) { if (e.status === 401) { encerrarOperador(e.message); return; } const el = $('iniVendas'); if (el) el.querySelector('.eqv-n').innerHTML = `<div><small>${esc(e.message)}</small></div>`; }
+}
+
+
+/* =====================================================================
+   Estoque em queda (só quem tem a permissão 'estoque' no painel).
+   Com o painel aberto, lê o DISPONÍVEL de todos os produtos do G360 no máximo a cada hora
+   (página por página, em segundo plano) e mostra os que caíram 50% ou mais em 7 dias e
+   estão abaixo de 30 (os zerados ficam de fora).
+   ===================================================================== */
+let estoqueOk = false; let estoqueAlertas = null; let estoqueLendo = false; let estoqueVerificado = false;
+const estoque = { progresso: '' };
+
+async function iniciarMonitorEstoque() {
+  if (estoqueVerificado || !op.token) return;
+  estoqueVerificado = true;
+  let st;
+  try { st = await chamarEstoque(op.token, 'status'); }
+  catch (e) { estoqueVerificado = e.status === 403; if (e.status === 401) encerrarOperador(e.message); return; }
+  estoqueOk = true; estoqueAlertas = st.alertas;
+  const b = document.querySelector('#vAdm .atabs [data-at="estoque"]'); if (b) b.hidden = false;
+  if ($('estN')) $('estN').textContent = st.alertas || '';
+  if (aba === 'ini') desenharInicio();
+  if (st.precisa_ler) lerEstoqueTudo();
+}
+
+async function lerEstoqueTudo(manual = false) {
+  if (estoqueLendo || !op.token) return;
+  estoqueLendo = true;
+  try {
+    let pagina = 1; let paginas = 1; let tentativas = 0;
+    while (pagina <= paginas && op.token && estoqueLendo) {
+      try {
+        const r = await chamarEstoque(op.token, 'ler', { pagina });
+        paginas = r.paginas; pagina += 1; tentativas = 0;
+        estoque.progresso = `Lendo o estoque do G360… ${Math.min(100, Math.round(((pagina - 1) / paginas) * 100))}%`;
+        if (aba === 'estoque' && $('estProg')) $('estProg').textContent = estoque.progresso;
+        await new Promise((ok) => setTimeout(ok, 350)); // não pesa no limite de chamadas
+      } catch (e) {
+        if (e.status === 401) { encerrarOperador(e.message); return; }
+        if (++tentativas > 3) throw e;
+        await new Promise((ok) => setTimeout(ok, e.status === 429 ? 30_000 : 5_000));
+      }
+    }
+    estoque.progresso = '';
+    const st = await chamarEstoque(op.token, 'status');
+    estoqueAlertas = st.alertas; if ($('estN')) $('estN').textContent = st.alertas || '';
+    if (aba === 'estoque') desenharEstoque(); else if (aba === 'ini') desenharInicio();
+    if (manual) toast('Estoque atualizado com o G360 ✓');
+  } catch (e) {
+    estoque.progresso = '';
+    if (manual) toast(e.message);
+  } finally { estoqueLendo = false; }
+}
+
+async function desenharEstoque() {
+  const alvo = $('estPanel'); if (!alvo) return;
+  if (!estoqueOk) { alvo.innerHTML = vazio('Você não tem acesso ao aviso de estoque.'); return; }
+  alvo.innerHTML = `<div class="est-topo"><div><h2>Estoque em queda</h2><p>Todo o estoque do G360 (não só o do portal). Produtos que caíram <b>50% ou mais em 7 dias</b> e estão com <b>menos de 30</b> disponíveis. Os zerados ficam de fora.</p></div>
+    <button class="btn sec" id="estLer" type="button">↻ Ler o estoque agora</button></div><div class="hint" id="estProg" aria-live="polite">${esc(estoque.progresso)}</div><div id="estLista">${carregandoHtml('Carregando…')}</div>`;
+  $('estLer').onclick = () => { if (estoqueLendo) { toast('A leitura já está em andamento.'); return; } lerEstoqueTudo(true); $('estProg').textContent = 'Lendo o estoque do G360…'; };
+  let d;
+  try { d = await chamarEstoque(op.token, 'alertas'); }
+  catch (e) { if (e.status === 401) { encerrarOperador(e.message); return; } $('estLista').innerHTML = vazio(esc(e.message)); return; }
+  estoqueAlertas = d.alertas.length; if ($('estN')) $('estN').textContent = d.alertas.length || '';
+  const quandoLido = d.concluida_em ? new Date(d.concluida_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : null;
+  const qt = (v) => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+  const dia = (t) => { if (!t) return ''; const [, m, dd] = String(t).split('-'); return `${dd}/${m}`; };
+  if (!$('estProg').textContent) $('estProg').textContent = quandoLido ? `Última leitura completa: ${quandoLido}. O painel lê de novo sozinho a cada hora, enquanto estiver aberto.` : 'Ainda não há leitura completa. A primeira começa sozinha e leva alguns minutos.';
+  if (!quandoLido && !estoqueLendo) lerEstoqueTudo();
+  $('estLista').innerHTML = d.alertas.length ? `<div class="est-lista">${d.alertas.map((a) => {
+    const nome = nomeExibicao({ codigo: a.codigo, nome: a.nome }) || a.nome;
+    return `<div class="est-it" data-id="${Number(a.produto_id)}">
+      <div class="est-nm"><b>${esc(nome)}</b><small>Cód. ${esc(a.codigo)}</small></div>
+      <div class="est-num"><span>tinha <b>${qt(a.pico)}</b>${a.pico_dia ? ` <small>(${esc(dia(a.pico_dia))})</small>` : ''}</span><span class="est-seta" aria-hidden="true">→</span><span>agora <b class="est-agora">${qt(a.atual)}</b></span><span class="est-q">▼ ${qt(a.queda)}%</span></div>
+      <div class="est-bar" aria-hidden="true"><i style="width:${Math.max(3, Math.min(100, (Number(a.atual) / Number(a.pico)) * 100))}%"></i></div>
+      <button class="tool" type="button" data-visto>Já vi</button></div>`;
+  }).join('')}</div>` : vazio(quandoLido ? 'Nenhum produto caindo rápido agora. 👍' : 'Assim que a primeira leitura terminar, os produtos em queda aparecem aqui.');
+  $('estLista').querySelectorAll('[data-visto]').forEach((b) => b.onclick = async () => {
+    const it = b.closest('.est-it'); b.disabled = true;
+    try { await chamarEstoque(op.token, 'visto', { produto_id: Number(it.dataset.id) }); it.remove(); estoqueAlertas = Math.max(0, (estoqueAlertas || 1) - 1); if ($('estN')) $('estN').textContent = estoqueAlertas || ''; }
+    catch (e) { b.disabled = false; toast(e.message); }
+  });
 }
