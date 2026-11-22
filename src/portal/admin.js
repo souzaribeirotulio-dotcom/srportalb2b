@@ -882,11 +882,12 @@ function desenharClientes() {
 
 /** Minha Lista do cliente montada pela equipe: ele já encontra pronta no login. */
 async function montarLista(c, alvo = $('clLista'), embutido = false) {
+  let buscaN = 0; // só a última busca desenha os resultados
   let ids = [];
   const pintar = async () => {
     alvo.innerHTML = `<div class="panel" style="${embutido ? 'margin:0' : 'margin:12px 18px 16px'}"><div style="padding:14px 16px 4px;position:relative">${embutido ? '' : '<button class="fxx" data-fechar style="position:absolute;right:12px;top:10px" title="Fechar">×</button>'}<b>Minha Lista de ${esc(c.nome)}</b>
       <small class="hint" style="display:block;margin:2px 0 0">O cliente vê esta lista ao entrar, com preço e estoque do momento. Ele pode tirar ou pôr produtos depois.</small></div>
-      <div class="fxurl" style="margin:10px 16px"><input id="mlQ" placeholder="Buscar produto para adicionar (nome ou código)" aria-label="Buscar produto"><button class="btn sec" id="mlBuscar">Buscar</button></div>
+      <div class="fxurl" style="margin:10px 16px"><input id="mlQ" type="search" enterkeyhint="search" autocomplete="off" placeholder="Buscar produto (nome ou código)" aria-label="Buscar produto"><button class="btn sec" id="mlBuscar">Buscar</button></div>
       <div style="margin:0 16px 8px"><button class="tool ab" id="mlPdf" type="button">📄 Importar relatório de vendas (PDF do G360)</button></div><div id="mlPdfBox"></div>
       <div id="mlRes"></div><div id="mlItens">${carregandoHtml('Carregando a lista…')}</div></div>`;
     if (!embutido) alvo.querySelector('[data-fechar]').onclick = () => { alvo.innerHTML = ''; };
@@ -900,7 +901,9 @@ async function montarLista(c, alvo = $('clLista'), embutido = false) {
       });
     };
     $('mlBuscar').onclick = buscar; $('mlQ').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); buscar(); } };
-    $('mlQ').addEventListener('input', adiar(() => { if ($('mlQ').value.trim().length >= 3) buscar(); else if (!$('mlQ').value.trim()) $('mlRes').innerHTML = ''; }, 700));
+    // Apagou a busca: os resultados somem na hora (e uma busca que ainda estava chegando é descartada).
+    $('mlQ').addEventListener('input', () => { if ($('mlQ').value.trim().length < 2) { buscaN++; $('mlRes').innerHTML = ''; } });
+    $('mlQ').addEventListener('input', adiar(() => { if ($('mlQ').value.trim().length >= 3) buscar(); }, 700));
     await itens();
   };
   let ativos = null; // códigos ativos no portal (null = sem a lista ainda: trata todos como ativos)
@@ -979,7 +982,6 @@ async function montarLista(c, alvo = $('clLista'), embutido = false) {
       } catch (e) { b.disabled = false; b.textContent = 'Congelar no G360'; if (e.status === 401) { encerrarOperador(e.message); return; } mostrarMensagemErro(err, e); }
     };
   }
-  let buscaN = 0;
   async function buscar() {
     const q = $('mlQ').value.trim(); const res = $('mlRes');
     if (q.length < 2) return;

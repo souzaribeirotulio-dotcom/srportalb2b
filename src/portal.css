@@ -487,3 +487,5 @@ details.ferr > .afil{margin:0 !important;padding:0 12px 12px}
 #visLista #mlRes:empty{display:none}
 #visLista .mlcg > div{padding:4px 0 12px !important}
 .ml-res-topo{display:flex;justify-content:space-between;align-items:center;gap:8px;position:sticky;top:0;background:#0b2208;padding:8px 0;z-index:1;font-size:12.5px;color:var(--tx3)}
+#visLista #mlQ{font-size:16px;min-height:44px}
+#visLista #mlQ::-webkit-search-cancel-button{filter:invert(1);opacity:.6;cursor:pointer}
