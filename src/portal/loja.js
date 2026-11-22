@@ -702,7 +702,13 @@ function ligarLogin() {
     try {
       const continuar = !$('lgContW').hidden && $('lgCont').checked;
       await entrar(usuario, senha, continuar);
-      $('lgS').value = '';
+      // Para o iPhone/Safari (e o Chrome) oferecerem "Salvar senha": depois do login aceito,
+      // o formulário sai da página ainda preenchido e volta vazio (mesmos elementos, mesmos eventos).
+      const form = $('lgForm'); const lugar = document.createComment('lgForm');
+      form.replaceWith(lugar);
+      await new Promise((r) => setTimeout(r, 120));
+      form.querySelector('#lgS').value = '';
+      lugar.replaceWith(form);
       fecharModal('mLogin');
       ctx.aoEntrar();
       limparEventosSessao(); registrarAcesso();

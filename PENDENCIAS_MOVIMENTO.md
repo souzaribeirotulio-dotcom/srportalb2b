@@ -151,3 +151,7 @@ Pedido: uma rota como `GET operadores/clientes/{cliente}/historico-compras?meses
 ## Saber, sem login, se um CNPJ/CPF já é cliente da loja (20/11)
 No "Quero ser cliente", a Souza Ribeiro quer avisar na hora que o documento já é cliente e mandar a pessoa para Entrar ou Primeiro acesso. Hoje o portal só sabe dos pedidos feitos pelo próprio portal (tabela do Supabase). O contrato não tem rota pública para isso; `POST operadores/cadastro/cnpj` exige operador, gasta cota e não serve para CPF, e o pedido de link responde a mesma mensagem de propósito.
 Pergunta/pedido: uma rota pública, com limite por IP, que diga só se o documento tem cadastro ativo na loja (sem nome nem contato), ou a orientação da Movimento para não abrir essa informação.
+
+## Continuar conectado na homologação (22/11)
+O portal já mostra a caixa **Continuar conectado** no login quando `GET loja` traz `continuar_conectado_dias` maior que zero (e envia `continuar_conectado: true` no `POST sessoes` quando o cliente marca). Na loja de homologação a caixa não apareceu, então o valor deve estar em zero.
+Pedido: configurar `continuar_conectado_dias` na loja de homologação (sugestão: 30 dias) para testarmos, e depois na de produção.
