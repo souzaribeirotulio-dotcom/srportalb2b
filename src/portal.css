@@ -382,3 +382,9 @@ body.com-passo-ios #souzinha-widget{display:none !important}
 .av-painel .btn,.av-painel .tool{height:38px;padding:0 14px;margin:8px 8px 0 0;vertical-align:middle}
 .av-painel .av-msg{display:block;margin-top:6px;color:#ffd45c}
 .av-painel[hidden]{display:none}
+/* × preso no alto de todas as janelas (não precisa rolar até o fim para fechar) */
+.mod-xw{position:sticky;top:0;height:0;z-index:6;display:flex;justify-content:flex-end;pointer-events:none}
+.mod-x{pointer-events:auto;width:44px;height:44px;margin:-8px -6px 0 0;border-radius:50%;border:1px solid var(--linha2);background:rgba(12,36,8,.92);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:var(--tx);font-size:24px;line-height:1;display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+.mod-x:focus-visible{outline:2px solid var(--lima);outline-offset:2px}
+/* Janelas com × próprio no cabeçalho: o cabeçalho fica preso no alto ao rolar */
+.mod .box > .fxh{position:sticky;top:-24px;z-index:6;background:inherit;padding-top:4px}

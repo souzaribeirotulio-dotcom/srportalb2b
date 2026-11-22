@@ -62,6 +62,20 @@ async function fechar(camada) {
   if (b) { camada.dataset.liberado = '1'; b.click(); delete camada.dataset.liberado; } else camada.classList.remove('open');
 }
 
+/* ---------- botão × sempre à vista ----------
+   Telas longas (fechamento do pedido, cadastro, Minha conta) só tinham Voltar/Fechar lá embaixo.
+   Toda janela ganha um × que fica preso no alto enquanto a pessoa rola. Ele fecha do mesmo jeito
+   que o ESC (o botão de fechar da própria tela, com a pergunta "Sair sem salvar?" quando há dados).
+   Janelas que já têm o × próprio no cabeçalho (painel, detalhe do produto) ficam como estão. */
+function garantirX(camada) {
+  if (!camada?.classList?.contains('mod') || camada.id === 'mConf') return;
+  const box = camada.querySelector(':scope > .box');
+  if (!box || box.querySelector('.fxx, #dX, .x')) return;
+  if (box.firstElementChild?.classList.contains('mod-xw')) return;
+  box.insertAdjacentHTML('afterbegin', '<div class="mod-xw"><button type="button" class="mod-x" aria-label="Fechar" title="Fechar">×</button></div>');
+  box.firstElementChild.querySelector('.mod-x').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); fechar(camada); });
+}
+
 /* ---------- fundo parado enquanto há tela aberta ---------- */
 function atualizarTrava() { document.documentElement.classList.toggle('g360-travado', abertas().length > 0 || confirmando); }
 
@@ -107,9 +121,13 @@ export function ligarCamadas() {
       const alvo = m.target;
       if (m.type === 'attributes' && alvo.matches?.(CAMADAS)) {
         if (!alvo.classList.contains('open')) alvo.dataset.sujo = '';
-        else if (!m.oldValue?.split(' ').includes('open')) alvo.dataset.sujo = '';
+        else { if (!m.oldValue?.split(' ').includes('open')) alvo.dataset.sujo = ''; garantirX(alvo); }
       }
-      if (m.type === 'childList') { const c = alvo.closest?.(CAMADAS); if (c && alvo.matches?.('.box')) c.dataset.sujo = ''; }
+      if (m.type === 'childList') {
+        const c = alvo.closest?.(CAMADAS);
+        // O conteúdo da janela foi trocado: o × volta (sem marcar como "sem dados" por causa dele mesmo).
+        if (c && alvo.matches?.('.box') && !(m.addedNodes.length === 1 && m.addedNodes[0].classList?.contains('mod-xw'))) { c.dataset.sujo = ''; if (c.classList.contains('open')) garantirX(c); }
+      }
     }
     atualizarTrava();
   });
