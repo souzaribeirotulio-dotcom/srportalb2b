@@ -351,3 +351,18 @@ body.com-faixa-app #souzinha-widget:not(.sz-open) .sz-fab { bottom: calc(166px +
 /* Avisos neste celular (Minha conta) */
 .avisos-acoes { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
 .avisos-acoes .btn { min-height: 44px; }
+/* Convite para ativar os avisos (depois do login e do pedido enviado) */
+.conv-av { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: start; text-align: left; padding: 14px; border-radius: 16px; background: #0f2a09; border: 1px solid rgba(178,224,74,.35); margin: 14px 0 4px; }
+.conv-av-ic { font-size: 26px; line-height: 1; padding-top: 2px; }
+.conv-av-tx { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; }
+.conv-av-tx strong { font-size: 16px; color: var(--tx); }
+.conv-av-tx span { font-size: 14px; color: var(--tx2); }
+.conv-av-bt { grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.conv-av-bt .btn { min-height: 48px; flex: 1 1 140px; font-size: 15px; }
+.conv-av-msg:empty { display: none; }
+.conv-av-msg { grid-column: 1 / -1; font-size: 13.5px; color: #ffd45c; }
+.conv-av-flutuante { position: fixed; left: 12px; right: 12px; bottom: calc(78px + env(safe-area-inset-bottom)); z-index: 61; max-width: 560px; margin: 0 auto; }
+.conv-av-flutuante .conv-av { margin: 0; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+@media (min-width: 901px) { .conv-av-flutuante { bottom: 24px; } }
+body.com-convite-avisos #souzinha-widget:not(.sz-open) .sz-fab { bottom: calc(var(--conv-av-h, 170px) + 90px + env(safe-area-inset-bottom, 0px)) !important; }
+@media (min-width: 901px) { body.com-convite-avisos #souzinha-widget:not(.sz-open) .sz-fab { bottom: calc(var(--conv-av-h, 170px) + 36px) !important; } }

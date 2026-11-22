@@ -30,6 +30,7 @@ import { abrirNegociacao, desenharMinhasNegociacoes } from './negociacao.js';
 import { htmlDisponivel, conferir, somar } from './estoque.js';
 import { abrirCadastro } from './cadastro.js';
 import { situacaoAvisos, ativarAvisos, desativarAvisos, testarAviso } from '../estado/avisos.js';
+import { convidarNoRodape } from '../ui/oferta-avisos.js';
 
 const filtros = { q: '', grupo: '', marca: '', pagina: 1 };
 let classificacoes = null;
@@ -689,6 +690,7 @@ function ligarLogin() {
       fecharModal('mLogin');
       ctx.aoEntrar();
       limparEventosSessao(); registrarAcesso();
+      setTimeout(() => { convidarNoRodape().catch(() => {}); }, 1500); // convite para os avisos do pedido (se ainda não ativou)
       toast(`Bem-vindo, ${sessao.comprador?.fantasia || sessao.comprador?.nome || ''}!`);
       const f = depoisDoLogin; depoisDoLogin = null; if (f) f();
     } catch (e) {

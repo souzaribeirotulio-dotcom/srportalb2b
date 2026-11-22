@@ -17,6 +17,7 @@ import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { dinheiro, quantidade, dataBr } from '../ui/formato.js';
 import { $, esc, abrirModal, fecharModal, adiar } from './comum.js';
 import { formularioEndereco } from './endereco.js';
+import { podeConvidar, montarConvite } from '../ui/oferta-avisos.js';
 
 const escolha = { modalidade: null, endereco_id: null, condicao_id: null, observacao: '' };
 let opcoes = null;
@@ -273,7 +274,12 @@ function sucesso(p) {
   registrarPedido(p);
   $('chkBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>Pedido enviado!</h3>
     <p>${p.numero ? `Pedido nº <b>${esc(p.numero)}</b>` : '<b>Aguardando aprovação</b>'} · ${esc(p.situacao_nome || '')}<br>Total de <b>${esc(dinheiro(p.total))}</b>${p.data ? `<br>${esc(dataBr(p.data))}${p.hora ? ` às ${esc(p.hora)}` : ''}` : ''}</p></div>
+    <div id="okAvisos"></div>
     <div class="act" style="justify-content:center"><button type="button" class="btn sec" id="okP">Ver meus pedidos</button><button type="button" class="btn pri" id="okC">Continuar comprando</button></div>`;
+  podeConvidar().then((sim) => {
+    const alvo = $('okAvisos');
+    if (sim && alvo) montarConvite(alvo, { titulo: 'Quer receber no celular os avisos dos seus pedidos?', texto: 'Mandamos o aviso aqui no celular. Você só precisa permitir uma vez.' });
+  }).catch(() => { /* sem convite */ });
   $('okP').onclick = () => { fecharModal('mChk'); ctx.ir(`/pedidos/${p.id}`); };
   $('okC').onclick = () => { fecharModal('mChk'); ctx.ir('/catalogo'); };
 }
