@@ -636,6 +636,14 @@ function mudancaCarrinho(e) {
 
 let depoisDoLogin = null;
 
+/* CPF/CNPJ lembrado: só no app instalado (o celular é do próprio cliente), nunca no navegador comum,
+   que pode ser um computador compartilhado. A senha NUNCA é guardada pelo portal: quem guarda e
+   preenche com o Face ID é o gerenciador de senhas do aparelho. "Usar outro CPF/CNPJ" apaga. */
+const CHAVE_DOC = `g360:${String(import.meta.env.VITE_G360_LOJA || '').trim()}:comprador:documento`;
+const ehAppInstalado = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+function docLembrado() { try { return ehAppInstalado() ? localStorage.getItem(CHAVE_DOC) || '' : ''; } catch { return ''; } }
+function lembrarDoc(d) { try { if (d && ehAppInstalado()) localStorage.setItem(CHAVE_DOC, d); else localStorage.removeItem(CHAVE_DOC); } catch { /* sem armazenamento */ } }
+
 function ligarLogin() {
   $('lgCad').textContent = 'Quero ser cliente';
   $('lgCad').onclick = () => { fecharModal('mLogin'); abrirCadastro(ctxCadastro()); };
@@ -648,7 +656,12 @@ function ligarLogin() {
   const doc = $('lgC');
   doc.placeholder = 'Digite com ou sem pontuação'; doc.inputMode = 'text'; doc.maxLength = 32; doc.autocapitalize = 'characters';
   $('lgS').maxLength = 64;
+  if (!$('lgOutro')) $('lgL').insertAdjacentHTML('afterend', '<button type="button" class="lg-outro" id="lgOutro" hidden>Usar outro CPF/CNPJ</button>');
+  $('lgOutro').onclick = () => { lembrarDoc(''); doc.value = ''; $('lgOutro').hidden = true; doc.focus(); };
   if (!$('lgRes')) $('lgE').insertAdjacentHTML('afterend', '<div id="lgRes" aria-live="polite"></div><p class="hint" id="lgSessao"></p>');
+  if (!$('lgContW')) $('lgE').insertAdjacentHTML('beforebegin', `<div class="lg-cont" id="lgContW" hidden>
+    <label for="lgCont"><input type="checkbox" id="lgCont"><span>Continuar conectado</span></label>
+    <small>Não marque em computador compartilhado.</small></div>`);
   $('lgX').onclick = () => { fecharModal('mLogin'); depoisDoLogin = null; };
   // Formulário de verdade: o navegador oferece salvar o CNPJ e a senha e preenche no próximo login.
   // O Enter na senha envia o formulário (clique no botão Entrar); a página não recarrega.
@@ -662,8 +675,16 @@ function ligarLogin() {
     if (!senha) { $('lgE').textContent = 'Digite a senha.'; $('lgS').focus(); return; }
     $('lgOk').disabled = true; $('lgOk').textContent = 'Entrando…';
     try {
-      await entrar(usuario, senha);
-      $('lgS').value = '';
+      const continuar = !$('lgContW').hidden && $('lgCont').checked;
+      await entrar(usuario, senha, continuar);
+      lembrarDoc(usuario);
+      // Para o iPhone/Safari (e o Chrome) oferecerem "Salvar senha": depois do login aceito,
+      // o formulário sai da página ainda preenchido e volta vazio (mesmos elementos, mesmos eventos).
+      const form = $('lgForm'); const lugar = document.createComment('lgForm');
+      form.replaceWith(lugar);
+      await new Promise((r) => setTimeout(r, 120));
+      form.querySelector('#lgS').value = '';
+      lugar.replaceWith(form);
       fecharModal('mLogin');
       ctx.aoEntrar();
       limparEventosSessao(); registrarAcesso();
@@ -688,12 +709,23 @@ export function abrirLogin(depois = null, mensagemErro = null, mensagemOk = null
   $('lgE').textContent = mensagemErro || '';
   $('lgRes').innerHTML = mensagemOk ? `<div class="rv-aviso">${esc(mensagemOk)}</div>` : '';
   const min = Number(ctx?.loja?.sessao_minutos);
-  $('lgSessao').textContent = Number.isFinite(min) ? `Por segurança, a sessão encerra após ${min} minuto${min === 1 ? '' : 's'} sem uso.` : '';
+  // Continuar conectado: só com continuar_conectado_dias > 0 em GET loja; sem o campo, vale zero.
+  const dias = Number(ctx?.loja?.continuar_conectado_dias);
+  const comLonga = Number.isFinite(dias) && dias > 0;
+  $('lgContW').hidden = !comLonga;
+  $('lgCont').checked = false; // sempre começa desmarcada
+  $('lgSessao').textContent = Number.isFinite(min)
+    ? `Por segurança, a sessão encerra após ${min} minuto${min === 1 ? '' : 's'} sem uso${comLonga ? ', a menos que você marque Continuar conectado' : ''}.`
+    : '';
   const semTroca = ctx?.loja?.troca_senha !== true;
   $('lgEsqL').style.display = semTroca ? 'none' : '';
+  const lembrado = docLembrado();
+  if (lembrado && !$('lgC').value) $('lgC').value = lembrado;
+  $('lgOutro').hidden = !lembrado;
   abrirModal('mLogin');
-  // Foca o documento só se a pessoa ainda não clicou em outro campo do modal.
-  setTimeout(() => { if (!$('mLogin').contains(document.activeElement)) $('lgC').focus(); }, 50);
+  // Com o CPF/CNPJ já preenchido, vai direto para a senha; senão, para o documento
+  // (só se a pessoa ainda não clicou em outro campo do modal).
+  setTimeout(() => { if (!$('mLogin').contains(document.activeElement)) ($('lgC').value ? $('lgS') : $('lgC')).focus(); }, 50);
 }
 
 /* ---------------- Minha conta (modal original) ---------------- */

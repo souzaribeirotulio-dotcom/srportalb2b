@@ -314,3 +314,12 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
 /* Busca: "Você quis dizer" e "nada nesta categoria" (acima da contagem). */
 .g360-aviso-busca { display: block; margin-bottom: 4px; color: var(--lima, #b2e04a); text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 500; }
 .g360-aviso-busca b { color: inherit; }
+
+/* Continuar conectado (login do comprador) */
+.lg-cont { margin: 12px 0 2px; }
+.lg-cont label { text-transform: none; letter-spacing: normal; font-weight: 500; display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; font-size: 15px; color: var(--tx); }
+.lg-cont input { width: 22px; height: 22px; accent-color: var(--lima); flex-shrink: 0; margin: 0; }
+.lg-cont input:focus-visible { outline: 2px solid var(--lima); outline-offset: 2px; }
+.lg-cont small { display: block; font-size: 12.5px; color: #ffd45c; margin-left: 32px; }
+.lg-outro { float: right; background: none; border: 0; color: var(--lima); font-size: 13px; text-decoration: underline; cursor: pointer; min-height: 32px; margin-top: -6px; }
+.lg-outro:focus-visible { outline: 2px solid var(--lima); outline-offset: 2px; }
