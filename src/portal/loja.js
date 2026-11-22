@@ -270,7 +270,9 @@ function ordenar(lista) {
 /** Lê o catálogo em blocos de 50 e guarda só o que tem estoque, até encher a página pedida. */
 async function resultadoVitrine() {
   const chave = `${sessao.token}|${filtros.grupo}|${filtros.marca}|${$('ord').value}`;
-  if (!vitrine || vitrine.chave !== chave) vitrine = { chave, apiPagina: 0, apiPaginas: 1, itens: [], fim: false };
+  // fixos = quantos itens já apareceram em alguma página: eles não mudam mais de lugar quando chegam produtos novos
+  // da API (antes, a reordenação jogava produtos da página anterior para a seguinte e alguns nunca apareciam).
+  if (!vitrine || vitrine.chave !== chave) vitrine = { chave, apiPagina: 0, apiPaginas: 1, itens: [], ids: new Set(), fixos: 0, fim: false };
   const precisa = filtros.pagina * POR_PAGINA + 1;
   // Categoria do portal: a API aceita até 500 códigos por consulta, então vai em blocos de 500.
   const codigos = filtros.grupo ? codigosDaCategoria(filtros.grupo, Infinity) : null;
@@ -286,15 +288,22 @@ async function resultadoVitrine() {
       ? await buscarProdutos(sessao.token, { codigos: bloco, marca, pagina, limite: 50 })
       : await listarProdutos(sessao.token, { marca, pagina, limite: 50 });
     vitrine.apiPagina = pagina; lidas += 1;
-    vitrine.apiPaginas = Math.max(1, Math.ceil((paginacao?.total || 0) / 50));
-    vitrine.itens.push(...dados.map(apresentar).filter((p) => temEstoque(p) && !oculto(p) && !abaixoDoMinimo(p)));
+    // Páginas pelo limite que a API devolveu (se ela entregar menos que 50 por página, continua lendo).
+    vitrine.apiPaginas = Math.max(1, Math.ceil((paginacao?.total || 0) / (Number(paginacao?.limite) || 50)));
+    // Sem repetir: o mesmo produto em duas páginas da API (ou em dois blocos) entra uma vez só.
+    for (const p of dados.map(apresentar)) {
+      if (vitrine.ids.has(Number(p.id)) || !temEstoque(p) || oculto(p) || abaixoDoMinimo(p)) continue;
+      vitrine.ids.add(Number(p.id)); vitrine.itens.push(p);
+    }
     if (pagina >= vitrine.apiPaginas) {
       if (vitrine.bloco + 1 < blocos.length) { vitrine.bloco += 1; vitrine.apiPagina = 0; } else vitrine.fim = true;
     }
   }
-  ordenar(vitrine.itens);
+  // Só reordena o que ainda não foi mostrado; as páginas já vistas ficam como estavam.
+  const novos = vitrine.itens.splice(vitrine.fixos); ordenar(novos); vitrine.itens.push(...novos);
   const ini = (filtros.pagina - 1) * POR_PAGINA;
   const itens = vitrine.itens.slice(ini, ini + POR_PAGINA);
+  vitrine.fixos = Math.max(vitrine.fixos, Math.min(vitrine.itens.length, ini + POR_PAGINA));
   const temMais = !vitrine.fim || vitrine.itens.length > ini + POR_PAGINA;
   return { itens, total: vitrine.itens.length, temMais, aindaLendo: !vitrine.fim, paginas: temMais ? filtros.pagina + 1 : filtros.pagina };
 }
