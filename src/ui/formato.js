@@ -17,10 +17,15 @@ export function decimalBr(texto, minCasas = 2) {
   return `${neg ? '-' : ''}${agrupar(int || '0')}${f ? ',' + f : ''}`;
 }
 
-/** Dinheiro: "12.5" → "R$ 12,50". Preço unitário pode ter até 6 casas: mostra as que importam. */
+/** Dinheiro: "12.5" → "R$ 12,50"; "118.999025" → "R$ 119,00" (2 casas, arredondando).
+    Abaixo de R$ 1 mantém até 4 casas ("0.0345" → "R$ 0,0345"), para não virar R$ 0,03.
+    É só exibição: o valor guardado e enviado continua o texto da API, e os totais que valem são os da revisão. */
 export function dinheiro(texto) {
   if (texto === null || texto === undefined || texto === '') return '—';
-  return `R$ ${decimalBr(texto, 2)}`;
+  let d;
+  try { d = new Decimal(String(texto)); } catch { return `R$ ${decimalBr(texto, 2)}`; }
+  const casas = d.abs().lt(1) ? 4 : 2;
+  return `R$ ${decimalBr(d.toDecimalPlaces(casas, Decimal.ROUND_HALF_UP).toFixed(), 2)}`;
 }
 
 /** Quantidade: "1.5" → "1,5"; "2" → "2". */
