@@ -334,7 +334,7 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
 .faixa-app-sim{min-height:44px;padding:0 18px;border:0;border-radius:11px;background:var(--lima);color:#081b06;font-weight:700;font-size:15px;cursor:pointer}
 .faixa-app-nao{min-width:44px;min-height:44px;border:0;background:none;color:var(--tx2);font-size:18px;cursor:pointer}
 .faixa-app button:focus-visible,.passo-ios button:focus-visible,.instalar-link:focus-visible{outline:2px solid var(--lima);outline-offset:2px}
-.passo-ios{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;padding:12px}
+.passo-ios{position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;padding:12px}
 .passo-ios-caixa{width:100%;max-width:480px;background:#0c2408;border:1px solid var(--linha2);border-radius:20px;padding:22px 20px calc(20px + env(safe-area-inset-bottom))}
 .passo-ios-caixa h2{font-size:21px;margin-bottom:16px}
 .passo-ios-caixa ol{list-style:none;display:flex;flex-direction:column;gap:14px;margin-bottom:14px}
@@ -366,3 +366,5 @@ body.com-faixa-app #souzinha-widget:not(.sz-open) .sz-fab { bottom: calc(166px +
 @media (min-width: 901px) { .conv-av-flutuante { bottom: 24px; } }
 body.com-convite-avisos #souzinha-widget:not(.sz-open) .sz-fab { bottom: calc(var(--conv-av-h, 170px) + 90px + env(safe-area-inset-bottom, 0px)) !important; }
 @media (min-width: 901px) { body.com-convite-avisos #souzinha-widget:not(.sz-open) .sz-fab { bottom: calc(var(--conv-av-h, 170px) + 36px) !important; } }
+.passo-ios-abrir{width:100%;min-height:52px;border:1px solid rgba(178,224,74,.5);border-radius:12px;background:transparent;color:var(--lima);font-weight:700;font-size:17px;cursor:pointer;margin-bottom:14px}
+.passo-ios-abrir:focus-visible{outline:2px solid var(--lima);outline-offset:2px}
