@@ -1,6 +1,6 @@
 /* dashboard-g360 — números de vendas do portal para o painel dos GESTORES.
    POST {"token": <operador do G360>, "dias": 1|7|30|90} (só Content-Type; origens de PORTAL_ORIGENS).
-   - Confere o operador com GET operadores/me e exige gestor (painel_operadores.gestor).
+   - Confere o operador com GET operadores/me e exige a permissão 'vendas' do painel.
    - Vendas: pedidos feitos pelo portal (portal_eventos, tipo 'pedido'), período atual e o anterior
      (para a comparação), por dia, por produto e por cliente.
    - Margem bruta: (venda − custo) ÷ venda, com o CUSTO ATUAL do G360 (operadores/produtos/busca com o
@@ -50,8 +50,8 @@ Deno.serve(async (req) => {
     if (me.status === 401) return res(401, { mensagem: "Sua sessão do painel terminou. Entre novamente." });
     if (me.status !== 200) return res(503, { mensagem: "Não foi possível conferir a sessão. Tente de novo." });
     const codigoOp = (await me.json())?.dados?.operador?.codigo;
-    const { data: g } = await admin.from("painel_operadores").select("gestor").eq("loja", LOJA).eq("codigo", codigoOp).maybeSingle();
-    if (g?.gestor !== true) return res(403, { mensagem: "O painel de vendas é só para os gestores." });
+    const { data: perms } = await admin.rpc("painel_permissoes_efetivas", { p_loja: LOJA, p_codigo: codigoOp });
+    if (!(perms || []).includes("vendas")) return res(403, { mensagem: "Você não tem acesso ao painel de vendas." });
 
     // Períodos (dias corridos, horário de Brasília): atual e o anterior de mesmo tamanho
     const agora = new Date();

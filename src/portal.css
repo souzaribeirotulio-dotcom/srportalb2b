@@ -593,3 +593,20 @@ details.ferr > .afil{margin:0 !important;padding:0 12px 12px}
 .est-bar{grid-column:1;height:6px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden}
 .est-bar i{display:block;height:100%;background:#ff8a8a;border-radius:3px}
 .est-it [data-visto]{grid-column:2;grid-row:1 / span 3;min-height:40px}
+
+/* Permissões do painel */
+.perm-topo h2{margin:0 0 4px;font-size:20px}
+.perm-topo p{margin:0 0 12px;color:var(--tx3);font-size:14px;line-height:1.45}
+.perm-msg{color:var(--lima)!important;font-weight:600}
+.perm-lista{display:flex;flex-direction:column;gap:12px}
+.perm-op{border:1px solid var(--linha2);border-radius:14px;padding:14px;background:#0f2a09}
+.perm-nm b{display:block;font-size:15px}
+.perm-nm small{color:var(--tx3);font-size:12px}
+.perm-ch{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin:12px 0}
+.perm-c{display:flex;align-items:center;gap:10px;min-height:44px;padding:8px 12px;border-radius:10px;border:1px solid var(--linha2);cursor:pointer;font-size:14px}
+.perm-c input{width:20px;height:20px;accent-color:var(--lima);flex:none}
+.perm-c:has(input:checked){border-color:var(--lima);background:rgba(190,255,90,.07)}
+.perm-c.trava{opacity:.7;cursor:not-allowed}
+.perm-c:focus-within{outline:2px solid var(--lima);outline-offset:2px}
+.perm-ac{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+@media (max-width:520px){.perm-ch{grid-template-columns:1fr}}

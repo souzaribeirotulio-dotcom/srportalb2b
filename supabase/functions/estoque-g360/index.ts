@@ -45,8 +45,8 @@ Deno.serve(async (req) => {
     if (me.status === 401) return res(401, { mensagem: "Sua sessão do painel terminou. Entre novamente." });
     if (me.status !== 200) return res(503, { mensagem: "Não foi possível conferir a sessão. Tente de novo." });
     const codigoOp = (await me.json())?.dados?.operador?.codigo;
-    const { data: op } = await admin.from("painel_operadores").select("permissoes").eq("loja", LOJA).eq("codigo", codigoOp).maybeSingle();
-    if (!(op?.permissoes || []).includes("estoque")) return res(403, { mensagem: "Você não tem acesso ao aviso de estoque." });
+    const { data: perms } = await admin.rpc("painel_permissoes_efetivas", { p_loja: LOJA, p_codigo: codigoOp });
+    if (!(perms || []).includes("estoque")) return res(403, { mensagem: "Você não tem acesso ao aviso de estoque." });
 
     if (corpo.acao === "status") {
       const { data: l } = await admin.from("estoque_leitura").select("iniciada_em, concluida_em").eq("loja", LOJA).maybeSingle();
