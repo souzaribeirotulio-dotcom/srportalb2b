@@ -366,5 +366,12 @@ body.com-faixa-app #souzinha-widget:not(.sz-open) .sz-fab { bottom: calc(166px +
 @media (min-width: 901px) { .conv-av-flutuante { bottom: 24px; } }
 body.com-convite-avisos #souzinha-widget:not(.sz-open) .sz-fab { bottom: calc(var(--conv-av-h, 170px) + 90px + env(safe-area-inset-bottom, 0px)) !important; }
 @media (min-width: 901px) { body.com-convite-avisos #souzinha-widget:not(.sz-open) .sz-fab { bottom: calc(var(--conv-av-h, 170px) + 36px) !important; } }
-.passo-ios-abrir{width:100%;min-height:52px;border:1px solid rgba(178,224,74,.5);border-radius:12px;background:transparent;color:var(--lima);font-weight:700;font-size:17px;cursor:pointer;margin-bottom:14px}
-.passo-ios-abrir:focus-visible{outline:2px solid var(--lima);outline-offset:2px}
+/* Passo a passo do iPhone: caixa no alto e seta animada apontando para a barra do Safari, embaixo */
+.passo-ios{align-items:flex-start;padding-top:calc(12px + env(safe-area-inset-top))}
+.passo-ios-caixa li small{display:block;font-size:14px;color:var(--tx2);margin-top:3px;line-height:1.4}
+.passo-ios-pontos{display:inline-block;padding:0 6px;border-radius:8px;background:#ffffff1f;font-size:12px;letter-spacing:1px;vertical-align:2px}
+.passo-ios-seta{position:fixed;left:0;right:0;bottom:calc(10px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--lima);font-weight:700;font-size:15px;pointer-events:none;animation:passoSeta 1.1s ease-in-out infinite}
+.passo-ios-seta svg{width:44px;height:44px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+@keyframes passoSeta{0%,100%{transform:translateY(0)}50%{transform:translateY(10px)}}
+@media (prefers-reduced-motion:reduce){.passo-ios-seta{animation:none}}
+body.com-passo-ios #souzinha-widget{display:none !important}
