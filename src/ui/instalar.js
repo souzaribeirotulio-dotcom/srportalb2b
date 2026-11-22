@@ -71,11 +71,12 @@ function mostrarPassoIOS() {
   const compartilhar = '<svg viewBox="0 0 24 24" class="passo-ios-sym" aria-hidden="true"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
   const mais = '<svg viewBox="0 0 24 24" class="passo-ios-sym" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg>';
   const pontos = '<span class="passo-ios-pontos" aria-hidden="true">•••</span>';
+  const menu = '<svg viewBox="0 0 24 24" class="passo-ios-sym passo-ios-menu" aria-label="menu"><path d="M4 7h16M4 12h16M4 17h10"/></svg>';
   fundo.innerHTML = `
     <div class="passo-ios-caixa">
       <h2 id="srPassoIOSTit">Instalar no iPhone</h2>
       <ol>
-        <li><span class="passo-ios-n">1</span><span>Na barra do Safari, aqui embaixo, toque em <b>Compartilhar</b> ${compartilhar}. <small>No iPhone mais novo, toque antes nos <b>três pontinhos</b> ${pontos} e depois em <b>Compartilhar</b>.</small></span></li>
+        <li><span class="passo-ios-n">1</span><span>Na barra de endereço do Safari, aqui embaixo, toque no ícone ${menu} ao lado do endereço e depois em <b>Compartilhar</b> ${compartilhar}. <small>Se o seu Safari mostrar direto o botão Compartilhar ${compartilhar} ou os três pontinhos ${pontos}, toque nele.</small></span></li>
         <li><span class="passo-ios-n">2</span><span>Role para baixo e toque em <b>Adicionar à Tela de Início</b> ${mais}. <small>Não apareceu? Toque em <b>Ver Mais</b>.</small></span></li>
         <li><span class="passo-ios-n">3</span><span>Toque em <b>Adicionar</b>. Pronto: o ícone da Souza Ribeiro aparece no seu celular.</span></li>
       </ol>

@@ -375,3 +375,4 @@ body.com-convite-avisos #souzinha-widget:not(.sz-open) .sz-fab { bottom: calc(va
 @keyframes passoSeta{0%,100%{transform:translateY(0)}50%{transform:translateY(10px)}}
 @media (prefers-reduced-motion:reduce){.passo-ios-seta{animation:none}}
 body.com-passo-ios #souzinha-widget{display:none !important}
+.passo-ios-sym.passo-ios-menu{stroke:var(--tx);background:#ffffff1f;border-radius:6px;padding:2px}
