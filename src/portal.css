@@ -388,3 +388,5 @@ body.g360-painel .faixa-app, body.g360-painel #btnInstalarRodape { display: none
 .lg-cont small { display: block; font-size: 12.5px; color: #ffd45c; margin-left: 32px; }
 .lg-outro { float: right; background: none; border: 0; color: var(--lima); font-size: 13px; text-decoration: underline; cursor: pointer; min-height: 32px; margin-top: -6px; }
 .lg-outro:focus-visible { outline: 2px solid var(--lima); outline-offset: 2px; }
+/* Faixa "Instale o app" na tela: a Souzinha sobe para ficar acima dela (não cobrem uma à outra) */
+body.com-faixa-app #souzinha-widget:not(.sz-open) .sz-fab { bottom: calc(166px + env(safe-area-inset-bottom, 0px)) !important; }

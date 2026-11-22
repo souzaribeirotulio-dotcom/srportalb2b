@@ -38,6 +38,7 @@ function atualizarBotoes() {
 
 function fecharFaixa() {
   document.getElementById('srFaixaApp')?.remove();
+  document.body.classList.remove('com-faixa-app');
 }
 
 function mostrarFaixa() {
@@ -55,6 +56,8 @@ function mostrarFaixa() {
   faixa.querySelector('.faixa-app-sim').addEventListener('click', instalar);
   faixa.querySelector('.faixa-app-nao').addEventListener('click', () => { marcarDispensado(); fecharFaixa(); });
   document.body.appendChild(faixa);
+  // A Souzinha sobe enquanto a faixa estiver na tela, para uma não ficar em cima da outra.
+  document.body.classList.add('com-faixa-app');
 }
 
 function mostrarPassoIOS() {
