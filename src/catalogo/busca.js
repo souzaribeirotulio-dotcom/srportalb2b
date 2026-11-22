@@ -162,29 +162,36 @@ function distancia(a, b, max) {
 
 /**
  * "Você quis dizer": troca cada palavra que não existe no catálogo pela mais parecida que existe
- * ("liva preta" → "luva preta"). Devolve a busca corrigida ou null se não houver o que corrigir.
- * Até 1 letra de diferença em palavras de 3 a 5 letras, até 2 nas maiores; empate fica com a palavra mais comum.
+ * ("liva preta" → "luva preta", "papel sofite" → "papel sulfite"). Devolve a busca corrigida ou null.
+ * Até 1 letra de diferença em palavras de 3 a 5 letras, até 2 nas maiores. Entre as parecidas, vale primeiro
+ * a de tamanho mais próximo e a mais comum, mas só fica a correção que, junto com as outras palavras, acha produto
+ * ("sofite" também fica a 2 letras de "soft", só que "papel soft" não acha nada).
  */
 export function corrigirBusca(consulta) {
   if (!indice) return null;
   const palavras = normalizar(consulta).split(' ').filter(Boolean);
-  let mudou = false;
-  const saida = palavras.map((w) => {
+  const opcoes = palavras.map((w) => {
     const s = singular(w);
     if (w.length < 3 || /\d/.test(w) || PARADAS.has(w) || VOCABULARIO.has(s) || VOCABULARIO.has(w)
-      || SINONIMOS[s] || EXTRA.has(s) || [...VOCABULARIO].some((v) => v.startsWith(s))) return w;
+      || SINONIMOS[s] || EXTRA.has(s) || [...VOCABULARIO].some((v) => v.startsWith(s))) return [w];
     const max = s.length <= 5 ? 1 : 2;
-    let melhor = null; let dMelhor = max + 1; let fMelhor = 0;
+    const achadas = [];
     for (const v of VOCABULARIO) {
       const d = distancia(s, v, max);
-      if (d > max) continue;
-      const f = FREQ.get(v) || 0;
-      if (d < dMelhor || (d === dMelhor && f > fMelhor)) { melhor = v; dMelhor = d; fMelhor = f; }
+      if (d <= max) achadas.push({ v, d, t: Math.abs(v.length - s.length), f: FREQ.get(v) || 0 });
     }
-    if (!melhor) return w;
-    mudou = true; return melhor;
+    achadas.sort((x, y) => x.d - y.d || x.t - y.t || y.f - x.f);
+    return achadas.length ? achadas.slice(0, 6).map((x) => x.v) : [w];
   });
-  return mudou ? saida.join(' ') : null;
+  if (opcoes.every((o, i) => o.length === 1 && o[0] === palavras[i])) return null;
+  // Combinações na ordem de preferência (no máximo 40); a primeira que acha produto é a sugestão.
+  let combos = [[]];
+  for (const o of opcoes) { combos = combos.flatMap((c) => o.map((x) => [...c, x])).slice(0, 40); }
+  for (const c of combos) {
+    const q = c.join(' ');
+    if (q !== palavras.join(' ') && buscarUma(q).length) return q;
+  }
+  return null;
 }
 
 /**
