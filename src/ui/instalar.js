@@ -70,32 +70,26 @@ function mostrarPassoIOS() {
   fundo.setAttribute('aria-labelledby', 'srPassoIOSTit');
   const compartilhar = '<svg viewBox="0 0 24 24" class="passo-ios-sym" aria-hidden="true"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
   const mais = '<svg viewBox="0 0 24 24" class="passo-ios-sym" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg>';
+  const pontos = '<span class="passo-ios-pontos" aria-hidden="true">•••</span>';
   fundo.innerHTML = `
     <div class="passo-ios-caixa">
       <h2 id="srPassoIOSTit">Instalar no iPhone</h2>
       <ol>
-        <li><span class="passo-ios-n">1</span><span>No menu <b>Compartilhar</b> ${compartilhar}, role a lista para baixo.</span></li>
-        <li><span class="passo-ios-n">2</span><span>Toque em <b>Adicionar à Tela de Início</b> ${mais}.</span></li>
+        <li><span class="passo-ios-n">1</span><span>Na barra do Safari, aqui embaixo, toque em <b>Compartilhar</b> ${compartilhar}. <small>No iPhone mais novo, toque antes nos <b>três pontinhos</b> ${pontos} e depois em <b>Compartilhar</b>.</small></span></li>
+        <li><span class="passo-ios-n">2</span><span>Role para baixo e toque em <b>Adicionar à Tela de Início</b> ${mais}. <small>Não apareceu? Toque em <b>Ver Mais</b>.</small></span></li>
         <li><span class="passo-ios-n">3</span><span>Toque em <b>Adicionar</b>. Pronto: o ícone da Souza Ribeiro aparece no seu celular.</span></li>
       </ol>
-      ${navigator.share ? '<button type="button" class="passo-ios-abrir">Abrir o menu Compartilhar</button>' : ''}
-      <p class="passo-ios-obs">Não achou a opção? Feche o menu e toque no botão <b>Compartilhar</b> ${compartilhar} da barra do Safari. Precisa estar aberto no Safari: se estiver no Instagram ou no WhatsApp, abra o link no Safari primeiro.</p>
-      <button type="button" class="passo-ios-ok">Fechar</button>
-    </div>`;
-  const fechar = () => fundo.remove();
+      <p class="passo-ios-obs">Precisa estar aberto no Safari. Se estiver no Instagram ou no WhatsApp, abra o link no Safari primeiro.</p>
+      <button type="button" class="passo-ios-ok">Entendi</button>
+    </div>
+    <div class="passo-ios-seta" aria-hidden="true"><span>A barra do Safari fica aqui</span><svg viewBox="0 0 24 24"><path d="M12 4v15M5 12l7 7 7-7"/></svg></div>`;
+  const fechar = () => { fundo.remove(); document.body.classList.remove('com-passo-ios'); };
+  document.body.classList.add('com-passo-ios'); // a Souzinha some enquanto o passo a passo está aberto
   fundo.querySelector('.passo-ios-ok').addEventListener('click', fechar);
-  fundo.querySelector('.passo-ios-abrir')?.addEventListener('click', abrirCompartilhar);
   fundo.addEventListener('click', (e) => { if (e.target === fundo) fechar(); });
   document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { fechar(); document.removeEventListener('keydown', esc); } });
   document.body.appendChild(fundo);
   fundo.querySelector('.passo-ios-ok').focus();
-}
-
-/* Abre o menu Compartilhar do iPhone (precisa vir de um toque). O site não consegue abrir
-   direto o "Adicionar à Tela de Início": a pessoa escolhe a opção no menu. */
-function abrirCompartilhar() {
-  if (!navigator.share) return;
-  navigator.share({ title: 'Souza Ribeiro', url: `${location.origin}/` }).catch(() => { /* fechou o menu */ });
 }
 
 async function instalar() {
@@ -108,7 +102,9 @@ async function instalar() {
     atualizarBotoes();
     return;
   }
-  if (ehIOS()) { mostrarPassoIOS(); abrirCompartilhar(); } // o passo a passo fica por trás do menu
+  // O site não consegue abrir o "Adicionar à Tela de Início" (o menu Compartilhar aberto pelo site
+  // não tem essa opção): mostra o passo a passo com a seta para a barra do Safari.
+  if (ehIOS()) mostrarPassoIOS();
 }
 
 export function iniciarAppInstalavel() {
