@@ -35,7 +35,7 @@ async function baixar() {
     sb.from('portal_categorias').select('nome, ordem').eq('loja', LOJA).order('ordem'),
     sb.from('portal_sinonimos').select('termo, equivalentes').eq('loja', LOJA),
     sb.rpc('portal_config_publica', { p_loja: LOJA }).then((r) => r, () => ({ data: null })),
-    sb.from('portal_produtos_exibicao').select('codigo, descricao').eq('loja', LOJA).not('descricao', 'is', null).limit(5000),
+    sb.from('portal_produtos_exibicao').select('codigo, descricao, palavras_chave').eq('loja', LOJA).or('descricao.not.is.null,palavras_chave.not.is.null').limit(5000),
     pagina(0, true),
   ]);
   if (p1.error) throw p1.error;
@@ -45,8 +45,8 @@ async function baixar() {
   const paginas = await Promise.all(resto);
   const linhas = [...p1.data];
   for (const r of paginas) { if (r.error) throw r.error; linhas.push(...r.data); }
-  const textos = new Map((desc.data || []).map((x) => [String(x.codigo), x.descricao]));
-  linhas.forEach((r) => { if (textos.has(String(r.codigo))) r.descricao = textos.get(String(r.codigo)); });
+  const textos = new Map((desc.data || []).map((x) => [String(x.codigo), x]));
+  linhas.forEach((r) => { const t = textos.get(String(r.codigo)); if (t) { r.descricao = t.descricao; r.palavras_chave = t.palavras_chave; } });
   const c = cfg?.data;
   return {
     categorias: (cats.data || []).map((x) => x.nome), sinonimos: sin.data || [], linhas,

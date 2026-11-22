@@ -134,9 +134,10 @@ function tamanhoDaBusca(consulta) {
 export function indexar(linhas) {
   indice = linhas.map((r) => ({
     codigo: String(r.codigo), produto_id: r.produto_id, categoria: r.categoria, nome: r.nome,
-    palavras: [...new Set(tokens(`${r.nome} ${r.nome_g360 || ''}`))], tam: new Set([...tamanhosDe(r.nome), ...tamanhosDe(r.nome_g360)]), cod: normalizar(r.codigo).replace(/\s/g, ''),
+    // Palavras-chave da equipe (ex.: "carrinho" no Carro Funcional) contam como se estivessem no nome.
+    palavras: [...new Set(tokens(`${r.nome} ${r.nome_g360 || ''} ${(r.palavras_chave || '').replace(/,/g, ' ')}`))], tam: new Set([...tamanhosDe(r.nome), ...tamanhosDe(r.nome_g360)]), cod: normalizar(r.codigo).replace(/\s/g, ''),
     // Nome "colado" (sem espaços), para achar "superlimpo" em "Super Limpo" e "papel toalha" em "PAPELTOALHA".
-    junto: `${normalizar(r.nome).replace(/\s/g, '')}|${normalizar(r.nome_g360 || '').replace(/\s/g, '')}`,
+    junto: [r.nome, r.nome_g360 || '', ...(r.palavras_chave || '').split(',')].map((x) => normalizar(x).replace(/\s/g, '')).join('|'),
   }));
   VOCABULARIO = new Set(indice.flatMap((it) => it.palavras).filter((w) => w.length >= 3 && /^[a-z]+$/.test(w))); COMPOSTAS.clear();
   FREQ = new Map(); indice.forEach((it) => it.palavras.forEach((w) => { if (VOCABULARIO.has(w)) FREQ.set(w, (FREQ.get(w) || 0) + 1); }));

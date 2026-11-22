@@ -535,6 +535,8 @@ function abrirEditorProduto(r) {
     <div><label class="hint" for="ed${p.id}" style="margin:0 0 4px;display:block">Descrição no portal</label>
       <textarea class="inp" id="ed${p.id}" rows="4" maxlength="1500" style="width:100%;resize:vertical" placeholder="${esc(sugerida)}">${esc(reg?.descricao || '')}</textarea>
       <small class="hint" style="display:block;margin:4px 0 0">Em branco, o cliente vê o texto cinza acima (${reg?.descricao ? '' : 'descrição automática pelo tipo do produto'}${reg?.descricao ? 'automático' : ''}).</small>
+      <label class="hint" style="display:block;margin:10px 0 4px" for="ek${p.id}"><b style="color:var(--tx)">Palavras-chave da busca</b> (separe por vírgula; o cliente não vê, só ajuda a achar)</label>
+      <input class="inp eChaves" id="ek${p.id}" maxlength="500" style="width:100%" placeholder="Ex.: carrinho, carrinho de limpeza, carro de faxina" value="${esc(reg?.palavras_chave || '')}">
       <label class="hint" style="display:flex;gap:8px;align-items:center;margin:10px 0 0;cursor:pointer"><input type="checkbox" class="eOculto" ${reg?.oculto ? 'checked' : ''} style="width:18px;height:18px;accent-color:var(--lima)"> Ocultar este produto do catálogo do portal <span style="color:var(--tx3)">(continua no G360, no histórico e na Minha Lista)</span></label>
       <div class="row" style="margin-top:10px"><button class="btn pri eSalvar" type="button">Salvar</button><span class="hint eRes" style="margin:0 0 0 10px" aria-live="polite"></span></div></div>
     <div><b style="font-size:13px">Clips (vídeos do produto)</b>
@@ -564,11 +566,13 @@ function abrirEditorProduto(r) {
   pintarClips();
   ed.querySelector('.eSalvar').onclick = async (e) => {
     const b = e.currentTarget; const desc = ed.querySelector('textarea').value.trim(); const oc = ed.querySelector('.eOculto').checked;
+    const chaves = ed.querySelector('.eChaves').value.split(',').map((x) => x.trim()).filter(Boolean).join(', ');
     b.disabled = true;
     try {
-      await painel('produto_extra_salvar', { codigo: String(p.codigo), produto_id: Number(p.id), nome: nomeExibicao(p), nome_g360: p.nome, categoria: categoriaExibicao(p), descricao: desc, oculto: oc });
+      await painel('produto_extra_salvar', { codigo: String(p.codigo), produto_id: Number(p.id), nome: nomeExibicao(p), nome_g360: p.nome, categoria: categoriaExibicao(p), descricao: desc, oculto: oc, palavras_chave: chaves });
       const rg = registro(p);
-      if (rg) { rg.descricao = desc || null; rg.oculto = oc; } else await carregarExibicao(true);
+      // Palavra-chave nova muda o índice da busca: recarrega para valer já neste painel.
+      if (rg && (rg.palavras_chave || '') === chaves) { rg.descricao = desc || null; rg.oculto = oc; } else await carregarExibicao(true);
       ed.querySelector('.eRes').textContent = 'Salvo ✓ — o cliente já vê assim';
       toast(oc ? 'Salvo ✓ — produto oculto no catálogo' : 'Salvo ✓');
     } catch (err) { ed.querySelector('.eRes').textContent = err.message; } finally { b.disabled = false; }

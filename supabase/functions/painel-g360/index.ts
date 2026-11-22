@@ -183,6 +183,12 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     const mud: Record<string, unknown> = { atualizado_em: new Date().toISOString() };
     if ("descricao" in d) { const t = texto(d.descricao, 1500); mud.descricao = t.length ? t : null; }
     if ("oculto" in d) mud.oculto = d.oculto === true;
+    if ("palavras_chave" in d) {
+      // Palavras-chave da busca: separadas por vírgula, sem repetir, até 500 caracteres.
+      const lista = [...new Set(texto(d.palavras_chave, 600).split(",").map((x) => x.trim().replace(/\s+/g, " ")).filter(Boolean))];
+      const t = lista.join(", ").slice(0, 500);
+      mud.palavras_chave = t.length ? t : null;
+    }
     const { data: ex, error: e0 } = await admin.from("portal_produtos_exibicao").select("codigo").eq("loja", loja).eq("codigo", codigo).limit(1);
     if (e0) throw e0;
     if (ex?.length) {
