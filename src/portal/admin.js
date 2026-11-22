@@ -45,18 +45,29 @@ const capas = new Map();   // id → url da capa | null (sem foto) — cache da 
 
 function liberarFotos() { urls.forEach((u) => URL.revokeObjectURL(u)); urls = []; capas.clear(); }
 
-/* Token do operador no sessionStorage da aba (chave própria, separada do comprador): o F5 não derruba o painel
-   nem ocupa outra vaga de licença. No primeiro 401 ele é apagado e o painel pede login. */
+/* Token do operador (chave própria, separada do comprador): o F5 não derruba o painel nem ocupa outra vaga
+   de licença. No navegador fica no sessionStorage da aba. No app instalado da equipe (SR Equipe) fica no
+   localStorage do aparelho, para fechar e abrir o app sem novo login enquanto o G360 mantiver a sessão
+   (até 12 horas; com a licença compartilhada, a vaga vence após 180 s sem uso). No primeiro 401 é apagado.
+   O usuário do G360 (nunca a senha) fica lembrado só no app instalado, para o login vir preenchido. */
 const CHAVE_OP = `sr-g360-operador-${LOJA}`;
-function guardarOp() { try { if (op.token) sessionStorage.setItem(CHAVE_OP, JSON.stringify({ token: op.token, expira: op.expira })); else sessionStorage.removeItem(CHAVE_OP); } catch { /* só memória */ } }
+const CHAVE_OP_USU = `sr-g360-operador-usuario-${LOJA}`;
+const ehAppInstalado = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+function guardarOp() {
+  try { sessionStorage.removeItem(CHAVE_OP); localStorage.removeItem(CHAVE_OP); } catch { /* só memória */ }
+  if (!op.token) return;
+  try { (ehAppInstalado() ? localStorage : sessionStorage).setItem(CHAVE_OP, JSON.stringify({ token: op.token, expira: op.expira })); } catch { /* só memória */ }
+}
 function restaurarOp() {
   if (op.token) return;
   try {
-    const g = JSON.parse(sessionStorage.getItem(CHAVE_OP) || 'null');
+    const g = JSON.parse(sessionStorage.getItem(CHAVE_OP) || localStorage.getItem(CHAVE_OP) || 'null');
     if (g?.token && (!g.expira || Date.now() < g.expira)) { op.token = g.token; op.expira = g.expira || 0; op.ultima = Date.now(); vigiar(); }
-    else sessionStorage.removeItem(CHAVE_OP);
+    else { sessionStorage.removeItem(CHAVE_OP); localStorage.removeItem(CHAVE_OP); }
   } catch { /* nada guardado */ }
 }
+function usuarioLembrado() { try { return ehAppInstalado() ? localStorage.getItem(CHAVE_OP_USU) || '' : ''; } catch { return ''; } }
+function lembrarUsuario(u) { try { if (ehAppInstalado() && u) localStorage.setItem(CHAVE_OP_USU, u); } catch { /* sem armazenamento */ } }
 
 function encerrarOperador(mensagem) {
   gestor = null;
@@ -296,7 +307,10 @@ function telaLogin() {
     $('aOk').disabled = true; $('aOk').textContent = 'Entrando…';
     try {
       const d = await entrarOperador(u, s.value);
-      s.value = '';
+      lembrarUsuario(u);
+      // Para o iPhone/Chrome oferecerem "Salvar senha": o formulário sai da página ainda preenchido e só então é limpo.
+      const form = $('aForm'); const lugar = document.createComment('aForm');
+      form.replaceWith(lugar); await new Promise((r) => setTimeout(r, 120)); s.value = ''; lugar.replaceWith(form);
       op.token = d.token; op.expira = Date.parse(d.expira_em) || 0; op.ultima = Date.now(); op.aviso = null;
       guardarOp();
       vigiar();
@@ -308,7 +322,9 @@ function telaLogin() {
       mostrarMensagemErro($('aRes'), e);
     }
   };
-  setTimeout(() => { if (!alvo.contains(document.activeElement)) $('aUsu')?.focus(); }, 50);
+  const lembrado = usuarioLembrado();
+  if (lembrado) $('aUsu').value = lembrado;
+  setTimeout(() => { if (!alvo.contains(document.activeElement)) (lembrado ? $('aSen') : $('aUsu'))?.focus(); }, 50);
 }
 
 /* ---------------- abas ---------------- */

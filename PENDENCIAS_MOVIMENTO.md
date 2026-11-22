@@ -146,3 +146,7 @@ Pedido: uma rota como `GET operadores/sessao` (ou campos no 201 do login) com o 
 ## Histórico de compras do cliente para o operador, com último preço (19/11)
 `GET historico-compras` só funciona com a sessão do próprio comprador e não traz o preço pago (só data, quantidade e unidades da última compra). O painel do operador não tem rota de histórico.
 Pedido: uma rota como `GET operadores/clientes/{cliente}/historico-compras?meses=3` (com o recorte de vendedor) que traga, por produto, a data, a quantidade, a unidade vendida (`unidade_id`) e o valor unitário efetivo da última compra. Com ela, o vendedor monta a Minha Lista do cliente e congela os preços em um passo, sem depender de PDF.
+
+## Continuar conectado para o operador do painel (22/11)
+A equipe da Souza Ribeiro vai usar o painel como app no celular (SR Equipe) e recebe avisos de venda, negociação e cadastro. Hoje a sessão do operador dura até 12 horas e, com a licença compartilhada, a vaga vence após 180 segundos sem uso, então o gestor precisa entrar de novo quase toda vez que abre o app.
+Pedido: um "continuar conectado" para o operador (como o do comprador, com prazo renovado pelo uso), ou que o painel do portal não consuma a vaga da licença compartilhada, se isso for possível.
