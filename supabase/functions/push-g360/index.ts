@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
       webpush.setVapidDetails(CONTATO, k.publica, k.privada);
       const aviso = JSON.stringify({
         titulo: "Souza Ribeiro",
-        texto: "Teste: os avisos do Portal Souza Ribeiro estão funcionando ✅",
+        texto: "🚚 Sua entrega saiu e está a caminho! (aviso de teste)",
         url: "/pedidos",
       });
       let enviados = 0;
