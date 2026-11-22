@@ -273,6 +273,11 @@ async function rodarEnvio(opcoesEnvio = {}) {
 
 function sucesso(p) {
   registrarPedido(p);
+  // O fechamento é longo e a pessoa rola até o botão Enviar. No iPhone, trocar o conteúdo de uma caixa
+  // rolada para baixo por um conteúdo curto deixava a caixa em branco: volta ao topo antes e depois.
+  const caixa = $('chkBox'); caixa.scrollTop = 0;
+  if (document.activeElement && caixa.contains(document.activeElement)) document.activeElement.blur(); // fecha o teclado
+  requestAnimationFrame(() => { caixa.scrollTop = 0; caixa.style.transform = 'translateZ(0)'; requestAnimationFrame(() => { caixa.style.transform = ''; }); });
   if (p?.id && sessao.token) avisarEvento('pedido', { pedido_id: p.id, token: sessao.token }); // aviso para os gestores
   $('chkBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>Pedido enviado!</h3>
     <p>${p.numero ? `Pedido nº <b>${esc(p.numero)}</b>` : '<b>Aguardando aprovação</b>'} · ${esc(p.situacao_nome || '')}<br>Total de <b>${esc(dinheiro(p.total))}</b>${p.data ? `<br>${esc(dataBr(p.data))}${p.hora ? ` às ${esc(p.hora)}` : ''}` : ''}</p></div>
