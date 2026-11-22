@@ -256,10 +256,9 @@ function desenhar() {
   if (perms === null) carregarPermissoes();
   aplicarPermissoes();
   desenharAba();
-  desenharAvisosPainel();
-  iniciarMonitorEstoque();
+  if (perms !== null) { desenharAvisosPainel(); iniciarMonitorEstoque(); }
   carregarConfigLoja().then(() => { if ($('mgLim')) $('mgLim').value = limiteMargem(); });
-  if (pode('neg')) contarNegociacoes();
+  if (perms !== null && pode('neg')) contarNegociacoes();
 }
 
 /* ---------------- app da equipe e avisos no celular (só gestores) ---------------- */
@@ -359,7 +358,7 @@ function irAba(nova) { aba = pode(nova) ? nova : 'ini'; desenharAba(); window.sc
 /* ---------------- permissões do painel ----------------
    O que cada usuário vê no painel do portal (só restringe: o que o G360 nega continua negado).
    Guardadas no Supabase pela função permissoes-g360, que confere o operador no G360. */
-const PADRAO = ['visita', 'cli', 'neg', 'prod', 'cong', 'mrg', 'intel', 'souzinha', 'cfg', 'ocor'];
+const PADRAO = []; // quem entra pela primeira vez não vê nada até um gestor liberar
 const NOMES_PERM = {
   visita: ['➕ Preparar cliente', 'Cadastrar cliente, montar lista, preços e mandar o link'],
   cli: ['👥 Clientes', 'Cadastros, fichas e listas'],
@@ -376,18 +375,20 @@ const NOMES_PERM = {
   avisos: ['🔔 Avisos no celular', 'Vendas, negociações e cadastros novos'],
   permissoes: ['🔐 Permissões', 'Mudar o que cada pessoa vê no painel'],
 };
-let perms = null; let permsCarregando = null; let permsDados = null;
+let perms = null; let permsCarregando = null; let permsDados = null; let permsErro = '';
 const pode = (k) => { if (k === 'perm') k = 'permissoes'; return k === 'ini' || k === 'mais' || (perms ? perms.has(k) : PADRAO.includes(k)); };
 
 function carregarPermissoes() {
   if (permsCarregando || !op.token) return permsCarregando;
   permsCarregando = (async () => {
-    try { perms = new Set((await chamarPermissoes(op.token, 'minhas')).permissoes || []); }
-    catch (e) { if (e.status === 401) { encerrarOperador(e.message); return; } perms = new Set(PADRAO); }
+    try { perms = new Set((await chamarPermissoes(op.token, 'minhas')).permissoes || []); permsErro = ''; }
+    catch (e) { if (e.status === 401) { encerrarOperador(e.message); return; } perms = new Set(PADRAO); permsErro = e.message; }
     finally { permsCarregando = null; }
     aplicarPermissoes();
     if (!pode(aba)) aba = 'ini';
     desenharAba();
+    desenharAvisosPainel(); iniciarMonitorEstoque();
+    if (pode('neg')) contarNegociacoes();
   })();
   return permsCarregando;
 }
@@ -409,13 +410,45 @@ async function desenharPermissoes(msg = '') {
   alvo.innerHTML = carregandoHtml('Carregando usuários…');
   try { permsDados = await chamarPermissoes(op.token, 'listar'); }
   catch (e) { if (e.status === 401) { encerrarOperador(e.message); return; } alvo.innerHTML = vazio(esc(e.message)); return; }
-  const { operadores, chaves, eu } = permsDados;
-  alvo.innerHTML = `<div class="perm-topo"><h2>Permissões do painel</h2><p>Escolha o que cada pessoa da equipe vê no painel do portal. Quem ainda não aparece aqui precisa entrar no painel uma vez. O <b>Início</b> aparece para todos, e o que o G360 não libera para a pessoa continua bloqueado.</p>${msg ? `<p class="perm-msg" role="status">${esc(msg)}</p>` : ''}</div>
+  const { operadores, chaves, eu, pre = [] } = permsDados;
+  const caixas = (marcadas, travar = () => false) => chaves.map((k) => { const [t, d] = NOMES_PERM[k] || [k, '']; const trava = travar(k); return `<label class="perm-c${trava ? ' trava' : ''}" title="${esc(d)}"><input type="checkbox" value="${esc(k)}" ${marcadas.includes(k) ? 'checked' : ''} ${trava ? 'disabled' : ''}><span>${esc(t)}</span></label>`; }).join('');
+  alvo.innerHTML = `<div class="perm-topo"><h2>Permissões do painel</h2><p>Escolha o que cada pessoa da equipe vê no painel do portal. Quem entra pela primeira vez sem estar liberado não vê nada. O <b>Início</b> aparece para todos, e o que o G360 não libera para a pessoa continua bloqueado.</p>${msg ? `<p class="perm-msg" role="status">${esc(msg)}</p>` : ''}</div>
+    <details class="perm-novo"${operadores.length <= 1 && !pre.length ? ' open' : ''}><summary>➕ Liberar acesso para alguém que ainda não entrou</summary>
+      <p class="hint">Digite o <b>usuário do G360</b> da pessoa (o mesmo que ela usa para entrar) e marque o que ela pode ver. No primeiro acesso, ela já entra com essas permissões. Quem não estiver cadastrado aqui entra sem ver nada.</p>
+      <div class="perm-op" id="permNovo"><input class="inp" id="permUsu" maxlength="60" autocomplete="off" autocapitalize="characters" placeholder="Usuário do G360" aria-label="Usuário do G360">
+        <div class="perm-ch">${caixas([])}</div>
+        <div class="perm-ac"><button class="btn pri" type="button" id="permNovoOk">Liberar</button><span class="hint" data-st style="margin:0"></span></div></div></details>
+    ${pre.length ? `<h3 class="eq-tit">Aguardando o primeiro acesso</h3><div class="perm-lista">${pre.map((x) => `<div class="perm-op" data-usu="${esc(x.usuario)}">
+      <div class="perm-nm"><b>${esc(x.usuario)}</b><small>ainda não entrou no painel</small></div>
+      <div class="perm-ch">${caixas(x.permissoes)}</div>
+      <div class="perm-ac"><button class="btn pri" type="button" data-salvar disabled>Salvar</button><button class="tool" type="button" data-remover>Remover</button><span class="hint" data-st style="margin:0"></span></div></div>`).join('')}</div>` : ''}
+    <h3 class="eq-tit">Quem já entrou no painel</h3>
     <div class="perm-lista">${operadores.map((o) => `<div class="perm-op" data-cod="${Number(o.codigo)}">
-      <div class="perm-nm"><b>${esc(o.nome || o.usuario || `Usuário ${o.codigo}`)}</b><small>${o.usuario ? `${esc(o.usuario)} · ` : ''}cód. ${Number(o.codigo)}${o.codigo === eu ? ' · você' : ''}${o.definidas ? '' : ' · usando o padrão'}${o.visto_em ? ` · entrou em ${esc(new Date(o.visto_em).toLocaleDateString('pt-BR'))}` : ''}</small></div>
-      <div class="perm-ch">${chaves.map((k) => { const [t, d] = NOMES_PERM[k] || [k, '']; const trava = o.codigo === eu && k === 'permissoes'; return `<label class="perm-c${trava ? ' trava' : ''}" title="${esc(d)}"><input type="checkbox" value="${esc(k)}" ${o.permissoes.includes(k) ? 'checked' : ''} ${trava ? 'disabled' : ''}><span>${esc(t)}</span></label>`; }).join('')}</div>
+      <div class="perm-nm"><b>${esc(o.nome || o.usuario || `Usuário ${o.codigo}`)}</b><small>${o.usuario ? `${esc(o.usuario)} · ` : ''}cód. ${Number(o.codigo)}${o.codigo === eu ? ' · você' : ''}${o.definidas ? '' : ' · nada liberado ainda'}${o.visto_em ? ` · entrou em ${esc(new Date(o.visto_em).toLocaleDateString('pt-BR'))}` : ''}</small></div>
+      <div class="perm-ch">${caixas(o.permissoes, (k) => o.codigo === eu && k === 'permissoes')}</div>
       <div class="perm-ac"><button class="btn pri" type="button" data-salvar disabled>Salvar</button><span class="hint" data-st style="margin:0"></span></div></div>`).join('') || vazio('Ninguém entrou no painel ainda.')}</div>`;
-  alvo.querySelectorAll('.perm-op').forEach((card) => {
+  const marcadas = (card) => [...card.querySelectorAll('.perm-ch input')].filter((i) => i.checked).map((i) => i.value);
+  $('permNovoOk').onclick = async () => {
+    const card = $('permNovo'); const st = card.querySelector('[data-st]'); const usu = $('permUsu').value.trim();
+    if (!usu) { st.textContent = 'Digite o usuário do G360.'; $('permUsu').focus(); return; }
+    $('permNovoOk').disabled = true;
+    try { await chamarPermissoes(op.token, 'pre_salvar', { usuario: usu, permissoes: marcadas(card) }); desenharPermissoes(`Acesso de ${usu.toUpperCase()} liberado ✓ Vale a partir do primeiro acesso.`); }
+    catch (e) { if (e.status === 401) { encerrarOperador(e.message); return; } $('permNovoOk').disabled = false; st.textContent = e.message; }
+  };
+  alvo.querySelectorAll('.perm-op[data-usu]').forEach((card) => {
+    const bt = card.querySelector('[data-salvar]'); const usu = card.dataset.usu;
+    card.querySelectorAll('input').forEach((i) => i.addEventListener('change', () => { bt.disabled = false; card.querySelector('[data-st]').textContent = 'Alterações não salvas'; }));
+    bt.onclick = async () => {
+      bt.disabled = true;
+      try { await chamarPermissoes(op.token, 'pre_salvar', { usuario: usu, permissoes: marcadas(card) }); desenharPermissoes('Permissões salvas ✓'); }
+      catch (e) { if (e.status === 401) { encerrarOperador(e.message); return; } bt.disabled = false; card.querySelector('[data-st]').textContent = e.message; }
+    };
+    card.querySelector('[data-remover]').onclick = async () => {
+      try { await chamarPermissoes(op.token, 'pre_remover', { usuario: usu }); desenharPermissoes(`${usu} removido da lista.`); }
+      catch (e) { if (e.status === 401) { encerrarOperador(e.message); return; } card.querySelector('[data-st]').textContent = e.message; }
+    };
+  });
+  alvo.querySelectorAll('.perm-op[data-cod]').forEach((card) => {
     const bt = card.querySelector('[data-salvar]');
     card.querySelectorAll('input').forEach((i) => i.addEventListener('change', () => { bt.disabled = false; card.querySelector('[data-st]').textContent = 'Alterações não salvas'; }));
     bt.onclick = async () => {
@@ -2003,6 +2036,12 @@ function ligarGrade(alvo) { alvo.querySelectorAll('[data-ir]').forEach((b) => { 
 
 async function desenharInicio() {
   const alvo = $('iniPanel');
+  if (perms === null) { alvo.innerHTML = carregandoHtml('Conferindo o seu acesso…'); return; }
+  if (!perms.size) {
+    alvo.innerHTML = `<div class="perm-sem"><span class="ic2">🔒</span><b>${permsErro ? 'Não foi possível conferir o seu acesso.' : 'Seu acesso ao painel ainda não foi liberado.'}</b><p>${permsErro ? esc(permsErro) : 'Peça para um gestor da Souza Ribeiro liberar as áreas que você vai usar, em Mais → Permissões. Depois saia e entre de novo.'}</p><button class="btn sec" type="button" id="permDeNovo">Tentar de novo</button></div>`;
+    $('permDeNovo').onclick = () => { perms = null; desenharInicio(); carregarPermissoes(); };
+    return;
+  }
   const nNeg = Array.isArray(negs) ? negs.filter((n) => n.status === 'aberta').length : null;
   const nCad = Array.isArray(cadastros) ? cadastros.filter((k) => k.status === 'pendente').length : null;
   const cartao = (id, n, t, vazio) => `<button class="eq-card ${n ? 'tem' : ''}" data-ir="${id}"><span class="eq-num">${n === null ? '…' : n}</span><span><b>${esc(t)}</b><small>${n === null ? 'Carregando…' : n ? 'Toque para resolver' : esc(vazio)}</small></span></button>`;
