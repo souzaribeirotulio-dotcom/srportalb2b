@@ -357,3 +357,25 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
 /* Busca: "Você quis dizer" e "nada nesta categoria" (acima da contagem). */
 .g360-aviso-busca { display: block; margin-bottom: 4px; color: var(--lima, #b2e04a); text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 500; }
 .g360-aviso-busca b { color: inherit; }
+
+/* ===== App instalável (faixa "Instalar" e passo a passo do iPhone) ===== */
+.instalar-link{background:none;border:0;color:var(--lima);text-decoration:underline;font-size:13px;cursor:pointer;min-height:44px;padding:0 6px}
+.faixa-app{position:fixed;left:12px;right:12px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:60;display:flex;align-items:center;gap:12px;padding:12px 12px 12px 14px;border-radius:16px;background:#0f2a09;border:1px solid rgba(178,224,74,.35);box-shadow:0 10px 30px rgba(0,0,0,.45);max-width:560px;margin:0 auto}
+.faixa-app-ic{width:44px;height:44px;border-radius:11px;flex-shrink:0}
+.faixa-app-tx{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.3}
+.faixa-app-tx strong{font-size:15px}
+.faixa-app-tx span{font-size:13px;color:var(--tx2)}
+.faixa-app-sim{min-height:44px;padding:0 18px;border:0;border-radius:11px;background:var(--lima);color:#081b06;font-weight:700;font-size:15px;cursor:pointer}
+.faixa-app-nao{min-width:44px;min-height:44px;border:0;background:none;color:var(--tx2);font-size:18px;cursor:pointer}
+.faixa-app button:focus-visible,.passo-ios button:focus-visible,.instalar-link:focus-visible{outline:2px solid var(--lima);outline-offset:2px}
+.passo-ios{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;padding:12px}
+.passo-ios-caixa{width:100%;max-width:480px;background:#0c2408;border:1px solid var(--linha2);border-radius:20px;padding:22px 20px calc(20px + env(safe-area-inset-bottom))}
+.passo-ios-caixa h2{font-size:21px;margin-bottom:16px}
+.passo-ios-caixa ol{list-style:none;display:flex;flex-direction:column;gap:14px;margin-bottom:14px}
+.passo-ios-caixa li{display:flex;gap:12px;align-items:flex-start;font-size:17px;line-height:1.45}
+.passo-ios-n{flex-shrink:0;width:30px;height:30px;border-radius:50%;background:var(--lima);color:#081b06;font-weight:700;display:grid;place-items:center;font-size:15px}
+.passo-ios-sym{width:22px;height:22px;vertical-align:-5px;fill:none;stroke:#4da3ff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.passo-ios-obs{font-size:14px;color:var(--tx2);margin-bottom:16px}
+.passo-ios-ok{width:100%;min-height:52px;border:0;border-radius:12px;background:var(--lima);color:#081b06;font-weight:700;font-size:17px;cursor:pointer}
+body.g360-painel .faixa-app, body.g360-painel #btnInstalarRodape { display: none !important; }
+@media (max-width:400px){.faixa-app{gap:8px;padding:10px}.faixa-app-tx span{display:none}.faixa-app-sim{padding:0 14px}.faixa-app-nao{min-width:40px}}

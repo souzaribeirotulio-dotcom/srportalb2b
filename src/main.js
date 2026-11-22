@@ -27,6 +27,10 @@ import { limparListaTela } from './portal/lista.js';
 // Versão publicada no rodapé (para conferir se o navegador está com a versão nova).
 try { document.getElementById('versao').textContent = `· versão ${__VERSAO__}`; } catch { /* sem rodapé */ }
 import { limparPedidosTela } from './portal/pedidos.js';
+import { iniciarAppInstalavel } from './ui/instalar.js';
+
+// App instalável: registra o service worker e oferece "Instalar app".
+try { iniciarAppInstalavel(); } catch { /* o portal segue normal sem isso */ }
 
 const ATIVO = window.SR_ADAPTADOR !== 'mock';
 
