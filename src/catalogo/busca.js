@@ -105,6 +105,7 @@ function pontoPalavra(q, palavras) {
 
 let indice = null; // [{ codigo, produto_id, palavras, nome, categoria }]
 let VOCABULARIO = new Set(); // palavras de 3+ letras que existem nos nomes
+let FREQ = new Map();         // palavra → em quantos produtos aparece (para escolher a correção mais comum)
 const COMPOSTAS = new Map();
 /** A busca é duas palavras do catálogo coladas? ("superlimpo" = "super" + "limpo"; "descartavel" não é.) */
 function composta(f) {
@@ -138,9 +139,53 @@ export function indexar(linhas) {
     junto: `${normalizar(r.nome).replace(/\s/g, '')}|${normalizar(r.nome_g360 || '').replace(/\s/g, '')}`,
   }));
   VOCABULARIO = new Set(indice.flatMap((it) => it.palavras).filter((w) => w.length >= 3 && /^[a-z]+$/.test(w))); COMPOSTAS.clear();
+  FREQ = new Map(); indice.forEach((it) => it.palavras.forEach((w) => { if (VOCABULARIO.has(w)) FREQ.set(w, (FREQ.get(w) || 0) + 1); }));
 }
 
 export function indexado() { return !!indice; }
+
+/** Distância de edição (Levenshtein) com limite: para de contar acima de max. */
+function distancia(a, b, max) {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let ant = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i += 1) {
+    const cur = [i]; let menor = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      cur[j] = Math.min(ant[j] + 1, cur[j - 1] + 1, ant[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (cur[j] < menor) menor = cur[j];
+    }
+    if (menor > max) return max + 1;
+    ant = cur;
+  }
+  return ant[b.length];
+}
+
+/**
+ * "Você quis dizer": troca cada palavra que não existe no catálogo pela mais parecida que existe
+ * ("liva preta" → "luva preta"). Devolve a busca corrigida ou null se não houver o que corrigir.
+ * Até 1 letra de diferença em palavras de 3 a 5 letras, até 2 nas maiores; empate fica com a palavra mais comum.
+ */
+export function corrigirBusca(consulta) {
+  if (!indice) return null;
+  const palavras = normalizar(consulta).split(' ').filter(Boolean);
+  let mudou = false;
+  const saida = palavras.map((w) => {
+    const s = singular(w);
+    if (w.length < 3 || /\d/.test(w) || PARADAS.has(w) || VOCABULARIO.has(s) || VOCABULARIO.has(w)
+      || SINONIMOS[s] || EXTRA.has(s) || [...VOCABULARIO].some((v) => v.startsWith(s))) return w;
+    const max = s.length <= 5 ? 1 : 2;
+    let melhor = null; let dMelhor = max + 1; let fMelhor = 0;
+    for (const v of VOCABULARIO) {
+      const d = distancia(s, v, max);
+      if (d > max) continue;
+      const f = FREQ.get(v) || 0;
+      if (d < dMelhor || (d === dMelhor && f > fMelhor)) { melhor = v; dMelhor = d; fMelhor = f; }
+    }
+    if (!melhor) return w;
+    mudou = true; return melhor;
+  });
+  return mudou ? saida.join(' ') : null;
+}
 
 /**
  * Busca local. Devolve [{ codigo, produto_id, pontos }] do mais ao menos relevante.

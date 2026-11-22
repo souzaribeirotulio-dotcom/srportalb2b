@@ -8,7 +8,7 @@ import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
 import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo, estoqueMinimoAtual, codigosAtivosPublicos } from '../catalogo/exibicao.js';
 
-import { buscarLocal, temEstoque, variacoes } from '../catalogo/busca.js';
+import { buscarLocal, temEstoque, variacoes, corrigirBusca } from '../catalogo/busca.js';
 import { listarProdutos, buscarProdutos, listarMarcas, produtosPorIds } from '../api/g360.js';
 import { sessao, entrar, sair, trocarSenha, vinculoEmAndamento } from '../estado/sessao.js';
 import { iniciarCarrinhoNuvem, sincronizarCarrinho } from '../estado/carrinho-nuvem.js';
@@ -227,6 +227,15 @@ function desenharChips() {
 /* ---------------- catálogo ---------------- */
 
 /** "Mostrando 24 de 1.600 produtos". Sem o total (filtro por marca), só "Mostrando 24 produtos". */
+/** "Você quis dizer" e "nada nesta categoria": avisa acima da contagem por que os resultados são outros. */
+export function htmlAviso(aviso) {
+  if (!aviso) return '';
+  const partes = [];
+  if (aviso.corrigida) partes.push(`Você quis dizer <b>“${esc(aviso.corrigida)}”</b>? Mostrando os resultados.`);
+  if (aviso.grupo) partes.push(`Nada em ${esc(aviso.grupo)}: mostrando de todo o catálogo.`);
+  return `<span class="g360-aviso-busca">${partes.join(' ')}</span> `;
+}
+
 function mostrando(vistos, total, q = '') {
   const pal = q ? (n) => (n === 1 ? 'resultado' : 'resultados') : (n) => (n === 1 ? 'produto' : 'produtos');
   const fim = q ? ` para “${esc(q)}”` : (filtros.grupo ? ` em ${esc(filtros.grupo)}` : '');
@@ -305,55 +314,75 @@ function guardarRecente(p) { produtosRecentes.set(`${sessao.token}|${p.codigo}`,
 function recente(codigo) { const r = produtosRecentes.get(`${sessao.token}|${codigo}`); return r && Date.now() - r.t < RECENTE_MS ? r.p : null; }
 export function esquecerBuscasRecentes() { produtosRecentes.clear(); buscasRecentes.clear(); }
 
+/** Uma rodada da busca (nomes do portal + API) numa categoria ('' = catálogo inteiro). */
+async function buscarItens(q, grupo) {
+  const marca = filtros.marca ? Number(filtros.marca) : undefined;
+  const locais = buscarLocal(q, { categoria: grupo, max: 150 });
+  const pontos = new Map(locais.map((l) => [l.codigo, l.pontos]));
+  // Faixa de relevância: o que bate bem com a busca vem antes do que só bate de leve (ex.: só o começo de uma palavra).
+  const maxPontos = Math.max(1, ...locais.map((l) => l.pontos));
+  const faixa = (p) => { const v = pontos.get(String(p.codigo)) || 0; return v >= maxPontos * 0.8 ? 2 : v >= maxPontos * 0.5 ? 1 : 0; };
+  const achados = new Map();
+  // 1) Os mais relevantes pelo nome do portal: o que já foi consultado há pouco não vai de novo à API.
+  const faltam = [];
+  for (const l of locais) { const r = !marca && recente(l.codigo); if (r) achados.set(Number(r.id), r); else faltam.push(l.codigo); }
+  const blocos = [];
+  for (let i = 0; i < faltam.length; i += 50) blocos.push(faltam.slice(i, i + 50));
+  // 2) A busca do G360 (pega código de barras, aplicação e o que ainda não tem nome no portal).
+  //    Termos alternativos: a busca digitada e as variações pelos sinônimos (basta um bater).
+  const vs = variacoes(q);
+  const pedidos = [
+    ...blocos.map((b) => buscarProdutos(sessao.token, { codigos: b, marca, limite: 50 })),
+    listarProdutos(sessao.token, vs.length > 1 ? { termos: [q, ...vs.slice(1)], marca, limite: 50 } : { q: q, marca, limite: 50 }),
+  ];
+  const res = await Promise.allSettled(pedidos);
+  res.slice(0, blocos.length).forEach((r) => { if (r.status === 'fulfilled') r.value.dados.forEach((p) => { const a = apresentar(p); guardarRecente(a); achados.set(Number(p.id), a); }); });
+  const api = res[res.length - 1];
+  if (api.status === 'fulfilled') {
+    api.value.dados.map(apresentar).filter((p) => !grupo || p.categoria === grupo)
+      .forEach((p) => { guardarRecente(p); if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); if (!pontos.has(String(p.codigo))) pontos.set(String(p.codigo), maxPontos * 0.6); } });
+  }
+  const falha = res.find((r) => r.status === 'rejected');
+  if (falha && (!achados.size || falha.reason?.status === 401)) throw falha.reason;
+  // Ordem: com estoque primeiro; depois o que mais bate com a busca; na mesma faixa, os mais vendidos (curva A, B, C).
+  const todos = [...achados.values()].filter((p) => !oculto(p) && !abaixoDoMinimo(p) && (!soEstoque() || temEstoque(p))).sort((a, b) => (temEstoque(b) - temEstoque(a)) || (faixa(b) - faixa(a))
+    || (pesoCurva(a) - pesoCurva(b)) || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
+  return { todos, falha };
+}
+
 /** Busca: nomes do portal (tolerante) + busca da API (código, EAN, aplicação); com estoque primeiro. */
 async function resultadoBusca() {
   const chave = `${sessao.token}|${filtros.q}|${filtros.grupo}|${filtros.marca}`;
   if (!busca || busca.chave !== chave) {
     const guardada = buscasRecentes.get(chave);
-    if (guardada && Date.now() - guardada.t < RECENTE_MS) busca = { chave, itens: [...guardada.itens], semEstoque: guardada.semEstoque, ordem: '' };
+    if (guardada && Date.now() - guardada.t < RECENTE_MS) busca = { chave, itens: [...guardada.itens], semEstoque: guardada.semEstoque, aviso: guardada.aviso, ordem: '' };
   }
   if (!busca || busca.chave !== chave) {
-    const marca = filtros.marca ? Number(filtros.marca) : undefined;
-    const locais = buscarLocal(filtros.q, { categoria: filtros.grupo, max: 150 });
-    const pontos = new Map(locais.map((l) => [l.codigo, l.pontos]));
-    // Faixa de relevância: o que bate bem com a busca vem antes do que só bate de leve (ex.: só o começo de uma palavra).
-    const maxPontos = Math.max(1, ...locais.map((l) => l.pontos));
-    const faixa = (p) => { const v = pontos.get(String(p.codigo)) || 0; return v >= maxPontos * 0.8 ? 2 : v >= maxPontos * 0.5 ? 1 : 0; };
-    const achados = new Map();
-    // 1) Os mais relevantes pelo nome do portal: o que já foi consultado há pouco não vai de novo à API.
-    const faltam = [];
-    for (const l of locais) { const r = !marca && recente(l.codigo); if (r) achados.set(Number(r.id), r); else faltam.push(l.codigo); }
-    const blocos = [];
-    for (let i = 0; i < faltam.length; i += 50) blocos.push(faltam.slice(i, i + 50));
-    // 2) A busca do G360 (pega código de barras, aplicação e o que ainda não tem nome no portal).
-    //    Termos alternativos: a busca digitada e as variações pelos sinônimos (basta um bater).
-    const vs = variacoes(filtros.q);
-    const pedidos = [
-      ...blocos.map((b) => buscarProdutos(sessao.token, { codigos: b, marca, limite: 50 })),
-      listarProdutos(sessao.token, vs.length > 1 ? { termos: [filtros.q, ...vs.slice(1)], marca, limite: 50 } : { q: filtros.q, marca, limite: 50 }),
-    ];
-    const res = await Promise.allSettled(pedidos);
-    res.slice(0, blocos.length).forEach((r) => { if (r.status === 'fulfilled') r.value.dados.forEach((p) => { const a = apresentar(p); guardarRecente(a); achados.set(Number(p.id), a); }); });
-    const api = res[res.length - 1];
-    if (api.status === 'fulfilled') {
-      api.value.dados.map(apresentar).filter((p) => !filtros.grupo || p.categoria === filtros.grupo)
-        .forEach((p) => { guardarRecente(p); if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); if (!pontos.has(String(p.codigo))) pontos.set(String(p.codigo), maxPontos * 0.6); } });
+    // 1) Na categoria escolhida. 2) Nada lá: no catálogo inteiro. 3) Ainda nada: corrige a palavra ("liva" → "luva").
+    let r = await buscarItens(filtros.q, filtros.grupo);
+    let aviso = null;
+    // As rodadas extras não derrubam a tela: se falharem (fora a sessão encerrada), fica o "nada encontrado".
+    const tentar = async (q, g) => { try { return await buscarItens(q, g); } catch (e) { if (e?.status === 401) throw e; return { todos: [], falha: e }; } };
+    if (!r.todos.length && filtros.grupo) { const t = await tentar(filtros.q, ''); if (t.todos.length) { r = t; aviso = { grupo: filtros.grupo }; } }
+    if (!r.todos.length) {
+      const certo = corrigirBusca(filtros.q);
+      if (certo) {
+        let t = await tentar(certo, filtros.grupo); let g = null;
+        if (!t.todos.length && filtros.grupo) { t = await tentar(certo, ''); g = filtros.grupo; }
+        if (t.todos.length) { r = t; aviso = { corrigida: certo, grupo: g }; }
+      }
     }
-    const falha = res.find((r) => r.status === 'rejected');
-    if (falha && (!achados.size || falha.reason?.status === 401)) throw falha.reason;
-    // Ordem: com estoque primeiro; depois o que mais bate com a busca; na mesma faixa, os mais vendidos (curva A, B, C).
-    const todos = [...achados.values()].filter((p) => !oculto(p) && !abaixoDoMinimo(p) && (!soEstoque() || temEstoque(p))).sort((a, b) => (temEstoque(b) - temEstoque(a)) || (faixa(b) - faixa(a))
-      || (pesoCurva(a) - pesoCurva(b)) || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
-    busca = { chave, itens: todos, semEstoque: todos.filter((p) => !temEstoque(p)).length, ordem: '' };
-    if (!falha) {
-      buscasRecentes.set(chave, { itens: [...todos], semEstoque: busca.semEstoque, t: Date.now() });
+    const todos = r.todos;
+    busca = { chave, itens: todos, semEstoque: todos.filter((p) => !temEstoque(p)).length, ordem: '', aviso };
+    if (!r.falha) {
+      buscasRecentes.set(chave, { itens: [...todos], semEstoque: busca.semEstoque, aviso, t: Date.now() });
       if (buscasRecentes.size > 30) buscasRecentes.delete(buscasRecentes.keys().next().value);
     }
     registrarBusca(filtros.q, todos.length);
   }
   if (busca.ordem !== $('ord').value) { busca.ordem = $('ord').value; if (busca.ordem !== 'nome') ordenar(busca.itens); }
   const ini = (filtros.pagina - 1) * POR_PAGINA;
-  return { itens: busca.itens.slice(ini, ini + POR_PAGINA), total: busca.itens.length, semEstoque: busca.semEstoque, temMais: false, paginas: Math.max(1, Math.ceil(busca.itens.length / POR_PAGINA)) };
+  return { itens: busca.itens.slice(ini, ini + POR_PAGINA), total: busca.itens.length, semEstoque: busca.semEstoque, aviso: busca.aviso, temMais: false, paginas: Math.max(1, Math.ceil(busca.itens.length / POR_PAGINA)) };
 }
 
 function conviteEntrar(grid, extra = '') {
@@ -373,7 +402,7 @@ async function desenharCatalogoPublico(grid, pag) {
   try {
     const r = await resultadoPublico(filtros);
     if (meu !== buscaN || sessao.ativa) return;
-    $('cnt').innerHTML = mostrando((filtros.pagina - 1) * POR_PAGINA + r.itens.length, r.total, filtros.q) + ' · entre para ver os preços';
+    $('cnt').innerHTML = htmlAviso(r.aviso) + mostrando((filtros.pagina - 1) * POR_PAGINA + r.itens.length, r.total, r.aviso?.corrigida || filtros.q) + ' · entre para ver os preços';
     grid.innerHTML = r.itens.length ? r.itens.map(htmlCartaoPublico).join('')
       : `<div class="empty">${filtros.q ? `Nada encontrado para “${esc(filtros.q)}”. Tente outra palavra ou o código do produto.` : 'Nenhum produto nesta seleção.'}</div>`;
     ligarTrocaFotos(grid);
@@ -467,7 +496,7 @@ export async function desenharCatalogo() {
     if (!filtros.q && !filtros.grupo && !filtros.marca && classificacoes && classificacoes.total === null) { classificacoes.total = ''; }
     const vistos = (filtros.pagina - 1) * POR_PAGINA + dados.length;
     $('cnt').innerHTML = filtros.q
-      ? mostrando(vistos, r.total, filtros.q) + (r.semEstoque ? ` · ${r.semEstoque} sem estoque no fim da lista` : '')
+      ? htmlAviso(r.aviso) + mostrando(vistos, r.total, r.aviso?.corrigida || filtros.q) + (r.semEstoque ? ` · ${r.semEstoque} sem estoque no fim da lista` : '')
       : (dados.length ? mostrando(vistos, await totalNoPortal()) : '');
     produtosDaTela = new Map(dados.map((p) => [Number(p.id), p]));
     const lista = idsCarregados();

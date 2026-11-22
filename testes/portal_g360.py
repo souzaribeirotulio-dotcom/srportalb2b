@@ -274,6 +274,16 @@ with sync_playwright() as pw:
     checar('Copo Descartável Exemplo 200ml' in n.tc('#grid') and 'Descartáveis' in n.tc('#grid .cat'), 'categoria e nome do portal no catálogo')
     q = [x for x in sim.chamadas if x[0] == 'POST' and x[1].endswith('produtos/busca')][-1][3]
     checar(q.get('codigos') == ['P-104'], f'filtro da categoria pelos códigos: {q}')
+    # Busca dentro de uma categoria que não tem o produto: procura no catálogo inteiro e avisa
+    pg.fill('#q', 'Superlimpo'); pg.press('#q', 'Enter'); pg.wait_for_selector('.card[data-id="141"]')
+    checar('Nada em Descartáveis' in n.tc('#cnt') and 'todo o catálogo' in n.tc('#cnt'), f'categoria sem o produto busca no catálogo todo: {n.tc("#cnt")}')
+    # "Você quis dizer": palavra errada é corrigida e os resultados aparecem
+    pg.fill('#q', 'cpo descartavel'); pg.press('#q', 'Enter'); pg.wait_for_selector('.card[data-id="104"]')
+    checar('Você quis dizer' in n.tc('#cnt') and 'copo descartavel' in n.tc('#cnt'), f'você quis dizer: {n.tc("#cnt")}')
+    # o que tem de dar errado: busca sem nada parecido continua "nada encontrado", sem sugestão
+    pg.fill('#q', 'xyzqwk'); pg.press('#q', 'Enter'); pg.wait_for_selector('#gLimpar')
+    checar('Você quis dizer' not in n.tc('#cnt') and 'Nada encontrado' in n.tc('#grid'), 'sem palavra parecida, sem sugestão')
+    pg.fill('#q', ''); pg.press('#q', 'Enter'); pg.wait_for_function("document.querySelectorAll('#grid .card').length === 1")
     pg.click('.chip[data-c=""]'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('Mostrando 24') && document.querySelectorAll('#grid .card').length === 24")
     c110 = pg.locator('.card[data-id="110"]')
     c110.locator('.qty input').fill('abc'); c110.locator('.add').click()
