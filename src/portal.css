@@ -457,7 +457,6 @@ details.ferr > .afil{margin:0 !important;padding:0 12px 12px}
 .vis-c{padding:12px 14px;display:grid;gap:10px}
 .vis-c .btn{min-height:44px;justify-self:start}
 .vis-enviar{min-height:52px !important;font-size:16px;width:100%;justify-self:stretch !important}
-@media (max-width:760px){ #visLista .crow{grid-template-columns:44px 1fr auto !important} #visLista .crow .df2{display:none} }
 .vis-passos,.vis-p,.vis-c,.vis-c > *{min-width:0}
 #visLista .panel{background:transparent;border:0;box-shadow:none}
 #visLista .panel > div:first-child{padding:0 0 4px !important}
@@ -471,3 +470,20 @@ details.ferr > .afil{margin:0 !important;padding:0 12px 12px}
   #vAdm > .atabs{flex-wrap:wrap;margin:6px 0 14px}
   #vAdm > .atabs button{flex:0 0 auto;padding:0 12px;height:36px;white-space:nowrap}
 }
+
+/* Preparar cliente: busca e lista compactas (uma linha por produto, botão ao lado) */
+#visLista .crow{display:grid !important;grid-template-columns:48px minmax(0,1fr) auto !important;grid-template-areas:none !important;column-gap:10px !important;row-gap:2px !important;align-items:center !important;padding:10px 0 !important}
+#visLista .crow > div:empty{display:none}
+#visLista .crow .g360-mini{grid-column:1;grid-row:1 / span 2;width:48px !important;height:48px !important}
+#visLista .crow .nm{grid-column:2;grid-row:1;font-size:13.5px;line-height:1.3}
+#visLista .crow .g{grid-column:2;grid-row:2;display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;font-size:12px}
+#visLista .crow .g b{display:inline;font-size:13.5px;color:var(--tx)}
+#visLista .crow .g small{display:inline !important}
+#visLista .crow .df2{grid-column:2;grid-row:3;font-size:12px}
+#visLista #mlRes .crow [data-add]{grid-column:3;grid-row:1 / span 2;height:40px !important;padding:0 12px;font-size:13.5px}
+#visLista #mlItens .crow .rm{grid-column:3;grid-row:1;width:40px;height:40px}
+#visLista #mlItens .crow [data-cgl]{grid-column:3;grid-row:2 / span 2;height:36px;font-size:12.5px}
+#visLista #mlRes{max-height:min(55vh,460px);overflow:auto;border:1px solid var(--linha2);border-radius:12px;padding:0 10px;margin-bottom:12px;-webkit-overflow-scrolling:touch}
+#visLista #mlRes:empty{display:none}
+#visLista .mlcg > div{padding:4px 0 12px !important}
+.ml-res-topo{display:flex;justify-content:space-between;align-items:center;gap:8px;position:sticky;top:0;background:#0b2208;padding:8px 0;z-index:1;font-size:12.5px;color:var(--tx3)}

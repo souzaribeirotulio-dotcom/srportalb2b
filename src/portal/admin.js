@@ -900,7 +900,7 @@ async function montarLista(c, alvo = $('clLista'), embutido = false) {
       });
     };
     $('mlBuscar').onclick = buscar; $('mlQ').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); buscar(); } };
-    $('mlQ').addEventListener('input', adiar(() => { if ($('mlQ').value.trim().length >= 3) buscar(); }, 450));
+    $('mlQ').addEventListener('input', adiar(() => { if ($('mlQ').value.trim().length >= 3) buscar(); else if (!$('mlQ').value.trim()) $('mlRes').innerHTML = ''; }, 700));
     await itens();
   };
   let ativos = null; // códigos ativos no portal (null = sem a lista ainda: trata todos como ativos)
@@ -979,9 +979,11 @@ async function montarLista(c, alvo = $('clLista'), embutido = false) {
       } catch (e) { b.disabled = false; b.textContent = 'Congelar no G360'; if (e.status === 401) { encerrarOperador(e.message); return; } mostrarMensagemErro(err, e); }
     };
   }
+  let buscaN = 0;
   async function buscar() {
     const q = $('mlQ').value.trim(); const res = $('mlRes');
     if (q.length < 2) return;
+    const eu = ++buscaN; // só a última busca desenha (as antigas que chegam depois são ignoradas)
     res.innerHTML = carregandoHtml('Buscando…');
     try {
       await carregarExibicao();
@@ -991,13 +993,15 @@ async function montarLista(c, alvo = $('clLista'), embutido = false) {
       const ordem = new Map(locais.map((l, i) => [l.codigo, i]));
       dados.sort((a, b) => (ordem.get(String(a.codigo)) ?? 99) - (ordem.get(String(b.codigo)) ?? 99));
       if (!ativos) { const cods = await codigosAtivosPublicos(); ativos = cods ? new Set(cods) : null; }
+      if (eu !== buscaN) return;
       const todos = dados.length; dados = dados.filter((p) => noPortal(p));
       if (!dados.length && todos) { res.innerHTML = vazio('Os produtos encontrados não estão ativos no portal. Só dá para pôr na lista o que aparece para o cliente.'); return; }
-      res.innerHTML = dados.length ? dados.map((p) => `<div class="crow" data-id="${Number(p.id)}"><div class="g360-mini" data-foto="${Number(p.id)}"><span>…</span></div>
+      res.innerHTML = dados.length ? `<div class="ml-res-topo"><span>${dados.length} encontrado${dados.length === 1 ? '' : 's'} para "${esc(q)}"</span><button class="tool" type="button" data-fechar-busca>Fechar busca</button></div>` + dados.map((p) => `<div class="crow" data-id="${Number(p.id)}"><div class="g360-mini" data-foto="${Number(p.id)}"><span>…</span></div>
           <div class="nm">${esc(nomeExibicao(p))}<small>Cód. ${esc(p.codigo)} · ${esc(p.unidade || '')}</small></div><div class="g">Tabela<b>${esc(dinheiro(p.preco))}</b></div><div></div>
           <div></div><button class="btn ${ids.includes(Number(p.id)) ? 'sec' : 'pri'}" data-add style="height:34px;white-space:nowrap" ${ids.includes(Number(p.id)) ? 'disabled' : ''}>${ids.includes(Number(p.id)) ? 'Na lista ✓' : '+ Adicionar'}</button></div>`).join('')
         : vazio('Nenhum produto encontrado.');
       carregarMiniaturas(res);
+      res.querySelector('[data-fechar-busca]')?.addEventListener('click', () => { res.innerHTML = ''; $('mlQ').value = ''; });
       res.querySelectorAll('[data-add]').forEach((b) => b.onclick = async () => {
         b.disabled = true;
         try { ids = (await painel('lista_incluir', { comprador: c.codigo, produto_ids: [Number(b.closest('.crow').dataset.id)] })).dados; b.textContent = 'Na lista ✓'; b.className = 'btn sec'; itens(); }
