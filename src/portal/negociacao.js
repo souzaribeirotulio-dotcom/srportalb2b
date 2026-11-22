@@ -12,6 +12,7 @@ import { supabaseComprador, LOJA } from '../api/supabase.js';
 import { $, esc, toast, abrirModal, fecharModal } from './comum.js';
 import { dinheiro, dataBr, quantidade as fmtQtd, normalizarQuantidade } from '../ui/formato.js';
 import { opcoesUnidade } from './cartao.js';
+import { avisarEvento } from '../api/push.js';
 
 const MSG = 'As negociações estão indisponíveis no momento. Tente de novo em instantes.';
 const SIT = { aberta: 'Aguardando resposta', aprovada: 'Aprovada', recusada: 'Recusada', cancelada: 'Cancelada' };
@@ -70,6 +71,7 @@ export function abrirNegociacao(itens) {
       const sb = await cliente();
       const { error } = await sb.from('portal_negociacoes').insert(pedidos);
       if (error) throw new Error(MSG);
+      avisarEvento('negociacao'); // aviso para os gestores
     } catch (e) { b.disabled = false; b.textContent = 'Enviar pedido de negociação'; $('ngErr').textContent = e.message; return; }
     $('cadBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>Pedido de negociação enviado!</h3>
       <p>A equipe da Souza Ribeiro vai analisar ${pedidos.length === 1 ? 'o produto' : `os ${pedidos.length} produtos`}. Acompanhe a resposta em <b>Meus Pedidos</b>.</p></div>

@@ -376,3 +376,9 @@ body.com-convite-avisos #souzinha-widget:not(.sz-open) .sz-fab { bottom: calc(va
 @media (prefers-reduced-motion:reduce){.passo-ios-seta{animation:none}}
 body.com-passo-ios #souzinha-widget{display:none !important}
 .passo-ios-sym.passo-ios-menu{stroke:var(--tx);background:#ffffff1f;border-radius:6px;padding:2px}
+/* Avisos no celular para os gestores (painel) */
+.av-painel{margin:0 0 12px;padding:10px 14px;border-radius:12px;background:#0f2a09;border:1px solid rgba(178,224,74,.3);font-size:13.5px;color:var(--tx2);line-height:1.5}
+.av-painel b{color:var(--tx)}
+.av-painel .btn,.av-painel .tool{height:38px;padding:0 14px;margin:8px 8px 0 0;vertical-align:middle}
+.av-painel .av-msg{display:block;margin-top:6px;color:#ffd45c}
+.av-painel[hidden]{display:none}

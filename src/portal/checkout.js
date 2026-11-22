@@ -18,6 +18,7 @@ import { dinheiro, quantidade, dataBr } from '../ui/formato.js';
 import { $, esc, abrirModal, fecharModal, adiar } from './comum.js';
 import { formularioEndereco } from './endereco.js';
 import { podeConvidar, montarConvite } from '../ui/oferta-avisos.js';
+import { avisarEvento } from '../api/push.js';
 
 const escolha = { modalidade: null, endereco_id: null, condicao_id: null, observacao: '' };
 let opcoes = null;
@@ -272,6 +273,7 @@ async function rodarEnvio(opcoesEnvio = {}) {
 
 function sucesso(p) {
   registrarPedido(p);
+  if (p?.id && sessao.token) avisarEvento('pedido', { pedido_id: p.id, token: sessao.token }); // aviso para os gestores
   $('chkBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>Pedido enviado!</h3>
     <p>${p.numero ? `Pedido nº <b>${esc(p.numero)}</b>` : '<b>Aguardando aprovação</b>'} · ${esc(p.situacao_nome || '')}<br>Total de <b>${esc(dinheiro(p.total))}</b>${p.data ? `<br>${esc(dataBr(p.data))}${p.hora ? ` às ${esc(p.hora)}` : ''}` : ''}</p></div>
     <div id="okAvisos"></div>

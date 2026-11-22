@@ -21,3 +21,15 @@ async function chamar(corpo) {
 
 export const chavePublicaPush = async () => (await chamar({ acao: 'chave' })).chave;
 export const enviarAvisoTeste = (token) => chamar({ acao: 'teste', token });
+
+/* Painel (gestores): token do operador do G360. */
+export const situacaoPainelPush = (token) => chamar({ acao: 'painel_situacao', token });
+export const inscreverPainelPush = (token, j, aparelho) => chamar({ acao: 'painel_inscrever', token, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, aparelho });
+export const desinscreverPainelPush = (token, endpoint) => chamar({ acao: 'painel_desinscrever', token, endpoint });
+export const testarPainelPush = (token) => chamar({ acao: 'painel_teste', token });
+
+/* Eventos para os gestores: só avisa o servidor que algo novo aconteceu; ele confere no banco/G360
+   o que existe de verdade e manda o aviso. Nunca trava a tela do cliente. */
+export function avisarEvento(tipo, extra = {}) {
+  chamar({ acao: 'evento', tipo, ...extra }).catch(() => { /* aviso é extra: falha não atrapalha o cliente */ });
+}

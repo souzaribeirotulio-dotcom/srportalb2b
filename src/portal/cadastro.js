@@ -7,6 +7,7 @@
    ===================================================================== */
 import { supabaseComprador, LOJA } from '../api/supabase.js';
 import { $, esc, abrirModal, fecharModal } from './comum.js';
+import { avisarEvento } from '../api/push.js';
 
 const UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
 const so = (t) => String(t || '').replace(/\D/g, '');
@@ -296,6 +297,7 @@ export function abrirCadastro(ctx) {
       $('kRes').innerHTML = `<div class="rv-aviso bad">${esc(error.message && !/^(new row|permission|JWT|fetch)/i.test(error.message) ? error.message : 'Não foi possível enviar agora. Tente de novo em instantes.')}</div>`;
       return;
     }
+    avisarEvento('cadastro'); // aviso para os gestores
     $('cadBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>Cadastro enviado!</h3>
       <p>Recebemos os dados da <b>${esc(d.razao_social)}</b>. A equipe da Souza Ribeiro confere e fala com você pelo WhatsApp <b>${esc(foneBonito(d.whats))}</b>.<br>Depois da aprovação, chega no seu e-mail o link para criar a senha (ou use <b>Primeiro acesso</b>).</p></div>
       <div class="act" style="justify-content:center"><button type="button" class="btn pri" id="kOk">Entendi</button></div>`;

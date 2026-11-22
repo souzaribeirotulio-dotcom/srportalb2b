@@ -32,6 +32,8 @@ import { nomeEcommerce, categoriaPeloNome } from '../catalogo/nomes.js';
 import { buscarLocal } from '../catalogo/busca.js';
 import { fichaDoProduto, descricaoBasica } from '../catalogo/descricoes.js';
 import { supabaseComprador, LOJA } from '../api/supabase.js';
+import { situacaoAvisos, ativarAvisosPainel, desativarAvisosPainel, testarAvisoPainel } from '../estado/avisos.js';
+import { situacaoPainelPush } from '../api/push.js';
 
 const op = { token: null, expira: 0, ultima: 0, minutos: 8, aviso: null };
 let ctx = null;            // { loja, ir }
@@ -57,6 +59,7 @@ function restaurarOp() {
 }
 
 function encerrarOperador(mensagem) {
+  gestor = null;
   op.token = null; op.expira = 0; op.aviso = mensagem || null;
   guardarOp();
   document.body.classList.remove('g360-op');
@@ -97,6 +100,10 @@ export function mostrarAdmin(contexto) {
   ctx = contexto;
   op.minutos = Number(ctx.loja.sessao_minutos) || 8;
   restaurarOp();
+  // Aviso tocado no celular abre a aba certa (/painel?aba=neg, /painel?aba=cli).
+  const abaPedida = new URLSearchParams(location.search).get('aba');
+  if (abaPedida && ['cli', 'prod', 'cong', 'mrg', 'intel', 'neg', 'souzinha', 'cfg', 'ocor'].includes(abaPedida)) aba = abaPedida;
+  modoAppEquipe(true);
   document.body.classList.add('g360-painel');
   document.querySelectorAll('.view').forEach((el) => { el.hidden = el.id !== 'vAdm'; });
   window.scrollTo(0, 0);
@@ -106,6 +113,7 @@ export function mostrarAdmin(contexto) {
 
 /** Ao sair do /painel: volta o topo ao modo do comprador (a sessão do painel continua em memória). */
 export function sairDaTelaAdmin() {
+  modoAppEquipe(false);
   document.body.classList.remove('g360-painel');
   fecharModal('mod');
 }
@@ -122,6 +130,7 @@ function ligar() {
   if (!abas.querySelector('[data-at="ocor"]')) abas.insertAdjacentHTML('beforeend', '<button data-at="ocor">Ocorrências</button>');
   if (!$('atOcor')) v.insertAdjacentHTML('beforeend', '<div id="atOcor" hidden><div class="panel" id="ocPanel"></div></div>');
   if (!$('aLogin')) v.querySelector('.ph').insertAdjacentHTML('afterend', '<div id="aLogin" hidden></div>');
+  if (!$('aAvisos')) v.querySelector('.ph').insertAdjacentHTML('afterend', '<div id="aAvisos" class="av-painel" hidden aria-live="polite"></div>');
   abas.querySelectorAll('[data-at]').forEach((b) => b.addEventListener('click', () => { aba = b.dataset.at; desenharAba(); }));
   $('aSair').addEventListener('click', async () => {
     const t = op.token;
@@ -217,8 +226,50 @@ function desenhar() {
   $('aQuem').textContent = logado ? 'Conectado ao G360' : '';
   if (!logado) { telaLogin(); return; }
   desenharAba();
+  desenharAvisosPainel();
   carregarConfigLoja().then(() => { if ($('mgLim')) $('mgLim').value = limiteMargem(); });
   contarNegociacoes();
+}
+
+/* ---------------- app da equipe e avisos no celular (só gestores) ---------------- */
+
+/** No /painel, a página se apresenta como o app "SR Equipe" (nome e manifesto próprios),
+ *  para quem instalar pelo Safari/Chrome ganhar um app separado do app do cliente. */
+function modoAppEquipe(ligar) {
+  const m = document.querySelector('link[rel="manifest"]');
+  if (m) m.href = ligar ? '/manifest-equipe.webmanifest' : '/manifest.webmanifest';
+  const t = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if (t) t.content = ligar ? 'SR Equipe' : 'Souza Ribeiro';
+  const ic = document.querySelector('link[rel="apple-touch-icon"]');
+  if (ic) ic.href = ligar ? '/icones/equipe-180.png' : '/apple-touch-icon.png';
+  if (ligar) document.title = 'SR Equipe | Painel';
+}
+
+let gestor = null; // null = ainda não conferido nesta sessão do painel
+async function desenharAvisosPainel(msg = '') {
+  const el = $('aAvisos'); if (!el || !op.token) return;
+  if (gestor === null) {
+    try { gestor = (await situacaoPainelPush(op.token)).gestor === true; } catch (e) { if (e.status === 401) { encerrarOperador(e.message); return; } gestor = false; }
+  }
+  if (!gestor) { el.hidden = true; return; }
+  el.hidden = false;
+  const st = await situacaoAvisos();
+  const extra = msg ? ` <span class="av-msg">${esc(msg)}</span>` : '';
+  if (st === 'instalar_primeiro') { el.innerHTML = `🔔 <b>Avisos de vendas, negociações e cadastros:</b> no iPhone, instale o app da equipe estando nesta página do painel (Compartilhar → Adicionar à Tela de Início) e abra pelo ícone <b>SR Equipe</b>.${extra}`; return; }
+  if (st === 'sem_suporte') { el.innerHTML = `🔔 Este navegador não recebe avisos no celular.${extra}`; return; }
+  if (st === 'bloqueado') { el.innerHTML = `🔔 Os avisos estão bloqueados. Libere em Ajustes do celular → Notificações → SR Equipe.${extra}`; return; }
+  if (st === 'ativo') {
+    el.innerHTML = `🔔 Avisos <b>ativados</b> neste aparelho: vendas, negociações e cadastros.<br><button class="tool" id="avPT">Enviar aviso de teste</button><button class="tool" id="avPD">Desativar</button>${extra}`;
+    $('avPT').onclick = async () => { $('avPT').disabled = true; try { const r = await testarAvisoPainel(op.token); desenharAvisosPainel(r.enviados ? 'Aviso de teste enviado.' : 'Não foi possível entregar o aviso neste aparelho. Desative e ative de novo.'); } catch (e) { desenharAvisosPainel(e.message); } };
+    $('avPD').onclick = async () => { $('avPD').disabled = true; try { await desativarAvisosPainel(op.token); desenharAvisosPainel('Avisos desativados neste aparelho.'); } catch { desenharAvisosPainel('Não foi possível desativar agora.'); } };
+    return;
+  }
+  el.innerHTML = `🔔 Receba no celular os avisos de <b>vendas pelo portal, negociações e cadastros</b>.<br><button class="btn pri" id="avPA">Ativar avisos</button>${extra}`;
+  $('avPA').onclick = async () => {
+    $('avPA').disabled = true; $('avPA').textContent = 'Ativando…';
+    try { await ativarAvisosPainel(op.token); desenharAvisosPainel('Pronto! Toque em "Enviar aviso de teste" para conferir.'); }
+    catch (e) { if (e.status === 401) { encerrarOperador(e.message); return; } desenharAvisosPainel(e.message); }
+  };
 }
 
 /* ---------------- login do operador (usuário do G360) ---------------- */

@@ -1,0 +1,16 @@
+{
+  "name": "SR Equipe | Painel Souza Ribeiro",
+  "short_name": "SR Equipe",
+  "description": "Painel da equipe Souza Ribeiro: vendas, negociações e cadastros do portal.",
+  "id": "/painel",
+  "start_url": "/painel?origem=app",
+  "scope": "/",
+  "display": "standalone",
+  "lang": "pt-BR",
+  "background_color": "#061505",
+  "theme_color": "#081b06",
+  "icons": [
+    { "src": "/icones/equipe-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icones/equipe-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

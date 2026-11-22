@@ -2,7 +2,7 @@
    Regra de segurança: NADA da API, do Supabase ou das telas com dados do cliente
    é guardado aqui. Tudo vai direto para a rede; o único arquivo guardado é a
    página "Sem conexão" e os ícones, usados quando o celular está sem internet. */
-const CACHE = 'sr-app-v2';
+const CACHE = 'sr-app-v3';
 const OFFLINE = '/offline.html';
 
 self.addEventListener('install', (e) => {
@@ -31,6 +31,7 @@ self.addEventListener('push', (e) => {
     body: d.texto || '',
     icon: '/icones/icone-192.png',
     badge: '/icones/icone-192.png',
+    tag: typeof d.tag === 'string' ? d.tag : undefined,
     data: { url: typeof d.url === 'string' && d.url.startsWith('/') ? d.url : '/' },
   }));
 });

@@ -4,7 +4,7 @@
    automaticamente por aqui: o único envio é o "Enviar aviso de teste", pedido pelo próprio cliente. */
 import { sessao, garantirVinculo } from './sessao.js';
 import { supabaseComprador, LOJA } from '../api/supabase.js';
-import { chavePublicaPush, enviarAvisoTeste } from '../api/push.js';
+import { chavePublicaPush, enviarAvisoTeste, inscreverPainelPush, desinscreverPainelPush, testarPainelPush } from '../api/push.js';
 
 const ehIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const ehApp = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
@@ -35,15 +35,20 @@ function nomeAparelho() {
   return 'Computador';
 }
 
-/** Pede a permissão, inscreve o aparelho e grava no Supabase. Lança Error com mensagem para a tela. */
-export async function ativarAvisos() {
-  if (!sessao.ativa) throw new Error('Entre na sua conta para ativar os avisos.');
+/** Pede a permissão e inscreve o aparelho (precisa vir de um toque). Devolve o JSON da inscrição. */
+async function inscreverAparelho() {
   const permissao = await Notification.requestPermission();
   if (permissao !== 'granted') throw new Error('Os avisos não foram permitidos. Para ativar depois, libere as notificações do app nos Ajustes do celular.');
   const reg = await navigator.serviceWorker.ready;
   let sub = await reg.pushManager.getSubscription();
   if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chaveEmBytes(await chavePublicaPush()) });
-  const j = sub.toJSON();
+  return sub.toJSON();
+}
+
+/** Pede a permissão, inscreve o aparelho e grava no Supabase. Lança Error com mensagem para a tela. */
+export async function ativarAvisos() {
+  if (!sessao.ativa) throw new Error('Entre na sua conta para ativar os avisos.');
+  const j = await inscreverAparelho();
   if (!(await garantirVinculo())) throw new Error('Não foi possível salvar agora. Tente de novo em instantes.');
   const { error } = await supabaseComprador().from('push_inscricoes').insert({
     loja: LOJA, comprador_codigo: sessao.comprador.codigo, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, aparelho: nomeAparelho(),
@@ -66,3 +71,16 @@ export async function testarAviso() {
   if (!sessao.ativa) throw new Error('Entre na sua conta para enviar o teste.');
   return enviarAvisoTeste(sessao.token);
 }
+
+/* ---------- Painel (gestores) ---------- */
+export async function ativarAvisosPainel(token) {
+  const j = await inscreverAparelho();
+  await inscreverPainelPush(token, j, nomeAparelho());
+}
+export async function desativarAvisosPainel(token) {
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = reg && await reg.pushManager.getSubscription();
+  if (!sub) return;
+  try { await desinscreverPainelPush(token, sub.endpoint); } finally { await sub.unsubscribe(); }
+}
+export const testarAvisoPainel = (token) => testarPainelPush(token);
