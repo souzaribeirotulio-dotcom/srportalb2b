@@ -489,3 +489,83 @@ details.ferr > .afil{margin:0 !important;padding:0 12px 12px}
 .ml-res-topo{display:flex;justify-content:space-between;align-items:center;gap:8px;position:sticky;top:0;background:#0b2208;padding:8px 0;z-index:1;font-size:12.5px;color:var(--tx3)}
 #visLista #mlQ{font-size:16px;min-height:44px}
 #visLista #mlQ::-webkit-search-cancel-button{filter:invert(1);opacity:.6;cursor:pointer}
+
+/* ===================== Painel de vendas (gestores) ===================== */
+.db-topo{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin:4px 0 14px}
+.db-topo h2{font-size:22px;line-height:1.15}
+.db-topo p{font-size:13px;color:var(--tx3);margin-top:2px}
+.db-per{display:flex;gap:4px;background:var(--n950);border:1px solid var(--linha2);border-radius:12px;padding:3px}
+.db-per button{min-height:38px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:var(--tx3);font-weight:600;font-size:13px;cursor:pointer}
+.db-per button.on{background:var(--limas);color:var(--lima)}
+.db-per .db-atu{font-size:17px;padding:0 10px}
+.db-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.db-kpi{background:#0f2a09;border:1px solid var(--linha2);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;min-height:104px}
+.db-kpi.dest{background:linear-gradient(160deg,rgba(178,224,74,.16),rgba(15,42,9,.9) 60%);border-color:rgba(178,224,74,.38)}
+.db-rot{font-size:12.5px;color:var(--tx3);font-weight:600}
+.db-kpi > b{font-size:24px;font-weight:800;letter-spacing:-.3px;line-height:1.15;color:var(--tx)}
+.db-kpi > b small{font-size:13px;font-weight:600;color:var(--tx2);letter-spacing:0}
+.db-var{font-size:12.5px;font-weight:700;color:var(--tx2)}
+.db-var.sobe{color:#9be05a}.db-var.desce{color:#ff9a8a}
+.db-var small{font-weight:500;color:var(--tx3)}
+.db-nota{font-size:12px;color:var(--tx3);line-height:1.35}
+.db-card{background:#0d2509;border:1px solid var(--linha2);border-radius:18px;padding:16px;margin-bottom:12px;min-width:0}
+.db-ct{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.db-ct h3{font-size:16px}
+.db-ct span{font-size:12px;color:var(--tx3)}
+.db-duas{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.db-duas .db-card{margin-bottom:0}
+.db-duas + .db-card{margin-top:12px}
+.db-graf{position:relative}
+.db-graf svg{width:100%;height:auto;display:block;overflow:visible}
+.db-graf .db-grade{stroke:rgba(255,255,255,.08);stroke-width:1;vector-effect:non-scaling-stroke}
+.db-graf .db-eixo{fill:var(--tx3);font-size:11px;font-family:var(--fonte)}
+.db-graf .db-bar path{fill:var(--lima);transition:opacity .15s}
+.db-graf .db-bar .db-zero{fill:rgba(255,255,255,.12)}
+.db-graf:has(.db-bar.on) .db-bar:not(.on) path{opacity:.45}
+.db-graf .db-bar{cursor:pointer;outline:none}
+.db-dica{position:absolute;top:-6px;transform:translate(-50%,-100%);background:#f3f8ee;color:#081b06;border-radius:10px;padding:7px 10px;font-size:12.5px;display:flex;flex-direction:column;align-items:center;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.4);white-space:nowrap;z-index:2}
+.db-dica b{font-size:12px}.db-dica span{font-weight:800;font-size:14px}.db-dica small{color:#3d5a33}
+.db-rank{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.db-rank li{display:flex;gap:10px;align-items:flex-start;min-width:0}
+.db-pos{width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.07);color:var(--tx2);font-size:12px;font-weight:800;display:grid;place-items:center;flex-shrink:0;margin-top:1px}
+.db-rank li:first-child .db-pos{background:var(--lima);color:#081b06}
+.db-rk{flex:1;min-width:0}
+.db-rl{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.db-rl b:first-child{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.db-v{font-size:13.5px;font-weight:800;white-space:nowrap;color:var(--tx)}
+.db-barra{height:6px;border-radius:3px;background:rgba(255,255,255,.06);margin:6px 0 4px;overflow:hidden}
+.db-barra i{display:block;height:100%;background:var(--lima);border-radius:3px}
+.db-rk small{font-size:11.5px;color:var(--tx3);line-height:1.4}
+.db-mg{color:#9be05a;font-weight:700}.db-mg.baixa{color:#ff9a8a}
+.db-ult{display:grid}
+.db-ult > div{display:grid;grid-template-columns:110px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--linha);font-size:13px}
+.db-ult > div:first-child{border-top:0}
+.db-ult b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.db-ult span{color:var(--tx3);font-size:12px}
+.db-vazio,.db-erro{display:flex;flex-direction:column;gap:6px;align-items:flex-start;text-align:left}
+.db-vazio span,.db-erro span{color:var(--tx3);font-size:13.5px}
+.db-erro{background:#0d2509;border:1px solid rgba(255,107,107,.35);border-radius:18px;padding:16px}
+.db-vz{color:var(--tx3);font-size:13px;padding:8px 0}
+.db-rod{font-size:11.5px;color:var(--tx3);line-height:1.5;margin:4px 2px 12px}
+.db-kpi.sk,.db-card.sk{background:linear-gradient(90deg,#0f2a09 0%,#163a0d 50%,#0f2a09 100%);background-size:200% 100%;animation:dbSk 1.2s linear infinite;border-color:transparent}
+@keyframes dbSk{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.db-kpi.sk,.db-card.sk{animation:none}}
+.db-per button:focus-visible,.db-graf .db-bar:focus-visible path{outline:2px solid var(--lima);outline-offset:2px}
+@media (max-width:900px){.db-duas{grid-template-columns:1fr}}
+@media (max-width:760px){
+  .db-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .db-kpi{padding:12px;min-height:96px}
+  .db-kpi > b{font-size:19px}
+  .db-per{width:100%}.db-per button{flex:1;padding:0 6px}
+  .db-ult > div{grid-template-columns:minmax(0,1fr) auto;row-gap:2px}
+  .db-ult .db-q{grid-column:1 / -1}
+}
+/* Resumo de vendas no Início (gestores) */
+.eq-vendas{display:block;width:100%;text-align:left;border:1px solid rgba(178,224,74,.35);border-radius:16px;background:linear-gradient(160deg,rgba(178,224,74,.14),rgba(15,42,9,.9) 60%);padding:14px 16px;color:var(--tx);cursor:pointer;margin:10px 0 0}
+.eq-vendas .eqv-l{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.eq-vendas .eqv-l span{font-size:12.5px;color:var(--tx3);font-weight:600}
+.eq-vendas .eqv-n{display:flex;gap:18px;flex-wrap:wrap;margin-top:6px}
+.eq-vendas .eqv-n div{display:flex;flex-direction:column}
+.eq-vendas .eqv-n b{font-size:20px;font-weight:800}
+.eq-vendas .eqv-n small{font-size:11.5px;color:var(--tx3)}
+.eq-vendas .eqv-ir{color:var(--lima);font-size:13px;font-weight:700}

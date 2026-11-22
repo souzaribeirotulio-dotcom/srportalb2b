@@ -31,7 +31,7 @@ export function registrarPedido(p) {
   const valor = /^-?\d+(\.\d+)?$/.test(String(p.total ?? '')) ? String(p.total) : null;
   gravar({
     tipo: 'pedido', pedido_id: Number(p.id) || null, pedido_numero: p.numero ? String(p.numero) : null, valor,
-    itens: (p.itens || []).slice(0, 100).map((i) => ({ produto_id: i.produto_id, codigo: i.codigo, nome: i.nome, quantidade: i.quantidade, total: i.total })),
+    itens: (p.itens || []).slice(0, 100).map((i) => ({ produto_id: i.produto_id, codigo: i.codigo, nome: i.nome, quantidade: i.quantidade, total: i.total, unidade_id: i.unidade_id ?? null })),
   });
 }
 

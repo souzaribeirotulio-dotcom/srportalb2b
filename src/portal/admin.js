@@ -34,6 +34,8 @@ import { fichaDoProduto, descricaoBasica } from '../catalogo/descricoes.js';
 import { supabaseComprador, LOJA } from '../api/supabase.js';
 import { situacaoAvisos, ativarAvisosPainel, desativarAvisosPainel, testarAvisoPainel } from '../estado/avisos.js';
 import { situacaoPainelPush } from '../api/push.js';
+import { desenharDashboard } from './dashboard.js';
+import { lerDashboard } from '../api/dashboard.js';
 
 const op = { token: null, expira: 0, ultima: 0, minutos: 8, aviso: null };
 let ctx = null;            // { loja, ir }
@@ -113,7 +115,7 @@ export function mostrarAdmin(contexto) {
   restaurarOp();
   // Aviso tocado no celular abre a aba certa (/painel?aba=neg, /painel?aba=cli).
   const abaPedida = new URLSearchParams(location.search).get('aba');
-  if (abaPedida && ['ini', 'visita', 'cli', 'prod', 'cong', 'mrg', 'intel', 'neg', 'souzinha', 'cfg', 'ocor', 'mais'].includes(abaPedida)) aba = abaPedida;
+  if (abaPedida && ['ini', 'vendas', 'visita', 'cli', 'prod', 'cong', 'mrg', 'intel', 'neg', 'souzinha', 'cfg', 'ocor', 'mais'].includes(abaPedida)) aba = abaPedida;
   modoAppEquipe(true);
   document.body.classList.add('g360-painel');
   document.querySelectorAll('.view').forEach((el) => { el.hidden = el.id !== 'vAdm'; });
@@ -140,8 +142,8 @@ function ligar() {
   const abas = v.querySelector('.atabs');
   if (!abas.querySelector('[data-at="ocor"]')) abas.insertAdjacentHTML('beforeend', '<button data-at="ocor">Ocorrências</button>');
   if (!$('atOcor')) v.insertAdjacentHTML('beforeend', '<div id="atOcor" hidden><div class="panel" id="ocPanel"></div></div>');
-  if (!abas.querySelector('[data-at="ini"]')) abas.insertAdjacentHTML('afterbegin', '<button data-at="ini">Início</button><button data-at="visita">➕ Preparar cliente</button>');
-  if (!$('atIni')) v.insertAdjacentHTML('beforeend', '<div id="atIni" hidden><div id="iniPanel"></div></div><div id="atVisita" hidden><div class="panel vis" id="visPanel"></div></div><div id="atMais" hidden><div id="maisPanel"></div></div>');
+  if (!abas.querySelector('[data-at="ini"]')) abas.insertAdjacentHTML('afterbegin', '<button data-at="ini">Início</button><button data-at="vendas" hidden>📊 Vendas</button><button data-at="visita">➕ Preparar cliente</button>');
+  if (!$('atIni')) v.insertAdjacentHTML('beforeend', '<div id="atIni" hidden><div id="iniPanel"></div></div><div id="atVendas" hidden><div id="vendasPanel"></div></div><div id="atVisita" hidden><div class="panel vis" id="visPanel"></div></div><div id="atMais" hidden><div id="maisPanel"></div></div>');
   if (!$('eqBar')) document.body.insertAdjacentHTML('beforeend', `<nav class="eqbar" id="eqBar" aria-label="Painel da equipe">
     <button data-eq="ini"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Início</button>
     <button data-eq="visita"><svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="4"/><path d="M2 21c0-4 4-6 8-6s8 2 8 6M19 8v6M16 11h6"/></svg>Novo cliente</button>
@@ -278,6 +280,8 @@ async function desenharAvisosPainel(msg = '') {
   const el = $('aAvisos'); if (!el || !op.token) return;
   if (gestor === null) {
     try { gestor = (await situacaoPainelPush(op.token)).gestor === true; } catch (e) { if (e.status === 401) { encerrarOperador(e.message); return; } gestor = false; }
+    const bv = document.querySelector('#vAdm .atabs [data-at="vendas"]'); if (bv) bv.hidden = !gestor;
+    if (aba === 'ini') desenharInicio();
   }
   if (!gestor) { el.hidden = true; return; }
   el.hidden = false;
@@ -350,12 +354,13 @@ function irAba(nova) { aba = nova; desenharAba(); window.scrollTo(0, 0); }
 
 function desenharAba() {
   document.querySelectorAll('#vAdm [data-at]').forEach((b) => b.classList.toggle('on', b.dataset.at === aba));
-  const MAIS = ['prod', 'cong', 'mrg', 'intel', 'souzinha', 'cfg', 'ocor', 'mais'];
+  const MAIS = ['vendas', 'prod', 'cong', 'mrg', 'intel', 'souzinha', 'cfg', 'ocor', 'mais'];
   document.querySelectorAll('#eqBar [data-eq]').forEach((b) => b.classList.toggle('on', b.dataset.eq === aba || (b.dataset.eq === 'mais' && MAIS.includes(aba))));
-  const ids = { ini: 'atIni', visita: 'atVisita', mais: 'atMais', cli: 'atCli', prod: 'atProd', cong: 'atCong', mrg: 'atMrg', intel: 'atIntel', neg: 'atNeg', souzinha: 'atSouzinha', cfg: 'atCfg', ocor: 'atOcor' };
+  const ids = { ini: 'atIni', vendas: 'atVendas', visita: 'atVisita', mais: 'atMais', cli: 'atCli', prod: 'atProd', cong: 'atCong', mrg: 'atMrg', intel: 'atIntel', neg: 'atNeg', souzinha: 'atSouzinha', cfg: 'atCfg', ocor: 'atOcor' };
   Object.entries(ids).forEach(([k, id]) => { $(id).hidden = k !== aba; });
   if ($('aAvisos')) $('aAvisos').classList.toggle('so-inicio', aba !== 'ini');
   if (aba === 'ini') desenharInicio();
+  else if (aba === 'vendas') desenharDashboard($('vendasPanel'), { token: () => op.token, limiteMargem, aoSessaoEncerrada: (e) => encerrarOperador(e.message) });
   else if (aba === 'visita') desenharVisita();
   else if (aba === 'mais') desenharMais();
   else if (aba === 'cli') desenharClientes();
@@ -1899,7 +1904,9 @@ const AREAS = [
   ['cfg', '⚙', 'Configurações', 'Categorias, pagamento, banners'],
   ['ocor', '⚠', 'Ocorrências', 'Avisos do G360 para a equipe'],
 ];
+const AREA_VENDAS = ['vendas', '📊', 'Vendas', 'Vendas, margens, produtos e clientes'];
 function gradeAreas(lista) {
+  if (gestor) lista = [AREA_VENDAS, ...lista];
   return `<div class="eq-grade">${lista.map(([id, ic, t, d]) => `<button class="eq-area" data-ir="${id}"><span class="ic2">${ic}</span><b>${esc(t)}</b><small>${esc(d)}</small></button>`).join('')}</div>`;
 }
 function ligarGrade(alvo) { alvo.querySelectorAll('[data-ir]').forEach((b) => { b.onclick = () => irAba(b.dataset.ir); }); }
@@ -1909,11 +1916,13 @@ async function desenharInicio() {
   const nNeg = Array.isArray(negs) ? negs.filter((n) => n.status === 'aberta').length : null;
   const nCad = Array.isArray(cadastros) ? cadastros.filter((k) => k.status === 'pendente').length : null;
   const cartao = (id, n, t, vazio) => `<button class="eq-card ${n ? 'tem' : ''}" data-ir="${id}"><span class="eq-num">${n === null ? '…' : n}</span><span><b>${esc(t)}</b><small>${n === null ? 'Carregando…' : n ? 'Toque para resolver' : esc(vazio)}</small></span></button>`;
-  alvo.innerHTML = `<button class="eq-visita" data-ir="visita"><span class="ic2">➕</span><span><b>Preparar cliente (visita)</b><small>Cadastre, monte a lista, combine os preços e mande o link</small></span></button>
+  alvo.innerHTML = `${gestor ? '<button class="eq-vendas" data-ir="vendas" id="iniVendas"><div class="eqv-l"><b>📊 Vendas pelo portal · últimos 7 dias</b><span class="eqv-ir">Ver painel ›</span></div><div class="eqv-n"><div><b>…</b><small>vendas</small></div></div></button>' : ''}
+    <button class="eq-visita" data-ir="visita"><span class="ic2">➕</span><span><b>Preparar cliente (visita)</b><small>Cadastre, monte a lista, combine os preços e mande o link</small></span></button>
     <h3 class="eq-tit">Para resolver</h3>
     <div class="eq-cards">${cartao('neg', nNeg, 'Negociações aguardando', 'Nenhuma aguardando')}${cartao('cli', nCad, 'Cadastros para aprovar', 'Nenhum aguardando')}</div>
     <h3 class="eq-tit">Todas as áreas</h3>${gradeAreas(AREAS.slice(1))}`;
   ligarGrade(alvo);
+  if (gestor) resumoVendasInicio();
   // Contagens atualizadas (sem travar a tela).
   const antes = `${nNeg}|${nCad}`;
   await Promise.allSettled([
@@ -1936,4 +1945,19 @@ function atualizarContadoresEq() {
   const nCad = Array.isArray(cadastros) ? cadastros.filter((k) => k.status === 'pendente').length : 0;
   if ($('eqNeg')) $('eqNeg').textContent = nNeg || '';
   if ($('eqCli')) $('eqCli').textContent = nCad || '';
+}
+
+
+/** Resumo de 7 dias no topo do Início (só gestores). */
+let resumoVendas = null;
+async function resumoVendasInicio() {
+  const pintarResumo = (d) => {
+    const el = $('iniVendas'); if (!el) return;
+    const brl = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    el.querySelector('.eqv-n').innerHTML = `<div><b>${brl(d.valor)}</b><small>vendas</small></div><div><b>${d.pedidos}</b><small>pedidos</small></div>
+      <div><b>${d.clientes}</b><small>clientes</small></div>${d.margem ? `<div><b>${Number(d.margem.percentual).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</b><small>margem bruta</small></div>` : ''}`;
+  };
+  if (resumoVendas && Date.now() - resumoVendas.quando < 60_000) { pintarResumo(resumoVendas.dados); return; }
+  try { const d = await lerDashboard(op.token, 7); resumoVendas = { quando: Date.now(), dados: d }; pintarResumo(d); }
+  catch (e) { if (e.status === 401) { encerrarOperador(e.message); return; } const el = $('iniVendas'); if (el) el.querySelector('.eqv-n').innerHTML = `<div><small>${esc(e.message)}</small></div>`; }
 }
