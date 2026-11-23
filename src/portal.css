@@ -413,3 +413,19 @@ body.com-passo-ios #souzinha-widget{display:none !important}
 .lrow[hidden] { display: none !important; }
 .lvazio { padding: 20px 12px; text-align: center; color: var(--tx3); }
 .lvazio .btn { margin-top: 10px; }
+
+/* Regra da senha, conferida enquanto digita (src/ui/regra-senha.js) */
+.rs-lista { list-style: none; margin: 8px 0 12px; padding: 10px 12px; text-align: left; background: rgba(0, 0, 0, .22); border: 1px solid var(--linha); border-radius: 10px; display: grid; gap: 6px; }
+.rs-item { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 1.3; color: var(--tx2); }
+.rs-ic { flex: 0 0 18px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 800; border: 1.5px solid var(--tx3); }
+.rs-item[data-st="pend"] .rs-ic::before { content: ""; }
+.rs-item[data-st="ok"] { color: var(--tx); }
+.rs-item[data-st="ok"] .rs-ic { background: #b2e04a; border-color: #b2e04a; color: #132c09; }
+.rs-item[data-st="ok"] .rs-ic::before { content: "✓"; }
+.rs-item[data-st="bad"] { color: #ffb5ac; }
+.rs-item[data-st="bad"] .rs-ic { background: #ffb5ac; border-color: #ffb5ac; color: #3a0d08; }
+.rs-item[data-st="bad"] .rs-ic::before { content: "✕"; }
+.rs-item[data-st="info"] .rs-ic { border-style: dashed; }
+.rs-item[data-st="info"] .rs-ic::before { content: "i"; color: var(--tx3); font-style: italic; }
+.rs-cont { margin-left: auto; font-weight: 700; font-size: 12px; color: var(--tx3); white-space: nowrap; }
+.rs-item[data-st="ok"] .rs-cont { color: #b2e04a; }

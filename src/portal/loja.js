@@ -17,6 +17,7 @@ import { carregarIds, incluirNaLista, removerDaLista, idsCarregados } from '../e
 import { normalizarQuantidade, dinheiro, estimar } from '../ui/formato.js';
 import { ligarTrocaFotos, ligarFotos, liberarFotosDaTela, htmlFoto } from '../ui/fotos.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
+import { FORMATO_SENHA, REGRA_SENHA as REGRA, htmlRegraSenha, ligarRegraSenha } from '../ui/regra-senha.js';
 import { $, esc, toast, abrirModal, fecharModal, saudacao, passoQuantidade, adiar } from './comum.js';
 import { htmlCartao, htmlPreco, unidadeEscolhida, linhaCarrinho } from './cartao.js';
 import { abrirDetalhe, ligarDetalhe } from './detalhe.js';
@@ -771,8 +772,6 @@ export function abrirLogin(depois = null, mensagemErro = null, mensagemOk = null
 
 /* ---------------- Minha conta (modal original) ---------------- */
 
-const FORMATO_SENHA = /^[!-~]{6,8}$/;
-const REGRA = 'De 6 a 8 caracteres, sem espaços nem acentos, diferente do seu código de cliente.';
 
 export function abrirConta() {
   const c = sessao.comprador || {};
@@ -788,7 +787,7 @@ export function abrirConta() {
     ${troca ? `<h3 style="margin-top:18px">Trocar senha</h3>
       <label for="tAtual">Senha atual</label><input id="tAtual" type="password" maxlength="64" autocomplete="current-password">
       <label for="tNova1">Senha nova</label><input id="tNova1" type="password" maxlength="8" autocomplete="new-password" aria-describedby="tRegra">
-      <div class="hint" id="tRegra">${esc(REGRA)}</div>
+      ${htmlRegraSenha('tRegra')}
       <label for="tNova2">Repita a senha nova</label><input id="tNova2" type="password" maxlength="8" autocomplete="new-password">
       <div class="err" id="tErro"></div><div id="tRes" aria-live="polite"></div>`
       : '<div class="hint" style="margin-top:14px">A senha de acesso é definida pela Souza Ribeiro. Para trocar a sua, fale com o seu vendedor.</div>'}
@@ -797,12 +796,14 @@ export function abrirConta() {
   $('cFechar').onclick = () => fecharModal('mConta');
   $('cSair').onclick = () => { fecharModal('mConta'); sair(); };
   const b = $('cTrocar'); if (!b) return;
+  ligarRegraSenha($('tRegra'), $('tNova1'), $('tNova2'), c.codigo);
   b.onclick = async () => {
     const atual = $('tAtual'); const n1 = $('tNova1'); const n2 = $('tNova2'); const erro = $('tErro');
     erro.textContent = ''; $('tRes').innerHTML = '';
     if (!atual.value) { erro.textContent = 'Digite a senha atual.'; atual.focus(); return; }
     if (!FORMATO_SENHA.test(n1.value)) { erro.textContent = `A senha nova não segue a regra: ${REGRA}`; n1.focus(); return; }
     if (n1.value !== n2.value) { erro.textContent = 'As duas senhas novas não são iguais.'; n2.focus(); return; }
+    if (c.codigo != null && n1.value === String(c.codigo)) { erro.textContent = 'A senha nova não pode ser igual ao seu código de cliente.'; n1.focus(); return; }
     b.disabled = true;
     try {
       await trocarSenha(atual.value, n1.value);
