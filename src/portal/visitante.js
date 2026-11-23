@@ -7,7 +7,7 @@
    ===================================================================== */
 import { listarVitrine, listarMarcasVitrine, urlVitrine } from '../api/g360.js';
 import { carregarExibicao, apresentar, codigosDaCategoria, pesoCurva, oculto, categorias as categoriasPortal, codigosAtivosPublicos, esquecerAtivosPublicos } from '../catalogo/exibicao.js';
-import { buscarLocal, variacoes, corrigirBusca } from '../catalogo/busca.js';
+import { buscarLocal, variacoes, corrigirBusca, nomeBate } from '../catalogo/busca.js';
 import { esc } from './comum.js';
 
 const POR_PAGINA = 24;
@@ -48,8 +48,10 @@ export async function resultadoPublico(filtros) {
     }
     try {
       const vs = variacoes(q);
+      const umaPalavra = q.trim().split(/\s+/).length === 1; // código de barras etc.: vale o que o G360 achar
       const { dados } = await listarVitrine(vs.length > 1 ? { termos: [q, ...vs.slice(1)], marca, limite: 50 } : { q: q, marca, limite: 50 });
-      dados.map(apresentar).filter((p) => !grupo || p.categoria === grupo)
+      // Só o que tem todas as palavras da busca no nome (a busca do G360 acha palavra solta em qualquer produto).
+      dados.map(apresentar).filter((p) => (!grupo || p.categoria === grupo) && (pontos.has(String(p.codigo)) || umaPalavra || vs.some((v) => nomeBate(v, `${p.nome} ${p.codigo}`))))
         .forEach((p) => { if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); pontos.set(String(p.codigo), maxPontos * 0.6); } });
     } catch (e) { if (!achados.size) throw e; }
     const itens = [...achados.values()].filter((p) => !oculto(p) && ativo(p)).sort((a, b) => (faixa(b) - faixa(a)) || (pesoCurva(a) - pesoCurva(b))
