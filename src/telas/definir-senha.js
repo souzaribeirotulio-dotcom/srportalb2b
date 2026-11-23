@@ -5,12 +5,10 @@
 import { gravarSenhaPorLink, ErroApi } from '../api/g360.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { esc, focarTitulo } from '../ui/util.js';
+import { FORMATO_SENHA, REGRA_SENHA as REGRA, htmlRegraSenha, ligarRegraSenha } from '../ui/regra-senha.js';
 
 let tokenDoLink = '';
 const FORMATO_TOKEN = /^[A-Za-z0-9_-]{43}$/;
-// Contrato: de 6 a 8 caracteres ASCII visíveis (sem espaços nem acentos).
-const FORMATO_SENHA = /^[!-~]{6,8}$/;
-const REGRA = 'De 6 a 8 caracteres, sem espaços nem acentos, diferente do seu código de cliente.';
 
 export function receberTokenDoLink(token) {
   tokenDoLink = typeof token === 'string' ? token : '';
@@ -50,7 +48,7 @@ export function telaDefinirSenha({ loja, conteudo, ir }) {
       <label for="g360Senha1">Senha nova</label>
       <input id="g360Senha1" type="password" maxlength="8" autocomplete="new-password" spellcheck="false"
         autocapitalize="off" aria-describedby="g360Regra g360SenhaErro">
-      <small id="g360Regra" class="g360-ajuda">${esc(REGRA)}</small>
+      ${htmlRegraSenha('g360Regra')}
       <label for="g360Senha2">Repita a senha nova</label>
       <input id="g360Senha2" type="password" maxlength="8" autocomplete="new-password" spellcheck="false"
         autocapitalize="off" aria-describedby="g360SenhaErro">
@@ -66,6 +64,7 @@ export function telaDefinirSenha({ loja, conteudo, ir }) {
   const erroCampo = conteudo.querySelector('#g360SenhaErro');
   const botao = conteudo.querySelector('#g360SalvarSenha');
   const resultado = conteudo.querySelector('#g360Resultado');
+  ligarRegraSenha(conteudo.querySelector('#g360Regra'), s1, s2);
   conteudo.querySelector('#g360Mostrar').addEventListener('change', (ev) => {
     s1.type = s2.type = ev.target.checked ? 'text' : 'password';
   });
