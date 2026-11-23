@@ -7,7 +7,7 @@
    ===================================================================== */
 import { listarVitrine, listarMarcasVitrine, urlVitrine } from '../api/g360.js';
 import { carregarExibicao, apresentar, codigosDaCategoria, pesoCurva, oculto, categorias as categoriasPortal, codigosAtivosPublicos, esquecerAtivosPublicos } from '../catalogo/exibicao.js';
-import { buscarLocal, variacoes, corrigirBusca, nomeBate } from '../catalogo/busca.js';
+import { buscarLocal, variacoes, corrigirBusca, nomeBate, variacoesMedida } from '../catalogo/busca.js';
 import { esc } from './comum.js';
 
 const POR_PAGINA = 24;
@@ -49,7 +49,7 @@ export async function resultadoPublico(filtros) {
     try {
       const vs = variacoes(q);
       const umaPalavra = q.trim().split(/\s+/).length === 1; // código de barras etc.: vale o que o G360 achar
-      const { dados } = await listarVitrine(vs.length > 1 ? { termos: [q, ...vs.slice(1)], marca, limite: 50 } : { q: q, marca, limite: 50 });
+      const { dados } = await listarVitrine(termosG360(q, vs) ? { termos: termosG360(q, vs), marca, limite: 50 } : { q: q, marca, limite: 50 });
       // Só o que tem todas as palavras da busca no nome (a busca do G360 acha palavra solta em qualquer produto).
       dados.map(apresentar).filter((p) => (!grupo || p.categoria === grupo) && (pontos.has(String(p.codigo)) || umaPalavra || vs.some((v) => nomeBate(v, `${p.nome} ${p.codigo}`))))
         .forEach((p) => { if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); pontos.set(String(p.codigo), maxPontos * 0.6); } });
@@ -130,4 +130,11 @@ export function htmlCartaoPublico(p) {
       <button type="button" class="lockp" data-entrar><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Entre para ver os preços</button>
     </div>
   </article>`;
+}
+
+/** Termos alternativos para a busca do G360 (basta um bater): a busca, os sinônimos de frase e a medida escrita
+    de outros jeitos ("5 litros" → "5l", "5lt"...). null = só a busca digitada. Máximo de 10, como no contrato. */
+function termosG360(q, vs) {
+  const t = [...new Set([q, ...vs.slice(1), ...variacoesMedida(q)].map((x) => x.trim().slice(0, 80)).filter(Boolean))].slice(0, 10);
+  return t.length > 1 ? t : null;
 }

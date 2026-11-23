@@ -88,6 +88,20 @@ export function medidas(texto) {
   return t;
 }
 
+/** Jeitos de escrever cada medida nos cadastros do G360 (a busca dele exige a palavra igual). */
+const GRAFIAS = { l: ['l', 'lt', 'lts', ' litros', ' l'], ml: ['ml', ' ml'], kg: ['kg', ' kg'], g: ['g', 'gr', ' g'], m: ['m', 'mt', ' metros'] };
+/**
+ * Variações da busca com a medida escrita de outros jeitos, para mandar à busca do G360:
+ * "agua sanitaria 5 litros" → "agua sanitaria 5l", "agua sanitaria 5lt", ... (o produto que ainda não tem
+ * nome no portal só aparece por ela). Sem medida na busca, devolve lista vazia.
+ */
+export function variacoesMedida(consulta) {
+  const base = medidas(consulta);
+  const m = base.match(/(^|\s)(\d+(?:\.\d+)?)(ml|l|kg|g|m)(?=\s|$)/);
+  if (!m) return [];
+  return GRAFIAS[m[3]].map((g) => base.replace(`${m[2]}${m[3]}`, `${m[2]}${g}`).replace(/\s+/g, ' ').trim());
+}
+
 function tokens(texto) {
   return medidas(texto).split(' ').filter((w) => w && !PARADAS.has(w)).map(singular);
 }
