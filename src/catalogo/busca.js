@@ -68,8 +68,42 @@ export function variacoes(consulta) {
   return [...out].slice(0, 6);
 }
 
+/**
+ * Medidas escritas de jeitos diferentes viram uma forma só, colada no número:
+ * "5 litros", "5 lt", "5lts", "5L", "5 l" → "5l"; "500 ml" → "500ml"; "1 kg", "1 quilo" → "1kg";
+ * "500 g", "500gr", "500 gramas" → "500g"; "10 metros", "10mt" → "10m". Vale para o nome do produto e para a busca.
+ */
+const MEDIDAS = [
+  [/(\d+(?:\.\d+)?) ?(?:mililitros?|ml)(?![a-z0-9])/g, '$1ml'],
+  [/(\d+(?:\.\d+)?) ?(?:litros?|lts?|l)(?![a-z0-9])/g, '$1l'],
+  [/(\d+(?:\.\d+)?) ?(?:quilos?|kilos?|kgs?)(?![a-z0-9])/g, '$1kg'],
+  [/(\d+(?:\.\d+)?) ?(?:gramas?|grs?|g)(?![a-z0-9])/g, '$1g'],
+  [/(\d+(?:\.\d+)?) ?(?:metros?|mts?|m)(?![a-z0-9])/g, '$1m'],
+  [/(\d+(?:\.\d+)?) ?(?:centimetros?|cm)(?![a-z0-9])/g, '$1cm'],
+  [/(\d+(?:\.\d+)?) ?(?:milimetros?|mm)(?![a-z0-9])/g, '$1mm'],
+];
+export function medidas(texto) {
+  let t = normalizar(texto);
+  for (const [re, por] of MEDIDAS) t = t.replace(re, por);
+  return t;
+}
+
 function tokens(texto) {
-  return normalizar(texto).split(' ').filter((w) => w && !PARADAS.has(w)).map(singular);
+  return medidas(texto).split(' ').filter((w) => w && !PARADAS.has(w)).map(singular);
+}
+
+/**
+ * O nome tem todas as palavras da busca (com as mesmas tolerâncias da busca local)?
+ * Usado para filtrar o que a busca do G360 devolve: ela acha "5" e "litros" em qualquer produto.
+ */
+export function nomeBate(consulta, nome) {
+  const ws = [...new Set(tokens(nome))];
+  const tams = tamanhoDaBusca(consulta);
+  const qs = tokens(consulta).filter((q) => !tams.includes(q)).flatMap((q) => (/^[a-z]{3,}\d+$/.test(q) ? q.match(/^([a-z]+)(\d+)$/).slice(1) : [q]));
+  if (!qs.length) return false;
+  const colado = qs.join('');
+  if (colado.length >= 5 && medidas(nome).replace(/\s/g, '').includes(colado)) return true;
+  return qs.every((q) => pontoPalavra(q, ws) > 0);
 }
 
 /** Distância de edição ≤ 1 (troca, falta ou sobra de uma letra). */
@@ -137,7 +171,7 @@ export function indexar(linhas) {
     // Palavras-chave da equipe (ex.: "carrinho" no Carro Funcional) contam como se estivessem no nome.
     palavras: [...new Set(tokens(`${r.nome} ${r.nome_g360 || ''} ${(r.palavras_chave || '').replace(/,/g, ' ')}`))], tam: new Set([...tamanhosDe(r.nome), ...tamanhosDe(r.nome_g360)]), cod: normalizar(r.codigo).replace(/\s/g, ''),
     // Nome "colado" (sem espaços), para achar "superlimpo" em "Super Limpo" e "papel toalha" em "PAPELTOALHA".
-    junto: [r.nome, r.nome_g360 || '', ...(r.palavras_chave || '').split(',')].map((x) => normalizar(x).replace(/\s/g, '')).join('|'),
+    junto: [r.nome, r.nome_g360 || '', ...(r.palavras_chave || '').split(',')].map((x) => medidas(x).replace(/\s/g, '')).join('|'),
   }));
   VOCABULARIO = new Set(indice.flatMap((it) => it.palavras).filter((w) => w.length >= 3 && /^[a-z]+$/.test(w))); COMPOSTAS.clear();
   FREQ = new Map(); indice.forEach((it) => it.palavras.forEach((w) => { if (VOCABULARIO.has(w)) FREQ.set(w, (FREQ.get(w) || 0) + 1); }));

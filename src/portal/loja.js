@@ -8,7 +8,7 @@ import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
 import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo, estoqueMinimoAtual, codigosAtivosPublicos } from '../catalogo/exibicao.js';
 
-import { buscarLocal, temEstoque, variacoes, corrigirBusca } from '../catalogo/busca.js';
+import { buscarLocal, temEstoque, variacoes, corrigirBusca, nomeBate } from '../catalogo/busca.js';
 import { listarProdutos, buscarProdutos, listarMarcas, produtosPorIds } from '../api/g360.js';
 import { sessao, entrar, sair, trocarSenha, vinculoEmAndamento } from '../estado/sessao.js';
 import { iniciarCarrinhoNuvem, sincronizarCarrinho } from '../estado/carrinho-nuvem.js';
@@ -340,6 +340,8 @@ async function buscarItens(q, grupo) {
   // 2) A busca do G360 (pega código de barras, aplicação e o que ainda não tem nome no portal).
   //    Termos alternativos: a busca digitada e as variações pelos sinônimos (basta um bater).
   const vs = variacoes(q);
+  // Uma palavra só (código de barras, aplicação): vale o que o G360 achar. Duas ou mais: precisa bater no nome.
+  const umaPalavra = q.trim().split(/\s+/).length === 1;
   const pedidos = [
     ...blocos.map((b) => buscarProdutos(sessao.token, { codigos: b, marca, limite: 50 })),
     listarProdutos(sessao.token, vs.length > 1 ? { termos: [q, ...vs.slice(1)], marca, limite: 50 } : { q: q, marca, limite: 50 }),
@@ -348,7 +350,9 @@ async function buscarItens(q, grupo) {
   res.slice(0, blocos.length).forEach((r) => { if (r.status === 'fulfilled') r.value.dados.forEach((p) => { const a = apresentar(p); guardarRecente(a); achados.set(Number(p.id), a); }); });
   const api = res[res.length - 1];
   if (api.status === 'fulfilled') {
-    api.value.dados.map(apresentar).filter((p) => !grupo || p.categoria === grupo)
+    // A busca do G360 acha palavra solta em qualquer lugar ("5" e "litros" no Removedor 5L): só entra o que tem
+    // todas as palavras da busca no nome (ou numa das variações pelos sinônimos).
+    api.value.dados.map(apresentar).filter((p) => (!grupo || p.categoria === grupo) && (pontos.has(String(p.codigo)) || umaPalavra || vs.some((v) => nomeBate(v, `${p.nome} ${p.nome_g360 || ''} ${p.codigo}`))))
       .forEach((p) => { guardarRecente(p); if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); if (!pontos.has(String(p.codigo))) pontos.set(String(p.codigo), maxPontos * 0.6); } });
   }
   const falha = res.find((r) => r.status === 'rejected');
