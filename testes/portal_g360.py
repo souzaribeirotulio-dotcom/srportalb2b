@@ -285,6 +285,17 @@ with sync_playwright() as pw:
     pg.fill('#q', 'P-121'); pg.press('#q', 'Enter'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('Mostrando 1 de 1 resultado')")
     pg.fill('#q', 'nada-existe'); pg.press('#q', 'Enter'); pg.wait_for_selector('#gLimpar')
     pg.click('#gLimpar'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('Mostrando 24') && document.querySelectorAll('#grid .card').length === 24")
+    # Número no chip da categoria = "Mostrando X de Y" (só o que aparece no portal, não a categoria inteira)
+    lim_ = [c for c, v in sim.exibicao.items() if v.get('categoria') == 'Limpeza']
+    if len(lim_) >= 2:
+        vis_antes_ = sim.visiveis
+        sim.visiveis = {'visiveis': [p['codigo'] for p in sim.produtos if p['codigo'] != lim_[0]], 'estoque_baixo': [], 'sem_estoque': [lim_[0]], 'estoque_minimo': 0, 'atualizado_em': '2026-11-18T22:00:00+00:00'}
+        pg.reload(); pg.wait_for_selector('.chip[data-c="Limpeza"]')
+        chip_ = int(pg.text_content('.chip[data-c="Limpeza"] span') or 0)
+        pg.click('.chip[data-c="Limpeza"]'); pg.wait_for_function("document.getElementById('cnt').textContent.includes(' de ')")
+        tot_ = int(re.search(r' de ([\d.]+)', n.tc('#cnt')).group(1).replace('.', ''))
+        checar(chip_ == len([c for c in lim_ if c in sim.visiveis['visiveis']]) == len(lim_) - 1 and tot_ >= chip_, f'chip da categoria conta só o que aparece no portal (teste que tem de dar errado se contar os sem estoque): chip {chip_}, lista {tot_}')
+        sim.visiveis = vis_antes_; pg.reload(); pg.wait_for_selector('.chip[data-c="Descartáveis"]')
     pg.click('.chip[data-c="Descartáveis"]'); pg.wait_for_function("document.querySelectorAll('#grid .card').length === 1")
     checar('Copo Descartável Exemplo 200ml' in n.tc('#grid') and 'Descartáveis' in n.tc('#grid .cat'), 'categoria e nome do portal no catálogo')
     q = [x for x in sim.chamadas if x[0] == 'POST' and x[1].endswith('produtos/busca')][-1][3]

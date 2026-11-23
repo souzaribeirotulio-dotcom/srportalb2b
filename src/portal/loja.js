@@ -193,9 +193,11 @@ function desenharHero() {
 async function carregarClassificacoes() {
   if (classificacoes && classificacoes.token === sessao.token) return classificacoes;
   const [marcas] = await Promise.all([listarMarcas(sessao.token), carregarExibicao()]);
-  // Categorias definidas pela equipe no painel (não vêm do G360).
-  const grupos = categoriasPortal().map((nome) => ({ codigo: nome, nome, quantidade: codigosDaCategoria(nome, Infinity).length || '' }));
-  classificacoes = { token: sessao.token, grupos, marcas, total: null };
+  // Categorias definidas pela equipe no painel (não vêm do G360). O número de cada uma conta só o que aparece no
+  // portal (com estoque e não tirado pela equipe), igual ao "Mostrando X de Y" e à tela de quem não entrou.
+  const ativos = await codigosAtivosPublicos(); const set = ativos ? new Set(ativos) : null;
+  const grupos = categoriasPortal().map((nome) => ({ codigo: nome, nome, quantidade: codigosDaCategoria(nome, Infinity).filter((c) => !set || set.has(String(c))).length || '' }));
+  classificacoes = { token: sessao.token, grupos, marcas, total: ativos ? ativos.length : null };
   $('marca').innerHTML = '<option value="">Todas as marcas</option>' + marcas.map((m) => `<option value="${Number(m.codigo)}">${esc(m.nome)}</option>`).join('');
   $('marca').value = filtros.marca;
   $('nMarcas').textContent = marcas.length;
