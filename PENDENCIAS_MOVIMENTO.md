@@ -155,3 +155,12 @@ Pergunta/pedido: uma rota pública, com limite por IP, que diga só se o documen
 ## Continuar conectado na homologação (22/11)
 O portal já mostra a caixa **Continuar conectado** no login quando `GET loja` traz `continuar_conectado_dias` maior que zero (e envia `continuar_conectado: true` no `POST sessoes` quando o cliente marca). Na loja de homologação a caixa não apareceu, então o valor deve estar em zero.
 Pedido: configurar `continuar_conectado_dias` na loja de homologação (sugestão: 30 dias) para testarmos, e depois na de produção.
+
+## Promoções do G360 no portal B2B (23/11)
+Recebemos o guia "Prompt: consumir as promoções do G360 pela API de sistemas externos" (versão de 23/11/2026), mas não o contrato `openapi-integracoes-promocoes.yaml` que ele cita. Sem o contrato não implementamos nada: o guia manda não usar rota, campo nem código de erro fora dele.
+Pedidos e perguntas:
+1. O arquivo `openapi-integracoes-promocoes.yaml`, e a URL (`G360_API_URL`), o código da empresa (`G360_EMPRESA`) e uma chave com `produtos:ler` e `precos:ler` para homologação e produção (a chave vai direto nos segredos do Supabase, não por e-mail nem chat).
+2. No pedido pela API B2B (`POST revisoes` e `POST pedidos`), a promoção vigente do cliente já entra no `preco_unitario` sozinha? Se não entrar, o portal mostraria um preço de oferta e o pedido sairia pelo preço normal. Precisamos que a revisão B2B devolva o preço da promoção (ou outra orientação).
+3. O `produto` da API de integrações é o mesmo `id` (`produto_id`) da API B2B? E o `unidade_id` da promoção é o mesmo `unidades[].id` do catálogo B2B?
+4. O `cliente` da API de integrações é o mesmo `comprador.codigo` que o B2B devolve em `GET me`?
+5. A API de integrações aceita chamadas do Supabase (servidor, sem cabeçalho Origin) da Souza Ribeiro? Há limite por minuto específico dela?
