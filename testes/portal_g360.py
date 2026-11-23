@@ -413,6 +413,16 @@ with sync_playwright() as pw:
     sim.lista[1165].discard(999); sim.lista[1165].add(104)
     n.ir('cat'); n.ir('lista'); pg.wait_for_selector('#lPanel .lrow[data-id="104"]')
     checar('Última compra: 5 UN em 01/11/2026' in pg.locator('.lrow[data-id="104"]').text_content(), 'histórico de compra na lista')
+    # Busca dentro da Minha Lista (nome sem acento ou código); quantidade digitada continua no total
+    pg.locator('.lrow[data-id="101"] .qty input').fill('2')
+    pg.fill('#lQ', 'descartavel')
+    checar(pg.locator('.lrow[data-id="104"]').is_visible() and not pg.locator('.lrow[data-id="101"]').is_visible() and '1 de 2' in n.tc('#lQn'), 'busca na lista por nome')
+    checar('1 item' in n.tc('#lN'), f'quantidade de linha escondida continua no total: {n.tc("#lN")}')
+    pg.fill('#lQ', 'P-101'); checar(pg.locator('.lrow[data-id="101"]').is_visible() and not pg.locator('.lrow[data-id="104"]').is_visible(), 'busca na lista por código')
+    # o que tem de dar errado: palavra que nenhum produto da lista tem
+    pg.fill('#lQ', 'xyzqwk'); checar(pg.locator('#lQvazio').is_visible() and pg.locator('.lrow[data-id]:visible').count() == 0, 'nada encontrado na lista')
+    pg.click('[data-lqlimpar]'); checar(pg.locator('.lrow[data-id]:visible').count() == 2 and pg.input_value('#lQ') == '', 'limpar busca da lista')
+    pg.locator('.lrow[data-id="101"] .qty input').fill('0')
     pg.locator('.lrow[data-id="104"] [data-rm]').click(); pg.wait_for_selector('#lPanel .lrow[data-id="104"]', state='detached'); pg.wait_for_timeout(300)
     checar(104 not in sim.lista[1165], 'remover da lista')
     pg.wait_for_selector('#lPanel .lrow[data-id="104"]', state='detached')

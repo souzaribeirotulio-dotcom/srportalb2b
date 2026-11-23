@@ -17,13 +17,15 @@ import { $, esc, toast, passoQuantidade } from './comum.js';
 import { podeComprar, htmlEstoque, htmlUnidades, unidadeEscolhida, linhaCarrinho } from './cartao.js';
 import { abrirCheckout } from './checkout.js';
 import { abrirCarrinho } from './loja.js';
+import { normalizar } from '../catalogo/busca.js';
 
 let LQ = new Map();   // produto_id → quantidade (texto com vírgula)
 let LU = new Map();   // produto_id → unidade escolhida ('' = base)
 let preencherDepois = null; // itens de um pedido para "Comprar de novo"
 let linhas = [];
+let LBUSCA = ''; // texto da busca dentro da Minha Lista (fica enquanto a pessoa está na tela)
 
-export function limparListaTela() { LQ = new Map(); LU = new Map(); preencherDepois = null; linhas = []; }
+export function limparListaTela() { LQ = new Map(); LU = new Map(); preencherDepois = null; linhas = []; LBUSCA = ''; }
 
 /** "Comprar de novo" de um pedido: preenche as quantidades e abre a Minha Lista. */
 export function comprarDeNovo(ctx, itens) { preencherDepois = itens; ctx.ir('/minha-lista'); }
@@ -79,8 +81,10 @@ export async function desenharMinhaLista(ctx) {
     .sort((a, b) => String(a.p?.nome || 'zz').localeCompare(String(b.p?.nome || 'zz'), 'pt'));
   if (!linhas.length) { vazia(escondidos ? `<br><small>${um ? '1 produto salvo está indisponível' : `${escondidos} produtos salvos estão indisponíveis`} no momento e volta${um ? '' : 'm'} a aparecer aqui quando estiver${um ? '' : 'em'} disponíve${um ? 'l' : 'is'}.</small>` : ''); if (salvos.size) ligarEsvaziar(ctx, salvos.size); return; }
   painel.innerHTML = `${avisoLista ? `<div class="rv-aviso bad" style="margin:12px">${esc(avisoLista)}</div>` : ''}${avisoEsc}
+    ${linhas.length > 1 ? `<div class="lbusca"><input id="lQ" type="search" enterkeyhint="search" autocomplete="off" placeholder="Buscar na minha lista (nome, marca ou código)" aria-label="Buscar na minha lista" value="${esc(LBUSCA)}"><span id="lQn" class="hint"></span></div>` : ''}
     <div class="lrow h"><div></div><div>Produto</div><div>Histórico</div><div>Preço</div><div>Quantidade</div><div style="text-align:right">Subtotal</div></div>
     ${linhas.map(htmlLinha).join('')}
+    <div id="lQvazio" class="lvazio" hidden></div>
     <div class="sticky"><div class="tt"><span id="lN"></span> Total estimado:<b id="lT"></b></div>
       ${salvos.size ? '<button type="button" class="btn out" id="lEsv" title="Tira todos os produtos da sua lista">Esvaziar minha lista</button>' : ''}<button type="button" class="btn out" id="lClr" title="Apaga só as quantidades digitadas">Limpar quantidades</button><button type="button" class="btn out" id="lAdd">Adicionar ao carrinho</button><button type="button" class="btn pri" id="lBuy">Fechar pedido agora</button></div>`;
   medirBarra(painel.querySelector('.sticky'));
@@ -91,7 +95,29 @@ export async function desenharMinhaLista(ctx) {
   $('lAdd').onclick = () => { if (mandarParaCarrinho()) abrirCarrinho(); };
   $('lBuy').onclick = () => { if (mandarParaCarrinho()) abrirCheckout(ctx); };
   painel.onclick = (e) => cliqueLinha(e, ctx);
-  painel.oninput = (e) => { const r = e.target.closest('.lrow[data-id]'); if (r && e.target.matches('.qty input')) definir(r, e.target.value, false); };
+  painel.oninput = (e) => {
+    if (e.target.id === 'lQ') { LBUSCA = e.target.value; filtrarLista(); return; }
+    const r = e.target.closest('.lrow[data-id]'); if (r && e.target.matches('.qty input')) definir(r, e.target.value, false);
+  };
+  const campo = $('lQ'); if (campo) campo.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); campo.blur(); } };
+  filtrarLista();
+}
+
+/** Busca na Minha Lista: esconde as linhas que não têm todas as palavras (nome, marca ou código; sem acento).
+    As quantidades já digitadas continuam valendo e entram no total, mesmo nas linhas escondidas. */
+function filtrarLista() {
+  const painel = $('lPanel'); if (!painel) return;
+  const termos = normalizar(LBUSCA).split(/\s+/).filter(Boolean);
+  let vistos = 0;
+  painel.querySelectorAll('.lrow[data-id], .lrow[data-fora]').forEach((r) => {
+    const x = linhas.find((l) => String(l.id) === (r.dataset.id || r.dataset.fora));
+    const texto = normalizar(`${x?.p?.nome || ''} ${x?.p?.marca || ''} ${x?.p?.codigo || ''} ${x?.id || ''}`);
+    const ok = !termos.length || termos.every((t) => texto.includes(t));
+    r.hidden = !ok; if (ok) vistos += 1;
+  });
+  const n = $('lQn'); if (n) n.textContent = termos.length ? `${vistos} de ${linhas.length}` : '';
+  const v = $('lQvazio');
+  if (v) { v.hidden = !(termos.length && !vistos); v.innerHTML = termos.length && !vistos ? `Nenhum produto da sua lista tem “${esc(LBUSCA.trim())}”. <button type="button" class="btn out" data-lqlimpar>Limpar busca</button>` : ''; }
 }
 
 /** "Esvaziar minha lista": confirma no segundo clique e apaga todos os produtos salvos. */
@@ -148,6 +174,7 @@ function definir(row, valor, redesenhar = true) {
 }
 
 async function cliqueLinha(e, ctx) {
+  if (e.target.closest('[data-lqlimpar]')) { LBUSCA = ''; const c = $('lQ'); if (c) { c.value = ''; c.focus(); } filtrarLista(); return; }
   const r = e.target.closest('.lrow[data-id], .lrow[data-fora]'); if (!r) return;
   if (e.target.closest('[data-rm]')) {
     const id = Number(r.dataset.id || r.dataset.fora);
@@ -157,7 +184,7 @@ async function cliqueLinha(e, ctx) {
   if (!r.dataset.id) return;
   const id = Number(r.dataset.id);
   const un = e.target.closest('.unsel [data-un]');
-  if (un) { LU.set(id, un.dataset.un); r.outerHTML = htmlLinha(linhas.find((l) => l.id === id)); ligarFotos($('lPanel')); atualizarTotais(); return; }
+  if (un) { LU.set(id, un.dataset.un); r.outerHTML = htmlLinha(linhas.find((l) => l.id === id)); ligarFotos($('lPanel')); atualizarTotais(); filtrarLista(); return; }
   const d = e.target.closest('[data-d]');
   if (d) {
     const atual = r.querySelector('.qty input').value;

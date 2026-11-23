@@ -406,3 +406,10 @@ body.com-passo-ios #souzinha-widget{display:none !important}
 .mod-x:focus-visible{outline:2px solid var(--lima);outline-offset:2px}
 /* Janelas com × próprio no cabeçalho: o cabeçalho fica preso no alto ao rolar */
 .mod .box > .fxh{position:sticky;top:-24px;z-index:6;background:inherit;padding-top:4px}
+/* Minha Lista: busca dentro da lista */
+.lbusca { display: flex; align-items: center; gap: 10px; padding: 12px; }
+.lbusca input { flex: 1; min-width: 0; min-height: 44px; font-size: 16px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--bd, #2c4a22); background: var(--bg2, #0b1a09); color: var(--tx, #fff); }
+.lbusca .hint { white-space: nowrap; font-size: 13px; }
+.lrow[hidden] { display: none !important; }
+.lvazio { padding: 20px 12px; text-align: center; color: var(--tx3); }
+.lvazio .btn { margin-top: 10px; }
