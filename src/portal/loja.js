@@ -8,7 +8,7 @@ import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
 import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo, estoqueMinimoAtual, codigosAtivosPublicos } from '../catalogo/exibicao.js';
 
-import { buscarLocal, temEstoque, variacoes, corrigirBusca, nomeBate } from '../catalogo/busca.js';
+import { buscarLocal, temEstoque, variacoes, corrigirBusca, nomeBate, variacoesMedida } from '../catalogo/busca.js';
 import { listarProdutos, buscarProdutos, listarMarcas, produtosPorIds } from '../api/g360.js';
 import { sessao, entrar, sair, trocarSenha, vinculoEmAndamento } from '../estado/sessao.js';
 import { iniciarCarrinhoNuvem, sincronizarCarrinho } from '../estado/carrinho-nuvem.js';
@@ -344,7 +344,7 @@ async function buscarItens(q, grupo) {
   const umaPalavra = q.trim().split(/\s+/).length === 1;
   const pedidos = [
     ...blocos.map((b) => buscarProdutos(sessao.token, { codigos: b, marca, limite: 50 })),
-    listarProdutos(sessao.token, vs.length > 1 ? { termos: [q, ...vs.slice(1)], marca, limite: 50 } : { q: q, marca, limite: 50 }),
+    listarProdutos(sessao.token, termosG360(q, vs) ? { termos: termosG360(q, vs), marca, limite: 50 } : { q: q, marca, limite: 50 }),
   ];
   const res = await Promise.allSettled(pedidos);
   res.slice(0, blocos.length).forEach((r) => { if (r.status === 'fulfilled') r.value.dados.forEach((p) => { const a = apresentar(p); guardarRecente(a); achados.set(Number(p.id), a); }); });
@@ -813,4 +813,11 @@ export function abrirConta() {
 export function fecharTudo() {
   ['mLogin', 'mConta', 'mChk'].forEach(fecharModal);
   fecharCarrinho();
+}
+
+/** Termos alternativos para a busca do G360 (basta um bater): a busca, os sinônimos de frase e a medida escrita
+    de outros jeitos ("5 litros" → "5l", "5lt"...). null = só a busca digitada. Máximo de 10, como no contrato. */
+function termosG360(q, vs) {
+  const t = [...new Set([q, ...vs.slice(1), ...variacoesMedida(q)].map((x) => x.trim().slice(0, 80)).filter(Boolean))].slice(0, 10);
+  return t.length > 1 ? t : null;
 }
