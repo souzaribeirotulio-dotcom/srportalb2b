@@ -188,6 +188,10 @@ with sync_playwright() as pw:
     n = N(pw, sim)
     checar(not n.pg.locator('#gPrimeiro').is_visible(), 'Primeiro acesso com troca_senha falso')
     n.entrar(U1, S1); n.pg.click('#tbConta'); n.pg.wait_for_selector('#mConta.open')
+    # × preso no alto da Minha conta fecha a janela (antes ele clicava em si mesmo e não fechava)
+    n.pg.click('#mConta .mod-x'); n.pg.wait_for_selector('#mConta:not(.open)', state='attached', timeout=3000)
+    checar(n.pg.locator('#mConta.open').count() == 0, '× da Minha conta fecha')
+    n.pg.click('#tbConta'); n.pg.wait_for_selector('#mConta.open')
     checar(n.pg.locator('#cTrocar').count() == 0 and 'definida pela Souza Ribeiro' in n.tc('#contaBox'), 'trocar senha com troca_senha falso')
     n.fechar()
 

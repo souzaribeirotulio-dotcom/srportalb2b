@@ -24,7 +24,8 @@ function visivel(el) { return !!(el && (el.offsetWidth || el.offsetHeight || el.
 function botaoFechar(camada) {
   const porSeletor = [...camada.querySelectorAll(BOTAO_FECHAR)].find(visivel);
   if (porSeletor) return porSeletor;
-  return [...camada.querySelectorAll('button')].find((b) => visivel(b) && TEXTOS_FECHAR.has(b.textContent.trim())) || null;
+  // O × que o garantirX põe no alto não conta: ele usa este botão para fechar (contar a si mesmo travava, ex.: Minha conta).
+  return [...camada.querySelectorAll('button')].find((b) => visivel(b) && !b.classList.contains('mod-x') && TEXTOS_FECHAR.has(b.textContent.trim())) || null;
 }
 function ehBotaoFechar(el, camada) {
   // Só o botão que fecha a janela (o mesmo que o ESC usa); "Cancelar" de um formulário de dentro não conta.
