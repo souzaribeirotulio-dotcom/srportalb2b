@@ -3,6 +3,7 @@
    com o operador do G360). Cadastro do executivo, link de indicação, conta de acesso e regras. */
 import { chamarExecutivos } from '../api/executivos.js';
 import { referenciasNovoClienteOperador } from '../api/g360.js';
+import { montarSeletorOcultos } from './adminocultos.js';
 import { esc, toast } from './comum.js';
 import Decimal from 'decimal.js';
 import { dataBr, dinheiro } from '../ui/formato.js';
@@ -63,9 +64,10 @@ export async function desenharExecutivosPainel(alvo, { token, aoEncerrar }) {
           ${(vendedores || []).map((v) => `<option value="${v.id}" ${Number(x.vendedor_g360) === v.id ? 'selected' : ''}>${esc(v.nome)}</option>`).join('')}
           ${x.vendedor_g360 && vendedores && !vendedores.some((v) => v.id === Number(x.vendedor_g360)) ? `<option value="${x.vendedor_g360}" selected>${esc(x.vendedor_nome || `Vendedor ${x.vendedor_g360}`)}</option>` : ''}
         </select><small class="hint" style="display:block;margin-top:4px">O cliente novo indicado por ele nasce no G360 com este vendedor.</small></div>
-        <div class="full"><label for="exOcT">Produtos que os clientes dele não veem: palavras do nome (opcional)</label><input class="inp" id="exOcT" maxlength="600" value="${esc((x.ocultar_termos || []).join(', '))}" placeholder="Ex.: saco lixo, saco p lixo">
-          <small class="hint" style="display:block;margin-top:4px">Separe por vírgula. Some o produto que tiver todas as palavras de um item no nome (sem acento). Vale só para clientes vinculados a ele e logados; o G360 continua vendendo.</small></div>
-        <div class="full"><label for="exOcC">…e códigos de produto (opcional)</label><input class="inp" id="exOcC" maxlength="3000" value="${esc((x.ocultar_codigos || []).join(', '))}" placeholder="Ex.: 25777, 25778"></div>
+        <div class="full"><span class="lbl-like">Produtos que os clientes dele não veem (opcional)</span><div id="exOcultos"></div>
+          <details class="oc-palavras"${(x.ocultar_termos || []).length ? ' open' : ''}><summary>Também esconder por palavra do nome (pega produtos novos)</summary>
+            <input class="inp" id="exOcT" maxlength="600" value="${esc((x.ocultar_termos || []).join(', '))}" placeholder="Ex.: saco lixo, saco p lixo" aria-label="Palavras do nome a esconder">
+            <small class="hint" style="display:block;margin-top:4px">Separe por vírgula. Some todo produto que tiver todas as palavras de um item no nome (sem acento), inclusive os que forem cadastrados depois.</small></details></div>
       </div>
       <div class="okmsg" id="exMsg" aria-live="polite" style="margin-top:8px"></div>
       <div class="act" style="margin-top:10px"><button class="btn sec" type="button" id="exCancela">Cancelar</button><button class="btn pri" type="submit" id="exSalva">Salvar executivo</button></div>
@@ -130,6 +132,7 @@ export async function desenharExecutivosPainel(alvo, { token, aoEncerrar }) {
       const prev = () => { const c = f.querySelector('#exCod').value.trim().toUpperCase(); f.querySelector('#exLinkPrev').textContent = c ? `Link: ${linkExecutivo(c)}` : ''; };
       f.querySelector('#exCod').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); prev(); });
       prev();
+      const seletor = montarSeletorOcultos(f.querySelector('#exOcultos'), { token: () => token, codigos: editando.ocultar_codigos || [], aoEncerrar, aoMudar: (l) => { editando.ocultar_codigos = l; } });
       f.querySelector('#exCancela').onclick = () => { editando = null; pintar(); };
       f.onsubmit = async (ev) => {
         ev.preventDefault();
@@ -142,7 +145,7 @@ export async function desenharExecutivosPainel(alvo, { token, aoEncerrar }) {
           email: f.querySelector('#exMail').value, senha: f.querySelector('#exSenha').value,
           percentual: f.querySelector('#exPct').value.trim(),
           vendedor_g360: vend.value ? Number(vend.value) : null, vendedor_nome: vend.value ? vend.selectedOptions[0]?.textContent || '' : '',
-          ocultar_termos: f.querySelector('#exOcT').value, ocultar_codigos: f.querySelector('#exOcC').value,
+          ocultar_termos: f.querySelector('#exOcT').value, ocultar_codigos: seletor.codigos(),
         };
         bt.disabled = true; msg.className = 'okmsg'; msg.textContent = 'Salvando…';
         try {

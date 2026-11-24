@@ -684,3 +684,23 @@ details.ferr > .afil{margin:0 !important;padding:0 12px 12px}
 .ex-rel-l .row { grid-column: 1 / -1; }
 .ex-rel-l.cancelada { opacity: .6; }
 .ex-rel-v { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+
+/* Painel › Executivos: produtos escondidos para os clientes do executivo */
+.lbl-like { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--tx2, #a9c19a); }
+.oc-box { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--linha, #ffffff1a); border-radius: 12px; background: rgba(0, 0, 0, .12); }
+.oc-busca { display: flex; gap: 8px; }
+.oc-busca .inp { flex: 1; min-width: 0; }
+.oc-acoes { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.oc-lista { display: grid; gap: 4px; max-height: 320px; overflow: auto; padding-right: 4px; }
+.oc-item { display: flex; gap: 10px; align-items: center; padding: 8px 10px; min-height: 44px; border-radius: 10px; background: rgba(255, 255, 255, .03); cursor: pointer; font-size: 14px; }
+.oc-item input { width: 20px; height: 20px; flex: none; accent-color: var(--lima, #b2e04a); }
+.oc-item:has(input:checked) { background: rgba(178, 224, 74, .12); }
+.oc-pag { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 6px; }
+.oc-sel { border-top: 1px solid var(--linha, #ffffff1a); padding-top: 10px; }
+.oc-sel-cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 14px; }
+.oc-chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 220px; overflow: auto; }
+.oc-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 4px 4px 10px; border-radius: 999px; background: rgba(255, 107, 107, .12); font-size: 13px; }
+.oc-chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oc-chip button { flex: none; width: 32px; height: 32px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .08); color: inherit; cursor: pointer; }
+.oc-palavras { margin-top: 8px; }
+.oc-palavras summary { cursor: pointer; font-size: 13px; color: var(--tx2, #a9c19a); min-height: 32px; display: flex; align-items: center; }

@@ -536,7 +536,8 @@ class Sim:
                 pct = str(e.get('percentual') or '').replace(',', '.')
                 norm = lambda t: re.sub(r'[^a-z0-9]+', ' ', t.lower()).strip()
                 atual['ocultar_termos'] = [norm(t) for t in str(e.get('ocultar_termos') or '').split(',') if norm(t)]
-                atual['ocultar_codigos'] = [c.strip().upper() for c in re.split(r'[,;\s]+', str(e.get('ocultar_codigos') or '')) if c.strip()]
+                oc = e.get('ocultar_codigos') or []
+                atual['ocultar_codigos'] = [str(c).strip().upper() for c in (oc if isinstance(oc, list) else re.split(r'[,;\s]+', str(oc))) if str(c).strip()]
                 atual.update(codigo=cod, nome=e.get('nome'), documento=e.get('documento'), whatsapp=e.get('whatsapp') or None, email=e.get('email'),
                              percentual=float(pct) if pct else None, vendedor_g360=e.get('vendedor_g360'), vendedor_nome=e.get('vendedor_nome') or None)
                 if e.get('senha'): self.exec_senhas[atual['id']] = e['senha']

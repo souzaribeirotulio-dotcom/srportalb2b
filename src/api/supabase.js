@@ -29,10 +29,24 @@ export function supabaseComprador() {
 /** Área do executivo de contas: conta própria (e-mail e senha), guardada só nesta aba,
  *  com chave separada para não misturar com a sessão de um comprador no mesmo navegador. */
 let executivo = null;
+/* Área do executivo: com "Continuar conectado" a sessão fica no localStorage (continua depois de
+   fechar o navegador e renova sozinha); sem, só nesta aba (sessionStorage). Sair apaga dos dois. */
+const CHAVE_LEMBRAR_EXEC = `g360:${LOJA}:executivo-lembrar`;
+const armazemExecutivo = () => { try { return localStorage.getItem(CHAVE_LEMBRAR_EXEC) === '1' ? localStorage : sessionStorage; } catch { return sessionStorage; } };
+const storageExecutivo = {
+  getItem: (k) => { try { return armazemExecutivo().getItem(k); } catch { return null; } },
+  setItem: (k, v) => { try { armazemExecutivo().setItem(k, v); } catch { /* sem armazenamento */ } },
+  removeItem: (k) => { try { localStorage.removeItem(k); } catch { /* */ } try { sessionStorage.removeItem(k); } catch { /* */ } },
+};
+/** Escolha do "Continuar conectado" (antes do login). false também apaga a marca ao sair. */
+export function lembrarExecutivo(sim) {
+  try { if (sim) localStorage.setItem(CHAVE_LEMBRAR_EXEC, '1'); else localStorage.removeItem(CHAVE_LEMBRAR_EXEC); } catch { /* sem armazenamento */ }
+}
+
 export function supabaseExecutivo() {
   if (!executivo && supabaseConfigurado()) {
     executivo = createClient(URL_SUPABASE, CHAVE_PUBLICA, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: `g360:${LOJA}:executivo-sessao`, storage: window.sessionStorage },
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: `g360:${LOJA}:executivo-sessao`, storage: storageExecutivo },
     });
   }
   return executivo;
