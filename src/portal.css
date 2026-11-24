@@ -365,7 +365,7 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
   .bnr:not([hidden]) + .hero .hcad-y { display: inline-block; }
   .bnr:not([hidden]) + .hero .hcad-y::first-letter { text-transform: uppercase; }
 }
-.hi-curto { display: none; font-size: 17px; font-weight: 700; color: var(--tx, #eef5e9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100vw - 24px); }
+.hi-curto { display: none; font-size: 17px; font-weight: 700; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100vw - 24px); }
 
 /* Busca: "Você quis dizer" e "nada nesta categoria" (acima da contagem). */
 .g360-aviso-busca { display: block; margin-bottom: 4px; color: var(--lima, #b2e04a); text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 500; }
@@ -465,3 +465,17 @@ body.com-passo-ios #souzinha-widget{display:none !important}
 .hcad-acesso:hover b { text-decoration: underline; }
 .hcad-acesso[hidden] { display: none; }
 @media (max-width: 640px) { .bnr:not([hidden]) + .hero .hcad { flex-wrap: wrap; } .bnr:not([hidden]) + .hero .hcad .btn { flex: 1 1 calc(50% - 4px); } .hcad-acesso { font-size: 13.5px; } }
+
+/* Computador com banner: o banner é a capa; embaixo fica uma faixa só, com a saudação curta
+   à esquerda e os botões à direita (sem o título grande, o parágrafo e o quadro de marcas). */
+@media (min-width: 641px) {
+  .bnr:not([hidden]) + .hero { padding-top: 18px; padding-bottom: 4px; align-items: center; }
+  .bnr:not([hidden]) + .hero h1, .bnr:not([hidden]) + .hero #hiSub, .bnr:not([hidden]) + .hero .stats { display: none; }
+  .bnr:not([hidden]) + .hero > div:first-child { flex: 1 1 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px 24px; flex-wrap: wrap; }
+  .bnr:not([hidden]) + .hero .hi-curto { display: block; font-size: 24px; font-weight: 800; letter-spacing: -.5px; max-width: none; }
+  .bnr:not([hidden]) + .hero .hcad { margin-top: 0; justify-content: flex-end; gap: 6px 10px; }
+  .bnr:not([hidden]) + .hero .hcad .btn { min-height: 44px; padding: 0 18px; font-size: 15px; }
+  .bnr:not([hidden]) + .hero .hcad small { display: none; }
+  .bnr:not([hidden]) + .hero .hcad.analise small { display: block; text-align: right; }
+  .bnr:not([hidden]) + .hero .hcad-acesso { flex-basis: 100%; text-align: right; margin-top: 0; padding: 2px 0; min-height: 32px; }
+}
