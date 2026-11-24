@@ -43,7 +43,7 @@ export function telaDefinirSenha({ loja, conteudo, ir }) {
     return;
   }
 
-  // Continuar conectado: só com continuar_conectado_dias > 0 em GET loja; a caixa começa desmarcada.
+  // Continuar conectado: só com continuar_conectado_dias > 0 em GET loja; a caixa começa marcada (decisão da Souza Ribeiro, 24/11/2026).
   const longa = Number(loja.continuar_conectado_dias) > 0;
   conteudo.innerHTML = `
     <h2 class="g360-sub">Definir senha</h2>
@@ -60,8 +60,8 @@ export function telaDefinirSenha({ loja, conteudo, ir }) {
       <input id="g360Senha2" type="password" maxlength="8" autocomplete="new-password" spellcheck="false"
         autocapitalize="off" aria-describedby="g360SenhaErro">
       <label class="g360-check"><input type="checkbox" id="g360Mostrar"> Mostrar senhas</label>
-      ${longa ? `<label class="g360-check"><input type="checkbox" id="g360Cont"> Continuar conectado</label>
-      <small class="g360-dica">Não marque em computador compartilhado.</small>` : ''}
+      ${longa ? `<label class="g360-check"><input type="checkbox" id="g360Cont" checked> Continuar conectado</label>
+      <small class="g360-dica">Desmarque em computador compartilhado.</small>` : ''}
       <small id="g360SenhaErro" class="g360-erro-campo" aria-live="polite"></small>
       <button type="submit" class="g360-btn pri" id="g360SalvarSenha">Criar senha e entrar</button>
     </form>

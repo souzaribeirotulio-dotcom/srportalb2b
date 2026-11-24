@@ -71,7 +71,11 @@ Todas as chamadas à API ficam num módulo só (por exemplo, `src/api/g360.ts`),
 
 ## 5. Segurança
 
-Guarde o token da API no `sessionStorage`, numa chave só para ele, para o comprador continuar no portal quando recarregar a página (F5). O `sessionStorage` vale só para aquela aba: fechar a aba ou abrir o portal em outra pede login de novo, e isso é o esperado. Não use `localStorage`, cookie criado por JavaScript nem a URL para o token. Ao abrir a página com um token guardado, chame `GET me` antes de mostrar qualquer tela privada. No 200, siga sem pedir login e abra de novo o vínculo do Supabase (`abrir_sessao`, seção 7, passo 3). No 401, apague o token e mostre o login. Apague o token também ao sair, em qualquer 401 e antes de outro comprador entrar. Como qualquer script da página consegue ler o `sessionStorage`, não carregue scripts de terceiros nas páginas do portal sem necessidade. A sessão do Supabase do comprador continua sem persistência: crie o cliente com `auth: { persistSession: false }` e refaça o vínculo depois da recarga.
+A caixa **Continuar conectado** vem marcada (decisão da Souza Ribeiro em 24/11/2026, no login e na página de senha nova) e só aparece quando `GET loja` informa `continuar_conectado_dias > 0`. Mostre ao lado: **Desmarque em computador compartilhado.** Se o campo não vier, trate como zero e não envie o campo novo ao backend antigo. No login, envie `continuar_conectado` como booleano e siga o valor efetivo da resposta.
+
+Com `continuar_conectado: true` na resposta, guarde o token no `localStorage`, em chave própria para a loja e o comprador (por exemplo, `g360:<loja>:comprador:persistente`). Com false, guarde no `sessionStorage` da aba, em outra chave (`g360:<loja>:comprador:sessao`). Apague ambas antes de guardar um token novo. Não use cookie criado por JavaScript nem a URL para o token.
+
+Ao abrir, chame `GET me` com o token guardado antes de mostrar qualquer tela privada. Com 200, siga e refaça o vínculo do Supabase; com 401, apague o token dos dois lugares e peça login. **Sair**, qualquer 401 da sessão do comprador e a entrada de outro comprador também apagam os dois lugares. Falha de rede não libera a tela privada. Nenhum script de terceiros pode ser carregado na página do portal. A sessão do Supabase continua sem persistência (`auth: { persistSession: false }`).
 
 Não registre no console, em log ou no Supabase o token, a senha, o documento digitado, o corpo do login, o corpo do pedido de senha nem o `#token=` do link.
 
