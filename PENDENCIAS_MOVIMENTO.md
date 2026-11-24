@@ -164,3 +164,7 @@ Pedidos e perguntas:
 3. O `produto` da API de integrações é o mesmo `id` (`produto_id`) da API B2B? E o `unidade_id` da promoção é o mesmo `unidades[].id` do catálogo B2B?
 4. O `cliente` da API de integrações é o mesmo `comprador.codigo` que o B2B devolve em `GET me`?
 5. A API de integrações aceita chamadas do Supabase (servidor, sem cabeçalho Origin) da Souza Ribeiro? Há limite por minuto específico dela?
+
+## Continuar conectado marcado por padrão (24/11)
+A Souza Ribeiro decidiu que a caixa **Continuar conectado** venha **marcada** no login e na página de senha nova (link do e-mail), com o aviso "Desmarque em computador compartilhado". O kit da Movimento pedia a caixa desmarcada. O portal continua mandando `continuar_conectado` como booleano e seguindo o valor efetivo da resposta; a sessão longa segue as regras da API (uso a cada N dias e novo login com senha após 90 dias).
+Pergunta: a Movimento tem alguma objeção ou exigência para a caixa vir marcada? Confirmar antes de levar para produção.

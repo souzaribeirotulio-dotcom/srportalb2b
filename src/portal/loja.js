@@ -731,7 +731,7 @@ function ligarLogin() {
   if (!$('lgRes')) $('lgE').insertAdjacentHTML('afterend', '<div id="lgRes" aria-live="polite"></div><p class="hint" id="lgSessao"></p>');
   if (!$('lgContW')) $('lgE').insertAdjacentHTML('beforebegin', `<div class="lg-cont" id="lgContW" hidden>
     <label for="lgCont"><input type="checkbox" id="lgCont"><span>Continuar conectado</span></label>
-    <small>Não marque em computador compartilhado.</small></div>`);
+    <small>Desmarque em computador compartilhado.</small></div>`);
   $('lgX').onclick = () => { fecharModal('mLogin'); depoisDoLogin = null; };
   // Formulário de verdade: o navegador oferece salvar o CNPJ e a senha e preenche no próximo login.
   // O Enter na senha envia o formulário (clique no botão Entrar); a página não recarrega.
@@ -783,7 +783,7 @@ export function abrirLogin(depois = null, mensagemErro = null, mensagemOk = null
   const dias = Number(ctx?.loja?.continuar_conectado_dias);
   const comLonga = Number.isFinite(dias) && dias > 0;
   $('lgContW').hidden = !comLonga;
-  $('lgCont').checked = false; // sempre começa desmarcada
+  $('lgCont').checked = true; // começa marcada (decisão da Souza Ribeiro, 24/11/2026); a pessoa pode desmarcar
   $('lgSessao').textContent = Number.isFinite(min)
     ? `Por segurança, a sessão encerra após ${min} minuto${min === 1 ? '' : 's'} sem uso${comLonga ? ', a menos que você marque Continuar conectado' : ''}.`
     : '';

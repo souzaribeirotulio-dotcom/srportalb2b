@@ -40,9 +40,8 @@ with sync_playwright() as pw:
     # 2) Continuar conectado marcado: entra com a sessão longa (localStorage)
     sim = Sim(); sim.links = {TOKEN: DOC}; sim.loja['continuar_conectado_dias'] = 30
     br, pg, erros, console = abrir(pw, sim)
-    checar(pg.locator('#g360Cont').count() == 1 and not pg.locator('#g360Cont').is_checked(), 'caixa Continuar conectado deveria vir desmarcada')
+    checar(pg.locator('#g360Cont').count() == 1 and pg.locator('#g360Cont').is_checked(), 'caixa Continuar conectado deveria vir marcada')
     checar('computador compartilhado' in pg.inner_text('#g360FormSenha'), 'aviso de computador compartilhado ausente')
-    pg.check('#g360Cont')
     pg.fill('#g360Doc', DOC); pg.fill('#g360Senha1', 'Nova456'); pg.fill('#g360Senha2', 'Nova456'); pg.click('#g360SalvarSenha')
     pg.wait_for_selector('body.logged #grid .card', timeout=30000)
     checar(sim.ultimo_login.get('continuar_conectado') is True, 'não pediu Continuar conectado')

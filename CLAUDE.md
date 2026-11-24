@@ -71,7 +71,7 @@ Todas as chamadas à API ficam num módulo só (por exemplo, `src/api/g360.ts`),
 
 ## 5. Segurança
 
-A caixa **Continuar conectado** vem desmarcada e só aparece quando `GET loja` informa `continuar_conectado_dias > 0`. Mostre ao lado: **Não marque em computador compartilhado.** Se o campo não vier, trate como zero e não envie o campo novo ao backend antigo. No login, envie `continuar_conectado` como booleano e siga o valor efetivo da resposta.
+A caixa **Continuar conectado** vem marcada (decisão da Souza Ribeiro em 24/11/2026, no login e na página de senha nova) e só aparece quando `GET loja` informa `continuar_conectado_dias > 0`. Mostre ao lado: **Desmarque em computador compartilhado.** Se o campo não vier, trate como zero e não envie o campo novo ao backend antigo. No login, envie `continuar_conectado` como booleano e siga o valor efetivo da resposta.
 
 Com `continuar_conectado: true` na resposta, guarde o token no `localStorage`, em chave própria para a loja e o comprador (por exemplo, `g360:<loja>:comprador:persistente`). Com false, guarde no `sessionStorage` da aba, em outra chave (`g360:<loja>:comprador:sessao`). Apague ambas antes de guardar um token novo. Não use cookie criado por JavaScript nem a URL para o token.
 
