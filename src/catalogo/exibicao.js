@@ -232,10 +232,10 @@ export function codigosDaSecao(id) {
 }
 /** Endereço amigável: "Copa & Alimentos" → "copa-alimentos", "Sacos de lixo" → "sacos-de-lixo". */
 export function slug(t) { return normalTexto(t).replace(/ /g, '-'); }
-/** Endereço → filtro: "/limpeza/sacos-de-lixo/preto" → { grupo, secao } (null se não for da árvore). */
+/** Endereço → filtro: "/limpeza/sacos-de-lixo" → { grupo, secao } (null se não for da árvore). */
 export function filtroDoEndereco(caminho) {
   const p = String(caminho || '').replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
-  if (!p.length || p.length > 3) return null;
+  if (!p.length || p.length > 2) return null;
   const grupo = categorias().find((c) => slug(c) === p[0]);
   if (!grupo) return null;
   if (p.length === 1) return { grupo, secao: '' };
