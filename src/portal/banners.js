@@ -76,6 +76,15 @@ export async function desenharBanners(el, aoClicar) {
   const trilho = el.querySelector('.bnr-trilho');
   // Posição pelos próprios cartões: no celular cada um ocupa menos que a tela (o próximo aparece ao lado).
   const slides = [...trilho.querySelectorAll('.bnr-slide')];
+  // No celular o cartão segue o formato da imagem (ou do vídeo) que está de fato na tela: um banner
+  // feito para o computador, sem versão de celular, aparece inteiro em vez de cortado nas laterais.
+  slides.forEach((s) => {
+    const ar = (w, h) => { if (w > 0 && h > 0) s.style.setProperty('--ar', `${w} / ${h}`); };
+    const img = s.querySelector('img'); const vid = s.querySelector('video');
+    const daImagem = () => { if (!s.classList.contains('com-video')) ar(img.naturalWidth, img.naturalHeight); };
+    if (img) { img.addEventListener('load', daImagem); if (img.complete) daImagem(); }
+    if (vid) vid.addEventListener('loadedmetadata', () => ar(vid.videoWidth, vid.videoHeight));
+  });
   const pos = (k) => slides[k].offsetLeft - slides[0].offsetLeft;
   const atual = () => { let m = 0; slides.forEach((_, k) => { if (Math.abs(pos(k) - trilho.scrollLeft) < Math.abs(pos(m) - trilho.scrollLeft)) m = k; }); return m; };
   const ir = (i) => { const n = bs.length; trilho.scrollTo({ left: pos((i + n) % n), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };

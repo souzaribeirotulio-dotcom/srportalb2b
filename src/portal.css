@@ -346,8 +346,9 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
   /* Celular: banner de ponta a ponta na largura, baixo (2:1), sem cantos; bolinhas por cima, no rodapé da imagem. */
   .bnr { padding: 0; margin-top: 0; }
   .bnr-trilho { border-radius: 0; }
-  .bnr-slide { flex: 0 0 100%; aspect-ratio: 2 / 1; }
-  .bnr-slide:not(:has(source)) { aspect-ratio: 16 / 5; }
+  .bnr-trilho { align-items: center; }
+  .bnr-slide { flex: 0 0 100%; aspect-ratio: var(--ar, 2 / 1); }
+  .bnr-slide:not(:has(source)) { aspect-ratio: var(--ar, 16 / 5); }
   .bnr-seta { display: none; }
   .bnr-pontos { bottom: 4px; }
   /* No celular a imagem vai de ponta a ponta: esmaece só em cima e embaixo. */
@@ -355,7 +356,7 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
   /* Com banner, a capa vira compacta: uma linha de saudação e os botões lado a lado; o banner é a capa. */
   .bnr:not([hidden]) + .hero { padding-top: 10px; padding-bottom: 0; }
   .bnr:not([hidden]) + .hero h1, .bnr:not([hidden]) + .hero #hiSub, .bnr:not([hidden]) + .hero .hcad small { display: none; }
-  .bnr:not([hidden]) + .hero .hi-curto { display: block; }
+  .bnr:not([hidden]) + .hero .hi-curto { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; line-height: 1.25; }
   .bnr:not([hidden]) + .hero > div:first-child { flex: 1 1 100%; min-width: 0; }
   .bnr:not([hidden]) + .hero .hcad { margin-top: 10px; flex-wrap: nowrap; gap: 8px; }
   .bnr:not([hidden]) + .hero .hcad .btn { flex: 1 1 0; min-height: 44px; padding: 0 10px; font-size: 14px; white-space: nowrap; }
@@ -365,7 +366,7 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
   .bnr:not([hidden]) + .hero .hcad-y { display: inline-block; }
   .bnr:not([hidden]) + .hero .hcad-y::first-letter { text-transform: uppercase; }
 }
-.hi-curto { display: none; font-size: 17px; font-weight: 700; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100vw - 24px); }
+.hi-curto { display: none; font-size: 17px; font-weight: 700; color: var(--tx, #f3f8ee); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100vw - 24px); }
 
 /* Busca: "Você quis dizer" e "nada nesta categoria" (acima da contagem). */
 .g360-aviso-busca { display: block; margin-bottom: 4px; color: var(--lima, #b2e04a); text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 500; }
