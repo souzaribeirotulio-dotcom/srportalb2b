@@ -591,6 +591,13 @@ class Sim:
                     'buscas': len(bus), 'buscas_sem_resultado': len([b for b in bus if not b.get('resultados')]), 'top_buscas': [{'termo': b['termo'], 'vezes': 1} for b in bus], 'sem_resultado': [{'termo': b['termo'], 'vezes': 1} for b in bus if not b.get('resultados')],
                     'top_produtos': [], 'top_clientes': [], 'por_dia': [], 'ultimos_pedidos': [{'quando': '2026-11-17T12:00:00Z', 'cliente': 'x', 'numero': e.get('pedido_numero'), 'valor': e.get('valor')} for e in peds]}})
             if ac == 'categorias_salvar': self.categorias = d['categorias']; return res(200, {'ok': True})
+            if ac == 'secoes_salvar':
+                if not any(x['termos'] for x in d['secoes']) and d['secoes']: return res(400, {'mensagem': 'precisa de palavra'})
+                sec = [x for x in getattr(self, 'secoes', []) if x['categoria'] != d['categoria']]
+                for i, x in enumerate(d['secoes']):
+                    sid = str(uuid.uuid4()); sec.append({'id': sid, 'categoria': d['categoria'], 'pai': None, 'nome': x['nome'], 'termos': x['termos'], 'ordem': i})
+                    for j, l in enumerate(x.get('linhas', [])): sec.append({'id': str(uuid.uuid4()), 'categoria': d['categoria'], 'pai': sid, 'nome': l['nome'], 'termos': l['termos'], 'ordem': j})
+                self.secoes = sec; return res(200, {'gravadas': len(d['secoes'])})
             if ac == 'ocorrencias_listar': return res(200, {'dados': list(reversed(self.ocorrencias))})
             if ac == 'cadastros_listar':
                 for i, c in enumerate(self.cadastros):
@@ -860,6 +867,8 @@ class Sim:
         if tabela == 'rpc/portal_registrar_acesso':
             if valido: self.acessos[s['codigo']] = json.loads(req.post_data).get('p_nome')
             return route.fulfill(status=204, headers=cab, body='')
+        if tabela == 'portal_secoes':
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps(getattr(self, 'secoes', [])))
         if tabela == 'portal_categorias':
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps([{'nome': c, 'ordem': i} for i, c in enumerate(self.categorias)]))
         if tabela == 'portal_produtos_exibicao':

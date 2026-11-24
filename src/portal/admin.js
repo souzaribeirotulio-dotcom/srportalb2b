@@ -29,6 +29,7 @@ import { definirEncerramentoOperador, definirAtividadeOperador } from '../estado
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { dinheiro, numeroPainel, dataBr } from '../ui/formato.js';
 import { $, esc, toast, abrirModal, fecharModal, adiar } from './comum.js';
+import { montarEditorSecoes } from './adminsecoes.js';
 import { carregarExibicao, codigosAtivosPublicos, esquecerAtivosPublicos, codigosOcultos, sinonimos as sinonimosPortal, categorias, registro, nomeExibicao, categoriaExibicao, codigosDaCategoria, aplicarLocal, definirCategoriasLocal } from '../catalogo/exibicao.js';
 import { nomeEcommerce, categoriaPeloNome } from '../catalogo/nomes.js';
 import { buscarLocal } from '../catalogo/busca.js';
@@ -1542,6 +1543,8 @@ async function desenharConfig() {
         <input value="${esc(c.para)}" maxlength="40" aria-label="Nome da categoria"><button class="tool" data-up ${i ? '' : 'disabled'} aria-label="Subir">↑</button><button class="tool" data-dn ${i < lista.length - 1 ? '' : 'disabled'} aria-label="Descer">↓</button><button class="tool" data-rm style="color:#ff8a8a" aria-label="Remover">×</button></div>`).join('')}</div>
       <div class="fxurl" style="margin-top:10px"><input id="cfNova" maxlength="40" placeholder="Nova categoria (ex.: Hotelaria)"><button class="btn sec" id="cfAdd">Adicionar</button></div>
       <div class="row" style="margin-top:12px"><button class="btn pri" id="cfSalvar">Salvar categorias</button><span class="hint" id="cfRes" style="margin:0 0 0 10px"></span></div></div>
+      <div class="ci2" style="display:block"><b>Seções e linhas (árvore do catálogo)</b><small>Cada categoria acima é um departamento. Aqui você divide o departamento em seções (ex.: Limpeza › Sacos de lixo) e, se quiser, em linhas (› Preto). No portal elas aparecem abaixo dos departamentos e no menu "☰ Departamentos".</small>
+        <div id="cfSecoes" style="margin-top:10px"></div></div>
       <div class="ci2" style="display:block"><b>Sinônimos da busca</b><small>Uma linha por palavra: o que o cliente digita = como o produto aparece no cadastro (separe vários com vírgula). Vale nos dois sentidos.<br>Ex.: <code>durex = fita adesiva</code> · <code>papel de mão = papel toalha</code> · <code>bombril = palha de aço, lã de aço</code></small>
         <textarea id="cfSin" rows="12" class="inp" style="width:100%;margin-top:10px;font-family:var(--mono);font-size:12.5px" spellcheck="false">${esc(sinonimosPortal().map((x) => `${x.termo} = ${x.equivalentes.join(', ')}`).join('\n'))}</textarea>
         <div class="row" style="margin-top:10px"><button class="btn pri" id="cfSinSalvar">Salvar sinônimos</button><span class="hint" id="cfSinRes" style="margin:0 0 0 10px"></span></div></div>
@@ -1557,6 +1560,7 @@ async function desenharConfig() {
       <div class="ci2" style="display:block"><b>Formas de pagamento no portal (todos os clientes)</b><small>O G360 decide quais condições cada cliente pode usar. Aqui você esconde do portal as que não quer oferecer. Para um cliente só, use a ficha dele em Clientes.</small>
         <div id="cfCond" style="margin-top:10px"></div></div>`;
     painelCondicoes($('cfCond'), 0);
+    montarEditorSecoes($('cfSecoes'), { painel }).catch((e) => { $('cfSecoes').innerHTML = `<small class="hint">${esc(e.message || 'Não foi possível carregar as seções.')}</small>`; });
     alvo.querySelectorAll('#cfCats input').forEach((inp) => inp.addEventListener('input', () => { lista[Number(inp.parentElement.dataset.i)].para = inp.value; }));
     alvo.querySelectorAll('#cfCats button').forEach((b) => b.addEventListener('click', () => {
       const i = Number(b.parentElement.dataset.i);

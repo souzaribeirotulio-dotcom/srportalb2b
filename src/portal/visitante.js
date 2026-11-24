@@ -6,7 +6,7 @@
    catálogo autenticado; ao sair, estes dados públicos voltam do zero.
    ===================================================================== */
 import { listarVitrine, listarMarcasVitrine, urlVitrine } from '../api/g360.js';
-import { carregarExibicao, apresentar, codigosDaCategoria, pesoCurva, oculto, categorias as categoriasPortal, codigosAtivosPublicos, esquecerAtivosPublicos } from '../catalogo/exibicao.js';
+import { carregarExibicao, apresentar, codigosDaCategoria, codigosDoFiltro, pesoCurva, oculto, categorias as categoriasPortal, codigosAtivosPublicos, esquecerAtivosPublicos } from '../catalogo/exibicao.js';
 import { buscarLocal, variacoes, corrigirBusca, nomeBate, variacoesMedida } from '../catalogo/busca.js';
 import { esc } from './comum.js';
 
@@ -54,13 +54,14 @@ export async function resultadoPublico(filtros) {
       dados.map(apresentar).filter((p) => (!grupo || p.categoria === grupo) && (pontos.has(String(p.codigo)) || umaPalavra || vs.some((v) => nomeBate(v, `${p.nome} ${p.codigo}`))))
         .forEach((p) => { if (!achados.has(Number(p.id))) { achados.set(Number(p.id), p); pontos.set(String(p.codigo), maxPontos * 0.6); } });
     } catch (e) { if (!achados.size) throw e; }
-    const itens = [...achados.values()].filter((p) => !oculto(p) && ativo(p)).sort((a, b) => (faixa(b) - faixa(a)) || (pesoCurva(a) - pesoCurva(b))
+    const naSecao = filtros.secao && grupo ? new Set(codigosDoFiltro(filtros) || []) : null;
+    const itens = [...achados.values()].filter((p) => !oculto(p) && ativo(p) && (!naSecao || naSecao.has(String(p.codigo)))).sort((a, b) => (faixa(b) - faixa(a)) || (pesoCurva(a) - pesoCurva(b))
       || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
     return itens;
   };
   const tentar = async (q, g) => { try { return await rodada(q, g); } catch { return []; } };
   if (filtros.q) {
-    const chave = `q|${filtros.q}|${filtros.grupo}|${filtros.marca}`;
+    const chave = `q|${filtros.q}|${filtros.grupo}|${filtros.secao || ''}|${filtros.marca}`;
     if (!cache.has(chave)) {
       // 1) Na categoria. 2) Nada lá: catálogo inteiro. 3) Ainda nada: "Você quis dizer" ("liva" → "luva").
       let itens = await rodada(filtros.q, filtros.grupo); let aviso = null;
@@ -80,8 +81,8 @@ export async function resultadoPublico(filtros) {
   }
   // Sem busca: pela categoria do portal (códigos em blocos de 100) ou o catálogo inteiro paginado pela API.
   if (filtros.grupo) {
-    const codigos = codigosDaCategoria(filtros.grupo, Infinity).filter((c) => !set || set.has(String(c)));
-    const chave = `g|${filtros.grupo}|${filtros.marca}|${filtros.pagina}`;
+    const codigos = codigosDoFiltro(filtros).filter((c) => !set || set.has(String(c)));
+    const chave = `g|${filtros.grupo}|${filtros.secao || ''}|${filtros.marca}|${filtros.pagina}`;
     if (!cache.has(chave)) {
       // A página N da categoria: busca os códigos daquela fatia e ordena pela curva.
       const fatia = codigos.slice((filtros.pagina - 1) * POR_PAGINA, filtros.pagina * POR_PAGINA);

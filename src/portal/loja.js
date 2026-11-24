@@ -7,7 +7,7 @@
 import { carregarOcultosComprador } from '../estado/ocultos.js';
 import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
-import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo, estoqueMinimoAtual, codigosAtivosPublicos } from '../catalogo/exibicao.js';
+import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, codigosDoFiltro, secoesDe, caminhoDoFiltro, secaoPorId, codigosDaSecao, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo, estoqueMinimoAtual, codigosAtivosPublicos } from '../catalogo/exibicao.js';
 
 import { buscarLocal, temEstoque, variacoes, corrigirBusca, nomeBate, variacoesMedida } from '../catalogo/busca.js';
 import { listarProdutos, buscarProdutos, listarMarcas, produtosPorIds } from '../api/g360.js';
@@ -33,7 +33,7 @@ import { htmlDisponivel, conferir, somar } from './estoque.js';
 import { abrirCadastro, cadastroEmAnalise, esquecerCadastroEmAnalise } from './cadastro.js';
 import { desenharBanners, pausarBanners } from './banners.js';
 
-const filtros = { q: '', grupo: '', marca: '', pagina: 1 };
+const filtros = { q: '', grupo: '', secao: '', marca: '', pagina: 1 };
 let classificacoes = null;
 let produtosDaTela = new Map();
 let ctx = null;          // { loja, ir }
@@ -43,7 +43,7 @@ let buscaN = 0;
 export function limparLoja() {
   esquecerBuscasRecentes();
   limparVisitante();
-  Object.assign(filtros, { q: '', grupo: '', marca: '', pagina: 1 });
+  Object.assign(filtros, { q: '', grupo: '', secao: '', marca: '', pagina: 1 });
   classificacoes = null;
   vitrine = null; busca = null;
   produtosDaTela = new Map();
@@ -108,9 +108,16 @@ function montar() {
   q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (q.value.trim() === filtros.q && ctx.rota === 'cat') return; filtros.q = q.value.trim(); filtros.pagina = 1; if (ctx.rota === 'cat') desenharCatalogo(); else ctx.ir('/catalogo'); } });
   $('marca').addEventListener('change', () => { filtros.marca = $('marca').value; filtros.pagina = 1; desenharCatalogo(); });
   $('cats').addEventListener('click', (e) => {
+    if (e.target.closest('[data-deps]')) { abrirDepartamentos(); return; }
     const b = e.target.closest('.chip'); if (!b) return;
-    filtros.grupo = b.dataset.c; filtros.pagina = 1; desenharChips(); desenharCatalogo();
+    filtros.grupo = b.dataset.c; filtros.secao = ''; filtros.pagina = 1; desenharChips(); desenharCatalogo();
   });
+  // Seções e linhas do departamento escolhido (segunda e terceira faixa).
+  $('subcats').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-s]'); if (!b) return;
+    filtros.secao = b.dataset.s; filtros.pagina = 1; desenharChips(); desenharCatalogo();
+  });
+
   $('grid').addEventListener('click', cliqueCartao);
   ligarDetalhe();
   iniciarSouzinha({
@@ -238,8 +245,9 @@ function desenharChips() {
   if (!sessao.ativa) {
     chipsPublicos().then((grupos) => {
       if (sessao.ativa) return;
-      el.innerHTML = [['', 'Todos', ''], ...grupos.filter((g) => g.quantidade).map((g) => [g.codigo, g.nome, g.quantidade])]
+      el.innerHTML = BOTAO_DEPS + [['', 'Todos', ''], ...grupos.filter((g) => g.quantidade).map((g) => [g.codigo, g.nome, g.quantidade])]
         .map(([c, n, qt]) => `<button type="button" class="chip ${c === String(filtros.grupo) ? 'on' : ''}" data-c="${esc(c)}">${esc(n)}<span>${Number(qt) || ''}</span></button>`).join('');
+      desenharSubcats();
     }).catch(() => { el.innerHTML = ''; });
     marcasPublicas().then((ms) => {
       if (sessao.ativa) return;
@@ -251,8 +259,70 @@ function desenharChips() {
   if (!classificacoes) { carregarClassificacoes().then(desenharChips).catch(() => { el.innerHTML = ''; }); return; }
   const grupos = classificacoes.grupos.filter((g) => g.quantidade);
   const total = classificacoes.total ?? '';
-  el.innerHTML = [['', 'Todos', total], ...grupos.map((g) => [String(g.codigo), g.nome, g.quantidade])]
+  el.innerHTML = BOTAO_DEPS + [['', 'Todos', total], ...grupos.map((g) => [String(g.codigo), g.nome, g.quantidade])]
     .map(([c, n, q]) => `<button type="button" class="chip ${c === String(filtros.grupo) ? 'on' : ''}" data-c="${esc(c)}">${esc(n)}<span>${Number(q) || ''}</span></button>`).join('');
+  desenharSubcats();
+}
+
+/* ---------------- árvore: departamento → seção → linha ---------------- */
+const BOTAO_DEPS = '<button type="button" class="chip deps" data-deps aria-haspopup="dialog"><span aria-hidden="true">☰</span> Departamentos</button>';
+
+/** Contagem do que aparece no portal (mesma regra dos números dos departamentos). */
+async function contadorAtivos() {
+  const ativos = await codigosAtivosPublicos(); const set = ativos ? new Set(ativos) : null;
+  return (cods) => cods.filter((c) => !set || set.has(String(c))).length;
+}
+
+/** Segunda faixa (seções do departamento) e terceira (linhas da seção escolhida). */
+async function desenharSubcats() {
+  const el = $('subcats'); if (!el) return;
+  const grupo = filtros.grupo;
+  if (!grupo) { el.hidden = true; el.innerHTML = ''; return; }
+  await carregarExibicao();
+  const conta = await contadorAtivos();
+  if (grupo !== filtros.grupo) return; // trocou no meio
+  const secs = secoesDe(grupo).map((s) => ({ ...s, n: conta(codigosDaSecao(s.id)) })).filter((s) => s.n);
+  if (!secs.length) { el.hidden = true; el.innerHTML = ''; return; }
+  const atual = filtros.secao ? secaoPorId(filtros.secao) : null;
+  const mae = atual ? secs.find((s) => s.id === (atual.pai || atual.id)) : null;
+  const chip = (id, nome, n, on) => `<button type="button" class="chip sub ${on ? 'on' : ''}" data-s="${esc(id)}" aria-pressed="${on}">${esc(nome)}${n ? `<span>${n}</span>` : ''}</button>`;
+  const linhas = mae ? mae.linhas.map((l) => ({ ...l, n: conta(codigosDaSecao(l.id)) })).filter((l) => l.n) : [];
+  el.innerHTML = `<div class="sub-l1" role="group" aria-label="Seções de ${esc(grupo)}">${chip('', `Tudo em ${grupo}`, 0, !filtros.secao)}${secs.map((s) => chip(s.id, s.nome, s.n, mae?.id === s.id)).join('')}</div>`
+    + (linhas.length ? `<div class="sub-l2" role="group" aria-label="Linhas de ${esc(mae.nome)}">${chip(mae.id, `Todos: ${mae.nome}`, 0, atual?.id === mae.id)}${linhas.map((l) => chip(l.id, l.nome, l.n, atual?.id === l.id)).join('')}</div>` : '');
+  el.hidden = false;
+  // A escolha fica à vista na faixa (no celular a faixa rola de lado).
+  el.querySelectorAll('.chip.on').forEach((c) => { const f = c.parentElement; f.scrollLeft = c.offsetLeft - (f.clientWidth - c.offsetWidth) / 2; });
+  const cat = $('cats')?.querySelector('.chip.on'); if (cat) { const f = cat.parentElement; f.scrollLeft = cat.offsetLeft - (f.clientWidth - cat.offsetWidth) / 2; }
+}
+
+/** Menu "Departamentos": a árvore inteira (computador: colunas; celular: lista que abre por departamento). */
+async function abrirDepartamentos() {
+  await carregarExibicao();
+  const conta = await contadorAtivos();
+  const deps = categoriasPortal().map((nome) => ({ nome, n: conta(codigosDaCategoria(nome, Infinity)),
+    secoes: secoesDe(nome).map((s) => ({ ...s, n: conta(codigosDaSecao(s.id)) })).filter((s) => s.n) })).filter((d) => d.n);
+  document.getElementById('mDeps')?.remove();
+  const m = document.createElement('div');
+  m.id = 'mDeps'; m.className = 'deps-fundo'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-labelledby', 'mDepsT');
+  m.innerHTML = `<div class="deps-caixa"><div class="deps-topo"><h2 id="mDepsT">Departamentos</h2><button type="button" class="deps-x" aria-label="Fechar">✕</button></div>
+    <div class="deps-grade">${deps.map((d) => `<details class="deps-dep" ${d.nome === filtros.grupo ? 'open' : ''}><summary><span>${esc(d.nome)}</span><small>${d.n}</small></summary>
+      <ul><li><button type="button" data-g="${esc(d.nome)}" data-s="">Tudo em ${esc(d.nome)}</button></li>${d.secoes.map((s) => `<li><button type="button" data-g="${esc(d.nome)}" data-s="${esc(s.id)}">${esc(s.nome)} <small>${s.n}</small></button></li>`).join('')}</ul></details>`).join('')}</div></div>`;
+  const fechar = () => { m.remove(); document.removeEventListener('keydown', esc_); $('cats')?.querySelector('[data-deps]')?.focus(); };
+  function esc_(e) { if (e.key === 'Escape') fechar(); }
+  document.addEventListener('keydown', esc_);
+  m.addEventListener('click', (e) => {
+    if (e.target === m || e.target.closest('.deps-x')) { fechar(); return; }
+    const b = e.target.closest('button[data-g]'); if (!b) return;
+    filtros.grupo = b.dataset.g; filtros.secao = b.dataset.s || ''; filtros.q = ''; filtros.pagina = 1;
+    const q = $('q'); if (q) q.value = '';
+    fechar(); desenharChips();
+    if (ctx.rota === 'cat') desenharCatalogo(); else ctx.ir('/catalogo');
+    document.querySelector('.bar')?.scrollIntoView({ behavior: 'smooth' });
+  });
+  // No computador, todos os departamentos abertos (colunas); no celular, só o escolhido.
+  if (window.matchMedia('(min-width: 900px)').matches) m.querySelectorAll('details').forEach((d) => { d.open = true; });
+  document.body.appendChild(m);
+  m.querySelector('.deps-x').focus();
 }
 
 /* ---------------- catálogo ---------------- */
@@ -269,7 +339,7 @@ export function htmlAviso(aviso) {
 
 function mostrando(vistos, total, q = '') {
   const pal = q ? (n) => (n === 1 ? 'resultado' : 'resultados') : (n) => (n === 1 ? 'produto' : 'produtos');
-  const fim = q ? ` para “${esc(q)}”` : (filtros.grupo ? ` em ${esc(filtros.grupo)}` : '');
+  const fim = q ? ` para “${esc(q)}”` : (filtros.grupo ? ` em ${esc(caminhoDoFiltro(filtros).join(' › '))}` : '');
   if (total == null) return `Mostrando <b>${vistos.toLocaleString('pt-BR')}</b> ${pal(vistos)}${fim}`;
   const t = Math.max(total, vistos);
   return `Mostrando <b>${vistos.toLocaleString('pt-BR')} de ${t.toLocaleString('pt-BR')}</b> ${pal(t)}${fim}`;
@@ -283,7 +353,7 @@ async function totalNoPortal() {
   if (!cods) return null;
   if (!filtros.grupo) return cods.length;
   const ativos = new Set(cods);
-  return codigosDaCategoria(filtros.grupo, Infinity).filter((c) => ativos.has(String(c))).length;
+  return codigosDoFiltro(filtros).filter((c) => ativos.has(String(c))).length;
 }
 
 /* ---------- vitrine (sem busca): só produtos com estoque ---------- */
@@ -302,13 +372,13 @@ function ordenar(lista) {
 
 /** Lê o catálogo em blocos de 50 e guarda só o que tem estoque, até encher a página pedida. */
 async function resultadoVitrine() {
-  const chave = `${sessao.token}|${filtros.grupo}|${filtros.marca}|${$('ord').value}`;
+  const chave = `${sessao.token}|${filtros.grupo}|${filtros.secao}|${filtros.marca}|${$('ord').value}`;
   // fixos = quantos itens já apareceram em alguma página: eles não mudam mais de lugar quando chegam produtos novos
   // da API (antes, a reordenação jogava produtos da página anterior para a seguinte e alguns nunca apareciam).
   if (!vitrine || vitrine.chave !== chave) vitrine = { chave, apiPagina: 0, apiPaginas: 1, itens: [], ids: new Set(), fixos: 0, fim: false };
   const precisa = filtros.pagina * POR_PAGINA + 1;
   // Categoria do portal: a API aceita até 500 códigos por consulta, então vai em blocos de 500.
-  const codigos = filtros.grupo ? codigosDaCategoria(filtros.grupo, Infinity) : null;
+  const codigos = codigosDoFiltro(filtros);
   const blocos = codigos ? Array.from({ length: Math.ceil(codigos.length / 500) }, (_, i) => codigos.slice(i * 500, i * 500 + 500)) : [null];
   if (codigos && !codigos.length) vitrine.fim = true;
   vitrine.bloco ??= 0;
@@ -389,14 +459,15 @@ async function buscarItens(q, grupo) {
   const falha = res.find((r) => r.status === 'rejected');
   if (falha && (!achados.size || falha.reason?.status === 401)) throw falha.reason;
   // Ordem: com estoque primeiro; depois o que mais bate com a busca; na mesma faixa, os mais vendidos (curva A, B, C).
-  const todos = [...achados.values()].filter((p) => !oculto(p) && !abaixoDoMinimo(p) && (!soEstoque() || temEstoque(p))).sort((a, b) => (temEstoque(b) - temEstoque(a)) || (faixa(b) - faixa(a))
+  const naSecao = filtros.secao && grupo ? new Set(codigosDoFiltro(filtros) || []) : null;
+  const todos = [...achados.values()].filter((p) => !oculto(p) && !abaixoDoMinimo(p) && (!soEstoque() || temEstoque(p)) && (!naSecao || naSecao.has(String(p.codigo)))).sort((a, b) => (temEstoque(b) - temEstoque(a)) || (faixa(b) - faixa(a))
     || (pesoCurva(a) - pesoCurva(b)) || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
   return { todos, falha };
 }
 
 /** Busca: nomes do portal (tolerante) + busca da API (código, EAN, aplicação); com estoque primeiro. */
 async function resultadoBusca() {
-  const chave = `${sessao.token}|${filtros.q}|${filtros.grupo}|${filtros.marca}`;
+  const chave = `${sessao.token}|${filtros.q}|${filtros.grupo}|${filtros.secao}|${filtros.marca}`;
   if (!busca || busca.chave !== chave) {
     const guardada = buscasRecentes.get(chave);
     if (guardada && Date.now() - guardada.t < RECENTE_MS) busca = { chave, itens: [...guardada.itens], semEstoque: guardada.semEstoque, aviso: guardada.aviso, ordem: '' };
