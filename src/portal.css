@@ -617,6 +617,8 @@ body.com-dep .cats .chip.deps { position: sticky; left: 0; z-index: 2; box-shado
 .dep-cab-in::before { content: ''; position: absolute; left: 0; top: 18px; bottom: 18px; width: 4px; border-radius: 0 4px 4px 0; background: var(--lima, #b2e04a); }
 .dep-cab-in::after { content: ''; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(178, 224, 74, .12), transparent 65%); pointer-events: none; }
 .dep-ic { grid-area: ic; width: 60px; height: 60px; display: grid; place-items: center; font-size: 30px; border-radius: 16px; background: rgba(178, 224, 74, .14); border: 1px solid rgba(178, 224, 74, .3); }
+.dep-ic { color: var(--lima, #b2e04a); }
+.dep-ic svg { width: 32px; height: 32px; }
 .dep-tx { grid-area: tx; min-width: 0; }
 .dep-tx h1 { margin: 0; font-size: 28px; line-height: 1.15; letter-spacing: -.3px; }
 .dep-tx p { margin: 4px 0 0; color: var(--tx2); font-size: 13.5px; }
@@ -645,6 +647,7 @@ body.com-dep .cats .chip.deps { position: sticky; left: 0; z-index: 2; box-shado
   .dep-cab { padding: 0 12px; margin-top: 12px; }
   .dep-cab-in { grid-template-columns: auto 1fr; grid-template-areas: "ic tx" "trilha trilha" "filtro filtro"; padding: 16px 16px 14px 20px; gap: 8px 14px; }
   .dep-ic { width: 48px; height: 48px; font-size: 24px; border-radius: 14px; }
+  .dep-ic svg { width: 26px; height: 26px; }
   .dep-tx h1 { font-size: 22px; }
   .dep-trilha { justify-content: flex-start; }
   .dep-filtrar { grid-area: filtro; display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(178, 224, 74, .45); background: rgba(0, 0, 0, .22); color: var(--tx); font: inherit; font-weight: 700; cursor: pointer; position: relative; z-index: 1; }

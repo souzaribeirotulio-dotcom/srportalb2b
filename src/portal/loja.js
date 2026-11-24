@@ -7,6 +7,7 @@
 import { carregarOcultosComprador } from '../estado/ocultos.js';
 import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
+import { desenho } from './desenhos.js';
 import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, codigosDoFiltro, secoesDe, caminhoDoFiltro, secaoPorId, codigosDaSecao, filtroDoEndereco, enderecoDoFiltro, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo, estoqueMinimoAtual, codigosAtivosPublicos } from '../catalogo/exibicao.js';
 
 import { buscarLocal, temEstoque, variacoes, corrigirBusca, nomeBate, variacoesMedida } from '../catalogo/busca.js';
@@ -286,25 +287,27 @@ function marcarEndereco() {
   tituloDaPagina();
 }
 /* Ícone de cada departamento (pelo nome; o que não reconhecer fica com o carrinho). */
-const ICONES_DEP = [[/limp/, '🧽'], [/descart/, '🥤'], [/embal/, '📦'], [/copa|aliment|caf|bebid|snack/, '☕'], [/higien/, '🧻'], [/epi|utens|segur/, '🧤'],
-  [/papel|escrit|escol/, '✏️'], [/domest|casa|utilid/, '🏠'], [/eletr|inform|tecno/, '🔌'], [/festa|brinq/, '🎈']];
-const iconeDep = (nome) => { const n = String(nome).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); return (ICONES_DEP.find(([re]) => re.test(n)) || [0, '🛒'])[1]; };
-/* Ícone de cada seção (pelo nome; vale para as seções de hoje e para as que a equipe criar no painel).
-   Os mais específicos vêm primeiro; sem nenhum, fica o ícone do departamento. */
-const ICONES_SEC = [[/lixo|lixeira/, '🗑️'], [/lavanderia|roupa/, '🧺'], [/detergente|sabo(es|ao)/, '🫧'], [/sanitiz/, '🧪'],
-  [/desinfet|limpador|limpeza geral/, '🧴'], [/pano|flanela/, '🧣'], [/rodo|vassoura|utensilios de limpeza/, '🧹'], [/esponja|fibra/, '🧽'],
-  [/mop|balde/, '🪣'], [/cera|lustra/, '✨'], [/odoriz|aromat/, '🌸'], [/inset/, '🦟'], [/desentup|escovas/, '🪥'],
-  [/copo/, '🥤'], [/pote|tampa/, '🫙'], [/marmit|bandeja/, '🍱'], [/prato/, '🍽️'], [/talher/, '🍴'], [/canudo|mexedor/, '🧋'],
-  [/guardanapo|papel higien|papel toalha|toalhas de papel/, '🧻'], [/palito|espeto/, '🍢'], [/saco|sacola/, '🛍️'], [/bobina|filme/, '📜'],
-  [/fita/, '🎀'], [/caixa|contentor/, '📦'], [/lacre/, '🔒'], [/cafe|cha\b/, '☕'], [/acucar|adocante/, '🍯'], [/biscoito|doce/, '🍪'],
-  [/bebida|refriger|suco/, '🧃'], [/agua/, '💧'], [/mercearia/, '🍚'], [/gelatina|sobremesa/, '🍮'], [/laticin|leite/, '🥛'],
-  [/sabonete/, '🧼'], [/alcool|antissep/, '🧴'], [/fralda/, '👶'], [/lenco/, '🤧'], [/cuidados/, '💆'], [/luva/, '🧤'],
-  [/dispenser|secador/, '🧴'], [/epi|protecao|seguranca|vestimenta/, '🦺'], [/borrifad|pulveriz/, '💦'], [/espanador/, '🪶'],
-  [/caneta|lapis|marcador/, '🖊️'], [/pape(is|l)|bloco|caderno/, '📒'], [/pasta|arquivo/, '🗂️'], [/envelope/, '✉️'], [/etiqueta/, '🏷️'],
-  [/cola|corretivo/, '📌'], [/grampe|clips/, '📎'], [/quadro|placa/, '🪧'], [/tesoura|estilete/, '✂️'], [/tinta|almofada|carimbo/, '🎨'],
-  [/organiza/, '🗄️'], [/garrafa|jarra/, '🍶'], [/filtro|refi/, '🚰'], [/pilha|bateria/, '🔋'], [/informatica|periferic/, '💻'],
-  [/balanca/, '⚖️'], [/balao|baloes|decoracao/, '🎈'], [/brinquedo/, '🧸'], [/kit/, '🧰']];
-const iconeSecao = (nome, grupo) => { const n = String(nome).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); return (ICONES_SEC.find(([re]) => re.test(n)) || [0, iconeDep(grupo)])[1]; };
+/* Desenho de cada departamento e seção (pelo nome; vale também para seções que a equipe criar no painel).
+   Os mais específicos vêm primeiro; seção sem desenho fica com o do departamento. */
+const DES_DEP = [[/limp/, 'desinfetante'], [/descart/, 'copo'], [/embal/, 'caixa'], [/copa|aliment|caf|snack/, 'cafe'], [/bebid/, 'bebida'], [/higien/, 'papel'],
+  [/epi|utens|segur/, 'luva'], [/papel|escrit|escol/, 'caneta'], [/domest|casa|utilid/, 'casa'], [/eletr|inform|tecno/, 'plugue'], [/festa|brinq/, 'balao']];
+const DES_SEC = [[/lixeira/, 'lixo'], [/lixo/, 'lixo'], [/lavanderia|roupa/, 'lavanderia'], [/detergente|sabo(es|ao)/, 'detergente'], [/sanitiz/, 'sanitizacao'],
+  [/desinfet|limpador|limpeza geral/, 'desinfetante'], [/pano|flanela/, 'panos'], [/rodo|vassoura|utensilios de limpeza/, 'vassoura'], [/esponja|fibra/, 'esponja'],
+  [/mop|balde/, 'balde'], [/cera|lustra/, 'cera'], [/odoriz|aromat/, 'odorizador'], [/inset/, 'inseto'], [/desentup|escovas/, 'escova'],
+  [/copo/, 'copo'], [/pote|tampa/, 'pote'], [/marmit|bandeja/, 'marmita'], [/prato/, 'prato'], [/talher/, 'talher'], [/canudo|mexedor/, 'canudo'],
+  [/guardanapo/, 'guardanapo'], [/papel higien|papel toalha|toalhas de papel/, 'papel'], [/palito|espeto/, 'palito'], [/saco|sacola/, 'sacola'],
+  [/bobina|filme/, 'bobina'], [/fita/, 'fita'], [/caixa|contentor/, 'caixa'], [/lacre/, 'lacre'], [/cafe|cha\b/, 'cafe'], [/acucar|adocante/, 'acucar'],
+  [/biscoito|doce/, 'biscoito'], [/bebida|refriger|suco/, 'bebida'], [/agua/, 'agua'], [/mercearia/, 'mercearia'], [/gelatina|sobremesa/, 'sobremesa'],
+  [/laticin|leite/, 'leite'], [/sabonete/, 'sabonete'], [/alcool|antissep/, 'alcool'], [/fralda/, 'fralda'], [/lenco/, 'lenco'], [/cuidados/, 'cuidados'],
+  [/luva/, 'luva'], [/dispenser|secador/, 'dispenser'], [/epi|protecao|seguranca|vestimenta/, 'epi'], [/borrifad|pulveriz/, 'desinfetante'],
+  [/espanador/, 'espanador'], [/caneta|lapis|marcador/, 'caneta'], [/pape(is|l)|bloco|caderno/, 'caderno'], [/pasta|arquivo/, 'pasta'],
+  [/envelope/, 'envelope'], [/etiqueta/, 'etiqueta'], [/cola|corretivo/, 'cola'], [/grampe|clips/, 'clipe'], [/quadro|placa/, 'quadro'],
+  [/tesoura|estilete/, 'tesoura'], [/tinta|almofada|carimbo/, 'tinta'], [/organiza/, 'organizacao'], [/garrafa|jarra/, 'jarra'], [/filtro|refi/, 'filtro'],
+  [/pilha|bateria/, 'pilha'], [/informatica|periferic/, 'computador'], [/balanca/, 'balanca'], [/balao|baloes|decoracao/, 'balao'],
+  [/brinquedo/, 'brinquedo'], [/kit/, 'kit']];
+const semAcento = (t) => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const chaveDep = (nome) => (DES_DEP.find(([re]) => re.test(semAcento(nome))) || [0, 'carrinho'])[1];
+const chaveSecao = (nome, grupo) => (DES_SEC.find(([re]) => re.test(semAcento(nome))) || [0, chaveDep(grupo)])[1];
 
 /** Página do departamento (como nos atacados online): cartão com o nome, a quantidade e o caminho
  *  "Início › Limpeza › Sacos de lixo"; seções numa coluna à esquerda (computador) ou no botão Seções (celular). */
@@ -323,7 +326,7 @@ async function desenharDepartamento() {
   const n = atual ? (secs.find((s) => s.id === atual.id)?.n ?? 0) : total;
   const trilha = [['Início', null, null], [grupo, grupo, '']].concat(atual ? [[atual.nome, grupo, atual.id]] : []);
   cab.innerHTML = `<div class="dep-cab-in">
-      <span class="dep-ic" aria-hidden="true">${atual ? iconeSecao(atual.nome, grupo) : iconeDep(grupo)}</span>
+      <span class="dep-ic" aria-hidden="true" data-desenho="${atual ? chaveSecao(atual.nome, grupo) : chaveDep(grupo)}">${desenho(atual ? chaveSecao(atual.nome, grupo) : chaveDep(grupo))}</span>
       <div class="dep-tx"><h1 id="depTit">${esc(atual ? atual.nome : grupo)}</h1>
         <p>${n.toLocaleString('pt-BR')} produto${n === 1 ? '' : 's'}${atual ? ` em ${esc(grupo)}` : (secs.length ? ` · ${secs.length} seções` : '')}</p></div>
       <nav class="dep-trilha" aria-label="Você está em">${trilha.map(([nome, g, sid], i) => (i === trilha.length - 1
