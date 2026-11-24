@@ -550,15 +550,7 @@ body.com-passo-ios #souzinha-widget{display:none !important}
 /* Árvore do catálogo: botão Departamentos, faixas de seções/linhas e o menu */
 .chip.deps { background: rgba(178, 224, 74, .1); border-color: rgba(178, 224, 74, .35); color: var(--tx); font-weight: 700; }
 .chip.deps span { opacity: 1; margin: 0 4px 0 0; font-size: 13px; }
-.subcats { max-width: 1360px; margin: 0 auto; padding: 0 22px 10px; display: grid; gap: 8px; }
-.subcats[hidden] { display: none; }
-.sub-l1, .sub-l2 { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
-.sub-l1::-webkit-scrollbar, .sub-l2::-webkit-scrollbar { display: none; }
-.chip.sub { height: 30px; font-size: 12px; background: rgba(255, 255, 255, .03); }
-.sub-l2 .chip.sub { height: 28px; border-style: dashed; }
-.sub-l2 .chip.sub.on { border-style: solid; }
-@media (max-width: 899px) { .subcats { padding: 0 12px 10px; } }
-
+.sub-l2 
 /* Painel › Seções e linhas */
 .sx-topo { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
 .sx-topo select { width: auto; min-width: 220px; }
@@ -612,16 +604,56 @@ body.com-passo-ios #souzinha-widget{display:none !important}
 .cats .chip:not(.deps):hover { color: var(--tx); background: rgba(255, 255, 255, .04); }
 .cats .chip:not(.deps).on { background: transparent; color: var(--lima, #b2e04a); font-weight: 800; }
 .cats .chip:not(.deps).on::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: 4px; height: 2px; border-radius: 2px; background: var(--lima, #b2e04a); }
-.trilha { max-width: 1360px; margin: 4px auto 0; padding: 0 22px; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; font-size: 13px; color: var(--tx3); }
-.trilha[hidden] { display: none; }
-.trilha button { border: 0; background: none; color: var(--tx2); font: inherit; padding: 6px 2px; min-height: 32px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-.trilha button:hover { color: var(--lima, #b2e04a); }
-.trilha [aria-current] { color: var(--lima, #b2e04a); font-weight: 700; }
-.trilha .sep { color: var(--tx3); }
-@media (max-width: 899px) { .trilha { padding: 0 12px; } }
-.chip.sub.on { background: var(--lima, #b2e04a); color: #0b2207; border-color: var(--lima, #b2e04a); font-weight: 700; }
-.chip.sub.on span { color: #2b4a12; opacity: 1; }
 /* Página de departamento/seção: vai direto aos produtos (sem a saudação grande). */
 body.com-dep #vCat .hero { display: none; }
-body.com-dep .trilha { margin-top: 14px; }
-.cats .chip.deps { position: sticky; left: 0; z-index: 2; box-shadow: 8px 0 12px -6px rgba(0, 0, 0, .6); }
+body.com-dep .cats .chip.deps { position: sticky; left: 0; z-index: 2; box-shadow: 8px 0 12px -6px rgba(0, 0, 0, .6); }
+
+/* Página do departamento: cartão do topo + seções à esquerda (computador) ou no botão Seções (celular) */
+.dep-cab { max-width: 1360px; margin: 18px auto 0; padding: 0 22px; }
+.dep-cab[hidden], .dep-lado[hidden] { display: none; }
+.dep-cab-in { position: relative; overflow: hidden; display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "ic tx trilha"; align-items: center; gap: 6px 18px;
+  padding: 20px 24px; border-radius: 20px; border: 1px solid rgba(178, 224, 74, .28);
+  background: radial-gradient(600px 220px at 0% 0%, rgba(178, 224, 74, .22), transparent 70%), linear-gradient(135deg, #17400f, #0c2608 70%); box-shadow: 0 14px 40px rgba(0, 0, 0, .35); }
+.dep-cab-in::before { content: ''; position: absolute; left: 0; top: 18px; bottom: 18px; width: 4px; border-radius: 0 4px 4px 0; background: var(--lima, #b2e04a); }
+.dep-cab-in::after { content: ''; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(178, 224, 74, .12), transparent 65%); pointer-events: none; }
+.dep-ic { grid-area: ic; width: 60px; height: 60px; display: grid; place-items: center; font-size: 30px; border-radius: 16px; background: rgba(178, 224, 74, .14); border: 1px solid rgba(178, 224, 74, .3); }
+.dep-tx { grid-area: tx; min-width: 0; }
+.dep-tx h1 { margin: 0; font-size: 28px; line-height: 1.15; letter-spacing: -.3px; }
+.dep-tx p { margin: 4px 0 0; color: var(--tx2); font-size: 13.5px; }
+.dep-trilha { grid-area: trilha; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 2px 6px; font-size: 13px; color: var(--tx3); position: relative; z-index: 1; }
+.dep-trilha button { border: 0; background: none; color: var(--tx2); font: inherit; padding: 6px 2px; min-height: 32px; cursor: pointer; }
+.dep-trilha button:hover, .dep-trilha button:focus-visible { color: var(--lima, #b2e04a); text-decoration: underline; text-underline-offset: 3px; outline: none; }
+.dep-trilha [aria-current] { color: var(--lima, #b2e04a); font-weight: 700; }
+.dep-filtrar { display: none; }
+.dep-lado-t { display: block; font-size: 12px; letter-spacing: .8px; text-transform: uppercase; color: var(--tx3); margin: 2px 0 10px 12px; }
+.dep-lado ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.dep-sec { width: 100%; min-height: 42px; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 12px; border: 0; border-left: 3px solid transparent; border-radius: 0 10px 10px 0; background: none; color: var(--tx2); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.dep-sec small { color: var(--tx3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.dep-sec:hover, .dep-sec:focus-visible { background: rgba(178, 224, 74, .07); color: var(--tx); outline: none; }
+.dep-sec.on { border-left-color: var(--lima, #b2e04a); background: rgba(178, 224, 74, .12); color: var(--lima, #b2e04a); font-weight: 700; }
+.dep-sec.on small { color: var(--lima, #b2e04a); }
+@media (min-width: 1000px) {
+  body.com-dep #vCat { display: grid; grid-template-columns: 250px minmax(0, 1fr); column-gap: 26px; max-width: 1360px; margin: 0 auto; padding: 0 22px; align-items: start; }
+  body.com-dep #vCat > * { grid-column: 2; margin-left: 0; margin-right: 0; min-width: 0; }
+  body.com-dep #vCat > .dep-cab { grid-column: 1 / -1; padding: 0; }
+  body.com-dep #vCat > .dep-lado { grid-column: 1; grid-row: 2 / span 3; position: sticky; top: 150px; margin-top: 24px; padding: 14px 8px 14px 0; border-right: 1px solid var(--linha2); max-height: calc(100vh - 170px); overflow: auto; }
+  body.com-dep #vCat > .bar, body.com-dep #vCat > main { padding-left: 0; padding-right: 0; max-width: none; }
+  body.com-dep #vCat > main { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+}
+@media (max-width: 999px) {
+  .dep-lado { display: none !important; }
+  .dep-cab { padding: 0 12px; margin-top: 12px; }
+  .dep-cab-in { grid-template-columns: auto 1fr; grid-template-areas: "ic tx" "trilha trilha" "filtro filtro"; padding: 16px 16px 14px 20px; gap: 8px 14px; }
+  .dep-ic { width: 48px; height: 48px; font-size: 24px; border-radius: 14px; }
+  .dep-tx h1 { font-size: 22px; }
+  .dep-trilha { justify-content: flex-start; }
+  .dep-filtrar { grid-area: filtro; display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(178, 224, 74, .45); background: rgba(0, 0, 0, .22); color: var(--tx); font: inherit; font-weight: 700; cursor: pointer; position: relative; z-index: 1; }
+  .dep-filtrar small { margin-left: auto; color: var(--lima, #b2e04a); font-weight: 600; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dep-filtrar small::after { content: ' ▾'; }
+}
+.sec-fundo { position: fixed; inset: 0; z-index: 10050; background: rgba(0, 0, 0, .5); display: flex; align-items: flex-end; }
+.sec-folha { width: 100%; max-height: 82vh; overflow: auto; background: #0f2c0a; border-top: 2px solid var(--lima, #b2e04a); border-radius: 20px 20px 0 0; padding: 8px 12px 28px; box-shadow: 0 -20px 50px rgba(0, 0, 0, .5); }
+.sec-topo { display: flex; justify-content: space-between; align-items: center; padding: 6px 4px 10px; position: sticky; top: -8px; background: #0f2c0a; }
+.sec-topo b { font-size: 16px; }
+.sec-folha ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.sec-folha .dep-sec { min-height: 50px; font-size: 15.5px; }
