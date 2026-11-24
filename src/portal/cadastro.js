@@ -115,10 +115,14 @@ function marcarEmAnalise() { try { localStorage.setItem(CHAVE_ANALISE, new Date(
 export function cadastroEmAnalise() { try { return localStorage.getItem(CHAVE_ANALISE); } catch { return null; } }
 export function esquecerCadastroEmAnalise() { try { localStorage.removeItem(CHAVE_ANALISE); } catch { /* sem armazenamento */ } }
 
-export function abrirCadastro(ctx) {
+/** jaCliente: "Já sou cliente e ainda não tenho senha". Mesmo formulário; o pedido chega ao painel marcado. */
+export const ORIGEM_JA_CLIENTE = 'Já é cliente (pedir acesso)';
+export function abrirCadastro(ctx, { jaCliente = false } = {}) {
   const opcoes = (lista) => `<option value="">Selecione…</option>${lista.map((o) => `<option>${esc(o)}</option>`).join('')}`;
-  $('cadBox').innerHTML = `<div class="kcad"><h3>Quero ser cliente</h3>
-    <div class="sub">Leva uns 2 minutos. Digite o CNPJ que a gente preenche o resto pela Receita. A equipe da Souza Ribeiro confere e, depois de aprovado, você recebe por e-mail o link para criar a sua senha.</div>
+  $('cadBox').innerHTML = `<div class="kcad"><h3>${jaCliente ? 'Pedir acesso ao portal' : 'Quero ser cliente'}</h3>
+    <div class="sub">${jaCliente
+      ? 'Já compra com a Souza Ribeiro e ainda não tem senha? Preencha os dados da empresa. A equipe confere o seu cadastro e manda por e-mail o link para criar a sua senha.'
+      : 'Leva uns 2 minutos. Digite o CNPJ que a gente preenche o resto pela Receita. A equipe da Souza Ribeiro confere e, depois de aprovado, você recebe por e-mail o link para criar a sua senha.'}</div>
 
     <div class="ksec"><div class="ktit"><span>1</span>Sua empresa</div>
       ${campo('kDoc', 'CNPJ ou CPF', 'maxlength="18" autocomplete="off" autocapitalize="characters" inputmode="text" enterkeyhint="next" placeholder="00.000.000/0000-00"', true)}
@@ -160,7 +164,7 @@ export function abrirCadastro(ctx) {
       </div>
     </div>
 
-    <div class="ksec"><div class="kc"><label for="kOrigem">Como conheceu a Souza Ribeiro <span class="kop">(opcional)</span></label><select class="inp" id="kOrigem">${opcoes(ORIGENS)}</select></div></div>
+    <div class="ksec"${jaCliente ? ' hidden' : ''}><div class="kc"><label for="kOrigem">Como conheceu a Souza Ribeiro <span class="kop">(opcional)</span></label><select class="inp" id="kOrigem">${opcoes(ORIGENS)}</select></div></div>
     <div id="kRes" aria-live="polite"></div>
     <div class="act kact"><button type="button" class="btn sec" id="kCancelar">Cancelar</button><button type="button" class="btn pri" id="kEnviar">Enviar cadastro</button></div></div>`;
   abrirModal('mCad');
@@ -294,7 +298,7 @@ export function abrirCadastro(ctx) {
       documento: v('kDoc'), razao_social: v('kRazao'), fantasia: pf ? '' : v('kFantasia'),
       inscricao_estadual: pf ? '' : ($('kIsento').checked ? 'ISENTO' : v('kIe')), responsavel: v('kResp'),
       whats: fone(v('kWhats')), telefone: v('kTel') ? fone(v('kTel')) : '', email: v('kEmail').toLowerCase(), cep: v('kCep'), logradouro: v('kRua'), numero: v('kNum'),
-      complemento: v('kComp'), bairro: v('kBairro'), cidade: v('kCidade'), uf: $('kUf').value, origem: $('kOrigem').value, segmento: $('kSeg').value,
+      complemento: v('kComp'), bairro: v('kBairro'), cidade: v('kCidade'), uf: $('kUf').value, origem: jaCliente ? ORIGEM_JA_CLIENTE : $('kOrigem').value, segmento: $('kSeg').value,
     };
     const sb = supabaseComprador();
     const { error } = sb ? await sb.rpc('portal_cadastro_solicitar', { p_loja: LOJA, d }) : { error: { message: 'Cadastro indisponível no momento.' } };
@@ -304,9 +308,9 @@ export function abrirCadastro(ctx) {
       return;
     }
     marcarEmAnalise(); window.dispatchEvent(new Event('g360:cadastro-enviado'));
-    $('cadBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>Cadastro em análise</h3>
+    $('cadBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>${jaCliente ? 'Pedido de acesso em análise' : 'Cadastro em análise'}</h3>
       <p>Recebemos os dados da <b>${esc(d.razao_social)}</b>. A equipe da Souza Ribeiro confere e fala com você pelo WhatsApp <b>${esc(foneBonito(d.whats))}</b>.</p>
-      <p>Quando o cadastro for aprovado, chega no e-mail <b>${esc(d.email || '')}</b> o link para você criar a sua senha e começar a comprar.</p></div>
+      <p>Quando ${jaCliente ? 'o acesso for liberado' : 'o cadastro for aprovado'}, chega no e-mail <b>${esc(d.email || '')}</b> o link para você criar a sua senha e começar a comprar.</p></div>
       <div class="act" style="justify-content:center"><button type="button" class="btn pri" id="kOk">Entendi</button></div>`;
     $('kOk').onclick = () => fecharModal('mCad');
     void ctx;

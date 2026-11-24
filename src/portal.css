@@ -457,3 +457,11 @@ body.com-passo-ios #souzinha-widget{display:none !important}
   background: transparent; border: 1px solid rgba(178, 224, 74, .45); color: var(--tx2, #c9d6c3); font-size: 14px; font-weight: 500; border-radius: 12px; }
 .lg-novo b { color: var(--lima, #b2e04a); font-weight: 700; }
 .lg-novo:hover { border-color: var(--lima, #b2e04a); background: rgba(178, 224, 74, .06); }
+
+/* "Já é cliente e ainda não tem senha?": link discreto abaixo dos botões da capa. */
+.hcad-acesso { flex-basis: 100%; text-align: left; background: none; border: 0; padding: 6px 0; min-height: 44px; color: var(--tx2, #c9d6c3); font: inherit; font-size: 14px; cursor: pointer; }
+.hcad-acesso b { color: var(--lima, #b2e04a); white-space: nowrap; }
+.hcad small + .hcad-acesso { margin-top: -8px; }
+.hcad-acesso:hover b { text-decoration: underline; }
+.hcad-acesso[hidden] { display: none; }
+@media (max-width: 640px) { .bnr:not([hidden]) + .hero .hcad { flex-wrap: wrap; } .bnr:not([hidden]) + .hero .hcad .btn { flex: 1 1 calc(50% - 4px); } .hcad-acesso { font-size: 13.5px; } }
