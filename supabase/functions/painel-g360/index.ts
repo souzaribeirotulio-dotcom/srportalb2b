@@ -498,7 +498,10 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     const renomear = Array.isArray(d.renomear) ? d.renomear as Array<Record<string, unknown>> : [];
     for (const r of renomear) {
       const de = texto(r.de, 40); const para = texto(r.para, 40);
-      if (de && para && de !== para) await admin.from("portal_produtos_exibicao").update({ categoria: para }).eq("loja", loja).eq("categoria", de);
+      if (de && para && de !== para) {
+        await admin.from("portal_produtos_exibicao").update({ categoria: para }).eq("loja", loja).eq("categoria", de);
+        await admin.from("portal_secoes").update({ categoria: para }).eq("loja", loja).eq("categoria", de); // seções acompanham o novo nome
+      }
     }
     const { error: e1 } = await admin.from("portal_categorias").delete().eq("loja", loja);
     if (e1) throw e1;
@@ -506,7 +509,39 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     if (error) throw error;
     // Produtos de categoria apagada vão para "sem categoria" (o portal usa a categoria pelo nome).
     await admin.from("portal_produtos_exibicao").update({ categoria: null }).eq("loja", loja).not("categoria", "in", `(${lista.map((c) => `"${c.replace(/"/g, '')}"`).join(",")})`);
+    // Seções de categoria apagada saem junto.
+    await admin.from("portal_secoes").delete().eq("loja", loja).not("categoria", "in", `(${lista.map((c) => `"${c.replace(/"/g, '')}"`).join(",")})`);
     return [200, { ok: true }];
+  }
+  if (acao === "secoes_salvar") {
+    // Árvore de UM departamento: [{ nome, termos: [], linhas: [{ nome, termos: [] }] }] (substitui a anterior).
+    const categoria = texto(d.categoria, 40);
+    if (!categoria) return [400, { mensagem: "Escolha o departamento." }];
+    const { data: cat, error: e0 } = await admin.from("portal_categorias").select("nome").eq("loja", loja).eq("nome", categoria).limit(1);
+    if (e0) throw e0;
+    if (!cat?.length) return [404, { mensagem: "Departamento não encontrado. Salve as categorias antes." }];
+    const limpaTermos = (v: unknown) => [...new Set((Array.isArray(v) ? v : []).map((t) => texto(t, 60).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean))].slice(0, 40);
+    const secoes = (Array.isArray(d.secoes) ? d.secoes : []).slice(0, 60).map((x) => x as Record<string, unknown>)
+      .map((x) => ({ nome: texto(x.nome, 40), termos: limpaTermos(x.termos), linhas: (Array.isArray(x.linhas) ? x.linhas : []).slice(0, 30).map((l) => l as Record<string, unknown>).map((l) => ({ nome: texto(l.nome, 40), termos: limpaTermos(l.termos) })).filter((l) => l.nome) }))
+      .filter((x) => x.nome);
+    for (const x of secoes) {
+      if (!x.termos.length) return [400, { mensagem: `A seção "${x.nome}" precisa de pelo menos uma palavra.` }];
+      const sem = x.linhas.find((l) => !l.termos.length);
+      if (sem) return [400, { mensagem: `A linha "${sem.nome}" precisa de pelo menos uma palavra.` }];
+    }
+    // Grava a nova árvore e só depois apaga a antiga (se falhar no meio, a antiga continua valendo).
+    const { data: antigas, error: e1 } = await admin.from("portal_secoes").select("id").eq("loja", loja).eq("categoria", categoria).is("pai", null);
+    if (e1) throw e1;
+    for (const [i, x] of secoes.entries()) {
+      const { data: nova, error } = await admin.from("portal_secoes").insert({ loja, categoria, nome: x.nome, termos: x.termos, ordem: i }).select("id");
+      if (error) throw error;
+      if (x.linhas.length) {
+        const { error: e2 } = await admin.from("portal_secoes").insert(x.linhas.map((l, j) => ({ loja, categoria, pai: nova![0].id, nome: l.nome, termos: l.termos, ordem: j })));
+        if (e2) throw e2;
+      }
+    }
+    if (antigas?.length) { const { error } = await admin.from("portal_secoes").delete().in("id", antigas.map((a) => a.id)); if (error) throw error; }
+    return [200, { gravadas: secoes.length }];
   }
   if (acao === "sinonimos_salvar") {
     // Lista completa: [{ termo, equivalentes: [] }] (substitui a anterior).
