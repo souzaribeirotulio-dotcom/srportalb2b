@@ -500,7 +500,7 @@ with sync_playwright() as pw:
     pg.wait_for_selector('#aRes .g360-msg'); checar('Usuário ou senha inválidos.' in n.tc('#aRes'), 'login operador errado')
     pg.fill('#aUsu', 'semlicenca'); pg.fill('#aSen', 'x'); pg.click('#aOk'); pg.wait_for_selector('text=Confira a disponibilidade da sua licença no G360.')
     pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
-    checar(pg.locator('#vAdm [data-at]').count() == 10, 'abas do painel antigo + ocorrências + banners')
+    checar(pg.locator('#vAdm [data-at]').count() == 11, 'abas do painel antigo + ocorrências + banners + executivos (escondida sem permissão)')
     # Novo cliente (ficha do portal) com Buscar dados no G360
     pg.wait_for_selector('#clCad .empty2, #clCad .crow2[data-id]')
     pg.click('#clNovo'); pg.wait_for_selector('#mAdm.open #kCnpj')

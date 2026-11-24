@@ -1,0 +1,232 @@
+/* =====================================================================
+   executivos-g360 — Programa "Executivo de Contas" (painel do administrador).
+
+   Mesmo desenho das permissões próprias do painel (CLAUDE.md, seção 11):
+   o navegador manda o token do operador (op_...). A função confere o token com
+   GET operadores/me e usa o operador.codigo DESSA resposta (nunca um código
+   vindo do navegador) para ler a permissão própria 'executivos'. Só quem tem a
+   permissão lê ou grava. Tudo com a chave secreta, recortado pela loja.
+
+   Conta do executivo: criada aqui no Supabase Auth com a senha digitada pelo
+   administrador, e-mail já confirmado, SEM nenhum e-mail enviado. Ela não é
+   cliente do G360 e não serve para comprar nem para o painel.
+
+   Ações (POST, só Content-Type, origens de PORTAL_ORIGENS; token no corpo):
+   - pode                 → { pode: true|false }
+   - listar               → { executivos: [...], config }
+   - salvar {executivo}   → cria ou altera (com senha opcional)
+   - situacao {id, ativo} → ativa ou desativa (desativado não entra na área dele)
+   - config_salvar {...}  → regras do programa
+   Nada do token, da senha ou do documento vai para log.
+   ===================================================================== */
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
+
+function obrigatoria(nome: string): string {
+  const v = Deno.env.get(nome)?.trim();
+  if (!v || v === "<preencha>") throw new Error(`Configure ${nome}`);
+  return v;
+}
+const API = obrigatoria("G360_BASE_URL").replace(/\/$/, "");
+const LOJA = obrigatoria("G360_LOJA");
+if (!/^[a-f0-9]{16}$/.test(LOJA)) throw new Error("Configure G360_LOJA");
+const ORIGENS = new Set(obrigatoria("PORTAL_ORIGENS").split(",").map((o) => o.trim()));
+const chave = JSON.parse(obrigatoria("SUPABASE_SECRET_KEYS")).default as string;
+const admin = createClient(obrigatoria("SUPABASE_URL"), chave, {
+  auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+});
+
+const tokenOperador = /^op_[A-Za-z0-9_-]{20,80}$/;
+const texto = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+const CONFIG_PADRAO = { percentual: 3, liberar_em: "pagamento", so_novos: true, prazo_meses: 12 };
+const COLUNAS = "id, codigo, nome, documento, whatsapp, email, percentual, vendedor_g360, vendedor_nome, ativo, user_id, criado_em";
+
+// Resposta do "me" guardada por até 1 minuto, pelo resumo do token (nunca o token aberto).
+const conferidos = new Map<string, { ate: number; codigo: number; usuario: string; nome: string }>();
+async function resumo(t: string): Promise<string> {
+  return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t))), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+/** Operador do token (GET operadores/me). null = sessão encerrada; lança se a API não respondeu. */
+async function operador(token: string) {
+  const h = await resumo(token);
+  const c = conferidos.get(h);
+  if (c && c.ate > Date.now()) return c;
+  const r = await fetch(`${API}/b2b/v1/lojas/${LOJA}/operadores/me`, {
+    headers: { Authorization: `Bearer ${token}` }, redirect: "error", signal: AbortSignal.timeout(10_000),
+  });
+  if (r.status === 401) { conferidos.delete(h); await r.body?.cancel(); return null; }
+  if (!r.ok) { await r.body?.cancel(); throw new Error(`api ${r.status}`); }
+  const o = (await r.json())?.dados?.operador;
+  if (!Number.isSafeInteger(o?.codigo)) throw new Error("me sem operador");
+  const v = { ate: Date.now() + 60_000, codigo: o.codigo as number, usuario: String(o.usuario ?? "").slice(0, 60), nome: String(o.nome ?? "").slice(0, 120) };
+  conferidos.set(h, v);
+  if (conferidos.size > 500) for (const [k, x] of conferidos) if (x.ate < Date.now()) conferidos.delete(k);
+  return v;
+}
+
+async function lerConfig() {
+  const { data, error } = await admin.from("comissao_config").select("percentual, liberar_em, so_novos, prazo_meses").eq("loja", LOJA).maybeSingle();
+  if (error) throw error;
+  return data ?? CONFIG_PADRAO;
+}
+
+/** Cria ou atualiza a conta de acesso do executivo (Supabase Auth). Não envia e-mail. */
+async function conta(userId: string | null, email: string, senha: string, executivoId: string): Promise<string> {
+  const app_metadata = { g360_executivo: executivoId, g360_loja: LOJA };
+  if (userId) {
+    const mud: Record<string, unknown> = { email, email_confirm: true, app_metadata };
+    if (senha) mud.password = senha;
+    const { error } = await admin.auth.admin.updateUserById(userId, mud);
+    if (error) throw error;
+    return userId;
+  }
+  const { data, error } = await admin.auth.admin.createUser({ email, password: senha, email_confirm: true, app_metadata });
+  if (error) throw error;
+  return data.user.id;
+}
+
+async function executar(acao: string, d: Record<string, unknown>): Promise<[number, unknown]> {
+  if (acao === "listar") {
+    const { data, error } = await admin.from("executivos").select(COLUNAS).eq("loja", LOJA).order("nome");
+    if (error) throw error;
+    const { data: vinc, error: e2 } = await admin.from("executivo_clientes").select("executivo_id, situacao").eq("loja", LOJA);
+    if (e2) throw e2;
+    const conta = new Map<string, { ativos: number; aguardando: number }>();
+    for (const v of vinc ?? []) {
+      const c = conta.get(v.executivo_id) ?? { ativos: 0, aguardando: 0 };
+      if (v.situacao === "ativo") c.ativos++; else if (v.situacao === "aguardando") c.aguardando++;
+      conta.set(v.executivo_id, c);
+    }
+    return [200, { dados: {
+      executivos: (data ?? []).map(({ user_id, ...e }) => ({ ...e, tem_acesso: !!user_id, clientes: conta.get(e.id) ?? { ativos: 0, aguardando: 0 } })),
+      config: await lerConfig(),
+    } }];
+  }
+
+  if (acao === "salvar") {
+    const e = (d.executivo ?? {}) as Record<string, unknown>;
+    const id = texto(e.id, 40);
+    const codigo = texto(e.codigo, 20).toUpperCase();
+    const documento = texto(e.documento, 32).toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const whatsapp = texto(e.whatsapp, 20).replace(/\D/g, "");
+    const email = texto(e.email, 160).toLowerCase();
+    const senha = typeof e.senha === "string" ? e.senha : "";
+    const pctTxt = texto(String(e.percentual ?? ""), 8).replace(",", ".");
+    const percentual = pctTxt === "" ? null : Number(pctTxt);
+    const vend = e.vendedor_g360 === null || e.vendedor_g360 === "" || e.vendedor_g360 === undefined ? null : Number(e.vendedor_g360);
+    const linha = {
+      codigo, nome: texto(e.nome, 120), documento, whatsapp: whatsapp || null, email,
+      percentual, vendedor_g360: vend, vendedor_nome: vend ? texto(e.vendedor_nome, 120) || null : null,
+      atualizado_em: new Date().toISOString(),
+    };
+    if (!/^[A-Z0-9]{3,20}$/.test(codigo)) return [400, { mensagem: "Código com 3 a 20 letras ou números, sem espaços (ex.: JOAO)." }];
+    if (linha.nome.length < 2) return [400, { mensagem: "Digite o nome do executivo." }];
+    if (!/^[A-Z0-9]{11,14}$/.test(documento)) return [400, { mensagem: "Digite o CPF ou CNPJ completo." }];
+    if (whatsapp && !/^[0-9]{10,11}$/.test(whatsapp)) return [400, { mensagem: "WhatsApp com DDD (10 ou 11 números)." }];
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return [400, { mensagem: "Digite um e-mail válido. Ele é o login do executivo." }];
+    if (percentual !== null && !(percentual >= 0 && percentual <= 50)) return [400, { mensagem: "Percentual entre 0 e 50%. Deixe em branco para usar o padrão." }];
+    if (vend !== null && !(Number.isSafeInteger(vend) && vend > 0)) return [400, { mensagem: "Vendedor do G360 inválido." }];
+    if (senha && (senha.length < 8 || senha.length > 72)) return [400, { mensagem: "A senha do executivo precisa ter de 8 a 72 caracteres." }];
+    const { data: igual, error: e0 } = await admin.from("executivos").select("id").eq("loja", LOJA).eq("codigo", codigo).limit(1);
+    if (e0) throw e0;
+    if (igual?.length && igual[0].id !== id) return [409, { mensagem: `O código ${codigo} já é de outro executivo.` }];
+
+    let atual: { id: string; user_id: string | null } | null = null;
+    if (id) {
+      if (!/^[0-9a-f-]{36}$/.test(id)) return [400, { mensagem: "Executivo inválido." }];
+      const { data, error } = await admin.from("executivos").update(linha).eq("id", id).eq("loja", LOJA).select("id, user_id");
+      if (error) throw error;
+      if (!data?.length) return [404, { mensagem: "Executivo não encontrado." }];
+      atual = data[0];
+    } else {
+      if (!senha) return [400, { mensagem: "Defina a senha de acesso do executivo (8 caracteres ou mais)." }];
+      const { data, error } = await admin.from("executivos").insert({ ...linha, loja: LOJA }).select("id, user_id");
+      if (error) throw error;
+      atual = data[0];
+    }
+    // Conta de acesso: cria na primeira vez; depois atualiza o e-mail e, se veio, a senha.
+    try {
+      const uid = await conta(atual.user_id, email, senha, atual.id);
+      if (uid !== atual.user_id) await admin.from("executivos").update({ user_id: uid }).eq("id", atual.id).eq("loja", LOJA);
+    } catch (err) {
+      const msg = String((err as Error)?.message ?? "");
+      if (!id) await admin.from("executivos").delete().eq("id", atual.id).eq("loja", LOJA); // não deixa executivo sem acesso
+      if (/already|registered|exists/i.test(msg)) return [409, { mensagem: "Esse e-mail já é usado por outra conta. Use outro e-mail para o executivo." }];
+      if (/password/i.test(msg)) return [400, { mensagem: "Senha fraca demais. Use 8 caracteres ou mais, misturando letras e números." }];
+      throw err;
+    }
+    const { data: fim, error: e3 } = await admin.from("executivos").select(COLUNAS).eq("id", atual.id).single();
+    if (e3) throw e3;
+    const { user_id, ...sem } = fim;
+    return [200, { dados: { ...sem, tem_acesso: !!user_id } }];
+  }
+
+  if (acao === "situacao") {
+    const id = texto(d.id, 40);
+    if (!/^[0-9a-f-]{36}$/.test(id)) return [400, { mensagem: "Executivo inválido." }];
+    const ativo = d.ativo === true;
+    const { data, error } = await admin.from("executivos").update({ ativo, atualizado_em: new Date().toISOString() }).eq("id", id).eq("loja", LOJA).select("user_id");
+    if (error) throw error;
+    if (!data?.length) return [404, { mensagem: "Executivo não encontrado." }];
+    // Desativado: encerra as sessões abertas da área do executivo (a regra de acesso já o barra).
+    if (!ativo && data[0].user_id) await admin.auth.admin.signOut(data[0].user_id, "global").catch(() => {});
+    return [200, { ok: true }];
+  }
+
+  if (acao === "config_salvar") {
+    const pct = Number(String(d.percentual ?? "").replace(",", "."));
+    const liberar = String(d.liberar_em);
+    const prazo = d.prazo_meses === null || d.prazo_meses === "" ? null : Number(d.prazo_meses);
+    if (!(pct >= 0 && pct <= 50)) return [400, { mensagem: "Percentual entre 0 e 50%." }];
+    if (!["faturamento", "pagamento"].includes(liberar)) return [400, { mensagem: "Escolha quando a comissão é liberada." }];
+    if (prazo !== null && !(Number.isSafeInteger(prazo) && prazo >= 1 && prazo <= 120)) return [400, { mensagem: "Prazo do vínculo entre 1 e 120 meses, ou sem prazo." }];
+    const linha = { loja: LOJA, percentual: Math.round(pct * 100) / 100, liberar_em: liberar, so_novos: d.so_novos !== false, prazo_meses: prazo, atualizado_em: new Date().toISOString() };
+    const { error } = await admin.from("comissao_config").upsert(linha, { onConflict: "loja" });
+    if (error) throw error;
+    return [200, { dados: await lerConfig() }];
+  }
+
+  return [400, { mensagem: "Ação desconhecida." }];
+}
+
+Deno.serve(async (req) => {
+  const origem = req.headers.get("Origin") ?? "";
+  if (!ORIGENS.has(origem)) return new Response(null, { status: 403 });
+  const h = new Headers({ "Access-Control-Allow-Origin": origem, Vary: "Origin", "Content-Type": "application/json", "Cache-Control": "no-store" });
+  if (req.method === "OPTIONS") {
+    h.set("Access-Control-Allow-Headers", "Content-Type");
+    h.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    h.set("Access-Control-Max-Age", "600");
+    return new Response(null, { status: 204, headers: h });
+  }
+  const json = (s: number, b: unknown) => new Response(JSON.stringify(b), { status: s, headers: h });
+  if (req.method !== "POST") return json(405, { mensagem: "Método não permitido." });
+  let corpo: Record<string, unknown>;
+  try {
+    const t = await req.text();
+    if (t.length > 50_000) return json(413, { mensagem: "Pedido grande demais." });
+    corpo = JSON.parse(t);
+  } catch { return json(400, { mensagem: "Pedido inválido." }); }
+  const token = typeof corpo.token === "string" ? corpo.token : "";
+  const encerrada = () => json(401, { mensagem: "Sua sessão do painel terminou. Entre novamente." });
+  if (!tokenOperador.test(token)) return encerrada();
+  let op;
+  try { op = await operador(token); } catch (e) {
+    console.warn("executivos-g360: conferência falhou:", String((e as Error)?.message ?? e).slice(0, 80));
+    return json(503, { mensagem: "Não foi possível conferir o acesso agora. Tente de novo em instantes." });
+  }
+  if (!op) return encerrada();
+  const acao = String(corpo.acao || "");
+  try {
+    await admin.from("painel_operadores").upsert({ loja: LOJA, codigo: op.codigo, usuario: op.usuario, nome: op.nome, visto_em: new Date().toISOString() }, { onConflict: "loja,codigo" });
+    const { data: perms, error: ep } = await admin.rpc("painel_permissoes_efetivas", { p_loja: LOJA, p_codigo: op.codigo });
+    if (ep) throw ep;
+    const pode = Array.isArray(perms) && perms.includes("executivos");
+    if (acao === "pode") return json(200, { dados: { pode } });
+    if (!pode) return json(403, { mensagem: "Só o administrador do programa de executivos pode ver esta área." });
+    const [s, b] = await executar(acao, (corpo.dados ?? {}) as Record<string, unknown>);
+    return json(s, b);
+  } catch (e) {
+    console.warn("executivos-g360: falha", acao, String((e as { code?: string })?.code ?? ""), String((e as Error)?.message ?? "").slice(0, 160));
+    return json(500, { mensagem: "Não foi possível concluir agora. Tente de novo em instantes." });
+  }
+});

@@ -491,3 +491,13 @@ body.com-passo-ios #souzinha-widget{display:none !important}
   .bnr:not([hidden]) + .hero .hcad { grid-column: 1; grid-row: auto; justify-content: flex-start; margin-top: 12px; }
   .bnr:not([hidden]) + .hero .hcad-acesso, .bnr:not([hidden]) + .hero .hcad.analise small { text-align: left; }
 }
+
+/* Painel: aba Executivos */
+.ex-linha { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--linha, #ffffff1a); flex-wrap: wrap; }
+.ex-linha.off { opacity: .6; }
+.ex-dados { flex: 1 1 260px; min-width: 0; }
+.ex-dados small { display: block; margin: 3px 0 0; }
+.ex-cod { display: inline-block; padding: 1px 8px; border-radius: 999px; background: rgba(178, 224, 74, .14); color: var(--lima, #b2e04a); font-size: 12px; font-weight: 800; letter-spacing: .5px; }
+.ex-sit { display: inline-block; padding: 1px 8px; border-radius: 999px; background: rgba(255, 255, 255, .08); color: var(--tx2, #a9c19a); font-size: 12px; font-weight: 700; }
+.ex-link { color: var(--tx3, #6e8b60); word-break: break-all; font-size: 12px; }
+.ex-check { display: flex; gap: 8px; align-items: center; min-height: 44px; cursor: pointer; }

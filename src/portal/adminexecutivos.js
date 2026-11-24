@@ -1,0 +1,163 @@
+/* Painel: aba Executivos (programa Executivo de Contas).
+   Só aparece para quem tem a permissão própria 'executivos' (conferida pela função executivos-g360
+   com o operador do G360). Cadastro do executivo, link de indicação, conta de acesso e regras. */
+import { chamarExecutivos } from '../api/executivos.js';
+import { referenciasNovoClienteOperador } from '../api/g360.js';
+import { esc, toast } from './comum.js';
+
+const LIBERAR = { pagamento: 'Depois que o cliente paga', faturamento: 'Quando o pedido é faturado' };
+const soNum = (t) => String(t || '').replace(/\D/g, '');
+const docLimpo = (t) => String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const pct = (v) => (v === null || v === undefined || v === '' ? '' : String(Number(v)).replace('.', ','));
+export const linkExecutivo = (codigo) => `${location.origin}/?ex=${encodeURIComponent(codigo)}`;
+
+/** Pergunta à função se o operador pode ver a aba (falha de rede = não mostra). */
+export async function podeVerExecutivos(token) {
+  try { return (await chamarExecutivos(token, 'pode')).dados?.pode === true; } catch { return false; }
+}
+
+export async function desenharExecutivosPainel(alvo, { token, aoEncerrar }) {
+  let lista = null; let config = null; let editando = null; let vendedores = null; let verConfig = false; let erro = '';
+  const chamar = async (acao, dados) => {
+    try { return await chamarExecutivos(token, acao, dados); } catch (e) { if (e.status === 401) aoEncerrar?.(e.message); throw e; }
+  };
+  const carregar = async () => {
+    try { const d = (await chamar('listar')).dados; lista = d.executivos; config = d.config; erro = ''; } catch (e) { erro = e.message; lista = lista || []; }
+    pintar();
+  };
+  const carregarVendedores = async () => {
+    if (vendedores) return;
+    try { vendedores = await referenciasNovoClienteOperador(token, 'vendedor'); } catch { vendedores = []; }
+    if (editando) pintar();
+  };
+
+  const linhaHtml = (x) => `<div class="ex-linha${x.ativo ? '' : ' off'}" data-id="${esc(x.id)}">
+      <div class="ex-dados"><b>${esc(x.nome)}</b> <span class="ex-cod">${esc(x.codigo)}</span>${x.ativo ? '' : ' <span class="ex-sit">Desativado</span>'}
+        <small class="hint">${x.clientes.ativos} cliente${x.clientes.ativos === 1 ? '' : 's'} ativo${x.clientes.ativos === 1 ? '' : 's'}${x.clientes.aguardando ? ` · ${x.clientes.aguardando} aguardando aprovação` : ''} · ${x.percentual !== null ? `${pct(x.percentual)}% (próprio)` : `${pct(config?.percentual ?? 3)}% (padrão)`}${x.vendedor_nome ? ` · vendedor no G360: ${esc(x.vendedor_nome)}` : ''}${x.tem_acesso ? '' : ' · sem acesso à área'}</small>
+        <small class="ex-link">${esc(linkExecutivo(x.codigo))}</small></div>
+      <div class="row" style="gap:6px;flex-wrap:wrap">
+        <button class="tool" data-copia type="button">Copiar link</button><button class="tool" data-edita type="button">Editar</button>
+        <button class="tool" data-liga type="button">${x.ativo ? 'Desativar' : 'Reativar'}</button></div></div>`;
+
+  const formHtml = (x) => `<form id="exForm" class="panel" style="margin-top:14px;padding:14px" novalidate autocomplete="off">
+      <b>${x.id ? `Editar ${esc(x.nome)}` : 'Novo executivo'}</b>
+      <div class="fgrid" style="margin-top:10px">
+        <div><label for="exNome">Nome</label><input class="inp" id="exNome" maxlength="120" value="${esc(x.nome || '')}"></div>
+        <div><label for="exCod">Código (vai no link)</label><input class="inp" id="exCod" maxlength="20" value="${esc(x.codigo || '')}" placeholder="Ex.: JOAO" autocapitalize="characters" spellcheck="false">
+          <small class="hint" id="exLinkPrev" style="display:block;margin-top:4px"></small></div>
+        <div><label for="exDoc">CPF ou CNPJ</label><input class="inp" id="exDoc" maxlength="20" value="${esc(x.documento || '')}" autocapitalize="characters" spellcheck="false"></div>
+        <div><label for="exWa">WhatsApp</label><input class="inp" id="exWa" inputmode="tel" maxlength="16" value="${esc(x.whatsapp || '')}" placeholder="(34) 99999-0000"></div>
+        <div><label for="exMail">E-mail (é o login da área do executivo)</label><input class="inp" id="exMail" type="email" maxlength="160" value="${esc(x.email || '')}" autocomplete="off"></div>
+        <div><label for="exSenha">${x.id ? 'Nova senha (deixe em branco para manter)' : 'Senha de acesso'}</label><input class="inp" id="exSenha" type="password" maxlength="72" autocomplete="new-password" placeholder="8 caracteres ou mais">
+          <small class="hint" style="display:block;margin-top:4px">Combine a senha direto com o executivo. O portal não manda e-mail.</small></div>
+        <div><label for="exPct">Comissão própria (%)</label><input class="inp" id="exPct" inputmode="decimal" maxlength="6" value="${esc(pct(x.percentual))}" placeholder="Em branco = padrão (${esc(pct(config?.percentual ?? 3))}%)"></div>
+        <div><label for="exVend">Vendedor no G360 (opcional)</label><select class="inp" id="exVend">
+          <option value="">${vendedores ? 'Nenhum' : 'Carregando…'}</option>
+          ${(vendedores || []).map((v) => `<option value="${v.id}" ${Number(x.vendedor_g360) === v.id ? 'selected' : ''}>${esc(v.nome)}</option>`).join('')}
+          ${x.vendedor_g360 && vendedores && !vendedores.some((v) => v.id === Number(x.vendedor_g360)) ? `<option value="${x.vendedor_g360}" selected>${esc(x.vendedor_nome || `Vendedor ${x.vendedor_g360}`)}</option>` : ''}
+        </select><small class="hint" style="display:block;margin-top:4px">O cliente novo indicado por ele nasce no G360 com este vendedor.</small></div>
+      </div>
+      <div class="okmsg" id="exMsg" aria-live="polite" style="margin-top:8px"></div>
+      <div class="act" style="margin-top:10px"><button class="btn sec" type="button" id="exCancela">Cancelar</button><button class="btn pri" type="submit" id="exSalva">Salvar executivo</button></div>
+    </form>`;
+
+  const configHtml = () => `<form id="exCfg" class="panel" style="margin-top:14px;padding:14px" novalidate>
+      <b>Regras do programa</b>
+      <div class="fgrid" style="margin-top:10px">
+        <div><label for="cfPct">Comissão padrão (%)</label><input class="inp" id="cfPct" inputmode="decimal" maxlength="6" value="${esc(pct(config.percentual))}"></div>
+        <div><label for="cfLib">Quando a comissão é liberada</label><select class="inp" id="cfLib">${Object.entries(LIBERAR).map(([k, t]) => `<option value="${k}" ${config.liberar_em === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+        <div><label for="cfPrazo">Prazo do vínculo</label><select class="inp" id="cfPrazo">
+          ${[3, 6, 12, 18, 24, 36].map((m) => `<option value="${m}" ${Number(config.prazo_meses) === m ? 'selected' : ''}>${m} meses após a aprovação do cliente</option>`).join('')}
+          <option value="" ${config.prazo_meses === null ? 'selected' : ''}>Sem prazo</option></select></div>
+        <div><label class="ex-check"><input type="checkbox" id="cfNovos" ${config.so_novos ? 'checked' : ''}> Só clientes novos geram comissão</label>
+          <small class="hint" style="display:block;margin-top:4px">Cliente que já existe no G360 ou já usava o portal fica sem comissão.</small></div>
+      </div>
+      <small class="hint" style="display:block;margin-top:8px">Base de cálculo: valor dos produtos dos pedidos feitos pelo portal, sem frete e sem taxa de pagamento. Pedidos cancelados ou devolvidos saem da conta.</small>
+      <div class="okmsg" id="cfMsg" aria-live="polite" style="margin-top:8px"></div>
+      <div class="act" style="margin-top:10px"><button class="btn sec" type="button" id="cfFecha">Fechar</button><button class="btn pri" type="submit" id="cfSalva">Salvar regras</button></div>
+    </form>`;
+
+  function pintar() {
+    if (lista === null) { alvo.innerHTML = '<div class="hint" style="padding:18px">Carregando os executivos…</div>'; return; }
+    alvo.innerHTML = `<div style="padding:16px 18px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div><b>Executivos de contas</b><small class="hint" style="display:block;margin:2px 0 0">Parceiros que indicam clientes novos. Cada um tem um código e um link próprio; quem se cadastra pelo link já chega indicado por ele.</small></div>
+        ${editando ? '' : `<div class="row" style="gap:6px"><button class="tool" id="exVerCfg" type="button">⚙ Regras${config ? ` · ${pct(config.percentual)}%` : ''}</button><button class="btn pri" id="exNovo" type="button">＋ Novo executivo</button></div>`}
+      </div>
+      ${erro ? `<div class="g360-aviso-busca" role="alert" style="margin-top:12px">${esc(erro)}</div>` : ''}
+      ${verConfig && config && !editando ? configHtml() : ''}
+      ${editando ? formHtml(editando) : ''}
+      <div style="margin-top:14px">${lista.length ? lista.map(linhaHtml).join('') : (editando ? '' : '<div class="hint" style="padding:18px 0">Nenhum executivo ainda. Clique em "Novo executivo" para cadastrar o primeiro.</div>')}</div></div>`;
+    ligar();
+  }
+
+  function ligar() {
+    alvo.querySelector('#exNovo')?.addEventListener('click', () => { editando = {}; verConfig = false; pintar(); carregarVendedores(); alvo.querySelector('#exNome')?.focus(); });
+    alvo.querySelector('#exVerCfg')?.addEventListener('click', () => { verConfig = !verConfig; pintar(); });
+    alvo.querySelectorAll('.ex-linha').forEach((l) => {
+      const x = lista.find((e) => e.id === l.dataset.id);
+      l.querySelector('[data-copia]').onclick = async () => {
+        try { await navigator.clipboard.writeText(linkExecutivo(x.codigo)); toast('Link copiado'); } catch { toast(linkExecutivo(x.codigo)); }
+      };
+      l.querySelector('[data-edita]').onclick = () => { editando = { ...x }; verConfig = false; pintar(); carregarVendedores(); };
+      l.querySelector('[data-liga]').onclick = async (ev) => {
+        if (x.ativo && !confirmar(ev.currentTarget, `Desativar ${x.nome}? Ele deixa de entrar na área dele e os novos cadastros com o código dele não geram vínculo.`)) return;
+        try { await chamar('situacao', { id: x.id, ativo: !x.ativo }); toast(x.ativo ? 'Executivo desativado' : 'Executivo reativado'); carregar(); } catch (e) { toast(e.message); }
+      };
+    });
+    const f = alvo.querySelector('#exForm');
+    if (f) {
+      const prev = () => { const c = f.querySelector('#exCod').value.trim().toUpperCase(); f.querySelector('#exLinkPrev').textContent = c ? `Link: ${linkExecutivo(c)}` : ''; };
+      f.querySelector('#exCod').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); prev(); });
+      prev();
+      f.querySelector('#exCancela').onclick = () => { editando = null; pintar(); };
+      f.onsubmit = async (ev) => {
+        ev.preventDefault();
+        const msg = f.querySelector('#exMsg'); const bt = f.querySelector('#exSalva');
+        const vend = f.querySelector('#exVend');
+        const dados = {
+          id: editando.id || undefined,
+          nome: f.querySelector('#exNome').value, codigo: f.querySelector('#exCod').value,
+          documento: docLimpo(f.querySelector('#exDoc').value), whatsapp: soNum(f.querySelector('#exWa').value),
+          email: f.querySelector('#exMail').value, senha: f.querySelector('#exSenha').value,
+          percentual: f.querySelector('#exPct').value.trim(),
+          vendedor_g360: vend.value ? Number(vend.value) : null, vendedor_nome: vend.value ? vend.selectedOptions[0]?.textContent || '' : '',
+        };
+        bt.disabled = true; msg.className = 'okmsg'; msg.textContent = 'Salvando…';
+        try {
+          await chamar('salvar', { executivo: dados });
+          f.querySelector('#exSenha').value = '';
+          toast('Executivo salvo ✓'); editando = null; await carregar();
+        } catch (e) { msg.className = 'okmsg err'; msg.textContent = e.message; bt.disabled = false; f.querySelector('#exSenha').value = dados.senha; }
+      };
+    }
+    const c = alvo.querySelector('#exCfg');
+    if (c) {
+      c.querySelector('#cfFecha').onclick = () => { verConfig = false; pintar(); };
+      c.onsubmit = async (ev) => {
+        ev.preventDefault();
+        const msg = c.querySelector('#cfMsg'); const bt = c.querySelector('#cfSalva');
+        bt.disabled = true; msg.className = 'okmsg'; msg.textContent = 'Salvando…';
+        try {
+          config = (await chamar('config_salvar', {
+            percentual: c.querySelector('#cfPct').value, liberar_em: c.querySelector('#cfLib').value,
+            prazo_meses: c.querySelector('#cfPrazo').value === '' ? null : Number(c.querySelector('#cfPrazo').value),
+            so_novos: c.querySelector('#cfNovos').checked,
+          })).dados;
+          toast('Regras salvas ✓'); verConfig = false; pintar();
+        } catch (e) { msg.className = 'okmsg err'; msg.textContent = e.message; bt.disabled = false; }
+      };
+    }
+  }
+
+  /** Confirmação no próprio botão (sem caixa de diálogo do navegador): primeiro toque arma, segundo confirma. */
+  function confirmar(bt, texto) {
+    if (bt.dataset.armado) return true;
+    bt.dataset.armado = '1'; const antes = bt.textContent; bt.textContent = 'Toque de novo para confirmar'; bt.title = texto; toast(texto);
+    setTimeout(() => { delete bt.dataset.armado; bt.textContent = antes; }, 4000);
+    return false;
+  }
+
+  pintar();
+  await carregar();
+}
