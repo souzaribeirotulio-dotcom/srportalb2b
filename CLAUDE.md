@@ -1,6 +1,6 @@
 # Portal B2B da Souza Ribeiro
 
-Instruções para o Claude. Versão de 16/11/2026, para a API dos sistemas externos 2026.11.16.
+Instruções para o Claude. Versão de 24/11/2026, para a API dos sistemas externos 2026.11.19.
 
 No Claude Code, este arquivo fica na raiz do projeto com o nome `CLAUDE.md`, e os documentos da API ficam em `docs/g360/`. Num Projeto do Claude, ele vai nas instruções do projeto.
 
@@ -71,7 +71,7 @@ Todas as chamadas à API ficam num módulo só (por exemplo, `src/api/g360.ts`),
 
 ## 5. Segurança
 
-A caixa **Continuar conectado** vem marcada (decisão da Souza Ribeiro em 24/11/2026, no login e na página de senha nova) e só aparece quando `GET loja` informa `continuar_conectado_dias > 0`. Mostre ao lado: **Desmarque em computador compartilhado.** Se o campo não vier, trate como zero e não envie o campo novo ao backend antigo. No login, envie `continuar_conectado` como booleano e siga o valor efetivo da resposta.
+A caixa **Continuar conectado** vem marcada (decisão da Souza Ribeiro em 24/11/2026, no login e na página de senha nova; a confirmação com a Movimento está no `PENDENCIAS_MOVIMENTO.md`) e só aparece quando `GET loja` informa `continuar_conectado_dias > 0`. Mostre ao lado: **Desmarque em computador compartilhado.** Se o campo não vier, trate como zero e não envie o campo novo ao backend antigo. No login, envie `continuar_conectado` como booleano e siga o valor efetivo da resposta.
 
 Com `continuar_conectado: true` na resposta, guarde o token no `localStorage`, em chave própria para a loja e o comprador (por exemplo, `g360:<loja>:comprador:persistente`). Com false, guarde no `sessionStorage` da aba, em outra chave (`g360:<loja>:comprador:sessao`). Apague ambas antes de guardar um token novo. Não use cookie criado por JavaScript nem a URL para o token.
 
@@ -102,7 +102,14 @@ Valores e quantidades chegam como texto decimal com ponto: `"12.50"`, `"2"`, `"1
 
 A quantidade também vai como texto com ponto, maior que zero, com até 7 dígitos inteiros e 4 decimais: `"3"`, `"0.5"`. Se o comprador digitar vírgula, troque por ponto antes de mandar.
 
-O `preco` do catálogo e o `preco_unitario` da revisão já são o preço que vale para o comprador. Quando `seu_preco` vem preenchido (no produto, na unidade ou no item da revisão), é porque há preço negociado, e o valor é o mesmo: mostre o selo "Seu preço". O comprador não recebe o preço de tabela, então não mostre preço riscado nem desconto.
+O `preco` do catálogo e o `preco_unitario` da revisão já são o preço que vale para o comprador. Quando `seu_preco` vem preenchido (no produto, na unidade ou no item da revisão), é porque há preço negociado, e o valor é o mesmo: mostre o selo "Seu preço". O comprador não recebe o preço de tabela, então, fora das promoções, não mostre preço riscado nem desconto.
+
+Quando há promoção, vem o bloco `promocao`: no produto, para 1 unidade base; em cada item de `unidades[]`, para 1 embalagem; e no item da revisão, na quantidade e na unidade da linha. Sem promoção, o bloco não vem. O preço da tela continua sendo o `preco` do catálogo ou o `preco_unitario` da revisão: o bloco só explica de onde ele veio, e quem decide é a API.
+
+- Com `faltam` igual a `"0"`, a oferta já vale. Mostre o selo "Oferta" e o preço. Quando vierem preenchidos, mostre também o `preco_normal` riscado e o `desconto_percentual`.
+- Com `faltam` maior que zero, a oferta ainda não vale, e o preço continua o normal. No catálogo, mostre "Leve {meta} e pague {preco_oferta} cada". Com `a_partir` falso, a oferta vale só em múltiplos da meta: mostre "A cada {meta}, pague {preco_oferta} cada". No carrinho, mostre "Leve mais {faltam} e pague {preco_oferta} cada" e a `economia`.
+- Com `restam` preenchido, mostre "Restam {restam}": o limite é de todos os clientes e pode acabar antes do fim. `fim.data` é o último dia, e `fim.hora` nula quer dizer que vale o dia todo.
+- Nunca aplique o `preco_oferta` por conta própria nem guarde o bloco. Ele pode mudar entre a revisão e o envio: revise de novo quando a quantidade mudar.
 
 Os totais que valem são os da revisão (`POST revisoes`). Antes de revisar, o carrinho pode mostrar preço × quantidade como estimativa, calculada com uma biblioteca decimal como a `decimal.js` e marcada como estimada.
 
@@ -171,6 +178,16 @@ As chamadas, na ordem:
 10. Mostre o pedido devolvido com o `situacao_nome`. Pedido aguardando aprovação do fornecedor pode vir com `numero` nulo, e aí, no lugar do número, mostre "aguardando aprovação". `GET pedidos` lista e `GET pedidos/{id}` detalha.
 11. A observação aceita até 400 caracteres, e o carrinho, de 1 a 100 linhas. O mesmo produto na mesma unidade ocupa uma linha só, com as quantidades somadas.
 12. Se a revisão devolver `DATA_PREVISTA_OBRIGATORIA`, o portal calcula a previsão de entrega pela regra que a Souza Ribeiro definir (os feriados ficam no Supabase deles) e manda em `data_prevista`, no formato `AAAA-MM-DD`. Enquanto a regra não estiver definida, anote no `PENDENCIAS_MOVIMENTO.md` e pergunte à equipe.
+
+### Página de promoções
+
+O catálogo marca a promoção de cada produto, mas não lista todas as promoções do comprador. Para uma página com todas elas, use a rota de promoções da API das integrações, sempre pelo servidor. O contrato dela é o `openapi-integracoes-promocoes.yaml`, que vai à parte.
+
+1. Use uma função do Supabase própria para isso, com a chave, a URL e a empresa das integrações nos segredos dela. A chave das integrações nunca vai ao navegador.
+2. O navegador manda à função só o token da API do comprador. A função chama `GET me` com ele e usa o `comprador.codigo` da resposta como `cliente` na rota de promoções. Nunca use um código de cliente vindo do navegador: um comprador veria as promoções de outro. A função pode guardar a resposta do `me` por até um minuto, identificada pela loja e por um hash do token, nunca pelo token aberto.
+3. A função percorre todas as páginas da rota e devolve ao navegador só o que identifica cada item: o código e o nome da promoção, o término, o `produto` e o `unidade_id`. Valor, meta e limite ficam de fora. Ela pode guardar essa lista por até dois minutos para cada comprador.
+4. O navegador consulta esses produtos pelo filtro `ids` do catálogo, percorrendo todas as páginas, e mostra só os que voltarem com o bloco `promocao`, no produto ou na embalagem do `unidade_id`, com o preço do catálogo. Os que voltarem sem o bloco ficam fora da página.
+5. Se a função falhar, a página mostra "Promoções indisponíveis no momento", e o resto do portal segue normal.
 
 ## 9. Envio do pedido sem duplicar
 

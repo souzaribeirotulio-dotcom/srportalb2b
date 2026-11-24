@@ -1,6 +1,6 @@
 # Roteiro de prompts
 
-Versão de 16/11/2026.
+Versão de 24/11/2026.
 
 Colem um prompt por vez no Claude, na ordem, e só passem ao seguinte depois de conferir o atual. Cada etapa diz o que olhar no navegador e traz pelo menos um teste que tem de dar erro: se ele passar, tem algo errado. Quando alguma coisa não funcionar, usem o modelo do fim do arquivo.
 
@@ -207,6 +207,36 @@ todas as páginas.
 3. Fiquem mais de 5 minutos usando o portal e abram a Minha Lista outra vez. Ela tem de continuar aparecendo, e não vazia.
 4. Entrem com o outro comprador de teste. Ele não pode ver a Minha Lista do primeiro.
 
+### Promoções no catálogo e no carrinho
+
+```text
+Mostre as promoções no catálogo, na página do produto e no carrinho pelo
+bloco promocao, seguindo a seção 6 das instruções. O preço da tela é sempre
+o preco do catálogo ou o preco_unitario da revisão: o bloco só explica.
+Não crie chave nova nem chamada nova para isso.
+```
+
+1. Cadastrem no G360 uma promoção para o comprador de teste: um produto com oferta a partir de 1 unidade e outro a partir de 5. O primeiro mostra o selo "Oferta", o preço de antes riscado e o desconto. O segundo mostra "Leve 5 e pague R$ X cada", com o preço normal.
+2. Ponham 3 unidades do segundo no carrinho e revisem. Aparece "Leve mais 2 e pague R$ X cada", e o preço continua o normal. Com 5, o preço da revisão passa a ser o da oferta.
+3. Entrem com o outro comprador de teste, que não está na promoção. Ele não vê o selo.
+4. Depois do término da promoção, o selo some sem mudar nada no portal.
+
+### Página de promoções
+
+```text
+Crie a página "Promoções" seguindo a "Página de promoções" da seção 8 das
+instruções e o contrato openapi-integracoes-promocoes.yaml. A chamada à API
+das integrações sai de uma função do Supabase própria, com a chave, a URL e
+a empresa nos segredos dela. O cliente da consulta é sempre o do GET me
+feito pela função com o token do comprador. A página mostra só os produtos
+que o catálogo devolver com o bloco promocao, com o preço do catálogo.
+```
+
+1. Entrem com o comprador de teste. A página lista os dois produtos da promoção, com o mesmo preço do catálogo e o término.
+2. Abram a aba Rede do navegador. A chave das integrações não aparece em nenhuma chamada, e a resposta da função não traz valor nem meta.
+3. Chamem a função mandando no corpo o código do outro comprador de teste. A resposta continua sendo a do comprador logado.
+4. Chamem a função sem token ou com um token vencido. Ela recusa, e a página mostra "Promoções indisponíveis no momento".
+
 ## Etapa 10. Painel do operador
 
 ```text
@@ -241,6 +271,65 @@ de operador vindo do navegador.
 2. Entrem com um vendedor de carteira restrita. Ele só encontra os clientes dele. O cliente de outro vendedor não aparece.
 3. Tirem no painel de vocês uma aba de um usuário. Ele deixa de ver a aba e, chamando direto, o servidor de vocês recusa.
 4. Com o painel aberto, tentem ler a tabela de permissões direto pelo navegador, com a sessão do Supabase do painel. A leitura volta vazia.
+
+### Preços congelados na Minha Lista
+
+Façam depois das permissões da equipe. A API não muda: a consulta de preços congelados do painel já devolve o que é preciso, e o trabalho fica na função `ponte-g360` e no painel.
+
+```text
+Crie no painel o botão "Levar preços congelados para a Minha Lista", na
+tela do cliente onde fica o preço congelado. Ele leva para a Minha Lista
+daquele cliente todos os produtos com preço congelado vigente. Siga a
+seção 11 das instruções. Antes de escrever código, me explique o plano em
+até 10 linhas.
+
+1. Crie na função ponte-g360 uma ação própria do painel, por exemplo
+   "levar_congelados_para_lista". Ela recebe o token do operador e o
+   código do cliente (o "codigo" da ficha de GET operadores/clientes/{cliente}).
+   Nada mais vem do navegador: a lista de produtos sai só da API.
+2. Na função, com o token do operador:
+   a) chame GET operadores/me. Se permissoes.precos_congelados vier falso,
+      recuse sem gravar nada;
+   b) chame GET operadores/clientes/{cliente}/precos-congelados e percorra
+      todas as páginas, mandando apos com o valor de proximo até ele vir
+      null. A API confere o acesso e se o cliente está no recorte do
+      operador. Se ela recusar, devolva ao painel a erro.mensagem dela e
+      não grave nada;
+   c) se disponivel vier false, avise que o G360 da loja ainda não tem
+      preço congelado e não grave nada.
+3. Fique só com os registros que valem hoje: situacao igual a "ativo" e a
+   data de hoje, no horário de Brasília, entre inicio e fim, contando os
+   dois dias. Encerrados, vencidos e os que ainda não começaram ficam fora.
+4. Tire os produtos repetidos: o mesmo produto pode ter preço congelado em
+   mais de uma unidade, e a Minha Lista guarda só o produto_id.
+5. Grave na tabela public.minha_lista com a chave secreta, que fica só nos
+   segredos da função: loja = o slug da loja da configuração da função,
+   comprador_codigo = o código do cliente, produto_id = o campo "produto"
+   de cada registro. Use upsert com ignoreDuplicates true pela chave
+   (loja, comprador_codigo, produto_id), para o que já está na lista
+   continuar como está. Não grave valor, unidade nem datas: o preço na
+   Minha Lista continua vindo do catálogo, pelo filtro ids.
+6. Devolva ao painel quantos produtos entraram e quantos já estavam, e
+   mostre "N produtos incluídos, M já estavam na Minha Lista".
+7. Mostre o botão só quando permissoes.precos_congelados vier verdadeiro.
+   Antes de executar, peça confirmação com este aviso: "Os produtos que o
+   cliente tirou da lista voltam se estiverem com preço congelado."
+
+Não mude a regra de acesso da minha_lista nem dê ao navegador do painel
+permissão de gravar nela: a gravação é só pela função. Não crie cópia do
+preço congelado no Supabase. Do lado do comprador nada muda.
+```
+
+1. Congelem pelo painel o preço de dois produtos para o comprador de teste, um deles em duas unidades. Apertem o botão. Entram dois produtos, e não três.
+2. Entrem como esse comprador. Os dois produtos aparecem na Minha Lista com o selo "Seu preço". O valor é o congelado, ou o da tabela quando ela for menor, como no catálogo.
+3. Apertem o botão de novo. A mensagem diz que nenhum produto entrou e que os dois já estavam.
+4. O comprador tira um dos produtos da lista. Apertem o botão. O produto volta, como avisa a confirmação.
+5. Entrem com um operador sem o acesso de preço congelado. O botão não aparece e, chamando a ação da função direto com o token dele, ela recusa e nada é gravado.
+6. Com um vendedor de carteira restrita, chamem a ação para um cliente de outro vendedor. A API recusa, a mensagem dela aparece e nada é gravado.
+7. Chamem a ação mandando uma lista de produtos no corpo. A função ignora a lista: só entram os produtos que a API devolveu.
+8. Com o outro comprador de teste, de Minha Lista vazia, congelem um produto e encerrem esse preço em seguida, e congelem outro produto com início amanhã. Apertem o botão para ele. Nenhum dos dois entra, e ele continua sem ver a lista do primeiro.
+
+O botão faz uma cópia na hora do clique, e não uma ligação permanente. Encerrar um preço congelado não tira o produto da lista: ele continua lá, com o preço normal e sem o selo. Um preço congelado depois precisa de outro clique, ou o painel pode oferecer a inclusão do produto logo depois de gravar o preço. Cada clique faz uma chamada a `GET operadores/me` e uma por página de até 100 preços congelados, que contam no limite da loja como as outras chamadas da função.
 
 ## Etapa 11. Ocorrências do fornecedor
 
