@@ -171,6 +171,16 @@ async function desenhar() {
   }
   painelCarregado?.sairDaTelaAdmin();
 
+  // Área do executivo de contas: tela própria, baixada só quando alguém abre /executivo.
+  if (c === '/executivo') {
+    modo('cartao');
+    const conteudo = cascaCartao();
+    const { telaExecutivo } = await import('./telas/executivo.js');
+    if (minhaTela !== numeroTela) return;
+    telaExecutivo({ conteudo, titulo: document.getElementById('g360Titulo') });
+    return;
+  }
+
   if (CARTAO[c]) {
     modo('cartao');
     const conteudo = cascaCartao();

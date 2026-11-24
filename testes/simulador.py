@@ -737,8 +737,25 @@ class Sim:
                 return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({
                     'access_token': at, 'refresh_token': 'r', 'token_type': 'bearer', 'expires_in': 3600, 'expires_at': int(time.time()) + 3600,
                     'user': {'id': 'painel', 'aud': 'authenticated', 'email': 'painel@example.invalid', 'app_metadata': {'g360_painel_loja': LOJA}, 'user_metadata': {}}}))
+            # Área do executivo: e-mail + senha cadastrados no painel (exec_senhas por id do executivo).
+            e = next((x for x in getattr(self, 'executivos', []) if x.get('email') == corpo.get('email') and getattr(self, 'exec_senhas', {}).get(x['id']) == corpo.get('password')), None)
+            if e:
+                at = self.jwt('ex-' + e['id'], {'app_metadata': {'g360_executivo': e['id'], 'g360_loja': LOJA}})
+                self.supa[at] = {'executivo': e['id'], 'vinculo': time.time() + 3600}
+                return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({
+                    'access_token': at, 'refresh_token': 'r', 'token_type': 'bearer', 'expires_in': 3600, 'expires_at': int(time.time()) + 3600,
+                    'user': {'id': 'ex-' + e['id'], 'aud': 'authenticated', 'email': e['email'], 'app_metadata': {}, 'user_metadata': {}}}))
             return route.fulfill(status=400, headers=cab, content_type='application/json', body='{"error":"invalid_grant","error_description":"Invalid login credentials"}')
         tabela = p.replace('/rest/v1/', '')
+        if tabela in ('executivos', 'executivo_clientes', 'comissoes'):
+            # RLS: só o executivo logado (e ativo) lê as próprias linhas; qualquer outra sessão recebe lista vazia.
+            eid = (s or {}).get('executivo'); e = next((x for x in getattr(self, 'executivos', []) if x['id'] == eid and x['ativo']), None)
+            if not e: return route.fulfill(status=200, headers=cab, content_type='application/json', body='[]')
+            cols = {'executivos': ['id', 'codigo', 'nome'], 'executivo_clientes': ['id', 'razao_social', 'situacao', 'inicio', 'fim', 'criado_em'],
+                    'comissoes': ['id', 'pedido_data', 'pedido_numero', 'competencia', 'base', 'percentual', 'valor', 'situacao', 'paga_em']}[tabela]
+            fonte = [e] if tabela == 'executivos' else [x for x in getattr(self, 'vinculos' if tabela == 'executivo_clientes' else 'comissoes', []) if x['executivo_id'] == eid]
+            self.chamadas.append(('EXEC_RLS', tabela, eid))
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps([{k: x.get(k) for k in cols} for x in fonte]))
         valido = s and time.time() < s['vinculo'] and not s.get('painel')
         q = parse_qs(u.query)
         if tabela == 'minha_lista':
