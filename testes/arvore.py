@@ -9,6 +9,14 @@ falhas = []
 def checar(c, m):
     if not c: falhas.append(m)
 
+def ir_dep(pg, nome):
+    """Abre um departamento pelo menu ☰ Departamentos (a barra agora só tem o menu e os atalhos de seção)."""
+    pg.click('#cats [data-deps]'); pg.wait_for_selector('#mDeps .dm-item')
+    pg.click('#mDeps button[data-dep]:has-text("%s")' % nome); pg.wait_for_timeout(300)
+    # no computador, o departamento já aberto vai direto no clique; nos outros casos, "Ver tudo em ..."
+    if pg.locator('#mDeps').count(): pg.click('#mDeps .dm-secs .dm-tudo')
+    pg.wait_for_function("document.getElementById('depTit')?.textContent === %r" % nome)
+
 sim = Sim()
 nomes = {'P-120': 'Saco para Lixo Fictício 100L Preto', 'P-121': 'Saco para Lixo Fictício 100L Branco Infectante', 'P-122': 'Saco p Lixo Fictício 60L Preto',
          'P-123': 'Pano Multiuso Fictício Azul', 'P-124': 'Detergente Fictício Neutro 500ml', 'P-125': 'Vassoura Fictícia Pelo', 'P-126': 'Esponja Fictícia Dupla Face'}
@@ -34,7 +42,12 @@ with sync_playwright() as pw:
         pg.eval_on_selector('#tbConta', 'b => b.click()'); pg.wait_for_selector('#lgC'); pg.fill('#lgC', quem); pg.fill('#lgS', sim.compradores[quem]['senha']); pg.click('#lgOk')
         pg.wait_for_selector('body.logged #grid .card'); pg.wait_for_timeout(800)
         # departamento → faixa de seções (sem a seção vazia)
-        pg.click('#cats .chip[data-c="Limpeza"]'); pg.wait_for_selector('#depCab:not([hidden]) h1')
+        # barra: só ☰ Departamentos + atalhos das seções mais procuradas (sem a lista de departamentos)
+        pg.wait_for_selector('#cats .chip.atalho')
+        checar(pg.locator('#cats .chip[data-s=""]').count() == 0 and pg.locator('#cats .chip:not(.deps):not(.atalho)').count() == 0, 'barra ainda com departamentos')
+        checar(pg.locator('#cats .chip.atalho svg').count() == pg.locator('#cats .chip.atalho').count(), 'atalho sem desenho')
+        checar(pg.locator('#cats .chip.atalho', has_text='Vazia').count() == 0, 'seção vazia nos atalhos')
+        ir_dep(pg, 'Limpeza')
         if largura < 1000: pg.click('#depFiltrar'); pg.wait_for_selector('#mSecs')
         sub = ' '.join(pg.inner_text('#mSecs' if largura < 1000 else '#depLado').split())
         if largura < 1000: pg.keyboard.press('Escape')
@@ -98,7 +111,9 @@ with sync_playwright() as pw:
     ctx = br.new_context(viewport={'width': 390, 'height': 900}); pg = ctx.new_page(); erros = []
     pg.on('pageerror', lambda e: erros.append(str(e))); pg.route('**/*', sim.rota)
     pg.goto(BASE + '/'); pg.wait_for_selector('#grid .card')
-    pg.click('#cats .chip[data-c="Limpeza"]'); pg.wait_for_selector('#depCab:not([hidden]) h1')
+    pg.click('#cats .chip.atalho:has-text("Sacos de lixo")'); pg.wait_for_selector('#depCab:not([hidden]) h1')
+    checar(pg.inner_text('#depTit') == 'Sacos de lixo' and pg.evaluate('location.pathname') == '/limpeza/sacos-de-lixo', 'atalho da seção (visitante)')
+    ir_dep(pg, 'Limpeza')
     secao(pg, 390, sid); pg.wait_for_timeout(1500)
     g = ' '.join(' '.join(cards(pg)).split())
     checar('Saco' in g and 'Pano' not in g and 'Entre para ver' in pg.inner_text('#cnt') + g, f'visitante na seção: {g[:200]}')

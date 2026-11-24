@@ -168,3 +168,10 @@ Pedidos e perguntas:
 ## Continuar conectado marcado por padrão (24/11)
 A Souza Ribeiro decidiu que a caixa **Continuar conectado** venha **marcada** no login e na página de senha nova (link do e-mail), com o aviso "Desmarque em computador compartilhado". O kit da Movimento pedia a caixa desmarcada. O portal continua mandando `continuar_conectado` como booleano e seguindo o valor efetivo da resposta; a sessão longa segue as regras da API (uso a cada N dias e novo login com senha após 90 dias).
 Pergunta: a Movimento tem alguma objeção ou exigência para a caixa vir marcada? Confirmar antes de levar para produção.
+
+## Cupom de desconto no pedido (24/11)
+A Souza Ribeiro quer um cupom de boas-vindas (exemplo: R$ 50 de desconto em pedidos acima de R$ 200, só na primeira compra). O contrato B2B (`api-sistemas-externos-2026-11-19.yaml`) não tem cupom nem desconto em `POST revisoes` ou `POST pedidos`, e o portal não pode calcular desconto nem total no navegador (a API não aceita valor vindo da tela).
+Pedidos e perguntas:
+1. Existe ou está previsto um campo de cupom (código) na revisão e no pedido, com o desconto devolvido pela revisão (no total e na `assinatura`) e gravado no pedido do G360?
+2. Onde a equipe cadastraria o cupom (valor fixo ou percentual, valor mínimo do pedido, validade, uso único por cliente, só primeira compra)?
+3. Quais pendências/códigos de erro a revisão devolveria (cupom inválido, vencido, já usado, pedido abaixo do mínimo)?
