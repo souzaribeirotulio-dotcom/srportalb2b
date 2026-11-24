@@ -139,3 +139,66 @@ body.g360 > *:not(.fundo):not(#g360Entrada) { display: none !important; }
 .exa-st.recusado, .exa-st.removido { background: rgba(255, 107, 107, .12); color: #ff9a9a; }
 footer .rodape-exec { color: inherit; opacity: .75; }
 .exa-topo .g360-btn { width: auto; min-height: 44px; padding: 0 16px; }
+
+/* Área do executivo: painel de vendas (celular empilha; computador em duas colunas) */
+.g360-cartao.g360-cartao-exec { max-width: 1180px; }
+.exa-grade { display: grid; gap: 0 28px; text-align: left; }
+.exa-vcab { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.exa-vcab h2 { margin: 0; }
+.exa-per { display: flex; gap: 6px; flex-wrap: wrap; }
+.exa-per button, .exa-per select { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--linha2); background: transparent; color: var(--tx); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.exa-per select { padding-right: 10px; background: rgba(0, 0, 0, .2); }
+.exa-per button[aria-pressed="true"], .exa-per select.on { background: var(--lima); color: #132c09; border-color: var(--lima); }
+.exa-per button:focus-visible, .exa-per select:focus-visible, .exa-pedido summary:focus-visible { outline: 3px solid var(--lima); outline-offset: 2px; }
+.exa-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 14px 0 6px; }
+.exa-kpis div { padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, .045); border: 1px solid rgba(255, 255, 255, .05); }
+.exa-kpis small { display: block; color: var(--tx2); font-size: 12px; }
+.exa-kpis b { display: block; font-size: 20px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.exa-kpis .dest { background: rgba(178, 224, 74, .12); border-color: rgba(178, 224, 74, .28); }
+.exa-kpis .dest b { color: var(--lima); }
+.exa-h3 { font-size: 15px; margin: 18px 0 8px; color: var(--tx); }
+.exa-pedidos, .exa-porcli { display: grid; gap: 6px; }
+.exa-pedido { border-radius: 12px; background: rgba(255, 255, 255, .035); }
+.exa-pedido.off { opacity: .55; }
+.exa-pedido summary { list-style: none; display: grid; grid-template-columns: 1fr auto; grid-template-areas: "cli val" "quando st"; gap: 2px 12px; padding: 12px; cursor: pointer; min-height: 44px; align-items: center; }
+.exa-pedido summary::-webkit-details-marker { display: none; }
+.exa-p-cli { grid-area: cli; min-width: 0; }
+.exa-p-cli b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exa-p-cli small, .exa-p-val small { display: block; color: var(--tx2); font-size: 12px; }
+.exa-p-quando { grid-area: quando; color: var(--tx2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.exa-p-val { grid-area: val; text-align: right; font-variant-numeric: tabular-nums; }
+.exa-sc { grid-area: st; justify-self: end; max-width: none; }
+.exa-st.prevista, .exa-st.faturada { background: rgba(255, 200, 80, .14); color: #ffd27a; }
+.exa-st.liberada, .exa-st.paga { background: rgba(178, 224, 74, .16); color: var(--lima, #b2e04a); }
+.exa-st.cancelada { background: rgba(255, 107, 107, .12); color: #ff9a9a; }
+.exa-itens { padding: 0 12px 12px; }
+.exa-itens ul { list-style: none; margin: 0 0 8px; padding: 8px 0 0; border-top: 1px solid var(--linha2); display: grid; gap: 4px; }
+.exa-itens li { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+.exa-itens li b { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.exa-pc { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, .035); font-size: 14px; }
+.exa-pc small { display: block; color: var(--tx2); font-size: 12px; margin-top: 2px; }
+.exa-pc > span:last-child { text-align: right; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.exa-pc.parado { opacity: .7; }
+.exa-vazio { padding: 16px; border-radius: 12px; border: 1px dashed var(--linha2); color: var(--tx2); font-size: 14px; }
+.exa-nota { margin-top: 12px; }
+.exa-lado .exa-tot b { font-size: 15px; }
+@media (min-width: 640px) {
+  .exa-kpis { grid-template-columns: repeat(4, 1fr); }
+  .exa-pedido summary { grid-template-columns: minmax(0, 1fr) 90px 150px 96px; grid-template-areas: "cli quando val st"; }
+  .exa-p-quando { text-align: center; }
+}
+@media (min-width: 1000px) {
+  .g360-cartao.g360-cartao-exec { padding: 28px 32px 26px; }
+  .exa-grade { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
+  .exa-lado { position: sticky; top: 16px; }
+  .exa-lado .exa-bloco:first-child, .exa-principal .exa-bloco:first-child { border-top: 0; padding-top: 0; margin-top: 4px; }
+  .exa-lado .exa-bloco { padding: 16px; border: 1px solid var(--linha2); border-radius: 16px; background: rgba(0, 0, 0, .14); margin-top: 12px; }
+  .exa-lado .exa-bloco:first-child { padding-top: 16px; }
+  .exa-lado .exa-cli { max-height: 340px; overflow: auto; }
+  .exa-topo { padding-bottom: 14px; border-bottom: 1px solid var(--linha2); margin-bottom: 18px; }
+}
+.exa-obs { color: var(--tx3); font-size: 12px; margin: 0; line-height: 1.45; }
+.exa-lado .exa-obs { margin-top: 4px; }
+.exa-cli .exa-st { white-space: nowrap; max-width: none; }
+.exa-cli .exa-l > span:first-child { min-width: 0; }
+.exa-obs.exa-nota { margin-top: 12px; }

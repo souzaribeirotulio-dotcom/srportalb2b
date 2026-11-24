@@ -23,6 +23,10 @@ def produto(i, **k):
          'compravel': True, 'disponibilidade': 'disponivel', 'faixa_disponibilidade': 'em_estoque', 'aviso': None, 'unidades': [], 'kit': None, 'quantidade_disponivel': None}
     p.update(k); return p
 
+def hoje_br():
+    return time.strftime('%Y-%m-%d', time.gmtime(time.time() - 3 * 3600))
+
+
 class Sim:
     def __init__(self, sessao_minutos=8, troca_senha=True):
         self.loja = {'nome': 'Loja Exemplo Fictícia', 'troca_senha': troca_senha, 'sessao_minutos': sessao_minutos, 'imagens': None, 'pedido_minimo': '150.00', 'bloqueia_sem_estoque': True}
@@ -417,7 +421,8 @@ class Sim:
         if base <= 0: return
         pct = Decimal(str(e['percentual'] if e.get('percentual') is not None else getattr(self, 'exec_cfg', {}).get('percentual', 3)))
         com.append({'id': str(uuid.uuid4()), 'executivo_id': e['id'], 'vinculo_id': v['id'], 'cliente_codigo': r['comprador_codigo'], 'pedido_ref': ref, 'pedido_numero': r.get('pedido_numero'),
-                    'pedido_data': '2026-11-24', 'competencia': '2026-11-01', 'base': float(base.quantize(Decimal('0.01'))), 'percentual': float(pct),
+                    'pedido_data': hoje_br(), 'pedido_em': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'competencia': hoje_br()[:8] + '01',
+                    'itens': [{'nome': str(i.get('nome') or i.get('codigo') or 'Produto')[:120], 'quantidade': str(i.get('quantidade'))} for i in (r.get('itens') or [])[:100]], 'base': float(base.quantize(Decimal('0.01'))), 'percentual': float(pct),
                     'valor': float((base * pct / 100).quantize(Decimal('0.01'))), 'situacao': 'prevista', 'faturado_em': None, 'liberada_em': None, 'paga_em': None, 'observacao': None})
 
     # ---------- ponte e Supabase ----------
@@ -708,7 +713,7 @@ class Sim:
             eid = (s or {}).get('executivo'); e = next((x for x in getattr(self, 'executivos', []) if x['id'] == eid and x['ativo']), None)
             if not e: return route.fulfill(status=200, headers=cab, content_type='application/json', body='[]')
             cols = {'executivos': ['id', 'codigo', 'nome'], 'executivo_clientes': ['id', 'razao_social', 'situacao', 'inicio', 'fim', 'criado_em'],
-                    'comissoes': ['id', 'pedido_data', 'pedido_numero', 'competencia', 'base', 'percentual', 'valor', 'situacao', 'paga_em']}[tabela]
+                    'comissoes': ['id', 'vinculo_id', 'pedido_data', 'pedido_em', 'pedido_numero', 'itens', 'competencia', 'base', 'percentual', 'valor', 'situacao', 'paga_em']}[tabela]
             fonte = [e] if tabela == 'executivos' else [x for x in getattr(self, 'vinculos' if tabela == 'executivo_clientes' else 'comissoes', []) if x['executivo_id'] == eid]
             self.chamadas.append(('EXEC_RLS', tabela, eid))
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps([{k: x.get(k) for k in cols} for x in fonte]))
