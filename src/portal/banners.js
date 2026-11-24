@@ -36,7 +36,9 @@ function parar() { clearInterval(timer); timer = null; }
 const celular = () => matchMedia('(max-width: 640px)').matches;
 // Vídeo só para quem não pediu menos movimento nem economia de dados; senão fica a imagem.
 const podeVideo = () => !matchMedia('(prefers-reduced-motion: reduce)').matches && !navigator.connection?.saveData;
-const videoDe = (b) => (podeVideo() ? (celular() ? (b.video_celular || b.video_desktop) : (b.video_desktop || b.video_celular)) : null);
+// No celular, o vídeo do computador (largo) só entra se não houver imagem de celular: com ela, o vídeo
+// largo seria cortado nas laterais ou ficaria baixinho, e a imagem 1080×540 ocupa o espaço certo.
+const videoDe = (b) => (podeVideo() ? (celular() ? (b.video_celular || (b.img_celular ? null : b.video_desktop)) : (b.video_desktop || b.video_celular)) : null);
 
 /** Toca o vídeo do banner da vez (do começo) e pausa os outros. Devolve o vídeo tocando, se houver. */
 function tocarAtual(el, i) {

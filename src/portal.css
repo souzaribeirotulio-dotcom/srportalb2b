@@ -347,7 +347,7 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
   .bnr { padding: 0; margin-top: 0; }
   .bnr-trilho { border-radius: 0; }
   .bnr-trilho { align-items: center; }
-  .bnr-slide { flex: 0 0 100%; aspect-ratio: var(--ar, 2 / 1); }
+  .bnr-slide { flex: 0 0 100%; aspect-ratio: 2 / 1; }
   .bnr-slide:not(:has(source)) { aspect-ratio: var(--ar, 16 / 5); }
   .bnr-seta { display: none; }
   .bnr-pontos { bottom: 4px; }
