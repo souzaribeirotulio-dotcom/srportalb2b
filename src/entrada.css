@@ -108,3 +108,4 @@ body.g360 > *:not(.fundo):not(#g360Entrada) { display: none !important; }
 .g360-form .g360-check input[type="checkbox"] { width: 18px; height: 18px; min-height: 0; padding: 0; margin: 0; border-radius: 4px; flex: none; background: none; accent-color: var(--lima); cursor: pointer; }
 /* Título recebe o foco ao abrir (leitor de tela), sem a moldura que parece um campo. */
 .g360-cartao [tabindex="-1"]:focus { outline: none; }
+.g360-dica { display: block; margin: -4px 0 6px; font-size: 13px; color: var(--tx3); }

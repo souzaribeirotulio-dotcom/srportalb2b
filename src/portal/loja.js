@@ -180,6 +180,11 @@ export function mostrarLoja(contexto, rota, params = [], estado = {}) {
   } else if (estado.aviso === 'senha_definida') {
     abrirLogin(null, null, 'Senha definida. Agora é só entrar com o seu CPF ou CNPJ e a senha nova.');
   } else if (estado.aviso === 'saiu') toast('Você saiu da conta');
+  else if (estado.aviso === 'entrou_senha_nova' && sessao.ativa) {
+    // Entrou pela página de senha nova: mesmos passos do login comum.
+    pintarChamadaCadastro(); limparEventosSessao(); registrarAcesso();
+    toast(`Senha criada. Bem-vindo, ${sessao.comprador?.fantasia || sessao.comprador?.nome || ''}!`);
+  }
   if (rota === 'cat') { desenharHero(); desenharChips(); desenharCatalogo(); }
   if (rota === 'lista') desenharMinhaLista(ctx);
   if (rota === 'ped') { desenharPedidos(ctx, params[0]); desenharMinhasNegociacoes(); }

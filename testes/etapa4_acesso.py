@@ -122,6 +122,10 @@ with sync_playwright() as pw:
     pg.fill('#g360Senha2', 'xyz')
     checar(pg.get_attribute('[data-r="igu"]', 'data-st') == 'bad', 'senhas diferentes não marcadas')
     pg.screenshot(path=f'{OUT}/regra_senha.png', full_page=True)
+    pg.click('#g360SalvarSenha')
+    checar('Digite o CPF ou CNPJ' in pg.inner_text('#g360SenhaErro'), 'documento vazio não acusado (teste que tem de dar erro)')
+    checar(pg.locator('#g360Cont').count() == 0, 'Continuar conectado sem continuar_conectado_dias')
+    pg.fill('#g360Doc', DOC)
     pg.fill('#g360Senha1', 'abc'); pg.fill('#g360Senha2', 'abc'); pg.click('#g360SalvarSenha')
     checar('não segue a regra' in pg.inner_text('#g360SenhaErro'), 'regra não conferida')
     pg.fill('#g360Senha1', 'Teste12'); pg.fill('#g360Senha2', 'Teste13'); pg.click('#g360SalvarSenha')
@@ -132,6 +136,7 @@ with sync_playwright() as pw:
     pg.fill('#g360Senha2', 'Teste12'); pg.click('#g360SalvarSenha')
     pg.wait_for_selector('#mLogin.open #lgRes .rv-aviso')
     checar(pg.evaluate('location.pathname') == '/', 'não voltou à entrada depois do 204')
+    # A entrada automática falhou (sem API de sessão neste teste): a senha ficou criada e vai para o login.
     checar('Senha definida' in pg.text_content('#lgRes'), 'aviso de senha definida ausente')
     corpo = json.loads(reg['senha'][0]['corpo'])
     checar(corpo == {'token': TOKEN, 'senha_nova': 'Teste12'}, f'corpo de acessos/senha diferente: {corpo}')
@@ -149,7 +154,7 @@ with sync_playwright() as pw:
     # 6) Link usado ou vencido: mensagem como veio + pedir outro link
     usado = lambda rt: rt.fulfill(status=422, json=env('LINK_INVALIDO', 'O link é inválido ou expirou. Solicite um novo link.', 'usuario', '9988776655443322'))
     br, pg, reg = abrir(pw, '/definir-senha#token=' + TOKEN, senha=usado)
-    pg.fill('#g360Senha1', 'Outra12'); pg.fill('#g360Senha2', 'Outra12'); pg.click('#g360SalvarSenha')
+    pg.fill('#g360Doc', DOC); pg.fill('#g360Senha1', 'Outra12'); pg.fill('#g360Senha2', 'Outra12'); pg.click('#g360SalvarSenha')
     pg.wait_for_selector('#g360Resultado .g360-msg')
     t = pg.inner_text('#g360Resultado')
     checar('O link é inválido ou expirou. Solicite um novo link.' in t, 'LINK_INVALIDO não apareceu como veio')
@@ -163,7 +168,7 @@ with sync_playwright() as pw:
     # 7) Senha recusada pela API (ex.: igual ao código de cliente): mensagem como veio, formulário continua
     recusa = lambda rt: rt.fulfill(status=422, json=env('SENHA_NOVA_INVALIDA', 'A senha deve ser diferente do código do cliente.', 'usuario'))
     br, pg, reg = abrir(pw, '/definir-senha#token=' + TOKEN, senha=recusa)
-    pg.fill('#g360Senha1', '123456'); pg.fill('#g360Senha2', '123456'); pg.click('#g360SalvarSenha')
+    pg.fill('#g360Doc', DOC); pg.fill('#g360Senha1', '123456'); pg.fill('#g360Senha2', '123456'); pg.click('#g360SalvarSenha')
     pg.wait_for_selector('#g360Resultado .g360-msg')
     checar('A senha deve ser diferente do código do cliente.' in pg.inner_text('#g360Resultado'), 'SENHA_NOVA_INVALIDA não apareceu')
     checar(pg.locator('#g360FormSenha').count() == 1 and not pg.locator('#g360SalvarSenha').is_disabled(), 'formulário não ficou disponível')

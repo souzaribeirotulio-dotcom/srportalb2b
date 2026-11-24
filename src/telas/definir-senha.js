@@ -3,6 +3,8 @@
    topo do index.html lê o fragmento e o apaga do endereço; aqui ele fica só
    em memória, nunca em storage, cookie, URL ou log. */
 import { gravarSenhaPorLink, ErroApi } from '../api/g360.js';
+import { entrar } from '../estado/sessao.js';
+import { descartarEnvioDeOutroComprador } from '../estado/envio.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { esc, focarTitulo } from '../ui/util.js';
 import { FORMATO_SENHA, REGRA_SENHA as REGRA, htmlRegraSenha, ligarRegraSenha } from '../ui/regra-senha.js';
@@ -41,10 +43,15 @@ export function telaDefinirSenha({ loja, conteudo, ir }) {
     return;
   }
 
+  // Continuar conectado: só com continuar_conectado_dias > 0 em GET loja; a caixa começa desmarcada.
+  const longa = Number(loja.continuar_conectado_dias) > 0;
   conteudo.innerHTML = `
     <h2 class="g360-sub">Definir senha</h2>
-    <p class="g360-info g360-esquerda">Crie a senha que você vai usar para entrar no portal.</p>
+    <p class="g360-info g360-esquerda">Crie a senha que você vai usar no portal. Ao salvar, você já entra.</p>
     <form class="g360-form" id="g360FormSenha" novalidate>
+      <label for="g360Doc">CPF ou CNPJ</label>
+      <input id="g360Doc" name="username" maxlength="32" autocomplete="username" autocapitalize="characters" spellcheck="false"
+        placeholder="Digite com ou sem pontuação" aria-describedby="g360SenhaErro">
       <label for="g360Senha1">Senha nova</label>
       <input id="g360Senha1" type="password" maxlength="8" autocomplete="new-password" spellcheck="false"
         autocapitalize="off" aria-describedby="g360Regra g360SenhaErro">
@@ -53,12 +60,15 @@ export function telaDefinirSenha({ loja, conteudo, ir }) {
       <input id="g360Senha2" type="password" maxlength="8" autocomplete="new-password" spellcheck="false"
         autocapitalize="off" aria-describedby="g360SenhaErro">
       <label class="g360-check"><input type="checkbox" id="g360Mostrar"> Mostrar senhas</label>
+      ${longa ? `<label class="g360-check"><input type="checkbox" id="g360Cont"> Continuar conectado</label>
+      <small class="g360-dica">Não marque em computador compartilhado.</small>` : ''}
       <small id="g360SenhaErro" class="g360-erro-campo" aria-live="polite"></small>
-      <button type="submit" class="g360-btn pri" id="g360SalvarSenha">Salvar senha</button>
+      <button type="submit" class="g360-btn pri" id="g360SalvarSenha">Criar senha e entrar</button>
     </form>
     <div id="g360Resultado" aria-live="polite"></div>`;
 
   const form = conteudo.querySelector('#g360FormSenha');
+  const docIn = conteudo.querySelector('#g360Doc');
   const s1 = conteudo.querySelector('#g360Senha1');
   const s2 = conteudo.querySelector('#g360Senha2');
   const erroCampo = conteudo.querySelector('#g360SenhaErro');
@@ -79,8 +89,10 @@ export function telaDefinirSenha({ loja, conteudo, ir }) {
 
   const salvar = async () => {
     erroCampo.textContent = '';
-    s1.removeAttribute('aria-invalid'); s2.removeAttribute('aria-invalid');
+    docIn.removeAttribute('aria-invalid'); s1.removeAttribute('aria-invalid'); s2.removeAttribute('aria-invalid');
+    const documento = docIn.value.trim();
     const senha = s1.value;
+    if (!documento) return marcar('Digite o CPF ou CNPJ do cadastro.', docIn);
     if (!FORMATO_SENHA.test(senha)) return marcar(`A senha não segue a regra: ${REGRA}`, s1);
     if (s2.value !== senha) return marcar('As duas senhas não são iguais.', s2);
 
@@ -90,8 +102,20 @@ export function telaDefinirSenha({ loja, conteudo, ir }) {
     try {
       await gravarSenhaPorLink(tokenDoLink, senha);
       tokenDoLink = '';
-      s1.value = s2.value = '';
-      ir('/', { aviso: 'senha_definida' });
+      // Senha gravada: entra direto com o documento e a senha que a pessoa acabou de digitar.
+      botao.textContent = 'Entrando…';
+      const continuar = longa && conteudo.querySelector('#g360Cont')?.checked === true;
+      try {
+        await entrar(documento, senha, continuar);
+        s1.value = s2.value = ''; docIn.value = '';
+        descartarEnvioDeOutroComprador();
+        ir('/', { aviso: 'entrou_senha_nova' });
+      } catch {
+        // A senha já está criada; se a entrada automática não deu (documento digitado errado, rede),
+        // vai para o login com o aviso de sempre. Sem nova tentativa automática.
+        s1.value = s2.value = '';
+        ir('/', { aviso: 'senha_definida' });
+      }
       return;
     } catch (e) {
       const codigo = e instanceof ErroApi ? e.codigo : null;
@@ -112,7 +136,7 @@ export function telaDefinirSenha({ loja, conteudo, ir }) {
       mostrarMensagemErro(resultado, e, { aoTentarDeNovo: () => salvar(), tentativa });
       if (codigo === 'SENHA_NOVA_INVALIDA') s1.setAttribute('aria-invalid', 'true');
       botao.disabled = false;
-      botao.textContent = 'Salvar senha';
+      botao.textContent = 'Criar senha e entrar';
     }
   };
 
