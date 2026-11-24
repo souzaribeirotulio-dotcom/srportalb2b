@@ -9,7 +9,7 @@ import { indexar, definirSinonimos } from './busca.js';
 
 const estado = { carregado: false, carregando: null, porCodigo: new Map(), porId: new Map(), categorias: [], secoes: [] };
 
-export const CATEGORIAS_PADRAO = ['Limpeza', 'Descartáveis e Embalagens', 'Higiene e Cuidados Pessoais', 'Café e Coffee Break', 'Alimentícios', 'Snacks e Doces', 'Bebidas', 'EPIs e Segurança', 'Escritório e Papelaria', 'Utilidades e Cia', 'Informática e Tecnologia', 'Festas e Brinquedos', 'Outros'];
+export const CATEGORIAS_PADRAO = ['Limpeza', 'Descartáveis', 'Embalagens', 'Copa & Alimentos', 'Higiene', 'Utensílios & EPI', 'Papelaria', 'Outros'];
 
 /* Cópia local da lista (nomes, categorias, sinônimos e configuração): da segunda visita em diante o catálogo
    aparece na hora com ela, e a lista nova chega por trás. São dados públicos do catálogo, nada do comprador. */
@@ -149,28 +149,7 @@ export function nomeExibicao(p) {
 
 export function categoriaExibicao(p) {
   const r = registro(p);
-  return r?.categoria || categoriaAutomatica(p?.nome_g360 ?? p?.nome, nomeExibicao(p));
-}
-
-const menorLex = (a, b) => { for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return a[i] < b[i]; return false; };
-/* Departamentos antigos → novos (para a regra antiga, usada só quando a árvore não reconhece o nome). */
-const ANTIGAS = { 'Descartáveis': 'Descartáveis e Embalagens', 'Embalagens': 'Descartáveis e Embalagens', 'Copa & Alimentos': 'Alimentícios', 'Higiene': 'Higiene e Cuidados Pessoais', 'Utensílios & EPI': 'EPIs e Segurança', 'Papelaria': 'Escritório e Papelaria', 'Utilidades Domésticas': 'Utilidades e Cia', 'Eletrônicos & Informática': 'Informática e Tecnologia', 'Festas & Brinquedos': 'Festas e Brinquedos' };
-/** Departamento automático pelo nome: o item de seção que bate com mais palavras (empate: o que aparece primeiro
-   no nome; depois a ordem dos departamentos e das seções). Igual à classificação feita no banco. */
-export function categoriaAutomatica(...nomes) {
-  const tk = palavrasDe(nomes.filter(Boolean).join(' '));
-  const cats = categorias(); const ordemCat = new Map(cats.map((c, i) => [c, i]));
-  let best = null;
-  for (const s of estado.secoes) {
-    if (s.pai || !ordemCat.has(s.categoria)) continue;
-    const m = melhorTermo(tk, s.termos); if (!m) continue;
-    const k = [-m.n, m.pos, ordemCat.get(s.categoria), s.ordem];
-    if (!best || menorLex(k, best.k)) best = { k, cat: s.categoria };
-  }
-  if (best) return best.cat;
-  const antiga = categoriaPeloNome(...nomes);
-  const nova = ANTIGAS[antiga] || antiga;
-  return cats.includes(nova) ? nova : (cats.includes('Outros') ? 'Outros' : nova);
+  return r?.categoria || categoriaPeloNome(p?.nome_g360 ?? p?.nome, nomeExibicao(p));
 }
 
 /** Produto da API com o nome do portal (o nome do G360 fica em nome_g360). */
