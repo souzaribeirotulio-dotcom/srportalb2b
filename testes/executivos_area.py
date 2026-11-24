@@ -74,6 +74,7 @@ with sync_playwright() as pw:
         pg.reload(); pg.wait_for_selector('#exLink')
         pg.click('#exSair'); pg.wait_for_selector('#exLogin')
         checar('saiu' in pg.inner_text('#g360Conteudo'), 'aviso ao sair')
+        pg.wait_for_timeout(400)
         # executivo desativado não entra
         joao['ativo'] = False
         pg.fill('#exEmail', 'joao@example.invalid'); pg.fill('#exSenha', 'SenhaJoao123'); pg.click('#exEntrar'); pg.wait_for_selector('#exLogin')
