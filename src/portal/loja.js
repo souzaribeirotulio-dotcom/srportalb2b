@@ -476,9 +476,11 @@ const POR_PAGINA = 24;
 let vitrine = null;   // { chave, apiPagina, apiPaginas, itens, fim }
 let busca = null;     // { chave, itens, semEstoque }
 
-/** Ordem escolhida em "Ordenar": por nome, ou pelo preço que a API mandou (só para exibir; com estoque primeiro). */
-function ordenar(lista) {
+/** Ordem escolhida em "Ordenar": por tipo (num departamento, a ordem da árvore: as águas sanitárias juntas, depois
+   os detergentes...), por nome no catálogo inteiro, ou pelo preço que a API mandou (só para exibir; com estoque primeiro). */
+function ordenar(lista, posicao) {
   const o = $('ord').value;
+  if (o === 'nome' && posicao) return lista.sort((a, b) => (posicao.get(String(a.codigo)) ?? 1e9) - (posicao.get(String(b.codigo)) ?? 1e9));
   const preco = (p) => { try { return new Decimal(p.preco ?? (o === 'menor' ? '1e15' : '-1')); } catch { return new Decimal(0); } };
   lista.sort((a, b) => (temEstoque(b) - temEstoque(a))
     || (o === 'menor' ? preco(a).cmp(preco(b)) : o === 'maior' ? preco(b).cmp(preco(a)) : (pesoCurva(a) - pesoCurva(b)) || a.nome.localeCompare(b.nome, 'pt')));
@@ -492,9 +494,11 @@ async function resultadoVitrine() {
   // da API (antes, a reordenação jogava produtos da página anterior para a seguinte e alguns nunca apareciam).
   if (!vitrine || vitrine.chave !== chave) vitrine = { chave, apiPagina: 0, apiPaginas: 1, itens: [], ids: new Set(), fixos: 0, fim: false };
   const precisa = filtros.pagina * POR_PAGINA + 1;
-  // Categoria do portal: a API aceita até 500 códigos por consulta, então vai em blocos de 500.
+  // Departamento/seção do portal: os códigos já vêm na ordem por tipo; vão em blocos de 50 (uma página da API cada),
+  // na mesma ordem, para a página 2 continuar de onde a 1 parou (blocos grandes voltavam na ordem da API e misturavam).
   const codigos = codigosDoFiltro(filtros);
-  const blocos = codigos ? Array.from({ length: Math.ceil(codigos.length / 500) }, (_, i) => codigos.slice(i * 500, i * 500 + 500)) : [null];
+  const blocos = codigos ? Array.from({ length: Math.ceil(codigos.length / 50) }, (_, i) => codigos.slice(i * 50, i * 50 + 50)) : [null];
+  const posicao = codigos ? new Map(codigos.map((c, i) => [String(c), i])) : null;
   if (codigos && !codigos.length) vitrine.fim = true;
   vitrine.bloco ??= 0;
   let lidas = 0;
@@ -518,7 +522,7 @@ async function resultadoVitrine() {
     }
   }
   // Só reordena o que ainda não foi mostrado; as páginas já vistas ficam como estavam.
-  const novos = vitrine.itens.splice(vitrine.fixos); ordenar(novos); vitrine.itens.push(...novos);
+  const novos = vitrine.itens.splice(vitrine.fixos); ordenar(novos, posicao); vitrine.itens.push(...novos);
   const ini = (filtros.pagina - 1) * POR_PAGINA;
   const itens = vitrine.itens.slice(ini, ini + POR_PAGINA);
   vitrine.fixos = Math.max(vitrine.fixos, Math.min(vitrine.itens.length, ini + POR_PAGINA));

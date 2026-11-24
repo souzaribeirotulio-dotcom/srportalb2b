@@ -84,10 +84,11 @@ export async function resultadoPublico(filtros) {
     const codigos = codigosDoFiltro(filtros).filter((c) => !set || set.has(String(c)));
     const chave = `g|${filtros.grupo}|${filtros.secao || ''}|${filtros.marca}|${filtros.pagina}`;
     if (!cache.has(chave)) {
-      // A página N da categoria: busca os códigos daquela fatia e ordena pela curva.
+      // A página N da categoria: busca os códigos daquela fatia, na ordem por tipo.
       const fatia = codigos.slice((filtros.pagina - 1) * POR_PAGINA, filtros.pagina * POR_PAGINA);
       const { dados } = fatia.length ? await listarVitrine({ codigos: fatia, marca, limite: 50 }) : { dados: [] };
-      cache.set(chave, { itens: dados.map(apresentar).filter((p) => !oculto(p)).sort((a, b) => (pesoCurva(a) - pesoCurva(b)) || a.nome.localeCompare(b.nome, 'pt')), total: codigos.length });
+      const pos = new Map(fatia.map((c, i) => [String(c), i])); // ordem por tipo (a da árvore)
+      cache.set(chave, { itens: dados.map(apresentar).filter((p) => !oculto(p)).sort((a, b) => (pos.get(String(a.codigo)) ?? 99) - (pos.get(String(b.codigo)) ?? 99)), total: codigos.length });
     }
     const r = cache.get(chave);
     return { itens: r.itens, total: r.total, paginas: Math.max(1, Math.ceil(r.total / POR_PAGINA)) };

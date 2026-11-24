@@ -29,8 +29,8 @@ import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { dinheiro, numeroPainel, dataBr } from '../ui/formato.js';
 import { $, esc, toast, abrirModal, fecharModal, adiar } from './comum.js';
 import { montarEditorSecoes } from './adminsecoes.js';
-import { carregarExibicao, codigosAtivosPublicos, esquecerAtivosPublicos, codigosOcultos, sinonimos as sinonimosPortal, categorias, registro, nomeExibicao, categoriaExibicao, codigosDaCategoria, aplicarLocal, definirCategoriasLocal } from '../catalogo/exibicao.js';
-import { nomeEcommerce, categoriaPeloNome } from '../catalogo/nomes.js';
+import { carregarExibicao, codigosAtivosPublicos, esquecerAtivosPublicos, codigosOcultos, sinonimos as sinonimosPortal, categorias, registro, nomeExibicao, categoriaExibicao, categoriaAutomatica, codigosDaCategoria, aplicarLocal, definirCategoriasLocal } from '../catalogo/exibicao.js';
+import { nomeEcommerce } from '../catalogo/nomes.js';
 import { buscarLocal } from '../catalogo/busca.js';
 import { fichaDoProduto, descricaoBasica } from '../catalogo/descricoes.js';
 import { supabaseComprador, LOJA } from '../api/supabase.js';
@@ -864,7 +864,7 @@ async function gerarTudo() {
       const linhas = dados.map((p) => {
         const r = registro(p);
         const nome = r && r.origem !== 'automatico' ? r.nome : nomeEcommerce(p.nome, p.marca?.nome || '');
-        return { codigo: String(p.codigo), produto_id: Number(p.id), nome, categoria: r && r.origem !== 'automatico' && r.categoria ? r.categoria : categoriaPeloNome(p.nome, nome), origem: 'automatico', nome_g360: p.nome };
+        return { codigo: String(p.codigo), produto_id: Number(p.id), nome, categoria: r && r.origem !== 'automatico' && r.categoria ? r.categoria : categoriaAutomatica(p.nome, nome), origem: 'automatico', nome_g360: p.nome };
       });
       if (linhas.length) {
         const res = await painel('exibicao_salvar', { linhas, preservar: true });
