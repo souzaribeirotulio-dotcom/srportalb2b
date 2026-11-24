@@ -114,11 +114,6 @@ function montar() {
     const b = e.target.closest('.chip'); if (!b) return;
     filtros.grupo = b.dataset.c; filtros.secao = ''; filtros.pagina = 1; marcarEndereco(); desenharChips(); desenharCatalogo();
   });
-  // Seções e linhas do departamento escolhido (segunda e terceira faixa).
-  $('subcats').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-s]'); if (!b) return;
-    filtros.secao = b.dataset.s; filtros.pagina = 1; marcarEndereco(); desenharChips(); desenharCatalogo();
-  });
 
   $('grid').addEventListener('click', cliqueCartao);
   ligarDetalhe();
@@ -253,7 +248,7 @@ function desenharChips() {
       if (sessao.ativa) return;
       el.innerHTML = BOTAO_DEPS + [['', 'Todos', ''], ...grupos.filter((g) => g.quantidade).map((g) => [g.codigo, g.nome, g.quantidade])]
         .map(([c, n, qt]) => `<button type="button" class="chip ${c === String(filtros.grupo) ? 'on' : ''}" data-c="${esc(c)}">${esc(n)}<span>${Number(qt) || ''}</span></button>`).join('');
-      desenharSubcats(); desenharTrilha();
+      desenharDepartamento();
     }).catch(() => { el.innerHTML = ''; });
     marcasPublicas().then((ms) => {
       if (sessao.ativa) return;
@@ -267,8 +262,7 @@ function desenharChips() {
   const total = classificacoes.total ?? '';
   el.innerHTML = BOTAO_DEPS + [['', 'Todos', total], ...grupos.map((g) => [String(g.codigo), g.nome, g.quantidade])]
     .map(([c, n, q]) => `<button type="button" class="chip ${c === String(filtros.grupo) ? 'on' : ''}" data-c="${esc(c)}">${esc(n)}<span>${Number(q) || ''}</span></button>`).join('');
-  desenharSubcats();
-  desenharTrilha();
+  desenharDepartamento();
 }
 
 /* ---------------- árvore: departamento → seção ---------------- */
@@ -293,19 +287,65 @@ function marcarEndereco() {
   if ((location.pathname.replace(/\/+$/, '') || '/') !== destino) history.pushState(null, '', destino);
   tituloDaPagina();
 }
-/** "Início › Limpeza › Sacos de lixo" acima dos produtos (cada parte leva de volta àquele nível). */
-function desenharTrilha() {
-  const el = $('trilha'); if (!el) return;
-  document.body.classList.toggle('com-dep', !!filtros.grupo && ctx?.rota === 'cat');
-  if (!filtros.grupo) { el.hidden = true; el.innerHTML = ''; return; }
-  const s = filtros.secao ? secaoPorId(filtros.secao) : null; const m = s?.pai ? secaoPorId(s.pai) : null;
-  const niveis = [['/', 'Início', '', ''], [null, filtros.grupo, filtros.grupo, '']];
-  if (m) niveis.push([null, m.nome, filtros.grupo, m.id]);
-  if (s) niveis.push([null, s.nome, filtros.grupo, s.id]);
-  el.innerHTML = niveis.map(([, nome, g, sid], i) => (i === niveis.length - 1
-    ? `<span aria-current="page">${esc(nome)}</span>` : `<button type="button" data-g="${esc(g)}" data-s="${esc(sid)}">${esc(nome)}</button>`)).join('<span class="sep" aria-hidden="true">›</span>');
-  el.hidden = false;
-  el.onclick = (e) => { const b = e.target.closest('button'); if (!b) return; filtros.grupo = b.dataset.g; filtros.secao = b.dataset.s; filtros.pagina = 1; marcarEndereco(); desenharChips(); desenharCatalogo(); };
+/* Ícone de cada departamento (pelo nome; o que não reconhecer fica com o carrinho). */
+const ICONES_DEP = [[/limp/, '🧽'], [/descart/, '🥤'], [/embal/, '📦'], [/copa|aliment|caf|bebid|snack/, '☕'], [/higien/, '🧻'], [/epi|utens|segur/, '🧤'],
+  [/papel|escrit|escol/, '✏️'], [/domest|casa|utilid/, '🏠'], [/eletr|inform|tecno/, '🔌'], [/festa|brinq/, '🎈']];
+const iconeDep = (nome) => { const n = String(nome).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); return (ICONES_DEP.find(([re]) => re.test(n)) || [0, '🛒'])[1]; };
+
+/** Página do departamento (como nos atacados online): cartão com o nome, a quantidade e o caminho
+ *  "Início › Limpeza › Sacos de lixo"; seções numa coluna à esquerda (computador) ou no botão Seções (celular). */
+async function desenharDepartamento() {
+  const cab = $('depCab'); const lado = $('depLado'); if (!cab || !lado) return;
+  const ativo = !!filtros.grupo && ctx?.rota === 'cat';
+  document.body.classList.toggle('com-dep', ativo);
+  if (!ativo) { cab.hidden = true; lado.hidden = true; cab.innerHTML = ''; lado.innerHTML = ''; return; }
+  const grupo = filtros.grupo;
+  await carregarExibicao();
+  const conta = await contadorAtivos();
+  if (grupo !== filtros.grupo) return; // trocou no meio
+  const secs = secoesDe(grupo).map((s) => ({ ...s, n: conta(codigosDaSecao(s.id)) })).filter((s) => s.n);
+  const total = conta(codigosDaCategoria(grupo, Infinity));
+  const atual = filtros.secao ? secaoPorId(filtros.secao) : null;
+  const n = atual ? (secs.find((s) => s.id === atual.id)?.n ?? 0) : total;
+  const trilha = [['Início', null, null], [grupo, grupo, '']].concat(atual ? [[atual.nome, grupo, atual.id]] : []);
+  cab.innerHTML = `<div class="dep-cab-in">
+      <span class="dep-ic" aria-hidden="true">${iconeDep(grupo)}</span>
+      <div class="dep-tx"><h1 id="depTit">${esc(atual ? atual.nome : grupo)}</h1>
+        <p>${n.toLocaleString('pt-BR')} produto${n === 1 ? '' : 's'}${atual ? ` em ${esc(grupo)}` : (secs.length ? ` · ${secs.length} seções` : '')}</p></div>
+      <nav class="dep-trilha" aria-label="Você está em">${trilha.map(([nome, g, sid], i) => (i === trilha.length - 1
+        ? `<span aria-current="page">${esc(nome)}</span>` : `<button type="button" data-ir-g="${esc(g ?? '')}" data-ir-s="${esc(sid ?? '')}" ${g === null ? 'data-inicio' : ''}>${esc(nome)}</button>`)).join('<span class="sep" aria-hidden="true">›</span>')}</nav>
+      ${secs.length ? `<button type="button" class="dep-filtrar" id="depFiltrar" aria-haspopup="dialog"><span aria-hidden="true">☰</span> Seções<small>${esc(atual ? atual.nome : 'Todas')}</small></button>` : ''}
+    </div>`;
+  cab.hidden = false;
+  const lista = () => `<ul role="list">${[{ id: '', nome: `Tudo em ${grupo}`, n: total }, ...secs].map((s) => `<li><button type="button" class="dep-sec ${(filtros.secao || '') === s.id ? 'on' : ''}" data-sec="${esc(s.id)}" ${(filtros.secao || '') === s.id ? 'aria-current="true"' : ''}><span>${esc(s.nome)}</span><small>${s.n}</small></button></li>`).join('')}</ul>`;
+  lado.innerHTML = secs.length ? `<b class="dep-lado-t">Seções</b>${lista()}` : '';
+  lado.hidden = !secs.length;
+  const escolher = (sid) => { filtros.secao = sid; filtros.pagina = 1; marcarEndereco(); desenharChips(); desenharCatalogo(); };
+  lado.onclick = (e) => { const b = e.target.closest('[data-sec]'); if (b) escolher(b.dataset.sec); };
+  cab.onclick = (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.id === 'depFiltrar') { abrirSecoesCelular(grupo, lista(), escolher); return; }
+    if (b.hasAttribute('data-inicio')) { filtros.grupo = ''; filtros.secao = ''; filtros.pagina = 1; marcarEndereco(); desenharChips(); desenharCatalogo(); return; }
+    if (b.dataset.irG !== undefined) escolher(b.dataset.irS || '');
+  };
+  const cat = $('cats')?.querySelector('.chip.on'); if (cat) { const f = cat.parentElement; f.scrollLeft = cat.offsetLeft - (f.clientWidth - cat.offsetWidth) / 2; }
+}
+
+/** Celular: lista de seções subindo de baixo (como o "Filtrar" dos atacados online). */
+function abrirSecoesCelular(grupo, html, escolher) {
+  document.getElementById('mSecs')?.remove();
+  const m = document.createElement('div');
+  m.id = 'mSecs'; m.className = 'sec-fundo'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-label', `Seções de ${grupo}`);
+  m.innerHTML = `<div class="sec-folha"><div class="sec-topo"><b>${esc(grupo)}</b><button type="button" class="dm-x" aria-label="Fechar">✕</button></div>${html}</div>`;
+  const fechar = () => { m.remove(); document.removeEventListener('keydown', tecla); $('depFiltrar')?.focus(); };
+  function tecla(e) { if (e.key === 'Escape') fechar(); }
+  document.addEventListener('keydown', tecla);
+  m.addEventListener('click', (e) => {
+    if (e.target === m || e.target.closest('.dm-x')) { fechar(); return; }
+    const b = e.target.closest('[data-sec]'); if (b) { fechar(); escolher(b.dataset.sec); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  });
+  document.body.appendChild(m);
+  (m.querySelector('.dep-sec.on') || m.querySelector('.dep-sec'))?.focus();
 }
 function tituloDaPagina() {
   const nome = ctx?.loja?.nome || 'Souza Ribeiro';
@@ -318,26 +358,6 @@ const BOTAO_DEPS = '<button type="button" class="chip deps" data-deps aria-haspo
 async function contadorAtivos() {
   const ativos = await codigosAtivosPublicos(); const set = ativos ? new Set(ativos) : null;
   return (cods) => cods.filter((c) => !set || set.has(String(c))).length;
-}
-
-/** Segunda faixa: seções do departamento escolhido. */
-async function desenharSubcats() {
-  const el = $('subcats'); if (!el) return;
-  const grupo = filtros.grupo;
-  if (!grupo) { el.hidden = true; el.innerHTML = ''; return; }
-  await carregarExibicao();
-  const conta = await contadorAtivos();
-  if (grupo !== filtros.grupo) return; // trocou no meio
-  const secs = secoesDe(grupo).map((s) => ({ ...s, n: conta(codigosDaSecao(s.id)) })).filter((s) => s.n);
-  if (!secs.length) { el.hidden = true; el.innerHTML = ''; return; }
-  const atual = filtros.secao ? secaoPorId(filtros.secao) : null;
-  const mae = atual ? secs.find((s) => s.id === (atual.pai || atual.id)) : null;
-  const chip = (id, nome, n, on) => `<button type="button" class="chip sub ${on ? 'on' : ''}" data-s="${esc(id)}" aria-pressed="${on}">${esc(nome)}${n ? `<span>${n}</span>` : ''}</button>`;
-  el.innerHTML = `<div class="sub-l1" role="group" aria-label="Seções de ${esc(grupo)}">${chip('', `Tudo em ${grupo}`, 0, !filtros.secao)}${secs.map((s) => chip(s.id, s.nome, s.n, mae?.id === s.id)).join('')}</div>`;
-  el.hidden = false;
-  // A escolha fica à vista na faixa (no celular a faixa rola de lado).
-  el.querySelectorAll('.chip.on').forEach((c) => { const f = c.parentElement; f.scrollLeft = c.offsetLeft - (f.clientWidth - c.offsetWidth) / 2; });
-  const cat = $('cats')?.querySelector('.chip.on'); if (cat) { const f = cat.parentElement; f.scrollLeft = cat.offsetLeft - (f.clientWidth - cat.offsetWidth) / 2; }
 }
 
 /** Menu "Departamentos" (como nos grandes atacados online), dois níveis: departamento → seção.

@@ -19,34 +19,40 @@ sim.secoes = [{'id': sid, 'categoria': 'Limpeza', 'pai': None, 'nome': 'Sacos de
               {'id': str(uuid.uuid4()), 'categoria': 'Limpeza', 'pai': None, 'nome': 'Vazia', 'termos': ['naoexiste'], 'ordem': 2}]
 quem = '11.111.111/0001-11'
 
+def secao(pg, largura, sid):
+    if largura >= 1000: pg.click('#depLado [data-sec="%s"]' % sid)
+    else: pg.click('#depFiltrar'); pg.wait_for_selector('#mSecs'); pg.click('#mSecs [data-sec="%s"]' % sid)
+
 def cards(pg): return sorted(pg.eval_on_selector_all('#grid .card', 'cs => cs.map(c => c.innerText)'))
 
 with sync_playwright() as pw:
     br = pw.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
-    for largura in (390, 1280):
+    for largura in (390, 1280, 768):
         ctx = br.new_context(viewport={'width': largura, 'height': 900}); pg = ctx.new_page(); erros = []
         pg.on('pageerror', lambda e: erros.append(str(e))); pg.route('**/*', sim.rota)
         pg.goto(BASE + '/'); pg.wait_for_selector('#grid .card')
         pg.eval_on_selector('#tbConta', 'b => b.click()'); pg.wait_for_selector('#lgC'); pg.fill('#lgC', quem); pg.fill('#lgS', sim.compradores[quem]['senha']); pg.click('#lgOk')
         pg.wait_for_selector('body.logged #grid .card'); pg.wait_for_timeout(800)
         # departamento → faixa de seções (sem a seção vazia)
-        pg.click('#cats .chip[data-c="Limpeza"]'); pg.wait_for_selector('#subcats:not([hidden]) .sub-l1')
-        sub = ' '.join(pg.inner_text('#subcats').split())
-        checar('Sacos de lixo4' in sub.replace(' ', '') .replace('Sacosdelixo4','Sacos de lixo4') or 'Sacos de lixo 4' in sub and 'Panos e flanelas 1' in sub and 'Vazia' not in sub, f'seções: {sub}')
-        pg.click('#subcats [data-s="%s"]' % sid); pg.wait_for_timeout(1200)
-        checar(pg.locator('.sub-l2').count() == 0, 'terceira faixa (linhas) não deveria existir')
+        pg.click('#cats .chip[data-c="Limpeza"]'); pg.wait_for_selector('#depCab:not([hidden]) h1')
+        if largura < 1000: pg.click('#depFiltrar'); pg.wait_for_selector('#mSecs')
+        sub = ' '.join(pg.inner_text('#mSecs' if largura < 1000 else '#depLado').split())
+        if largura < 1000: pg.keyboard.press('Escape')
+        checar('Sacos de lixo 4' in sub and 'Panos e flanelas 1' in sub and 'Vazia' not in sub, f'seções: {sub}')
+        secao(pg, largura, sid); pg.wait_for_timeout(1200)
+        checar(pg.inner_text('#depTit') == 'Sacos de lixo', f"título: {pg.inner_text('#depTit')}")
         g = ' '.join(' '.join(cards(pg)).split())
         checar('Preto' in g and 'Infectante' in g and 'Pano' not in g and 'Detergente' not in g, f'cards da seção: {g[:300]}')
         checar('limpeza › sacos de lixo' in pg.inner_text('#cnt').lower(), f"caminho: {pg.inner_text('#cnt')}")
         # busca dentro da seção: só o que está nela
-        pg.click('#subcats [data-s="%s"]' % sid); pg.wait_for_timeout(600)
+        pass
         pg.fill('#q', 'fictício'); pg.keyboard.press('Enter'); pg.wait_for_timeout(1800)
         g = ' '.join(' '.join(cards(pg)).split())
         checar('Saco' in g and 'Pano' not in g, f'busca na seção: {g[:300]}')
         pg.fill('#q', ''); pg.keyboard.press('Enter'); pg.wait_for_timeout(600)
         # endereço da seção e trilha
         checar(pg.evaluate('location.pathname') == '/limpeza/sacos-de-lixo', f"endereço: {pg.evaluate('location.pathname')}")
-        checar('Início › Limpeza › Sacos de lixo' in ' '.join(pg.inner_text('#trilha').split()), f"trilha: {pg.inner_text('#trilha')}")
+        checar('Início › Limpeza › Sacos de lixo' in ' '.join(pg.inner_text('.dep-trilha').split()), f"trilha: {pg.inner_text('.dep-trilha')}")
         # menu Departamentos
         pg.click('#cats [data-deps]'); pg.wait_for_selector('#mDeps .dm-item')
         checar(pg.locator('#mDeps').get_attribute('role') == 'dialog', 'menu sem role dialog')
@@ -86,8 +92,8 @@ with sync_playwright() as pw:
     ctx = br.new_context(viewport={'width': 390, 'height': 900}); pg = ctx.new_page(); erros = []
     pg.on('pageerror', lambda e: erros.append(str(e))); pg.route('**/*', sim.rota)
     pg.goto(BASE + '/'); pg.wait_for_selector('#grid .card')
-    pg.click('#cats .chip[data-c="Limpeza"]'); pg.wait_for_selector('#subcats:not([hidden]) .sub-l1')
-    pg.click('#subcats [data-s="%s"]' % sid); pg.wait_for_timeout(1500)
+    pg.click('#cats .chip[data-c="Limpeza"]'); pg.wait_for_selector('#depCab:not([hidden]) h1')
+    secao(pg, 390, sid); pg.wait_for_timeout(1500)
     g = ' '.join(' '.join(cards(pg)).split())
     checar('Saco' in g and 'Pano' not in g and 'Entre para ver' in pg.inner_text('#cnt') + g, f'visitante na seção: {g[:200]}')
     checar(not erros, f'erros visitante: {erros}')
