@@ -926,6 +926,9 @@ function lembrarDoc(d) { try { if (d && ehAppInstalado()) localStorage.setItem(C
 function ligarLogin() {
   $('lgCad').textContent = 'Quero ser cliente';
   $('lgCad').onclick = () => { fecharModal('mLogin'); abrirCadastro(ctxCadastro()); };
+  // Atalho bem visível para quem ainda não é cliente (muitos não percebem a aba lá em cima).
+  if (!$('lgNovo')) $('lgForm').insertAdjacentHTML('afterend', '<button type="button" class="btn lg-novo" id="lgNovo">Ainda não é cliente? <b>Cadastre-se agora →</b></button>');
+  $('lgNovo').onclick = () => { fecharModal('mLogin'); abrirCadastro(ctxCadastro()); };
   // Sem "Primeiro acesso" (23/11): quem ainda não é cliente usa "Quero ser cliente"; a equipe confere o e-mail no G360
   // e manda o link pelo painel. O "Esqueci minha senha" continua para quem já tem senha.
   $('lgEsqL').textContent = 'Esqueci minha senha';
