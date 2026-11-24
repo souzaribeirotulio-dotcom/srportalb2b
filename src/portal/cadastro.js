@@ -5,6 +5,7 @@
    usa o "Primeiro acesso" para criar a senha. O portal não cria cliente no G360.
    CNPJ e CEP preenchem os campos por consultas públicas (BrasilAPI e ViaCEP).
    ===================================================================== */
+import { codigoExecutivoGuardado } from '../estado/executivo.js';
 import { supabaseComprador, LOJA } from '../api/supabase.js';
 import { $, esc, abrirModal, fecharModal } from './comum.js';
 import { avisarEvento } from '../api/push.js';
@@ -27,7 +28,8 @@ function campo(id, rotulo, extra = '', obrig = false, dica = '') {
 
 export const SEGMENTOS = ['Salão de beleza ou estética', 'Restaurante, bar ou lanchonete', 'Padaria ou confeitaria', 'Mercado ou comércio', 'Clínica, consultório ou hospital',
   'Escritório', 'Condomínio', 'Escola', 'Hotel ou pousada', 'Indústria', 'Igreja ou associação', 'Revenda', 'Outro'];
-const ORIGENS = ['Indicação de um cliente', 'Vendedor da Souza Ribeiro', 'Instagram', 'Google', 'Mercado Livre', 'WhatsApp', 'Outro'];
+export const ORIGEM_EXECUTIVO = 'Indicação de um executivo de contas';
+const ORIGENS = ['Indicação de um cliente', ORIGEM_EXECUTIVO, 'Vendedor da Souza Ribeiro', 'Instagram', 'Google', 'Mercado Livre', 'WhatsApp', 'Outro'];
 
 /** Ramo provável pela atividade principal (CNAE) da Receita. Só sugere: a pessoa confirma. */
 function segmentoPelaAtividade(t) {
@@ -162,11 +164,23 @@ export function abrirCadastro(ctx) {
     </div>
 
     <div class="ksec"><div class="kc"><label for="kOrigem">Como conheceu a Souza Ribeiro <span class="kop">(opcional)</span></label><select class="inp" id="kOrigem">${opcoes(ORIGENS)}</select></div></div>
+    <div class="ksec" id="kExecBox" hidden><div class="kc"><label for="kExec">Código do executivo</label><input class="inp" id="kExec" maxlength="20" autocapitalize="characters" spellcheck="false" autocomplete="off" value="" placeholder="Ex.: JOAO"><small class="hint" id="kExecHint" style="display:block;margin-top:4px">O código que o executivo passou para você (opcional).</small></div></div>
     <div id="kRes" aria-live="polite"></div>
     <div class="act kact"><button type="button" class="btn sec" id="kCancelar">Cancelar</button><button type="button" class="btn pri" id="kEnviar">Enviar cadastro</button></div></div>`;
   abrirModal('mCad');
   setTimeout(() => $('kDoc').focus(), 50);
   $('kCancelar').onclick = () => fecharModal('mCad');
+  // Veio pelo link de um executivo: "Como conheceu" já marca a indicação e o código vem preenchido.
+  {
+    const guardado = codigoExecutivoGuardado();
+    const mostrar = () => { $('kExecBox').hidden = $('kOrigem').value !== ORIGEM_EXECUTIVO; };
+    if (guardado) {
+      $('kOrigem').value = ORIGEM_EXECUTIVO; $('kExec').value = guardado;
+      $('kExecHint').textContent = 'Preenchido pelo link do executivo.';
+    }
+    $('kOrigem').addEventListener('change', mostrar); mostrar();
+    $('kExec').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
+  }
 
   const doc = $('kDoc');
   const ePf = () => { const c = doc.value.replace(/[^A-Za-z0-9]/g, ''); return c.length === 11 && /^\d+$/.test(c); };
@@ -296,6 +310,7 @@ export function abrirCadastro(ctx) {
       inscricao_estadual: pf ? '' : ($('kIsento').checked ? 'ISENTO' : v('kIe')), responsavel: v('kResp'),
       whats: fone(v('kWhats')), telefone: v('kTel') ? fone(v('kTel')) : '', email: v('kEmail').toLowerCase(), cep: v('kCep'), logradouro: v('kRua'), numero: v('kNum'),
       complemento: v('kComp'), bairro: v('kBairro'), cidade: v('kCidade'), uf: $('kUf').value, origem: $('kOrigem').value, segmento: $('kSeg').value,
+      executivo: $('kOrigem').value !== ORIGEM_EXECUTIVO ? '' : String($('kExec').value || '').toUpperCase().replace(/[^A-Z0-9]/g, ''),
     };
     const sb = supabaseComprador();
     const { error } = sb ? await sb.rpc('portal_cadastro_solicitar', { p_loja: LOJA, d }) : { error: { message: 'Cadastro indisponível no momento.' } };

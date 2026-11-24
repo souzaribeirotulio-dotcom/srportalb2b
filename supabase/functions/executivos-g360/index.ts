@@ -17,6 +17,17 @@
    - salvar {executivo}   → cria ou altera (com senha opcional)
    - situacao {id, ativo} → ativa ou desativa (desativado não entra na área dele)
    - config_salvar {...}  → regras do programa
+   - clientes {executivo_id}            → clientes vinculados (com início e fim)
+   - vinculos_cadastros                 → "Indicado por" dos pedidos de Quero ser cliente
+   - vinculo_definir {cadastro_id, executivo_id|null} → confirma, troca ou remove antes de aprovar
+   - relatorio {mes: "AAAA-MM"}         → comissões do mês (por pedido), com o cliente
+   - comissao_marcar {ids, acao, data, observacao} → faturada | cliente_pagou | paga | cancelar | reabrir
+   - recalcular {desde: "AAAA-MM-DD"}   → refaz as comissões que faltarem a partir dos pedidos do portal
+   Ações que qualquer operador do painel dispara ao aprovar ou reprovar um pedido
+   (não mostram nada além do necessário):
+   - vinculo_do_cadastro {cadastro_id}  → executivo indicado (nome, código, vendedor no G360)
+   - vinculo_ativar {cadastro_id, cliente_codigo, novo} → ativo (ou sem comissão, se o cliente já existia)
+   - vinculo_recusar {cadastro_id}      → pedido reprovado
    Nada do token, da senha ou do documento vai para log.
    ===================================================================== */
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
@@ -38,7 +49,27 @@ const admin = createClient(obrigatoria("SUPABASE_URL"), chave, {
 const tokenOperador = /^op_[A-Za-z0-9_-]{20,80}$/;
 const texto = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const CONFIG_PADRAO = { percentual: 3, liberar_em: "pagamento", so_novos: true, prazo_meses: 12 };
-const COLUNAS = "id, codigo, nome, documento, whatsapp, email, percentual, vendedor_g360, vendedor_nome, ativo, user_id, criado_em";
+const COLUNAS = "id, codigo, nome, documento, whatsapp, email, percentual, vendedor_g360, vendedor_nome, ocultar_termos, ocultar_codigos, ativo, user_id, criado_em";
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const ABERTAS = ["aguardando", "ativo"];
+/** Hoje no horário de Brasília (AAAA-MM-DD). */
+const hoje = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+function somarMeses(dia: string, meses: number): string {
+  const [a, m, d] = dia.split("-").map(Number);
+  const alvo = new Date(Date.UTC(a, m - 1 + meses, 1));
+  const ultimo = new Date(Date.UTC(alvo.getUTCFullYear(), alvo.getUTCMonth() + 1, 0)).getUTCDate();
+  alvo.setUTCDate(Math.min(d, ultimo));
+  return alvo.toISOString().slice(0, 10);
+}
+/** Lista de texto do painel ("saco lixo, saco p lixo") → palavras sem acento, minúsculas, sem repetir. */
+function listaTermos(v: unknown, max: number): string[] {
+  const bruto = Array.isArray(v) ? v.map(String) : String(v ?? "").split(/[,;\n]/);
+  return [...new Set(bruto.map((x) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()).filter((x) => x.length >= 2))].slice(0, max);
+}
+function listaCodigos(v: unknown, max: number): string[] {
+  const bruto = Array.isArray(v) ? v.map(String) : String(v ?? "").split(/[,;\s]+/);
+  return [...new Set(bruto.map((x) => x.trim().toUpperCase()).filter((x) => /^[A-Z0-9._-]{1,40}$/.test(x)))].slice(0, max);
+}
 
 // Resposta do "me" guardada por até 1 minuto, pelo resumo do token (nunca o token aberto).
 const conferidos = new Map<string, { ate: number; codigo: number; usuario: string; nome: string }>();
@@ -116,6 +147,7 @@ async function executar(acao: string, d: Record<string, unknown>): Promise<[numb
     const linha = {
       codigo, nome: texto(e.nome, 120), documento, whatsapp: whatsapp || null, email,
       percentual, vendedor_g360: vend, vendedor_nome: vend ? texto(e.vendedor_nome, 120) || null : null,
+      ocultar_termos: listaTermos(e.ocultar_termos, 30), ocultar_codigos: listaCodigos(e.ocultar_codigos, 500),
       atualizado_em: new Date().toISOString(),
     };
     if (!/^[A-Z0-9]{3,20}$/.test(codigo)) return [400, { mensagem: "Código com 3 a 20 letras ou números, sem espaços (ex.: JOAO)." }];
@@ -185,6 +217,154 @@ async function executar(acao: string, d: Record<string, unknown>): Promise<[numb
     return [200, { dados: await lerConfig() }];
   }
 
+  if (acao === "clientes") {
+    const id = texto(d.executivo_id, 40);
+    if (!uuid.test(id)) return [400, { mensagem: "Executivo inválido." }];
+    const { data, error } = await admin.from("executivo_clientes")
+      .select("id, cadastro_id, cliente_codigo, documento, razao_social, situacao, inicio, fim, motivo, criado_em")
+      .eq("loja", LOJA).eq("executivo_id", id).order("criado_em", { ascending: false }).limit(1000);
+    if (error) throw error;
+    return [200, { dados: data }];
+  }
+
+  if (acao === "vinculos_cadastros") {
+    const { data: ex, error: e1 } = await admin.from("executivos").select("id, codigo, nome, ativo").eq("loja", LOJA).order("nome");
+    if (e1) throw e1;
+    const { data: v, error: e2 } = await admin.from("executivo_clientes").select("id, executivo_id, cadastro_id, situacao, motivo, inicio, fim")
+      .eq("loja", LOJA).not("cadastro_id", "is", null).order("criado_em", { ascending: false }).limit(5000);
+    if (e2) throw e2;
+    return [200, { dados: { executivos: ex, vinculos: v } }];
+  }
+
+  if (acao === "vinculo_definir") {
+    const cad = texto(d.cadastro_id, 40); const exe = d.executivo_id === null ? null : texto(d.executivo_id, 40);
+    if (!uuid.test(cad) || (exe !== null && !uuid.test(exe))) return [400, { mensagem: "Dados inválidos." }];
+    const { data: k, error: e0 } = await admin.from("portal_cadastros").select("id, documento, razao_social, status").eq("id", cad).eq("loja", LOJA).maybeSingle();
+    if (e0) throw e0;
+    if (!k) return [404, { mensagem: "Pedido não encontrado." }];
+    const { data: abertos, error: e1 } = await admin.from("executivo_clientes").select("id, situacao").eq("loja", LOJA).eq("cadastro_id", cad).in("situacao", ABERTAS);
+    if (e1) throw e1;
+    const agora = new Date().toISOString();
+    if (exe === null) {
+      if (abertos?.length) {
+        const { error } = await admin.from("executivo_clientes").update({ situacao: "removido", motivo: "Removido pela equipe", atualizado_em: agora }).in("id", abertos.map((x) => x.id));
+        if (error) throw error;
+      }
+      return [200, { ok: true }];
+    }
+    const { data: e, error: e2 } = await admin.from("executivos").select("id, ativo").eq("id", exe).eq("loja", LOJA).maybeSingle();
+    if (e2) throw e2;
+    if (!e?.ativo) return [400, { mensagem: "Escolha um executivo ativo." }];
+    if (abertos?.length) {
+      const { error } = await admin.from("executivo_clientes").update({ executivo_id: exe, atualizado_em: agora }).eq("id", abertos[0].id);
+      if (error) throw error;
+    } else {
+      const { error } = await admin.from("executivo_clientes").insert({
+        loja: LOJA, executivo_id: exe, cadastro_id: cad, documento: k.documento, razao_social: String(k.razao_social ?? "").slice(0, 200),
+        situacao: "aguardando",
+      });
+      if (error) {
+        if (error.code === "23505") return [409, { mensagem: "Este cliente já está vinculado a um executivo em outro pedido." }];
+        throw error;
+      }
+    }
+    return [200, { ok: true }];
+  }
+
+  if (acao === "relatorio") {
+    const mes = texto(d.mes, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) return [400, { mensagem: "Escolha o mês." }];
+    const { data: ex, error: e1 } = await admin.from("executivos").select("id, codigo, nome, ativo, percentual").eq("loja", LOJA).order("nome");
+    if (e1) throw e1;
+    const { data: c, error: e2 } = await admin.from("comissoes")
+      .select("id, executivo_id, vinculo_id, cliente_codigo, pedido_ref, pedido_numero, pedido_data, base, percentual, valor, situacao, faturado_em, liberada_em, paga_em, observacao")
+      .eq("loja", LOJA).eq("competencia", `${mes}-01`).order("pedido_data").limit(5000);
+    if (e2) throw e2;
+    const vids = [...new Set((c ?? []).map((x) => x.vinculo_id).filter(Boolean))];
+    const nomes = new Map<string, string>();
+    for (let i = 0; i < vids.length; i += 200) {
+      const { data: v, error } = await admin.from("executivo_clientes").select("id, razao_social").in("id", vids.slice(i, i + 200));
+      if (error) throw error;
+      for (const x of v ?? []) nomes.set(x.id, x.razao_social);
+    }
+    return [200, { dados: { config: await lerConfig(), executivos: ex, comissoes: (c ?? []).map((x) => ({ ...x, cliente: nomes.get(x.vinculo_id) || `Cliente ${x.cliente_codigo}` })) } }];
+  }
+
+  if (acao === "comissao_marcar") {
+    const ids = [...new Set((Array.isArray(d.ids) ? d.ids : []).map((x) => texto(x, 40)).filter((x) => uuid.test(x)))].slice(0, 1000);
+    const tipo = texto(d.acao, 20);
+    const dia = texto(d.data, 10) || hoje();
+    const obs = texto(d.observacao, 300) || null;
+    if (!ids.length) return [400, { mensagem: "Escolha ao menos um pedido." }];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return [400, { mensagem: "Data inválida." }];
+    const cfg = await lerConfig();
+    const regras: Record<string, { de: string[]; mud: Record<string, unknown> }> = {
+      faturada: { de: ["prevista"], mud: cfg.liberar_em === "faturamento" ? { situacao: "liberada", faturado_em: dia, liberada_em: dia } : { situacao: "faturada", faturado_em: dia } },
+      cliente_pagou: { de: ["prevista", "faturada"], mud: { situacao: "liberada", liberada_em: dia } },
+      paga: { de: ["liberada"], mud: { situacao: "paga", paga_em: dia, ...(obs ? { observacao: obs } : {}) } },
+      cancelar: { de: ["prevista", "faturada", "liberada"], mud: { situacao: "cancelada", ...(obs ? { observacao: obs } : {}) } },
+      reabrir: { de: ["cancelada"], mud: { situacao: "prevista", faturado_em: null, liberada_em: null, paga_em: null } },
+    };
+    const r = regras[tipo];
+    if (!r) return [400, { mensagem: "Ação inválida." }];
+    const { data, error } = await admin.from("comissoes").update({ ...r.mud, atualizado_em: new Date().toISOString() })
+      .eq("loja", LOJA).in("id", ids).in("situacao", r.de).select("id");
+    if (error) throw error;
+    // "Cliente pagou" num pedido que ainda não estava marcado como faturado: conta o mesmo dia.
+    if (tipo === "cliente_pagou" && data?.length) await admin.from("comissoes").update({ faturado_em: dia }).eq("loja", LOJA).in("id", data.map((x) => x.id)).is("faturado_em", null);
+    return [200, { dados: { alterados: data?.length ?? 0 } }];
+  }
+
+  if (acao === "recalcular") {
+    const desde = texto(d.desde, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(desde)) return [400, { mensagem: "Data inválida." }];
+    const { data, error } = await admin.rpc("portal_comissoes_recalcular", { p_loja: LOJA, p_desde: desde });
+    if (error) throw error;
+    return [200, { dados: { novas: Number(data) || 0 } }];
+  }
+
+  return [400, { mensagem: "Ação desconhecida." }];
+}
+
+/** Ações disparadas pela aprovação/reprovação, liberadas para qualquer operador do painel. */
+async function executarAprovacao(acao: string, d: Record<string, unknown>): Promise<[number, unknown]> {
+  const cad = texto(d.cadastro_id, 40);
+  if (!uuid.test(cad)) return [400, { mensagem: "Pedido inválido." }];
+  const { data: v, error: e0 } = await admin.from("executivo_clientes").select("id, executivo_id, situacao")
+    .eq("loja", LOJA).eq("cadastro_id", cad).in("situacao", ABERTAS).maybeSingle();
+  if (e0) throw e0;
+
+  if (acao === "vinculo_do_cadastro") {
+    if (!v) return [200, { dados: null }];
+    const { data: e, error } = await admin.from("executivos").select("nome, codigo, vendedor_g360, vendedor_nome").eq("id", v.executivo_id).maybeSingle();
+    if (error) throw error;
+    return [200, { dados: e ? { ...e, situacao: v.situacao } : null }];
+  }
+
+  if (acao === "vinculo_recusar") {
+    if (v?.situacao === "aguardando") {
+      const { error } = await admin.from("executivo_clientes").update({ situacao: "recusado", motivo: "Pedido reprovado", atualizado_em: new Date().toISOString() }).eq("id", v.id);
+      if (error) throw error;
+    }
+    return [200, { ok: true }];
+  }
+
+  if (acao === "vinculo_ativar") {
+    const cliente = Number(d.cliente_codigo);
+    if (!Number.isSafeInteger(cliente) || cliente <= 0) return [400, { mensagem: "Cliente inválido." }];
+    if (!v) return [200, { dados: null }];
+    const cfg = await lerConfig();
+    // Cliente que já existia no G360 (vinculado a um cadastro antigo) ou que já usava o portal não é novo.
+    const { data: acesso } = await admin.from("portal_acessos").select("comprador_codigo").eq("loja", LOJA).eq("comprador_codigo", cliente).limit(1);
+    const jaExistia = d.novo !== true || !!acesso?.length;
+    const inicio = hoje();
+    const linha = cfg.so_novos && jaExistia
+      ? { situacao: "sem_comissao", motivo: "Cliente já existente — não gera comissão", cliente_codigo: cliente, inicio: null, fim: null }
+      : { situacao: "ativo", motivo: null, cliente_codigo: cliente, inicio, fim: cfg.prazo_meses ? somarMeses(inicio, cfg.prazo_meses) : null };
+    const { error } = await admin.from("executivo_clientes").update({ ...linha, atualizado_em: new Date().toISOString() }).eq("id", v.id);
+    if (error) throw error;
+    return [200, { dados: { situacao: linha.situacao, motivo: linha.motivo, fim: linha.fim } }];
+  }
   return [400, { mensagem: "Ação desconhecida." }];
 }
 
@@ -222,6 +402,10 @@ Deno.serve(async (req) => {
     if (ep) throw ep;
     const pode = Array.isArray(perms) && perms.includes("executivos");
     if (acao === "pode") return json(200, { dados: { pode } });
+    if (["vinculo_do_cadastro", "vinculo_ativar", "vinculo_recusar"].includes(acao)) {
+      const [s, b] = await executarAprovacao(acao, (corpo.dados ?? {}) as Record<string, unknown>);
+      return json(s, b);
+    }
     if (!pode) return json(403, { mensagem: "Só o administrador do programa de executivos pode ver esta área." });
     const [s, b] = await executar(acao, (corpo.dados ?? {}) as Record<string, unknown>);
     return json(s, b);

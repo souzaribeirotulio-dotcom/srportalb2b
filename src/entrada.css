@@ -108,3 +108,34 @@ body.g360 > *:not(.fundo):not(#g360Entrada) { display: none !important; }
 .g360-form .g360-check input[type="checkbox"] { width: 18px; height: 18px; min-height: 0; padding: 0; margin: 0; border-radius: 4px; flex: none; background: none; accent-color: var(--lima); cursor: pointer; }
 /* Título recebe o foco ao abrir (leitor de tela), sem a moldura que parece um campo. */
 .g360-cartao [tabindex="-1"]:focus { outline: none; }
+.g360-dica { display: block; margin: -4px 0 6px; font-size: 13px; color: var(--tx3); }
+
+/* Área do executivo de contas */
+.g360-cartao.g360-cartao-largo { max-width: 720px; }
+.exa-topo { text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 4px 0 14px; }
+.exa-topo small { display: block; color: var(--tx2); margin-top: 2px; }
+.exa-cod { display: inline-block; padding: 1px 8px; border-radius: 999px; background: rgba(178, 224, 74, .16); color: var(--lima, #b2e04a); font-weight: 800; letter-spacing: .5px; }
+.exa-bloco { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--linha2); text-align: left; }
+.exa-bloco h2 { font-size: 17px; margin: 0 0 6px; }
+.exa-link { padding: 12px; border-radius: 12px; background: rgba(0, 0, 0, .25); border: 1px solid var(--linha2); word-break: break-all; font-size: 14px; user-select: all; }
+.exa-botoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.exa-botoes .g360-btn { flex: 1 1 180px; text-align: center; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; }
+.exa-tot { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; }
+.exa-tot div { padding: 10px; border-radius: 12px; background: rgba(255, 255, 255, .04); }
+.exa-tot small { display: block; color: var(--tx2); font-size: 12px; }
+.exa-tot b { font-size: 16px; }
+.exa-mes { margin-top: 8px; border-radius: 12px; background: rgba(255, 255, 255, .03); }
+.exa-mes summary { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 12px; cursor: pointer; min-height: 44px; font-weight: 700; }
+.exa-mes summary span:last-child { color: var(--tx2); font-weight: 500; font-size: 13px; }
+.exa-ped, .exa-cli { display: grid; gap: 6px; padding: 0 10px 10px; }
+.exa-cli { padding: 0; }
+.exa-l { display: flex; justify-content: space-between; gap: 10px; padding: 10px; border-radius: 10px; background: rgba(255, 255, 255, .03); font-size: 14px; }
+.exa-l small { display: block; color: var(--tx2); font-size: 12px; margin-top: 2px; }
+.exa-l > span:last-child { text-align: right; flex-shrink: 0; }
+.exa-l.off { opacity: .55; }
+.exa-st { align-self: center; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; background: rgba(255, 255, 255, .08); color: var(--tx2); max-width: 50%; }
+.exa-st.ativo { background: rgba(178, 224, 74, .16); color: var(--lima, #b2e04a); }
+.exa-st.aguardando { background: rgba(255, 200, 80, .14); color: #ffd27a; }
+.exa-st.recusado, .exa-st.removido { background: rgba(255, 107, 107, .12); color: #ff9a9a; }
+footer .rodape-exec { color: inherit; opacity: .75; }
+.exa-topo .g360-btn { width: auto; min-height: 44px; padding: 0 16px; }

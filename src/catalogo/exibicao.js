@@ -97,8 +97,26 @@ export function codigosAtivosPublicos() {
 }
 export function esquecerAtivosPublicos() { ativosPublicos = undefined; }
 
-/** Produto escondido do catálogo pela equipe (continua no G360, no histórico e na Minha Lista). */
-export function oculto(p) { return registro(p)?.oculto === true; }
+/** Produto escondido do catálogo pela equipe (continua no G360, no histórico e na Minha Lista),
+ *  ou escondido para os clientes de um executivo de contas (palavras do nome ou códigos). */
+export function oculto(p) { return registro(p)?.oculto === true || ocultoDoExecutivo(p); }
+
+/* Produtos que o comprador logado não vê por ser cliente de um executivo (portal_ocultos_comprador). */
+let ocultosExec = { termos: [], codigos: new Set() };
+const normalNome = (t) => ` ${String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()} `;
+export function definirOcultosExecutivo(d) {
+  ocultosExec = {
+    termos: (d?.termos || []).map((t) => normalNome(t).trim().split(' ').filter(Boolean)).filter((p) => p.length),
+    codigos: new Set((d?.codigos || []).map((c) => String(c).toUpperCase())),
+  };
+}
+function ocultoDoExecutivo(p) {
+  if (!p || (!ocultosExec.termos.length && !ocultosExec.codigos.size)) return false;
+  if (p.codigo != null && ocultosExec.codigos.has(String(p.codigo).toUpperCase())) return true;
+  if (!ocultosExec.termos.length) return false;
+  const nomes = normalNome(`${p.nome || ''} ${registro(p)?.nome || ''}`);
+  return ocultosExec.termos.some((palavras) => palavras.every((w) => nomes.includes(` ${w} `)));
+}
 /** Configuração da loja: mostrar só produtos com estoque também na busca. */
 export function soEstoque() { return estado.soEstoque === true; }
 export function estoqueMinimoAtual() { return estado.estoqueMinimo || 0; }

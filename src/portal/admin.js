@@ -20,6 +20,7 @@ import { paraJpeg } from './jpeg.js';
 import { abrirImportacaoFotos } from './importarfotos.js';
 import { abrirExportacaoFotos } from './exportarfotos.js';
 import { abrirNovoClienteG360 } from './novocliente.js';
+import { carregarVinculos, podeVincular, htmlIndicado, abrirVinculoPedido, executivoDoPedido, ativarVinculo, recusarVinculo } from './adminvinculos.js';
 import { abrirLotesFotos, comEspera } from './lotesfotos.js';
 import { abrirCacaCapa } from './cacacapa.js';
 import { abrirImportarVendas } from './importarvendas.js';
@@ -1193,7 +1194,7 @@ function desenharCadastros(recarregar = true) {
   listar();
   async function listar() {
     alvo.innerHTML = carregandoHtml('Carregando clientes…');
-    try { cadastros = (await painel('cadastros_listar')).dados || []; }
+    try { [cadastros] = await Promise.all([painel('cadastros_listar').then((r) => r.dados || []), carregarVinculos(op.token).catch(() => null)]); }
     catch (e) { alvo.innerHTML = vazio(esc(e.message)); return; }
     pintarCadastros();
   }
@@ -1212,22 +1213,25 @@ function pintarCadastros() {
       <div class="nm"><b>${esc(k.fantasia || k.razao_social)}</b><small>${esc(fmtDoc(k.documento))} · ${esc(k.razao_social)}</small>
         <small>IE: ${esc(k.inscricao_estadual || 'não informada')}${k.email ? ` · ${esc(k.email)}` : ''}</small>
         <small>${k.segmento ? `<b style="color:var(--lima)">${esc(k.segmento)}</b> · ` : ''}${esc(k.origem || (k.criado_por === 'equipe' ? 'Cadastrado pela equipe' : 'Quero ser cliente'))}${k.whats ? ` · ${esc(fmtTel(k.whats))}` : ''}${k.vendedor ? ` · Vendedor: ${esc(k.vendedor)}` : ''}</small>
+        ${htmlIndicado(k)}
         ${k.observacao_equipe ? `<small>Obs.: ${esc(k.observacao_equipe)}</small>` : ''}</div>
       <div class="sm sm2">${k.codigo_g360 ? esc(k.codigo_g360) : '<span style="color:var(--tx3)">—</span>'}</div>
       <div class="sm">${esc(k.cidade || '')}${k.uf ? `/${esc(k.uf)}` : ''}${k.codigo_g360 ? `<span class="som"> · cód. ${esc(k.codigo_g360)}</span>` : ''}</div>
       <div class="stw"><span class="stt ${k.status === 'recusado' ? 'reprovado' : esc(k.status)}">${SIT[k.status] || esc(k.status)}</span></div>
-      <div class="ab2">${k.status === 'pendente' ? '<button class="ap" data-d="aprovado">Aprovar</button><button class="rp" data-d="recusado">Reprovar</button>' : ''}${k.status === 'aprovado' && !k.codigo_g360 ? '<button class="ap" data-novo>➕ Cadastrar no G360</button>' : ''}<button data-lista ${k.codigo_g360 ? '' : 'disabled title="Cadastre no G360 primeiro (➕ Cadastrar no G360)"'}>⭐ Minha Lista</button>${k.codigo_g360 ? '<button data-g360>📋 Ficha G360</button>' : ''}<button data-ed>Editar</button></div></div>`).join('')
+      <div class="ab2">${k.status === 'pendente' ? '<button class="ap" data-d="aprovado">Aprovar</button><button class="rp" data-d="recusado">Reprovar</button>' : ''}${k.status === 'aprovado' && !k.codigo_g360 ? '<button class="ap" data-novo>➕ Cadastrar no G360</button>' : ''}<button data-lista ${k.codigo_g360 ? '' : 'disabled title="Cadastre no G360 primeiro (➕ Cadastrar no G360)"'}>⭐ Minha Lista</button>${k.codigo_g360 ? '<button data-g360>📋 Ficha G360</button>' : ''}${podeVincular() ? '<button data-exec>🤝 Executivo</button>' : ''}<button data-ed>Editar</button></div></div>`).join('')
       : vazio(cadastros.length ? 'Nenhum cliente encontrado com essa busca.' : 'Nenhum cliente ainda. Clique em "+ Novo cliente" ou aguarde os pedidos de "Quero ser cliente".'))
     + '<div class="hint" style="padding:10px 18px">A ficha é do portal: preço, condições de pagamento, crédito e endereços de entrega continuam vindo do G360. Para o cliente entrar, ele precisa estar no G360 com "Acesso à API dos sistemas externos" marcado.</div>';
   alvo.querySelectorAll('.crow2[data-id] button').forEach((b) => b.addEventListener('click', async () => {
     const k = cadastros.find((x) => String(x.id) === b.closest('.crow2').dataset.id);
     if (b.hasAttribute('data-ed')) { abrirFicha(k); return; }
+    if (b.hasAttribute('data-exec')) { abrirVinculoPedido(k, { token: () => op.token, depois: pintarCadastros }); return; }
     if (b.hasAttribute('data-g360')) { abrirFichaG360(k.codigo_g360, opcoesFichaG360()); return; }
     if (b.hasAttribute('data-novo')) { novoClienteG360(k); return; }
     if (b.hasAttribute('data-lista')) { montarLista({ codigo: k.codigo_g360, nome: k.fantasia || k.razao_social }); return; }
     b.disabled = true;
     try { await painel('cadastro_decidir', { id: k.id, status: b.dataset.d, observacao: k.observacao_equipe || '' }); }
     catch (e) { b.disabled = false; toast(e.message); return; }
+    if (b.dataset.d === 'recusado') await recusarVinculo(op.token, k);
     toast(b.dataset.d === 'aprovado' ? 'Cliente aprovado ✓ — avise o cliente.' : 'Cadastro reprovado');
     desenharCadastros();
   }));
@@ -1426,13 +1430,19 @@ async function abrirFicha(k) {
 }
 
 /** "Quero ser cliente" aprovado → cadastro no G360 (nasce bloqueado) → vincula o pedido ao código devolvido → ficha para liberar e mandar o link. */
-function novoClienteG360(k) {
+async function novoClienteG360(k) {
+  const exe = await executivoDoPedido(op.token, k);
   abrirNovoClienteG360(k, {
     token: () => op.token,
     aoSessaoEncerrada: (e) => encerrarOperador(e.message),
-    vincular: async (codigo) => {
+    // Indicado por um executivo com vendedor no G360: o cliente nasce com esse vendedor.
+    vendedorSugerido: exe?.vendedor_g360 ? { id: Number(exe.vendedor_g360), nome: exe.vendedor_nome || '', executivo: exe.nome } : null,
+    // Cliente novo no G360: o vínculo com o executivo fica ativo (começa a contar o prazo).
+    // Já era cliente no G360 (existente): o executivo indicado fica "sem comissão" (regra "só clientes novos").
+    vincular: async (codigo, { existente = false } = {}) => {
       const r = (await painel('cadastro_vincular', { id: k.id, codigo_g360: codigo })).dados;
       if (cadastros && r) { const i = cadastros.findIndex((x) => x.id === r.id); if (i >= 0) cadastros[i] = r; }
+      await ativarVinculo(op.token, k, codigo, !existente);
       pintarCadastros();
     },
     abrirFicha: (codigo) => abrirFichaG360(codigo, opcoesFichaG360()),

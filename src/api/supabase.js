@@ -26,6 +26,18 @@ export function supabaseComprador() {
   return comprador;
 }
 
+/** Área do executivo de contas: conta própria (e-mail e senha), guardada só nesta aba,
+ *  com chave separada para não misturar com a sessão de um comprador no mesmo navegador. */
+let executivo = null;
+export function supabaseExecutivo() {
+  if (!executivo && supabaseConfigurado()) {
+    executivo = createClient(URL_SUPABASE, CHAVE_PUBLICA, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: `g360:${LOJA}:executivo-sessao`, storage: window.sessionStorage },
+    });
+  }
+  return executivo;
+}
+
 export function supabasePainel() {
   if (!painel && supabaseConfigurado()) {
     painel = createClient(URL_SUPABASE, CHAVE_PUBLICA, {

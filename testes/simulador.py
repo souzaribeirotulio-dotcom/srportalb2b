@@ -332,7 +332,7 @@ class Sim:
             return self.ok(route, [{'id': 9, 'nome': 'Cidade Exemplo'}] if q.get('tipo', [''])[0] == 'cidade' else [{'id': 5, 'nome': 'Centro'}])
         if caminho == 'operadores/sessao': self.op_tokens.pop(tok, None); return route.fulfill(status=204, headers=CORS, body='')
         if caminho == 'operadores/cadastro/cliente':
-            return self.ok(route, {'obrigatorios': ['telefone', 'categoria'], 'obrigatorios_pessoa_fisica': ['rg_se_nao_contribuinte'], 'editaveis': ['fantasia', 'email', 'telefone', 'contato', 'categoria', 'situacao', 'limite_credito_mensal'], 'padroes': {'categoria_id': None, 'situacao_id': 2, 'vendedor_id': None}})
+            return self.ok(route, {'obrigatorios': ['telefone', 'categoria'], 'obrigatorios_pessoa_fisica': ['rg_se_nao_contribuinte'], 'editaveis': ['fantasia', 'email', 'telefone', 'contato', 'categoria', 'situacao', 'limite_credito_mensal'] + (['vendedor'] if getattr(self, 'novo_com_vendedor', False) else []), 'padroes': {'categoria_id': None, 'situacao_id': 2, 'vendedor_id': None}})
         if caminho == 'operadores/referencias':
             t = q.get('tipo', [''])[0]
             return self.ok(route, {'categoria': [{'id': 1, 'nome': 'Varejo'}, {'id': 3, 'nome': 'Atacado'}], 'situacao': [{'id': 2, 'nome': 'Normal'}], 'vendedor': [{'id': 3, 'nome': 'Vendedor Exemplo'}, {'id': 7, 'nome': 'Parceiro Fictício'}]}.get(t, []))
@@ -403,6 +403,23 @@ class Sim:
             if m == 'DELETE': g[:] = [x for x in g if x['item'] != int(sub)]; return self.ok(route, gal())
         return self.erro(route, 404, 'NAO_ENCONTRADO', 'Recurso não encontrado.', 'integracao')
 
+    def comissao_do_pedido(self, r):
+        # Igual ao gatilho do banco: pedido de cliente com vínculo ativo → comissão prevista (soma dos itens).
+        if r.get('tipo') != 'pedido' or not r.get('pedido_id'): return
+        from decimal import Decimal
+        v = next((x for x in getattr(self, 'vinculos', []) if x.get('cliente_codigo') == r['comprador_codigo'] and x['situacao'] == 'ativo'), None)
+        e = v and next((x for x in getattr(self, 'executivos', []) if x['id'] == v['executivo_id'] and x['ativo']), None)
+        if not e: return
+        com = self.__dict__.setdefault('comissoes', [])
+        ref = f"P{r['pedido_id']}"
+        if any(c['pedido_ref'] == ref for c in com): return
+        base = sum((Decimal(str(i.get('total'))) for i in r.get('itens') or [] if re.fullmatch(r'\d+(\.\d+)?', str(i.get('total')))), Decimal(0))
+        if base <= 0: return
+        pct = Decimal(str(e['percentual'] if e.get('percentual') is not None else getattr(self, 'exec_cfg', {}).get('percentual', 3)))
+        com.append({'id': str(uuid.uuid4()), 'executivo_id': e['id'], 'vinculo_id': v['id'], 'cliente_codigo': r['comprador_codigo'], 'pedido_ref': ref, 'pedido_numero': r.get('pedido_numero'),
+                    'pedido_data': '2026-11-24', 'competencia': '2026-11-01', 'base': float(base.quantize(Decimal('0.01'))), 'percentual': float(pct),
+                    'valor': float((base * pct / 100).quantize(Decimal('0.01'))), 'situacao': 'prevista', 'faturado_em': None, 'liberada_em': None, 'paga_em': None, 'observacao': None})
+
     # ---------- ponte e Supabase ----------
     def jwt(self, sub, extra):
         return f"{b64u({'alg': 'HS256', 'typ': 'JWT'})}.{b64u({'sub': sub, 'exp': int(time.time()) + 3600, 'role': 'authenticated', **extra})}.assinatura"
@@ -439,9 +456,55 @@ class Sim:
             ac = corpo.get('acao'); d = corpo.get('dados') or {}
             self.chamadas.append(('EXEC', ac, {k: v for k, v in d.items() if k != 'executivo'}))
             pode = getattr(self, 'exec_pode', True)
-            if ac == 'pode': return res(200, {'dados': {'pode': pode}})
-            if not pode: return res(403, {'mensagem': 'Só o administrador do programa de executivos pode ver esta área.'})
             ex = self.__dict__.setdefault('executivos', []); cfg = self.__dict__.setdefault('exec_cfg', {'percentual': 3, 'liberar_em': 'pagamento', 'so_novos': True, 'prazo_meses': 12})
+            vs = self.__dict__.setdefault('vinculos', [])
+            if ac == 'pode': return res(200, {'dados': {'pode': pode}})
+            if ac in ('vinculo_do_cadastro', 'vinculo_ativar', 'vinculo_recusar'):
+                v = next((x for x in vs if x['cadastro_id'] == d.get('cadastro_id') and x['situacao'] in ('aguardando', 'ativo')), None)
+                if ac == 'vinculo_do_cadastro':
+                    e = v and next((x for x in ex if x['id'] == v['executivo_id']), None)
+                    return res(200, {'dados': {'nome': e['nome'], 'codigo': e['codigo'], 'vendedor_g360': e.get('vendedor_g360'), 'vendedor_nome': e.get('vendedor_nome'), 'situacao': v['situacao']} if e else None})
+                if ac == 'vinculo_recusar':
+                    if v and v['situacao'] == 'aguardando': v.update(situacao='recusado', motivo='Pedido reprovado')
+                    return res(200, {'ok': True})
+                if not v: return res(200, {'dados': None})
+                ja = d.get('novo') is not True or int(d['cliente_codigo']) in self.acessos
+                if cfg['so_novos'] and ja: v.update(situacao='sem_comissao', motivo='Cliente já existente — não gera comissão', cliente_codigo=int(d['cliente_codigo']), inicio=None, fim=None)
+                else: v.update(situacao='ativo', motivo=None, cliente_codigo=int(d['cliente_codigo']), inicio='2026-11-24', fim='2027-11-24' if cfg['prazo_meses'] == 12 else None)
+                return res(200, {'dados': {'situacao': v['situacao'], 'motivo': v['motivo'], 'fim': v['fim']}})
+            if not pode: return res(403, {'mensagem': 'Só o administrador do programa de executivos pode ver esta área.'})
+            if ac == 'vinculos_cadastros': return res(200, {'dados': {'executivos': [{k: e[k] for k in ('id', 'codigo', 'nome', 'ativo')} for e in ex], 'vinculos': [v for v in vs if v.get('cadastro_id')]}})
+            if ac == 'clientes': return res(200, {'dados': [v for v in vs if v['executivo_id'] == d.get('executivo_id')]})
+            com = self.__dict__.setdefault('comissoes', [])
+            if ac == 'relatorio':
+                nomes = {v['id']: v.get('razao_social') for v in vs}
+                return res(200, {'dados': {'config': cfg, 'executivos': [{k: e.get(k) for k in ('id', 'codigo', 'nome', 'ativo', 'percentual')} for e in ex],
+                                           'comissoes': [{**c, 'cliente': nomes.get(c['vinculo_id']) or f"Cliente {c['cliente_codigo']}"} for c in com if c['competencia'] == d['mes'] + '-01']}})
+            if ac == 'recalcular':
+                n0 = len(com)
+                for r in self.eventos: self.comissao_do_pedido(r)
+                return res(200, {'dados': {'novas': len(com) - n0}})
+            if ac == 'comissao_marcar':
+                dia = d.get('data') or '2026-11-24'; obs = d.get('observacao') or None
+                regras = {'faturada': (['prevista'], {'situacao': 'liberada', 'faturado_em': dia, 'liberada_em': dia} if cfg['liberar_em'] == 'faturamento' else {'situacao': 'faturada', 'faturado_em': dia}),
+                          'cliente_pagou': (['prevista', 'faturada'], {'situacao': 'liberada', 'liberada_em': dia}),
+                          'paga': (['liberada'], {'situacao': 'paga', 'paga_em': dia, **({'observacao': obs} if obs else {})}),
+                          'cancelar': (['prevista', 'faturada', 'liberada'], {'situacao': 'cancelada', **({'observacao': obs} if obs else {})}),
+                          'reabrir': (['cancelada'], {'situacao': 'prevista'})}
+                de, mud = regras[d['acao']]; n = 0
+                for c in com:
+                    if c['id'] in d['ids'] and c['situacao'] in de: c.update(mud); n += 1
+                return res(200, {'dados': {'alterados': n}})
+            if ac == 'vinculo_definir':
+                abertos = [v for v in vs if v['cadastro_id'] == d['cadastro_id'] and v['situacao'] in ('aguardando', 'ativo')]
+                if d.get('executivo_id') is None:
+                    for v in abertos: v.update(situacao='removido', motivo='Removido pela equipe')
+                    return res(200, {'ok': True})
+                if abertos: abertos[0]['executivo_id'] = d['executivo_id']
+                else:
+                    k = next(c for c in self.cadastros if c.get('id') == d['cadastro_id'])
+                    vs.append({'id': str(uuid.uuid4()), 'executivo_id': d['executivo_id'], 'cadastro_id': k['id'], 'documento': k['documento'], 'razao_social': k.get('razao_social', ''), 'situacao': 'aguardando', 'motivo': None, 'inicio': None, 'fim': None, 'cliente_codigo': None, 'criado_em': '2026-11-24T12:00:00Z'})
+                return res(200, {'ok': True})
             if ac == 'listar': return res(200, {'dados': {'executivos': [{k: v for k, v in e.items() if k != 'senha'} for e in ex], 'config': cfg}})
             if ac == 'salvar':
                 e = d['executivo']; cod = str(e.get('codigo', '')).upper()
@@ -453,6 +516,9 @@ class Sim:
                 atual = next((x for x in ex if x['id'] == e.get('id')), None)
                 if not atual: atual = {'id': str(uuid.uuid4()), 'ativo': True, 'tem_acesso': True, 'clientes': {'ativos': 0, 'aguardando': 0}, 'criado_em': '2026-11-24T12:00:00Z'}; ex.append(atual)
                 pct = str(e.get('percentual') or '').replace(',', '.')
+                norm = lambda t: re.sub(r'[^a-z0-9]+', ' ', t.lower()).strip()
+                atual['ocultar_termos'] = [norm(t) for t in str(e.get('ocultar_termos') or '').split(',') if norm(t)]
+                atual['ocultar_codigos'] = [c.strip().upper() for c in re.split(r'[,;\s]+', str(e.get('ocultar_codigos') or '')) if c.strip()]
                 atual.update(codigo=cod, nome=e.get('nome'), documento=e.get('documento'), whatsapp=e.get('whatsapp') or None, email=e.get('email'),
                              percentual=float(pct) if pct else None, vendedor_g360=e.get('vendedor_g360'), vendedor_nome=e.get('vendedor_nome') or None)
                 if e.get('senha'): self.exec_senhas[atual['id']] = e['senha']
@@ -605,7 +671,13 @@ class Sim:
             doc = re.sub(r'[^A-Za-z0-9]', '', d.get('documento', '')).upper()
             if any(c['documento'] == doc for c in self.cadastros):
                 return route.fulfill(status=400, headers=cab, content_type='application/json', body=json.dumps({'code': 'P0001', 'message': 'Já recebemos um cadastro com este documento. A equipe da Souza Ribeiro vai entrar em contato.'}))
-            self.cadastros.append({**d, 'documento': doc, 'loja': corpo.get('p_loja')})
+            novo = {**d, 'documento': doc, 'loja': corpo.get('p_loja'), 'id': str(uuid.uuid4())}
+            ex_cod = re.sub(r'[^A-Z0-9]', '', str(novo.pop('executivo', '') or '').upper())
+            novo['executivo_codigo'] = ex_cod or None
+            self.cadastros.append(novo)
+            e = next((x for x in getattr(self, 'executivos', []) if x['codigo'] == ex_cod and x['ativo']), None)
+            if e and not any(v['documento'] == doc and v['situacao'] in ('aguardando', 'ativo') for v in self.__dict__.setdefault('vinculos', [])):
+                self.vinculos.append({'id': str(uuid.uuid4()), 'executivo_id': e['id'], 'cadastro_id': novo['id'], 'documento': doc, 'razao_social': d.get('razao_social', ''), 'situacao': 'aguardando', 'motivo': None, 'inicio': None, 'fim': None, 'cliente_codigo': None, 'criado_em': '2026-11-24T12:00:00Z'})
             return route.fulfill(status=200, headers=cab, content_type='application/json', body='{"status":"pendente"}')
         a = (req.headers.get('authorization') or '')[7:]
         s = self.supa.get(a)
@@ -621,8 +693,25 @@ class Sim:
                 return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({
                     'access_token': at, 'refresh_token': 'r', 'token_type': 'bearer', 'expires_in': 3600, 'expires_at': int(time.time()) + 3600,
                     'user': {'id': 'painel', 'aud': 'authenticated', 'email': 'painel@example.invalid', 'app_metadata': {'g360_painel_loja': LOJA}, 'user_metadata': {}}}))
+            # Área do executivo: e-mail + senha cadastrados no painel (exec_senhas por id do executivo).
+            e = next((x for x in getattr(self, 'executivos', []) if x.get('email') == corpo.get('email') and getattr(self, 'exec_senhas', {}).get(x['id']) == corpo.get('password')), None)
+            if e:
+                at = self.jwt('ex-' + e['id'], {'app_metadata': {'g360_executivo': e['id'], 'g360_loja': LOJA}})
+                self.supa[at] = {'executivo': e['id'], 'vinculo': time.time() + 3600}
+                return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({
+                    'access_token': at, 'refresh_token': 'r', 'token_type': 'bearer', 'expires_in': 3600, 'expires_at': int(time.time()) + 3600,
+                    'user': {'id': 'ex-' + e['id'], 'aud': 'authenticated', 'email': e['email'], 'app_metadata': {}, 'user_metadata': {}}}))
             return route.fulfill(status=400, headers=cab, content_type='application/json', body='{"error":"invalid_grant","error_description":"Invalid login credentials"}')
         tabela = p.replace('/rest/v1/', '')
+        if tabela in ('executivos', 'executivo_clientes', 'comissoes'):
+            # RLS: só o executivo logado (e ativo) lê as próprias linhas; qualquer outra sessão recebe lista vazia.
+            eid = (s or {}).get('executivo'); e = next((x for x in getattr(self, 'executivos', []) if x['id'] == eid and x['ativo']), None)
+            if not e: return route.fulfill(status=200, headers=cab, content_type='application/json', body='[]')
+            cols = {'executivos': ['id', 'codigo', 'nome'], 'executivo_clientes': ['id', 'razao_social', 'situacao', 'inicio', 'fim', 'criado_em'],
+                    'comissoes': ['id', 'pedido_data', 'pedido_numero', 'competencia', 'base', 'percentual', 'valor', 'situacao', 'paga_em']}[tabela]
+            fonte = [e] if tabela == 'executivos' else [x for x in getattr(self, 'vinculos' if tabela == 'executivo_clientes' else 'comissoes', []) if x['executivo_id'] == eid]
+            self.chamadas.append(('EXEC_RLS', tabela, eid))
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps([{k: x.get(k) for k in cols} for x in fonte]))
         valido = s and time.time() < s['vinculo'] and not s.get('painel')
         q = parse_qs(u.query)
         if tabela == 'minha_lista':
@@ -699,7 +788,13 @@ class Sim:
             if not valido: return route.fulfill(status=403, headers=cab, content_type='application/json', body='{"code":"42501"}')
             r = json.loads(req.post_data)
             if r.get('comprador_codigo') != s['codigo']: return route.fulfill(status=403, headers=cab, body='{"code":"42501"}')
-            self.eventos.append(r); return route.fulfill(status=201, headers=cab, body='')
+            self.eventos.append(r); self.comissao_do_pedido(r); return route.fulfill(status=201, headers=cab, body='')
+        if tabela == 'rpc/portal_ocultos_comprador':
+            vazio = {'termos': [], 'codigos': []}
+            if not valido: return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps(vazio))
+            v = next((x for x in getattr(self, 'vinculos', []) if x.get('cliente_codigo') == s['codigo'] and x['situacao'] == 'ativo'), None)
+            e = v and next((x for x in getattr(self, 'executivos', []) if x['id'] == v['executivo_id'] and x['ativo']), None)
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({'termos': e.get('ocultar_termos', []), 'codigos': e.get('ocultar_codigos', [])} if e else vazio))
         if tabela == 'rpc/portal_registrar_acesso':
             if valido: self.acessos[s['codigo']] = json.loads(req.post_data).get('p_nome')
             return route.fulfill(status=204, headers=cab, body='')

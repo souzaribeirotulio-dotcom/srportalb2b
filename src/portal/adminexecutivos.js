@@ -4,7 +4,11 @@
 import { chamarExecutivos } from '../api/executivos.js';
 import { referenciasNovoClienteOperador } from '../api/g360.js';
 import { esc, toast } from './comum.js';
+import Decimal from 'decimal.js';
+import { dataBr, dinheiro } from '../ui/formato.js';
 
+export const SITC = { prevista: 'Prevista', faturada: 'Faturada', liberada: 'Liberada', paga: 'Paga', cancelada: 'Cancelada' };
+export const SITV = { aguardando: 'Aguardando aprovação', ativo: 'Ativo', recusado: 'Recusado', removido: 'Removido', sem_comissao: 'Sem comissão' };
 const LIBERAR = { pagamento: 'Depois que o cliente paga', faturamento: 'Quando o pedido é faturado' };
 const soNum = (t) => String(t || '').replace(/\D/g, '');
 const docLimpo = (t) => String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -18,6 +22,7 @@ export async function podeVerExecutivos(token) {
 
 export async function desenharExecutivosPainel(alvo, { token, aoEncerrar }) {
   let lista = null; let config = null; let editando = null; let vendedores = null; let verConfig = false; let erro = '';
+  let verRel = false; let rel = null; let relMes = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 7); let relErro = ''; let pagando = null;
   const chamar = async (acao, dados) => {
     try { return await chamarExecutivos(token, acao, dados); } catch (e) { if (e.status === 401) aoEncerrar?.(e.message); throw e; }
   };
@@ -34,9 +39,11 @@ export async function desenharExecutivosPainel(alvo, { token, aoEncerrar }) {
   const linhaHtml = (x) => `<div class="ex-linha${x.ativo ? '' : ' off'}" data-id="${esc(x.id)}">
       <div class="ex-dados"><b>${esc(x.nome)}</b> <span class="ex-cod">${esc(x.codigo)}</span>${x.ativo ? '' : ' <span class="ex-sit">Desativado</span>'}
         <small class="hint">${x.clientes.ativos} cliente${x.clientes.ativos === 1 ? '' : 's'} ativo${x.clientes.ativos === 1 ? '' : 's'}${x.clientes.aguardando ? ` · ${x.clientes.aguardando} aguardando aprovação` : ''} · ${x.percentual !== null ? `${pct(x.percentual)}% (próprio)` : `${pct(config?.percentual ?? 3)}% (padrão)`}${x.vendedor_nome ? ` · vendedor no G360: ${esc(x.vendedor_nome)}` : ''}${x.tem_acesso ? '' : ' · sem acesso à área'}</small>
-        <small class="ex-link">${esc(linkExecutivo(x.codigo))}</small></div>
+        ${(x.ocultar_termos || []).length || (x.ocultar_codigos || []).length ? `<small class="hint">Os clientes dele não veem: ${esc([...(x.ocultar_termos || []), ...(x.ocultar_codigos || []).map((c) => `cód. ${c}`)].join(', '))}</small>` : ''}
+        <small class="ex-link">${esc(linkExecutivo(x.codigo))}</small>
+        <div class="ex-cli" hidden></div></div>
       <div class="row" style="gap:6px;flex-wrap:wrap">
-        <button class="tool" data-copia type="button">Copiar link</button><button class="tool" data-edita type="button">Editar</button>
+        <button class="tool" data-clientes type="button">Clientes</button><button class="tool" data-copia type="button">Copiar link</button><button class="tool" data-edita type="button">Editar</button>
         <button class="tool" data-liga type="button">${x.ativo ? 'Desativar' : 'Reativar'}</button></div></div>`;
 
   const formHtml = (x) => `<form id="exForm" class="panel" style="margin-top:14px;padding:14px" novalidate autocomplete="off">
@@ -56,6 +63,9 @@ export async function desenharExecutivosPainel(alvo, { token, aoEncerrar }) {
           ${(vendedores || []).map((v) => `<option value="${v.id}" ${Number(x.vendedor_g360) === v.id ? 'selected' : ''}>${esc(v.nome)}</option>`).join('')}
           ${x.vendedor_g360 && vendedores && !vendedores.some((v) => v.id === Number(x.vendedor_g360)) ? `<option value="${x.vendedor_g360}" selected>${esc(x.vendedor_nome || `Vendedor ${x.vendedor_g360}`)}</option>` : ''}
         </select><small class="hint" style="display:block;margin-top:4px">O cliente novo indicado por ele nasce no G360 com este vendedor.</small></div>
+        <div class="full"><label for="exOcT">Produtos que os clientes dele não veem: palavras do nome (opcional)</label><input class="inp" id="exOcT" maxlength="600" value="${esc((x.ocultar_termos || []).join(', '))}" placeholder="Ex.: saco lixo, saco p lixo">
+          <small class="hint" style="display:block;margin-top:4px">Separe por vírgula. Some o produto que tiver todas as palavras de um item no nome (sem acento). Vale só para clientes vinculados a ele e logados; o G360 continua vendendo.</small></div>
+        <div class="full"><label for="exOcC">…e códigos de produto (opcional)</label><input class="inp" id="exOcC" maxlength="3000" value="${esc((x.ocultar_codigos || []).join(', '))}" placeholder="Ex.: 25777, 25778"></div>
       </div>
       <div class="okmsg" id="exMsg" aria-live="polite" style="margin-top:8px"></div>
       <div class="act" style="margin-top:10px"><button class="btn sec" type="button" id="exCancela">Cancelar</button><button class="btn pri" type="submit" id="exSalva">Salvar executivo</button></div>
@@ -82,24 +92,34 @@ export async function desenharExecutivosPainel(alvo, { token, aoEncerrar }) {
     alvo.innerHTML = `<div style="padding:16px 18px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
         <div><b>Executivos de contas</b><small class="hint" style="display:block;margin:2px 0 0">Parceiros que indicam clientes novos. Cada um tem um código e um link próprio; quem se cadastra pelo link já chega indicado por ele.</small></div>
-        ${editando ? '' : `<div class="row" style="gap:6px"><button class="tool" id="exVerCfg" type="button">⚙ Regras${config ? ` · ${pct(config.percentual)}%` : ''}</button><button class="btn pri" id="exNovo" type="button">＋ Novo executivo</button></div>`}
+        ${editando ? '' : `<div class="row" style="gap:6px;flex-wrap:wrap"><button class="tool${verRel ? ' on' : ''}" id="exVerRel" type="button">📊 Comissões</button><button class="tool" id="exVerCfg" type="button">⚙ Regras${config ? ` · ${pct(config.percentual)}%` : ''}</button><button class="btn pri" id="exNovo" type="button">＋ Novo executivo</button></div>`}
       </div>
       ${erro ? `<div class="g360-aviso-busca" role="alert" style="margin-top:12px">${esc(erro)}</div>` : ''}
       ${verConfig && config && !editando ? configHtml() : ''}
       ${editando ? formHtml(editando) : ''}
-      <div style="margin-top:14px">${lista.length ? lista.map(linhaHtml).join('') : (editando ? '' : '<div class="hint" style="padding:18px 0">Nenhum executivo ainda. Clique em "Novo executivo" para cadastrar o primeiro.</div>')}</div></div>`;
+      ${verRel && !editando ? relatorioHtml() : ''}
+      <div style="margin-top:14px"${verRel ? ' hidden' : ''}>${lista.length ? lista.map(linhaHtml).join('') : (editando ? '' : '<div class="hint" style="padding:18px 0">Nenhum executivo ainda. Clique em "Novo executivo" para cadastrar o primeiro.</div>')}</div></div>`;
     ligar();
   }
 
   function ligar() {
     alvo.querySelector('#exNovo')?.addEventListener('click', () => { editando = {}; verConfig = false; pintar(); carregarVendedores(); alvo.querySelector('#exNome')?.focus(); });
-    alvo.querySelector('#exVerCfg')?.addEventListener('click', () => { verConfig = !verConfig; pintar(); });
+    alvo.querySelector('#exVerCfg')?.addEventListener('click', () => { verConfig = !verConfig; verRel = false; pintar(); });
+    alvo.querySelector('#exVerRel')?.addEventListener('click', () => { verRel = !verRel; verConfig = false; pintar(); if (verRel && !rel) carregarRel(); });
+    ligarRel();
     alvo.querySelectorAll('.ex-linha').forEach((l) => {
       const x = lista.find((e) => e.id === l.dataset.id);
       l.querySelector('[data-copia]').onclick = async () => {
         try { await navigator.clipboard.writeText(linkExecutivo(x.codigo)); toast('Link copiado'); } catch { toast(linkExecutivo(x.codigo)); }
       };
       l.querySelector('[data-edita]').onclick = () => { editando = { ...x }; verConfig = false; pintar(); carregarVendedores(); };
+      l.querySelector('[data-clientes]').onclick = async (ev) => {
+        const box = l.querySelector('.ex-cli'); const bt = ev.currentTarget;
+        if (!box.hidden) { box.hidden = true; bt.textContent = 'Clientes'; return; }
+        box.hidden = false; bt.textContent = 'Fechar clientes'; box.innerHTML = '<small class="hint">Carregando os clientes…</small>';
+        try { box.innerHTML = clientesHtml((await chamar('clientes', { executivo_id: x.id })).dados || []); }
+        catch (e) { box.innerHTML = `<small class="hint">${esc(e.message)}</small>`; }
+      };
       l.querySelector('[data-liga]').onclick = async (ev) => {
         if (x.ativo && !confirmar(ev.currentTarget, `Desativar ${x.nome}? Ele deixa de entrar na área dele e os novos cadastros com o código dele não geram vínculo.`)) return;
         try { await chamar('situacao', { id: x.id, ativo: !x.ativo }); toast(x.ativo ? 'Executivo desativado' : 'Executivo reativado'); carregar(); } catch (e) { toast(e.message); }
@@ -122,6 +142,7 @@ export async function desenharExecutivosPainel(alvo, { token, aoEncerrar }) {
           email: f.querySelector('#exMail').value, senha: f.querySelector('#exSenha').value,
           percentual: f.querySelector('#exPct').value.trim(),
           vendedor_g360: vend.value ? Number(vend.value) : null, vendedor_nome: vend.value ? vend.selectedOptions[0]?.textContent || '' : '',
+          ocultar_termos: f.querySelector('#exOcT').value, ocultar_codigos: f.querySelector('#exOcC').value,
         };
         bt.disabled = true; msg.className = 'okmsg'; msg.textContent = 'Salvando…';
         try {
@@ -148,6 +169,77 @@ export async function desenharExecutivosPainel(alvo, { token, aoEncerrar }) {
         } catch (e) { msg.className = 'okmsg err'; msg.textContent = e.message; bt.disabled = false; }
       };
     }
+  }
+
+  /* ---------- Comissões do mês ---------- */
+  async function carregarRel() {
+    rel = null; relErro = ''; pintar();
+    try { rel = (await chamar('relatorio', { mes: relMes })).dados; } catch (e) { relErro = e.message; rel = { comissoes: [], executivos: [], config }; }
+    pintar();
+  }
+  const soma = (l, f = (c) => c.valor) => l.reduce((t, c) => t.plus(new Decimal(String(f(c) ?? 0))), new Decimal(0)).toFixed(2);
+  function relatorioHtml() {
+    const topo = `<div class="ex-rel-topo"><label for="exMes">Mês</label><input class="inp" type="month" id="exMes" value="${esc(relMes)}" style="max-width:180px">
+      <button class="tool" id="exRecalc" type="button" title="Refaz as comissões que faltarem a partir dos pedidos feitos pelo portal no mês">↻ Recalcular o mês</button></div>
+      <small class="hint" style="display:block;margin:6px 0 0">A comissão nasce <b>prevista</b> quando o cliente vinculado faz o pedido pelo portal (valor dos produtos, sem frete e sem taxa). Confira cada pedido no G360 antes de marcar. Regra atual: liberar ${config?.liberar_em === 'faturamento' ? 'quando o pedido é faturado' : 'depois que o cliente paga'}.</small>`;
+    if (!rel) return `<div class="panel ex-rel">${topo}<div class="hint" style="padding:14px 0">Carregando as comissões…</div></div>`;
+    const porExec = new Map();
+    for (const c of rel.comissoes) { const l = porExec.get(c.executivo_id) || []; l.push(c); porExec.set(c.executivo_id, l); }
+    const blocos = [...porExec.entries()].map(([id, l]) => {
+      const e = rel.executivos.find((x) => x.id === id) || { nome: 'Executivo', codigo: '' };
+      const validas = l.filter((c) => c.situacao !== 'cancelada');
+      const tot = (s) => soma(l.filter((c) => s.includes(c.situacao)));
+      const liberadas = l.filter((c) => c.situacao === 'liberada');
+      return `<div class="ex-rel-bloco" data-exec="${esc(id)}">
+        <div class="ex-rel-cab"><div><b>${esc(e.nome)}</b> <span class="ex-cod">${esc(e.codigo)}</span>
+          <small class="hint">${new Set(validas.map((c) => c.cliente_codigo)).size} cliente(s) compraram · ${validas.length} pedido(s) · vendas ${esc(dinheiro(soma(validas, (c) => c.base)))}</small></div>
+          <div class="ex-rel-tot"><span>Prevista <b>${esc(dinheiro(tot(['prevista', 'faturada'])))}</b></span><span>Liberada <b>${esc(dinheiro(tot(['liberada'])))}</b></span><span>Paga <b>${esc(dinheiro(tot(['paga'])))}</b></span></div></div>
+        ${liberadas.length ? `<div class="ex-rel-pagar">${pagando === id ? `<input class="inp" type="date" id="exPgData" value="${esc(new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10))}" style="max-width:170px"><input class="inp" id="exPgObs" maxlength="300" placeholder="Observação (ex.: nº da nota do executivo)"><button class="btn pri" type="button" data-pgok>Confirmar pagamento de ${esc(dinheiro(soma(liberadas)))}</button><button class="tool" type="button" data-pgcancela>Cancelar</button>` : `<button class="btn sec" type="button" data-pagar>Marcar liberadas como pagas (${esc(dinheiro(soma(liberadas)))})</button>`}</div>` : ''}
+        <div class="ex-rel-tab">${l.map((c) => `<div class="ex-rel-l ${esc(c.situacao)}" data-c="${esc(c.id)}">
+          <div><b>${esc(c.cliente)}</b><small class="hint">${esc(dataBr(c.pedido_data))} · pedido ${esc(c.pedido_numero || 'aguardando número')} · vendas ${esc(dinheiro(c.base))} × ${esc(pct(c.percentual))}%${c.paga_em ? ` · paga em ${esc(dataBr(c.paga_em))}` : ''}${c.observacao ? ` · ${esc(c.observacao)}` : ''}</small></div>
+          <div class="ex-rel-v"><b>${esc(dinheiro(c.valor))}</b><span class="ex-st ${c.situacao === 'paga' || c.situacao === 'liberada' ? 'ativo' : c.situacao === 'cancelada' ? 'recusado' : 'aguardando'}">${esc(SITC[c.situacao] || c.situacao)}</span></div>
+          <div class="row" style="gap:6px;flex-wrap:wrap">
+            ${c.situacao === 'prevista' ? '<button class="tool" type="button" data-m="faturada">Faturado</button>' : ''}
+            ${['prevista', 'faturada'].includes(c.situacao) ? '<button class="tool" type="button" data-m="cliente_pagou">Cliente pagou</button>' : ''}
+            ${['prevista', 'faturada', 'liberada'].includes(c.situacao) ? '<button class="tool" type="button" data-m="cancelar">Cancelado/devolvido</button>' : ''}
+            ${c.situacao === 'cancelada' ? '<button class="tool" type="button" data-m="reabrir">Reabrir</button>' : ''}
+          </div></div>`).join('')}</div></div>`;
+    }).join('');
+    return `<div class="panel ex-rel">${topo}${relErro ? `<div class="g360-aviso-busca" role="alert" style="margin-top:10px">${esc(relErro)}</div>` : ''}
+      ${blocos || '<div class="hint" style="padding:14px 0">Nenhuma comissão neste mês. Ela aparece quando um cliente vinculado faz um pedido pelo portal.</div>'}</div>`;
+  }
+  function ligarRel() {
+    const r = alvo.querySelector('.ex-rel'); if (!r) return;
+    r.querySelector('#exMes')?.addEventListener('change', (e) => { if (/^\d{4}-\d{2}$/.test(e.target.value)) { relMes = e.target.value; pagando = null; carregarRel(); } });
+    r.querySelector('#exRecalc')?.addEventListener('click', async (ev) => {
+      ev.currentTarget.disabled = true;
+      try { const n = (await chamar('recalcular', { desde: `${relMes}-01` })).dados.novas; toast(n ? `${n} comissão(ões) nova(s)` : 'Nada faltando neste mês'); } catch (e) { toast(e.message); }
+      carregarRel();
+    });
+    r.querySelectorAll('[data-m]').forEach((b) => b.onclick = async () => {
+      const id = b.closest('[data-c]').dataset.c; const m = b.dataset.m;
+      if (m === 'cancelar' && !confirmar(b, 'Cancelar a comissão deste pedido (cancelado ou devolvido)?')) return;
+      b.disabled = true;
+      try { await chamar('comissao_marcar', { ids: [id], acao: m }); carregarRel(); } catch (e) { b.disabled = false; toast(e.message); }
+    });
+    r.querySelectorAll('[data-pagar]').forEach((b) => b.onclick = () => { pagando = b.closest('[data-exec]').dataset.exec; pintar(); });
+    r.querySelector('[data-pgcancela]')?.addEventListener('click', () => { pagando = null; pintar(); });
+    r.querySelector('[data-pgok]')?.addEventListener('click', async (ev) => {
+      const bloco = ev.currentTarget.closest('[data-exec]');
+      const ids = rel.comissoes.filter((c) => c.executivo_id === bloco.dataset.exec && c.situacao === 'liberada').map((c) => c.id);
+      ev.currentTarget.disabled = true;
+      try {
+        await chamar('comissao_marcar', { ids, acao: 'paga', data: bloco.querySelector('#exPgData').value, observacao: bloco.querySelector('#exPgObs').value });
+        toast('Comissões marcadas como pagas ✓'); pagando = null; carregarRel();
+      } catch (e) { ev.currentTarget.disabled = false; toast(e.message); }
+    });
+  }
+
+  function clientesHtml(lista) {
+    if (!lista.length) return '<small class="hint">Nenhum cliente indicado ainda.</small>';
+    return `<div class="ex-cli-lista">${lista.map((c) => `<div class="ex-cli-l"><b>${esc(c.razao_social || c.documento)}</b>
+      <span class="ex-st ${esc(c.situacao)}">${esc(SITV[c.situacao] || c.situacao)}</span>
+      <small class="hint">${c.cliente_codigo ? `cód. G360 ${esc(c.cliente_codigo)} · ` : ''}${c.inicio ? `desde ${esc(dataBr(c.inicio))}` : `indicado em ${esc(dataBr(String(c.criado_em).slice(0, 10)))}`}${c.fim ? ` · até ${esc(dataBr(c.fim))}` : c.situacao === 'ativo' ? ' · sem prazo' : ''}${c.motivo ? ` · ${esc(c.motivo)}` : ''}</small></div>`).join('')}</div>`;
   }
 
   /** Confirmação no próprio botão (sem caixa de diálogo do navegador): primeiro toque arma, segundo confirma. */
