@@ -109,10 +109,17 @@ async function situacaoNoPortal(doc) {
   } catch { return null; }
 }
 
+/* "Cadastro em análise" neste aparelho: só a data do envio, sem documento nem dados da empresa.
+   Some quando a pessoa entra no portal. */
+const CHAVE_ANALISE = `g360:${LOJA}:cadastro-em-analise`;
+function marcarEmAnalise() { try { localStorage.setItem(CHAVE_ANALISE, new Date().toISOString().slice(0, 10)); } catch { /* sem armazenamento */ } }
+export function cadastroEmAnalise() { try { return localStorage.getItem(CHAVE_ANALISE); } catch { return null; } }
+export function esquecerCadastroEmAnalise() { try { localStorage.removeItem(CHAVE_ANALISE); } catch { /* sem armazenamento */ } }
+
 export function abrirCadastro(ctx) {
   const opcoes = (lista) => `<option value="">Selecione…</option>${lista.map((o) => `<option>${esc(o)}</option>`).join('')}`;
   $('cadBox').innerHTML = `<div class="kcad"><h3>Quero ser cliente</h3>
-    <div class="sub">Leva uns 2 minutos. Digite o CNPJ que a gente preenche o resto pela Receita. A equipe da Souza Ribeiro confere e, depois de aprovado, você cria a sua senha em <b>Primeiro acesso</b>.</div>
+    <div class="sub">Leva uns 2 minutos. Digite o CNPJ que a gente preenche o resto pela Receita. A equipe da Souza Ribeiro confere e, depois de aprovado, você recebe por e-mail o link para criar a sua senha.</div>
 
     <div class="ksec"><div class="ktit"><span>1</span>Sua empresa</div>
       ${campo('kDoc', 'CNPJ ou CPF', 'maxlength="18" autocomplete="off" autocapitalize="characters" inputmode="text" enterkeyhint="next" placeholder="00.000.000/0000-00"', true)}
@@ -183,16 +190,16 @@ export function abrirCadastro(ctx) {
     if (!st) { caixa.hidden = true; $('kEnviar').disabled = false; return; }
     const tipo = c.length === 11 ? 'CPF' : 'CNPJ';
     const textos = {
-      aprovado: [`Este ${tipo} já está cadastrado no portal.`, 'É só entrar com ele e a sua senha. Se ainda não criou a senha ou esqueceu, use <b>Primeiro acesso</b>: o link chega no e-mail cadastrado.'],
-      pendente: [`Já recebemos um cadastro com este ${tipo}.`, 'A equipe da Souza Ribeiro está analisando e fala com você pelo WhatsApp. Depois da aprovação, use <b>Primeiro acesso</b> para criar a senha.'],
+      aprovado: [`Este ${tipo} já está cadastrado no portal.`, 'É só entrar com ele e a sua senha. Se esqueceu a senha, use <b>Esqueci minha senha</b>: o link chega no e-mail cadastrado. Se ainda não tem senha ou o e-mail mudou, fale com a equipe da Souza Ribeiro pelo WhatsApp.'],
+      pendente: [`Já recebemos um cadastro com este ${tipo}.`, 'O cadastro está em análise: a equipe da Souza Ribeiro confere e fala com você pelo WhatsApp. Quando for aprovado, chega no e-mail cadastrado o link para criar a senha.'],
       recusado: [`Já existe um cadastro com este ${tipo}.`, 'Para mais informações, fale com a equipe da Souza Ribeiro.'],
     }[st] || [`Este ${tipo} já está cadastrado no portal.`, ''];
     caixa.innerHTML = `<div class="kja1">✓ ${textos[0]}</div>${textos[1] ? `<div class="kja2">${textos[1]}</div>` : ''}
-      ${st === 'aprovado' || st === 'pendente' ? `<div class="kja3">${st === 'aprovado' ? '<button type="button" class="btn pri" id="kJaEntrar">Entrar</button>' : ''}${ctx.loja?.troca_senha !== false ? '<button type="button" class="btn sec" id="kJaPrimeiro">Primeiro acesso</button>' : ''}</div>` : ''}`;
+      ${st === 'aprovado' || st === 'pendente' ? `<div class="kja3">${st === 'aprovado' ? '<button type="button" class="btn pri" id="kJaEntrar">Entrar</button>' : ''}${st === 'aprovado' && ctx.loja?.troca_senha !== false ? '<button type="button" class="btn sec" id="kJaPrimeiro">Esqueci minha senha</button>' : ''}</div>` : ''}`;
     caixa.hidden = false;
     $('kEnviar').disabled = true;
     $('kJaEntrar')?.addEventListener('click', () => { fecharModal('mCad'); ctx.abrirLogin?.(doc.value); });
-    $('kJaPrimeiro')?.addEventListener('click', () => { fecharModal('mCad'); ctx.ir?.('/primeiro-acesso'); });
+    $('kJaPrimeiro')?.addEventListener('click', () => { fecharModal('mCad'); ctx.ir?.('/esqueci-senha'); });
   };
   let ultimaConsulta = '';
   doc.addEventListener('input', async () => {
@@ -298,8 +305,10 @@ export function abrirCadastro(ctx) {
       return;
     }
     avisarEvento('cadastro'); // aviso para os gestores
-    $('cadBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>Cadastro enviado!</h3>
-      <p>Recebemos os dados da <b>${esc(d.razao_social)}</b>. A equipe da Souza Ribeiro confere e fala com você pelo WhatsApp <b>${esc(foneBonito(d.whats))}</b>.<br>Depois da aprovação, chega no seu e-mail o link para criar a senha (ou use <b>Primeiro acesso</b>).</p></div>
+    marcarEmAnalise(); window.dispatchEvent(new Event('g360:cadastro-enviado'));
+    $('cadBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>Cadastro em análise</h3>
+      <p>Recebemos os dados da <b>${esc(d.razao_social)}</b>. A equipe da Souza Ribeiro confere e fala com você pelo WhatsApp <b>${esc(foneBonito(d.whats))}</b>.</p>
+      <p>Quando o cadastro for aprovado, chega no e-mail <b>${esc(d.email || '')}</b> o link para você criar a sua senha e começar a comprar.</p></div>
       <div class="act" style="justify-content:center"><button type="button" class="btn pri" id="kOk">Entendi</button></div>`;
     $('kOk').onclick = () => fecharModal('mCad');
     void ctx;

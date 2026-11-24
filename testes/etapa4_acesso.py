@@ -51,9 +51,9 @@ def sem_rolagem(pg, nome):
 with sync_playwright() as pw:
     # 1) Entrada com os dois caminhos; Primeiro acesso abre pelo caminho (sem #)
     br, pg, reg = abrir(pw, '/')
-    checar(pg.locator('#gPrimeiro').is_visible(), 'botão Primeiro acesso ausente')
-    pg.click('#tbConta'); checar(pg.locator('#lgEsqL').is_visible(), 'link Esqueci minha senha ausente'); pg.click('#lgX')
-    pg.click('#gPrimeiro')
+    checar(pg.locator('#gPrimeiro').count() == 0, 'sem botão Primeiro acesso (cliente novo usa Quero ser cliente)')
+    pg.click('#tbConta'); checar(pg.locator('#lgEsqL').is_visible() and pg.locator('#lgEsqL').text_content().strip() == 'Esqueci minha senha', 'link Esqueci minha senha'); pg.click('#lgX')
+    pg.goto(BASE + '/primeiro-acesso')  # a rota antiga continua abrindo (links já enviados)
     pg.wait_for_selector('#g360Documento')
     checar(pg.evaluate('location.pathname') == '/primeiro-acesso', 'rota /primeiro-acesso não abriu')
     checar('30 minutos' in pg.inner_text('#g360Conteudo') and '3 pedidos' in pg.inner_text('#g360Conteudo'), 'avisos do link ausentes')

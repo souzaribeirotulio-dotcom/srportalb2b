@@ -641,3 +641,11 @@ details.ferr > .afil{margin:0 !important;padding:0 12px 12px}
 .rs-item[data-st="info"] .rs-ic::before { content: "i"; color: var(--tx3); font-style: italic; }
 .rs-cont { margin-left: auto; font-weight: 700; font-size: 12px; color: var(--tx3); white-space: nowrap; }
 .rs-item[data-st="ok"] .rs-cont { color: #b2e04a; }
+
+/* Visitante: chamada para o cadastro logo no topo da página */
+.hcad[hidden] { display: none; }
+.hcad { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 18px; }
+.hcad .btn { min-height: 48px; padding: 0 22px; font-size: 16px; }
+.hcad small { flex-basis: 100%; color: var(--tx3); font-size: 13px; }
+.hcad.analise small { color: var(--lima, #b2e04a); font-size: 14px; }
+@media (max-width: 640px) { .hcad .btn { flex: 1 1 100%; } }

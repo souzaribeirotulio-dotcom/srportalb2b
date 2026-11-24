@@ -29,7 +29,7 @@ import { desenharPedidos } from './pedidos.js';
 import { desenharClips, ligarClips, pausarClips, carregarClips, clipDoProduto, urlClip } from './clips.js';
 import { abrirNegociacao, desenharMinhasNegociacoes } from './negociacao.js';
 import { htmlDisponivel, conferir, somar } from './estoque.js';
-import { abrirCadastro } from './cadastro.js';
+import { abrirCadastro, cadastroEmAnalise, esquecerCadastroEmAnalise } from './cadastro.js';
 import { situacaoAvisos, ativarAvisos, desativarAvisos, testarAviso } from '../estado/avisos.js';
 import { convidarNoRodape } from '../ui/oferta-avisos.js';
 
@@ -68,6 +68,9 @@ function montar() {
     else if (v === 'clips') ctx.ir('/clips');
   }));
   $('tbConta').addEventListener('click', () => (sessao.ativa ? abrirConta() : abrirLogin()));
+  $('heroCadB').addEventListener('click', () => abrirCadastro(ctxCadastro()));
+  $('heroEntrar').addEventListener('click', () => abrirLogin());
+  window.addEventListener('g360:cadastro-enviado', pintarChamadaCadastro);
   $('cartBtn').addEventListener('click', () => exigirLogin(abrirCarrinho));
   $('dClose').addEventListener('click', fecharCarrinho);
   $('shade').addEventListener('click', fecharCarrinho);
@@ -163,6 +166,7 @@ export function prepararCasca(contexto) {
 /** Mostra a tela pedida no layout original. rota: cat | lista | ped. */
 export function mostrarLoja(contexto, rota, params = [], estado = {}) {
   ctx = { ...contexto, rota };
+  pintarChamadaCadastro();
   montar();
   liberarFotosDaTela();
   document.querySelectorAll('.view').forEach((el) => { el.hidden = el.id !== { cat: 'vCat', lista: 'vLista', ped: 'vPed', clips: 'vClips' }[rota]; });
@@ -205,7 +209,20 @@ async function carregarClassificacoes() {
   return classificacoes;
 }
 
+/** Topo da página para quem não entrou: botão de cadastro (ou "em análise", se já mandou daqui). */
+function pintarChamadaCadastro() {
+  const box = $('heroCad'); if (!box) return;
+  if (sessao.ativa) { box.hidden = true; esquecerCadastroEmAnalise(); return; }
+  const enviado = cadastroEmAnalise();
+  box.hidden = false; box.classList.toggle('analise', !!enviado);
+  $('heroCadB').textContent = enviado ? 'Ver meu cadastro' : 'Quero ser cliente';
+  $('heroCadT').textContent = enviado
+    ? `Seu cadastro está em análise (enviado em ${enviado.split('-').reverse().join('/')}). Quando for aprovado, o link para criar a senha chega no e-mail cadastrado.`
+    : 'Cadastro em 2 minutos: digite o CNPJ e a gente preenche o resto.';
+}
+
 function desenharChips() {
+  pintarChamadaCadastro();
   const el = $('cats');
   if (!sessao.ativa) {
     chipsPublicos().then((grupos) => {
@@ -404,11 +421,9 @@ async function resultadoBusca() {
 function conviteEntrar(grid, extra = '') {
   grid.innerHTML = `<div class="empty g360-convite">${extra}<b>Entre para ver o catálogo e os seus preços.</b>
     <p>O portal é exclusivo para empresas clientes da Souza Ribeiro.</p>
-    <div class="act" style="justify-content:center"><button type="button" class="btn pri" id="gEntrar">Entrar</button><button type="button" class="btn out" id="gPrimeiro">Primeiro acesso</button><button type="button" class="btn out" id="gCadastro">Quero ser cliente</button></div></div>`;
+    <div class="act" style="justify-content:center"><button type="button" class="btn pri" id="gEntrar">Entrar</button><button type="button" class="btn out" id="gCadastro">Quero ser cliente</button></div></div>`;
   $('gCadastro').onclick = () => abrirCadastro(ctxCadastro());
   $('gEntrar').onclick = () => abrirLogin();
-  $('gPrimeiro').onclick = () => ctx.ir('/primeiro-acesso');
-  if (ctx.loja.troca_senha !== true) $('gPrimeiro').style.display = 'none';
 }
 
 /** Visitante: catálogo aberto (vitrine) com "Entre para ver os preços". Vitrine fechada → convite para entrar. */
@@ -656,8 +671,10 @@ function lembrarDoc(d) { try { if (d && ehAppInstalado()) localStorage.setItem(C
 function ligarLogin() {
   $('lgCad').textContent = 'Quero ser cliente';
   $('lgCad').onclick = () => { fecharModal('mLogin'); abrirCadastro(ctxCadastro()); };
-  $('lgEsqL').textContent = 'Primeiro acesso ou esqueci minha senha';
-  $('lgEsqL').onclick = () => { fecharModal('mLogin'); ctx.ir('/primeiro-acesso'); };
+  // Sem "Primeiro acesso" (23/11): quem ainda não é cliente usa "Quero ser cliente"; a equipe confere o e-mail no G360
+  // e manda o link pelo painel. O "Esqueci minha senha" continua para quem já tem senha.
+  $('lgEsqL').textContent = 'Esqueci minha senha';
+  $('lgEsqL').onclick = () => { fecharModal('mLogin'); ctx.ir('/esqueci-senha'); };
   $('lgAdm').textContent = 'Acesso da equipe Souza Ribeiro';
   $('lgAdm').onclick = () => { fecharModal('mLogin'); ctx.ir('/painel'); };
   $('lgVolta').hidden = true; $('lgEsq').hidden = true; $('lgAdmT').hidden = true;
@@ -695,7 +712,7 @@ function ligarLogin() {
       form.querySelector('#lgS').value = '';
       lugar.replaceWith(form);
       fecharModal('mLogin');
-      ctx.aoEntrar();
+      ctx.aoEntrar(); pintarChamadaCadastro();
       limparEventosSessao(); registrarAcesso();
       setTimeout(() => { convidarNoRodape().catch(() => {}); }, 1500); // convite para os avisos do pedido (se ainda não ativou)
       toast(`Bem-vindo, ${sessao.comprador?.fantasia || sessao.comprador?.nome || ''}!`);
@@ -709,7 +726,7 @@ function ligarLogin() {
   };
 }
 
-/** "Quero ser cliente" com atalhos para quem já tem cadastro: Entrar (com o documento já digitado) e Primeiro acesso. */
+/** "Quero ser cliente" com atalhos para quem já tem cadastro: Entrar (com o documento já digitado) e Esqueci minha senha. */
 function ctxCadastro() {
   return { ...ctx, abrirLogin: (documento) => { abrirLogin(); if (documento) { $('lgC').value = documento; setTimeout(() => $('lgS').focus(), 80); } } };
 }
