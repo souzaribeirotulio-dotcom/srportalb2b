@@ -46,6 +46,7 @@ with sync_playwright() as pw:
         checar(-1 not in pos and pos == sorted(pos), f'ordem por tipo: {pos}')
         secao(pg, largura, sid); pg.wait_for_timeout(1200)
         checar(pg.inner_text('#depTit') == 'Sacos de lixo', f"título: {pg.inner_text('#depTit')}")
+        checar(pg.inner_text('#depCab .dep-ic').strip() == '🗑️', f"ícone da seção: {pg.inner_text('#depCab .dep-ic')}")
         g = ' '.join(' '.join(cards(pg)).split())
         checar('Preto' in g and 'Infectante' in g and 'Pano' not in g and 'Detergente' not in g, f'cards da seção: {g[:300]}')
         checar('limpeza › sacos de lixo' in pg.inner_text('#cnt').lower(), f"caminho: {pg.inner_text('#cnt')}")
