@@ -67,12 +67,14 @@ with sync_playwright() as pw:
         checar('999' not in ' '.join(pg.inner_text('#exVendas').split()), 'vendas de outro executivo')
         checar(pg.evaluate('document.documentElement.scrollWidth <= innerWidth'), f'rolagem horizontal em {largura}px')
         arm = pg.evaluate('JSON.stringify(localStorage)')
-        checar('executivo-sessao' not in arm, 'sessão do executivo no localStorage (deveria ficar só na aba)')
+        checar('executivo-sessao' in arm, 'Continuar conectado (marcado) não guardou a sessão')
         checar(not any('SenhaJoao' in x for x in console), 'senha no console')
         pg.screenshot(path=f'/tmp/vis/area{largura}.png', full_page=True)
         # F5 mantém a sessão na aba; Sair volta ao login
         pg.reload(); pg.wait_for_selector('#exLink')
         pg.click('#exSair'); pg.wait_for_selector('#exLogin')
+        checar('executivo-sessao' not in pg.evaluate('JSON.stringify(localStorage)'), 'Sair não apagou a sessão guardada')
+        checar(pg.is_checked('#exLembrar'), 'Continuar conectado deveria vir marcado')
         checar('saiu' in pg.inner_text('#g360Conteudo'), 'aviso ao sair')
         pg.wait_for_timeout(400)
         # executivo desativado não entra
@@ -81,6 +83,11 @@ with sync_playwright() as pw:
         pg.wait_for_function("document.getElementById('g360Conteudo').innerText.includes('não está ativo')", timeout=8000)
         checar('não está ativo' in pg.inner_text('#g360Conteudo'), 'executivo desativado entrou')
         joao['ativo'] = True
+        # sem "Continuar conectado": a sessão fica só na aba
+        pg.wait_for_timeout(300); pg.uncheck('#exLembrar')
+        pg.fill('#exEmail', 'joao@example.invalid'); pg.fill('#exSenha', 'SenhaJoao123'); pg.click('#exEntrar'); pg.wait_for_selector('#exLink')
+        checar('executivo-sessao' not in pg.evaluate('JSON.stringify(localStorage)') and 'executivo-sessao' in pg.evaluate('JSON.stringify(sessionStorage)'), 'desmarcado guardou a sessão no aparelho')
+        pg.click('#exSair'); pg.wait_for_selector('#exLogin')
         # o catálogo continua igual depois de passar pela área do executivo
         pg.goto(BASE + '/'); pg.wait_for_selector('#grid .card')
         checar(not erros, f'erros de script: {erros}')

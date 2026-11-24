@@ -6,7 +6,7 @@
    custo, margem, catálogo, outros clientes ou painel.
    ===================================================================== */
 import Decimal from 'decimal.js';
-import { supabaseExecutivo, supabaseConfigurado } from '../api/supabase.js';
+import { supabaseExecutivo, supabaseConfigurado, lembrarExecutivo } from '../api/supabase.js';
 import { esc } from '../ui/util.js';
 import { dinheiro, dataBr } from '../ui/formato.js';
 
@@ -34,6 +34,8 @@ function formularioLogin(sb, conteudo, aviso = '') {
       <input id="exEmail" type="email" autocomplete="username" maxlength="160" inputmode="email">
       <label for="exSenha">Senha</label>
       <input id="exSenha" type="password" autocomplete="current-password" maxlength="72">
+      <label class="g360-check" for="exLembrar"><input type="checkbox" id="exLembrar" checked> Continuar conectado</label>
+      <small class="g360-dica">Desmarque em computador compartilhado.</small>
       <small id="exErro" class="g360-erro-campo" aria-live="polite"></small>
       <button type="submit" class="g360-btn pri" id="exEntrar">Entrar</button>
     </form>
@@ -48,6 +50,8 @@ function formularioLogin(sb, conteudo, aviso = '') {
     if (!email || !senha) { erro.textContent = 'Digite o e-mail e a senha.'; return; }
     bt.disabled = true; bt.textContent = 'Entrando…'; erro.textContent = '';
     try {
+      // Escolhe onde a sessão fica ANTES de entrar (o Supabase grava a sessão logo no login).
+      lembrarExecutivo(f.querySelector('#exLembrar').checked);
       const { error } = await sb.auth.signInWithPassword({ email, password: senha });
       f.querySelector('#exSenha').value = '';
       if (error) {
@@ -64,6 +68,7 @@ function formularioLogin(sb, conteudo, aviso = '') {
 
 async function sair(sb, conteudo, aviso = '') {
   try { await sb.auth.signOut({ scope: 'local' }); } catch { /* segue */ }
+  lembrarExecutivo(false);
   formularioLogin(sb, conteudo, aviso);
 }
 
