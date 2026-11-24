@@ -12,6 +12,14 @@ U1, S1 = '11.111.111/0001-11', 'Teste12'
 U2, S2 = '22.222.222/0001-22', 'Teste34'
 UB, SB = '33.333.333/0001-33', 'Teste56'
 falhas = []; etapa = ['']
+def ir_dep(pg, nome):
+    """Abre um departamento pelo menu ☰ Departamentos (a barra agora só tem o menu e os atalhos de seção)."""
+    pg.click('#cats [data-deps]'); pg.wait_for_selector('#mDeps .dm-item')
+    pg.click('#mDeps button[data-dep]:has-text("%s")' % nome); pg.wait_for_timeout(300)
+    # no computador, o departamento já aberto vai direto no clique; nos outros casos, "Ver tudo em ..."
+    if pg.locator('#mDeps').count(): pg.click('#mDeps .dm-secs .dm-tudo')
+    pg.wait_for_function("document.getElementById('depTit')?.textContent === %r" % nome)
+
 def checar(c, m):
     if not c: falhas.append(f'[{etapa[0]}] {m}')
 
@@ -295,18 +303,18 @@ with sync_playwright() as pw:
     pg.fill('#q', 'P-121'); pg.press('#q', 'Enter'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('Mostrando 1 de 1 resultado')")
     pg.fill('#q', 'nada-existe'); pg.press('#q', 'Enter'); pg.wait_for_selector('#gLimpar')
     pg.click('#gLimpar'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('Mostrando 24') && document.querySelectorAll('#grid .card').length === 24")
-    # Número no chip da categoria = "Mostrando X de Y" (só o que aparece no portal, não a categoria inteira)
+    # Número do departamento no menu = "Mostrando X de Y" (só o que aparece no portal, não a categoria inteira)
     lim_ = [c for c, v in sim.exibicao.items() if v.get('categoria') == 'Limpeza']
     if len(lim_) >= 2:
         vis_antes_ = sim.visiveis
         sim.visiveis = {'visiveis': [p['codigo'] for p in sim.produtos if p['codigo'] != lim_[0]], 'estoque_baixo': [], 'sem_estoque': [lim_[0]], 'estoque_minimo': 0, 'atualizado_em': '2026-11-18T22:00:00+00:00'}
-        pg.reload(); pg.wait_for_selector('.chip[data-c="Limpeza"]')
-        chip_ = int(pg.text_content('.chip[data-c="Limpeza"] span') or 0)
-        pg.click('.chip[data-c="Limpeza"]'); pg.wait_for_function("document.getElementById('cnt').textContent.includes(' de ')")
+        pg.reload(); pg.wait_for_selector('#cats [data-deps]'); pg.wait_for_timeout(800)
+        ir_dep(pg, 'Limpeza'); chip_ = int(re.search(r'([\d.]+) produto', pg.inner_text('#depCab .dep-tx p')).group(1).replace('.', ''))
+        pg.wait_for_function("document.getElementById('cnt').textContent.includes(' de ')")
         tot_ = int(re.search(r' de ([\d.]+)', n.tc('#cnt')).group(1).replace('.', ''))
         checar(chip_ == len([c for c in lim_ if c in sim.visiveis['visiveis']]) == len(lim_) - 1 and tot_ >= chip_, f'chip da categoria conta só o que aparece no portal (teste que tem de dar errado se contar os sem estoque): chip {chip_}, lista {tot_}')
-        sim.visiveis = vis_antes_; pg.reload(); pg.wait_for_selector('.chip[data-c="Descartáveis"]')
-    pg.click('.chip[data-c="Descartáveis"]'); pg.wait_for_function("document.querySelectorAll('#grid .card').length === 1")
+        sim.visiveis = vis_antes_; pg.reload(); pg.wait_for_selector('#cats [data-deps]'); pg.wait_for_timeout(800)
+    ir_dep(pg, 'Descartáveis'); pg.wait_for_function("document.querySelectorAll('#grid .card').length === 1")
     checar('Copo Descartável Exemplo 200ml' in n.tc('#grid') and 'Descartáveis' in n.tc('#grid .cat'), 'categoria e nome do portal no catálogo')
     q = [x for x in sim.chamadas if x[0] == 'POST' and x[1].endswith('produtos/busca')][-1][3]
     checar(q.get('codigos') == ['P-104'], f'filtro da categoria pelos códigos: {q}')
@@ -320,7 +328,7 @@ with sync_playwright() as pw:
     pg.fill('#q', 'xyzqwk'); pg.press('#q', 'Enter'); pg.wait_for_selector('#gLimpar')
     checar('Você quis dizer' not in n.tc('#cnt') and 'Nada encontrado' in n.tc('#grid'), 'sem palavra parecida, sem sugestão')
     pg.fill('#q', ''); pg.press('#q', 'Enter'); pg.wait_for_function("document.querySelectorAll('#grid .card').length === 1")
-    pg.click('.chip[data-c=""]'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('Mostrando 24') && document.querySelectorAll('#grid .card').length === 24")
+    pg.click('#depCab [data-inicio]'); pg.wait_for_function("document.getElementById('cnt').textContent.startsWith('Mostrando 24') && document.querySelectorAll('#grid .card').length === 24")
     c110 = pg.locator('.card[data-id="110"]')
     c110.locator('.qty input').fill('abc'); c110.locator('.add').click()
     checar('Quantidade inválida' in n.toast(), 'quantidade inválida aceita')
@@ -674,7 +682,7 @@ with sync_playwright() as pw:
     checar(vp.locator('#banners .bnr-slide').first.get_attribute('aria-label').startswith('Luvas Fictícias'), 'banner com o título para leitor de tela')
     vp.locator('#banners .bnr-slide').nth(1).scroll_into_view_if_needed()
     vp.click('#banners [data-p="1"]'); vp.wait_for_timeout(700)
-    vp.click('#banners .bnr-slide[data-i="1"]'); vp.wait_for_selector('.chip.on[data-c="Limpeza"]')
+    vp.click('#banners .bnr-slide[data-i="1"]'); vp.wait_for_function("document.getElementById('depTit')?.textContent === 'Limpeza'")
     checar(vp.locator('#banners').is_hidden(), 'banner leva à categoria e some com a categoria escolhida')
     n_.fechar()
     pg.click('.bn-linha:nth-child(1) [data-liga]'); pg.wait_for_function("document.querySelector('.bn-linha [data-liga]').textContent === 'Ligar'")

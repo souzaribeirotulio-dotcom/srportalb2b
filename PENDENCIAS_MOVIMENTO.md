@@ -150,3 +150,30 @@ Pedido: uma rota como `GET operadores/clientes/{cliente}/historico-compras?meses
 ## Continuar conectado para o operador do painel (22/11)
 A equipe da Souza Ribeiro vai usar o painel como app no celular (SR Equipe) e recebe avisos de venda, negociação e cadastro. Hoje a sessão do operador dura até 12 horas e, com a licença compartilhada, a vaga vence após 180 segundos sem uso, então o gestor precisa entrar de novo quase toda vez que abre o app.
 Pedido: um "continuar conectado" para o operador (como o do comprador, com prazo renovado pelo uso), ou que o painel do portal não consuma a vaga da licença compartilhada, se isso for possível.
+## Saber, sem login, se um CNPJ/CPF já é cliente da loja (20/11)
+No "Quero ser cliente", a Souza Ribeiro quer avisar na hora que o documento já é cliente e mandar a pessoa para Entrar ou Primeiro acesso. Hoje o portal só sabe dos pedidos feitos pelo próprio portal (tabela do Supabase). O contrato não tem rota pública para isso; `POST operadores/cadastro/cnpj` exige operador, gasta cota e não serve para CPF, e o pedido de link responde a mesma mensagem de propósito.
+Pergunta/pedido: uma rota pública, com limite por IP, que diga só se o documento tem cadastro ativo na loja (sem nome nem contato), ou a orientação da Movimento para não abrir essa informação.
+
+## Continuar conectado na homologação (22/11)
+O portal já mostra a caixa **Continuar conectado** no login quando `GET loja` traz `continuar_conectado_dias` maior que zero (e envia `continuar_conectado: true` no `POST sessoes` quando o cliente marca). Na loja de homologação a caixa não apareceu, então o valor deve estar em zero.
+Pedido: configurar `continuar_conectado_dias` na loja de homologação (sugestão: 30 dias) para testarmos, e depois na de produção.
+
+## Promoções do G360 no portal B2B (23/11)
+Recebemos o guia "Prompt: consumir as promoções do G360 pela API de sistemas externos" (versão de 23/11/2026), mas não o contrato `openapi-integracoes-promocoes.yaml` que ele cita. Sem o contrato não implementamos nada: o guia manda não usar rota, campo nem código de erro fora dele.
+Pedidos e perguntas:
+1. O arquivo `openapi-integracoes-promocoes.yaml`, e a URL (`G360_API_URL`), o código da empresa (`G360_EMPRESA`) e uma chave com `produtos:ler` e `precos:ler` para homologação e produção (a chave vai direto nos segredos do Supabase, não por e-mail nem chat).
+2. No pedido pela API B2B (`POST revisoes` e `POST pedidos`), a promoção vigente do cliente já entra no `preco_unitario` sozinha? Se não entrar, o portal mostraria um preço de oferta e o pedido sairia pelo preço normal. Precisamos que a revisão B2B devolva o preço da promoção (ou outra orientação).
+3. O `produto` da API de integrações é o mesmo `id` (`produto_id`) da API B2B? E o `unidade_id` da promoção é o mesmo `unidades[].id` do catálogo B2B?
+4. O `cliente` da API de integrações é o mesmo `comprador.codigo` que o B2B devolve em `GET me`?
+5. A API de integrações aceita chamadas do Supabase (servidor, sem cabeçalho Origin) da Souza Ribeiro? Há limite por minuto específico dela?
+
+## Continuar conectado marcado por padrão (24/11)
+A Souza Ribeiro decidiu que a caixa **Continuar conectado** venha **marcada** no login e na página de senha nova (link do e-mail), com o aviso "Desmarque em computador compartilhado". O kit da Movimento pedia a caixa desmarcada. O portal continua mandando `continuar_conectado` como booleano e seguindo o valor efetivo da resposta; a sessão longa segue as regras da API (uso a cada N dias e novo login com senha após 90 dias).
+Pergunta: a Movimento tem alguma objeção ou exigência para a caixa vir marcada? Confirmar antes de levar para produção.
+
+## Cupom de desconto no pedido (24/11)
+A Souza Ribeiro quer um cupom de boas-vindas (exemplo: R$ 50 de desconto em pedidos acima de R$ 200, só na primeira compra). O contrato B2B (`api-sistemas-externos-2026-11-19.yaml`) não tem cupom nem desconto em `POST revisoes` ou `POST pedidos`, e o portal não pode calcular desconto nem total no navegador (a API não aceita valor vindo da tela).
+Pedidos e perguntas:
+1. Existe ou está previsto um campo de cupom (código) na revisão e no pedido, com o desconto devolvido pela revisão (no total e na `assinatura`) e gravado no pedido do G360?
+2. Onde a equipe cadastraria o cupom (valor fixo ou percentual, valor mínimo do pedido, validade, uso único por cliente, só primeira compra)?
+3. Quais pendências/códigos de erro a revisão devolveria (cupom inválido, vencido, já usado, pedido abaixo do mínimo)?

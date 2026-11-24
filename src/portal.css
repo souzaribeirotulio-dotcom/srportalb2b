@@ -897,18 +897,20 @@ details.ferr > .afil{margin:0 !important;padding:0 12px 12px}
 .dm-vazio { padding: 10px 12px; color: var(--tx3); font-size: 13px; }
 .dm-fundo.cel .dm-item, .dm-fundo.cel .dm-tudo { min-height: 50px; font-size: 15.5px; }
 
-/* Barra de departamentos no estilo atacado online: ☰ Departamentos em destaque + departamentos como links */
+/* Barra do catálogo: ☰ Departamentos em destaque + atalhos para as seções mais procuradas */
 .cats { align-items: center; }
 .cats .chip.deps { height: 40px; padding: 0 16px; border-radius: 10px; background: var(--lima, #b2e04a); color: #0b2207; border-color: var(--lima, #b2e04a); font-weight: 800; }
 .cats .chip.deps span { color: #0b2207; }
 .cats .chip:not(.deps) { height: 40px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--tx2); font-weight: 600; font-size: 13.5px; position: relative; }
 .cats .chip:not(.deps) span { display: none; }
+.cats .chip.atalho { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.cats .at-ic { width: 18px; height: 18px; flex: none; color: var(--lima, #b2e04a); }
 .cats .chip:not(.deps):hover { color: var(--tx); background: rgba(255, 255, 255, .04); }
 .cats .chip:not(.deps).on { background: transparent; color: var(--lima, #b2e04a); font-weight: 800; }
 .cats .chip:not(.deps).on::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: 4px; height: 2px; border-radius: 2px; background: var(--lima, #b2e04a); }
 /* Página de departamento/seção: vai direto aos produtos (sem a saudação grande). */
 body.com-dep #vCat .hero { display: none; }
-body.com-dep .cats .chip.deps { position: sticky; left: 0; z-index: 2; box-shadow: 8px 0 12px -6px rgba(0, 0, 0, .6); }
+.cats .chip.deps { position: sticky; left: 0; z-index: 2; box-shadow: 8px 0 12px -6px rgba(0, 0, 0, .6); }
 
 /* Página do departamento: cartão do topo + seções à esquerda (computador) ou no botão Seções (celular) */
 .dep-cab { max-width: 1360px; margin: 18px auto 0; padding: 0 22px; }

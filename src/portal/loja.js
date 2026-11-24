@@ -24,7 +24,7 @@ import { $, esc, toast, abrirModal, fecharModal, saudacao, passoQuantidade, adia
 import { htmlCartao, htmlPreco, unidadeEscolhida, linhaCarrinho } from './cartao.js';
 import { abrirDetalhe, ligarDetalhe } from './detalhe.js';
 import { iniciarSouzinha } from './souzinha.js';
-import { resultadoPublico, htmlCartaoPublico, chipsPublicos, marcasPublicas, limparVisitante } from './visitante.js';
+import { resultadoPublico, htmlCartaoPublico, marcasPublicas, limparVisitante } from './visitante.js';
 import { abrirCheckout } from './checkout.js';
 import { desenharMinhaLista } from './lista.js';
 import { desenharPedidos } from './pedidos.js';
@@ -112,8 +112,8 @@ function montar() {
   $('marca').addEventListener('change', () => { filtros.marca = $('marca').value; filtros.pagina = 1; desenharCatalogo(); });
   $('cats').addEventListener('click', (e) => {
     if (e.target.closest('[data-deps]')) { abrirDepartamentos(); return; }
-    const b = e.target.closest('.chip'); if (!b) return;
-    filtros.grupo = b.dataset.c; filtros.secao = ''; filtros.pagina = 1; marcarEndereco(); desenharChips(); desenharCatalogo();
+    const b = e.target.closest('.chip[data-s]'); if (!b) return;
+    filtros.grupo = b.dataset.c; filtros.secao = b.dataset.s; filtros.q = ''; $('q').value = ''; filtros.pagina = 1; marcarEndereco(); desenharChips(); desenharCatalogo();
   });
 
   $('grid').addEventListener('click', cliqueCartao);
@@ -241,29 +241,40 @@ function pintarChamadaCadastro() {
     : 'Cadastro em 2 minutos: digite o CNPJ e a gente preenche o resto.';
 }
 
+/** Seções mais procuradas (para a barra ao lado de Departamentos): as que têm mais produtos vendidos,
+ *  pela curva ABC importada do G360 (A vale 3, B 2, C 1), contando só o que aparece no portal. */
+async function secoesMaisProcuradas(max = 6) {
+  await carregarExibicao();
+  const ativos = await codigosAtivosPublicos(); const set = ativos ? new Set(ativos.map(String)) : null;
+  const peso = [3, 2, 1, 0];
+  const lista = [];
+  for (const grupo of categoriasPortal()) {
+    for (const s of secoesDe(grupo)) {
+      const cods = codigosDaSecao(s.id).filter((c) => !set || set.has(String(c)));
+      if (!cods.length) continue;
+      lista.push({ grupo, id: s.id, nome: s.nome, pontos: cods.reduce((t, c) => t + peso[pesoCurva({ codigo: c })], 0), n: cods.length });
+    }
+  }
+  return lista.sort((a, b) => b.pontos - a.pontos || b.n - a.n).slice(0, max);
+}
+
+/** Barra do catálogo: ☰ Departamentos + atalhos para as seções mais procuradas (com o desenho de cada uma). */
 function desenharChips() {
   pintarChamadaCadastro();
   const el = $('cats');
+  const pintar = (secs) => {
+    el.innerHTML = BOTAO_DEPS + secs.map((s) => `<button type="button" class="chip atalho ${filtros.secao === s.id ? 'on' : ''}" data-c="${esc(s.grupo)}" data-s="${esc(s.id)}" title="${esc(`${s.grupo} › ${s.nome}`)}">${desenho(chaveSecao(s.nome, s.grupo), 'at-ic')}${esc(s.nome)}</button>`).join('');
+    desenharDepartamento();
+  };
   if (!sessao.ativa) {
-    chipsPublicos().then((grupos) => {
-      if (sessao.ativa) return;
-      el.innerHTML = BOTAO_DEPS + [['', 'Todos', ''], ...grupos.filter((g) => g.quantidade).map((g) => [g.codigo, g.nome, g.quantidade])]
-        .map(([c, n, qt]) => `<button type="button" class="chip ${c === String(filtros.grupo) ? 'on' : ''}" data-c="${esc(c)}">${esc(n)}<span>${Number(qt) || ''}</span></button>`).join('');
-      desenharDepartamento();
-    }).catch(() => { el.innerHTML = ''; });
     marcasPublicas().then((ms) => {
       if (sessao.ativa) return;
       $('marca').innerHTML = '<option value="">Todas as marcas</option>' + ms.map((m) => `<option value="${Number(m.codigo)}">${esc(m.nome)}</option>`).join('');
       $('marca').value = filtros.marca; $('nMarcas').textContent = ms.length;
     }).catch(() => {});
-    return;
-  }
-  if (!classificacoes) { carregarClassificacoes().then(desenharChips).catch(() => { el.innerHTML = ''; }); return; }
-  const grupos = classificacoes.grupos.filter((g) => g.quantidade);
-  const total = classificacoes.total ?? '';
-  el.innerHTML = BOTAO_DEPS + [['', 'Todos', total], ...grupos.map((g) => [String(g.codigo), g.nome, g.quantidade])]
-    .map(([c, n, q]) => `<button type="button" class="chip ${c === String(filtros.grupo) ? 'on' : ''}" data-c="${esc(c)}">${esc(n)}<span>${Number(q) || ''}</span></button>`).join('');
-  desenharDepartamento();
+  } else if (!classificacoes) { carregarClassificacoes().then(desenharChips).catch(() => {}); }
+  const vez = sessao.token;
+  secoesMaisProcuradas().then((secs) => { if (vez === sessao.token) pintar(secs); }).catch(() => pintar([]));
 }
 
 /* ---------------- árvore: departamento → seção ---------------- */
