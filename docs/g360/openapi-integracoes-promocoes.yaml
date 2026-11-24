@@ -1,0 +1,182 @@
+openapi: 3.1.0
+info:
+  title: G360 | Integração de promoções
+  version: 1.0.0
+  description: >-
+    Contrato de integração por empresa (API de sistemas externos, canal B das promoções). Desde 21/11/2026 (Fase 4 de
+    promoções, Claude/modulo-promocoes-canais.md): a rota das promoções vigentes para um cliente e o bloco promocao no
+    preço. Só campos e rotas novos: nada existente mudou de nome, tipo ou significado. A emissão e os escopos da credencial
+    são da Movimento, pelo VsGestão (Claude/b2b/autoridade-api-vsgestao.md). Consulte GET
+    /integracoes/v1/empresas/{empresa}/capacidades para as permissões.
+servers:
+  - url: https://erp-exemplo.invalid
+security:
+  - Sistema: []
+paths:
+  /integracoes/v1/empresas/{empresa}/promocoes:
+    parameters:
+      - $ref: '#/components/parameters/Empresa'
+    get:
+      operationId: promocoes.vigentes
+      x-escopo: 'produtos:ler + precos:ler'
+      summary: Promoções vigentes para um cliente
+      description: >-
+        As promoções que valem hoje para o cliente no canal B (portal B2B e API), com o mesmo contexto do
+        GET produtos/{produto}/preco: a tabela do cliente (ou a da Config API, ou a da natureza; `tabela` só entre elas), o
+        vendedor informado ou o do cliente quando ativo, a empresa da integração e o catálogo dela. Cada item é conferido
+        pela mesma regra da venda na quantidade da meta (1 sem meta): só sai o item que a cotação daria. A unidade do item é a
+        base (unidade_id nulo) ou uma unidade alternativa vendável, com o id que o parâmetro `unidade` do /preco aceita (o
+        código da unidade, PRODUTO_UNIDADE.CODIGO, texto). O produto sem cadastro na empresa de custos da natureza fica de
+        fora, como o /preco recusa (PRODUTO_SEM_CADASTRO_NA_EMPRESA_DE_CUSTOS). Todos os itens que valem, do término mais
+        próximo ao mais distante; a paginação é pelos itens. A credencial precisa das duas permissões, e a auditoria registra
+        as duas (operacao produtos:ler+precos:ler).
+      parameters:
+        - {name: cliente, in: query, required: true, schema: {type: integer, minimum: 1, maximum: 2147483647}}
+        - {name: vendedor, in: query, schema: {type: integer, minimum: 1, maximum: 2147483647}}
+        - {name: tabela, in: query, schema: {type: integer, minimum: 1, maximum: 2147483647}}
+        - {name: natureza, in: query, schema: {type: integer, minimum: 1, maximum: 2147483647}}
+        - {name: usar_empresa_natureza, in: query, schema: {type: boolean}}
+        - {name: somente_visiveis_mobile, in: query, schema: {type: boolean}}
+        - {name: natureza_do_cliente, in: query, schema: {type: boolean}}
+        - {name: pagina, in: query, schema: {type: integer, minimum: 1, maximum: 10000, default: 1}}
+        - {name: limite, in: query, schema: {type: integer, minimum: 1, maximum: 50, default: 20}}
+      responses:
+        '200':
+          description: Promoções vigentes, agrupadas por promoção.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [dados, paginacao]
+                properties:
+                  dados:
+                    type: object
+                    required: [empresa, cliente, tabela, vendedor, promocoes]
+                    properties:
+                      empresa: {type: integer}
+                      cliente: {type: integer}
+                      tabela: {type: integer}
+                      vendedor: {type: [integer, 'null']}
+                      promocoes:
+                        type: array
+                        items:
+                          type: object
+                          required: [promocao, nome, fim, itens]
+                          properties:
+                            promocao: {type: integer}
+                            nome: {type: [string, 'null']}
+                            fim: {$ref: '#/components/schemas/Fim'}
+                            itens:
+                              type: array
+                              items: {$ref: '#/components/schemas/ItemVigente'}
+                  paginacao:
+                    type: object
+                    required: [pagina, limite, total]
+                    properties:
+                      pagina: {type: integer}
+                      limite: {type: integer}
+                      total: {type: integer}
+              example:
+                dados:
+                  empresa: 1
+                  cliente: 1042
+                  tabela: 3
+                  vendedor: 7
+                  promocoes:
+                    - promocao: 812
+                      nome: Black Friday Ferramentas
+                      fim: {data: '2026-11-30', hora: '23:59'}
+                      itens:
+                        - {item: 9031, produto: 10452, codigo: DC412, nome: Disco de corte 4.1/2, unidade: CX, codigo_unidade: CX10,
+                           unidade_id: CX10, valor: '43.90', meta: '5', a_partir: true, restam: '3', fim: {data: '2026-11-30', hora: '23:59'}}
+                paginacao: {pagina: 1, limite: 20, total: 1}
+        '403': {description: 'Credencial sem produtos:ler e precos:ler, empresa fora do alcance ou tabela fora do contexto do cliente (INTEGRACAO_SEM_ACESSO, TABELA_SEM_ACESSO).'}
+        '404': {description: Cliente fora do recorte da empresa ou vendedor não localizado.}
+        '422': {description: 'Sem cliente ou com campo não aceito (DADOS_INVALIDOS); sem tabela de preço (TABELA_PRECO_AUSENTE).'}
+        '503': {description: Integração indisponível.}
+  /integracoes/v1/empresas/{empresa}/produtos/{produto}/preco:
+    parameters:
+      - $ref: '#/components/parameters/Empresa'
+      - {name: produto, in: path, required: true, schema: {type: integer, minimum: 1}}
+    get:
+      operationId: produtos.preco
+      x-escopo: 'precos:ler'
+      summary: Preço por quantidade e unidade (só o que mudou em 21/11/2026)
+      description: >-
+        Rota existente (Claude/b2b/consultas-integracao-g360.md). Desde 21/11/2026: `unidade` é o código da unidade alternativa
+        (PRODUTO_UNIDADE.CODIGO, texto de até 20 caracteres, o `id` das unidades do GET produtos/{produto}); antes a rota
+        procurava uma coluna que a base não tem e falhava com unidade. Com `unidade`, a promoção cadastrada nessa
+        embalagem (pelo código dela) vale, e o preço da oferta é o da embalagem, sem fator nem índice; preco_base é o preço
+        normal da embalagem. A resposta ganhou o campo `promocao` (bloco abaixo; nulo sem promoção), exceto com
+        formato_conecta=1, que segue sem o campo. Os demais campos continuam como eram.
+      responses:
+        '200':
+          description: Cotação. Só os campos relacionados à promoção estão descritos aqui.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dados:
+                    type: object
+                    properties:
+                      origem: {type: string, description: 'promocao quando uma promoção deu o preço.'}
+                      promocao_ate: {type: [string, 'null'], format: date}
+                      promocao:
+                        anyOf:
+                          - $ref: '#/components/schemas/PromocaoDoPreco'
+                          - type: 'null'
+components:
+  parameters:
+    Empresa:
+      name: empresa
+      in: path
+      required: true
+      schema: {type: integer, minimum: 1}
+  securitySchemes:
+    Sistema: {type: http, scheme: bearer}
+  schemas:
+    Preco: {type: string, pattern: '^[0-9]+\.[0-9]{2,6}$', description: Texto decimal com ponto, de duas a seis casas.}
+    Dinheiro: {type: string, pattern: '^-?[0-9]+\.[0-9]{2}$'}
+    Quantidade: {type: string, pattern: '^[0-9]+(?:\.[0-9]{1,4})?$', description: Texto decimal sem zeros finais.}
+    Fim:
+      type: object
+      required: [data, hora]
+      properties:
+        data: {type: string, format: date, description: Último dia da promoção.}
+        hora: {type: [string, 'null'], pattern: '^[0-2][0-9]:[0-5][0-9]$', description: Hora do término no último dia; nula vale o dia todo.}
+    ItemVigente:
+      type: object
+      required: [item, produto, codigo, nome, unidade, codigo_unidade, unidade_id, valor, meta, a_partir, restam, fim]
+      properties:
+        item: {type: integer}
+        produto: {type: integer}
+        codigo: {type: string}
+        nome: {type: string}
+        unidade: {type: string, description: Sigla da unidade em que a oferta vale.}
+        codigo_unidade: {type: [string, 'null'], description: Código da embalagem; nulo na unidade base.}
+        unidade_id: {type: [string, 'null'], maxLength: 20, description: 'Código da unidade alternativa (PRODUTO_UNIDADE.CODIGO), o que o parâmetro unidade do /preco aceita; nulo na unidade base.'}
+        valor: {$ref: '#/components/schemas/Preco'}
+        meta: {$ref: '#/components/schemas/Quantidade'}
+        a_partir: {type: boolean, description: 'true: a partir da meta; false: só em múltiplos da meta.'}
+        restam: {anyOf: [{$ref: '#/components/schemas/Quantidade'}, {type: 'null'}], description: O que resta do limite; nulo sem limite.}
+        fim: {$ref: '#/components/schemas/Fim'}
+    PromocaoDoPreco:
+      type: object
+      description: >-
+        O mesmo bloco do portal B2B (Claude/b2b/api/openapi.yaml, PromocaoDoPreco): a oferta que deu o preço (faltam 0) ou,
+        abaixo da meta, a que a mesma regra dá numa quantidade maior, com quanto falta e a economia. Tudo na unidade cotada.
+      required: [promocao, item, nome, preco_normal, preco_oferta, desconto_percentual, meta, a_partir, faltam, economia, restam, fim]
+      properties:
+        promocao: {type: integer}
+        item: {type: integer}
+        nome: {type: [string, 'null']}
+        preco_normal: {anyOf: [{$ref: '#/components/schemas/Preco'}, {type: 'null'}]}
+        preco_oferta: {$ref: '#/components/schemas/Preco'}
+        desconto_percentual: {type: [number, 'null']}
+        meta: {$ref: '#/components/schemas/Quantidade'}
+        a_partir: {type: boolean}
+        faltam: {$ref: '#/components/schemas/Quantidade'}
+        economia: {anyOf: [{$ref: '#/components/schemas/Dinheiro'}, {type: 'null'}]}
+        restam: {anyOf: [{$ref: '#/components/schemas/Quantidade'}, {type: 'null'}]}
+        fim: {$ref: '#/components/schemas/Fim'}
