@@ -192,6 +192,9 @@ export function mostrarLoja(contexto, rota, params = [], estado = {}) {
 
 function desenharHero() {
   $('hi').innerHTML = `${saudacao()}<em>Seus suprimentos</em>num só lugar.`;
+  // Versão curta da saudação: no celular, com banner no topo, ela substitui o título grande.
+  const nome = sessao.ativa ? String(sessao.comprador?.fantasia || sessao.comprador?.nome || '').trim() : '';
+  $('hiCurto').textContent = `${saudacao().replace('.', '')}${nome ? `, ${nome}` : ''}! 👋`;
   if (!sessao.ativa) { $('nMarcas').textContent = '—'; }
 }
 

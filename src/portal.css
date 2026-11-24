@@ -343,17 +343,29 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
 .bnr-pontos button::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, .55); box-shadow: 0 0 0 1px rgba(0, 0, 0, .25); transition: width .2s; }
 .bnr-pontos button[aria-current]::before { width: 20px; border-radius: 4px; background: #fff; }
 @media (max-width: 640px) {
-  /* Celular: banner como um cartão alinhado às mesmas margens do texto de baixo (12px), cantos
-     arredondados e sem bordas esmaecidas, para não parecer solto nem desalinhado. */
-  .bnr { padding: 0 12px; margin-top: 12px; }
-  .bnr-trilho { border-radius: 14px; }
+  /* Celular: banner de ponta a ponta na largura, baixo (2:1), sem cantos; bolinhas por cima, no rodapé da imagem. */
+  .bnr { padding: 0; margin-top: 0; }
+  .bnr-trilho { border-radius: 0; }
   .bnr-slide { flex: 0 0 100%; aspect-ratio: 2 / 1; }
   .bnr-slide:not(:has(source)) { aspect-ratio: 16 / 5; }
   .bnr-seta { display: none; }
-  .bnr-pontos { bottom: 6px; }
-  .bnr-slide img, .bnr-slide video { -webkit-mask-image: none; mask-image: none; }
-  .bnr:not([hidden]) + .hero { padding-top: 18px; }
+  .bnr-pontos { bottom: 4px; }
+  /* No celular a imagem vai de ponta a ponta: esmaece só em cima e embaixo. */
+  .bnr-slide img, .bnr-slide video { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 80%, transparent 100%); mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 80%, transparent 100%); }
+  /* Com banner, a capa vira compacta: uma linha de saudação e os botões lado a lado; o banner é a capa. */
+  .bnr:not([hidden]) + .hero { padding-top: 10px; padding-bottom: 0; }
+  .bnr:not([hidden]) + .hero h1, .bnr:not([hidden]) + .hero #hiSub, .bnr:not([hidden]) + .hero .hcad small { display: none; }
+  .bnr:not([hidden]) + .hero .hi-curto { display: block; }
+  .bnr:not([hidden]) + .hero > div:first-child { flex: 1 1 100%; min-width: 0; }
+  .bnr:not([hidden]) + .hero .hcad { margin-top: 10px; flex-wrap: nowrap; gap: 8px; }
+  .bnr:not([hidden]) + .hero .hcad .btn { flex: 1 1 0; min-height: 44px; padding: 0 10px; font-size: 14px; white-space: nowrap; }
+  .bnr:not([hidden]) + .hero .hcad.analise small { display: block; flex-basis: 100%; }
+  .bnr:not([hidden]) + .hero .hcad.analise { flex-wrap: wrap; }
+  .bnr:not([hidden]) + .hero .hcad-x { display: none; }
+  .bnr:not([hidden]) + .hero .hcad-y { display: inline-block; }
+  .bnr:not([hidden]) + .hero .hcad-y::first-letter { text-transform: uppercase; }
 }
+.hi-curto { display: none; font-size: 17px; font-weight: 700; color: var(--tx, #eef5e9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100vw - 24px); }
 
 /* Busca: "Você quis dizer" e "nada nesta categoria" (acima da contagem). */
 .g360-aviso-busca { display: block; margin-bottom: 4px; color: var(--lima, #b2e04a); text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 500; }
@@ -435,6 +447,7 @@ body.com-passo-ios #souzinha-widget{display:none !important}
 .hcad[hidden] { display: none; }
 .hcad { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 18px; }
 .hcad .btn { min-height: 48px; padding: 0 22px; font-size: 16px; }
+.hcad-e { gap: .3em; }
 .hcad small { flex-basis: 100%; color: var(--tx3); font-size: 13px; }
 .hcad.analise small { color: var(--lima, #b2e04a); font-size: 14px; }
 @media (max-width: 640px) { .hcad .btn { flex: 1 1 100%; } }
