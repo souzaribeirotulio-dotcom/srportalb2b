@@ -210,5 +210,9 @@ if (ATIVO) {
   // A lista de nomes do catálogo e a da vitrine já começam a baixar junto com a conferência da sessão.
   if (caminho() !== '/painel') { carregarExibicao(); codigosAtivosPublicos(); }
   // F5 com sessão guardada na aba: confere com GET me antes de mostrar telas privadas.
-  restaurarSessao().catch(() => false).then(() => desenhar());
+  restaurarSessao().catch(() => false).then((ok) => {
+    desenhar();
+    // Sessão reaberta (Continuar conectado / F5): conta o acesso e o tipo de aparelho.
+    if (ok && caminho() !== '/painel' && caminho() !== '/executivo') import('./estado/eventos.js').then((m) => m.registrarEntrada()).catch(() => {});
+  });
 }

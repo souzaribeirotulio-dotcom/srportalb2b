@@ -579,6 +579,10 @@ class Sim:
                 peds = [e for e in self.eventos if e['tipo'] == 'pedido']; bus = [e for e in self.eventos if e['tipo'] == 'busca']
                 return res(200, {'dados': {'dias': d.get('dias', 30), 'pedidos': len(peds), 'valor': sum(float(e.get('valor') or 0) for e in peds), 'ticket': 0, 'clientes_compraram': len({e['comprador_codigo'] for e in peds}), 'clientes_entraram': len(self.acessos),
                     'buscas': len(bus), 'buscas_sem_resultado': len([b for b in bus if not b.get('resultados')]), 'top_buscas': [{'termo': b['termo'], 'vezes': 1} for b in bus], 'sem_resultado': [{'termo': b['termo'], 'vezes': 1} for b in bus if not b.get('resultados')],
+                    'aparelhos': {k: (lambda l: {**{t: len([e for e in l if e.get('aparelho') == t]) for t in ('computador', 'celular', 'tablet')}, 'app': len([e for e in l if e.get('app')]),
+                        'clientes': {t: len({e['comprador_codigo'] for e in l if e.get('aparelho') == t}) for t in ('computador', 'celular', 'tablet')},
+                        'valor': {t: sum(float(e.get('valor') or 0) for e in l if e.get('aparelho') == t) for t in ('computador', 'celular', 'tablet')}})([e for e in self.eventos if e['tipo'] == k2])
+                        for k, k2 in (('acessos', 'acesso'), ('pedidos', 'pedido'))},
                     'top_produtos': [], 'top_clientes': [], 'por_dia': [], 'ultimos_pedidos': [{'quando': '2026-11-17T12:00:00Z', 'cliente': 'x', 'numero': e.get('pedido_numero'), 'valor': e.get('valor')} for e in peds]}})
             if ac == 'categorias_salvar': self.categorias = d['categorias']; return res(200, {'ok': True})
             if ac == 'ocorrencias_listar': return res(200, {'dados': list(reversed(self.ocorrencias))})

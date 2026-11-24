@@ -1843,6 +1843,7 @@ async function desenharInteligencia() {
       <div class="stat ${d.buscas_sem_resultado ? 'bad' : ''}"><b>${d.buscas_sem_resultado}</b><span>Buscas sem resultado</span></div></div>
       ${d.por_dia.length ? `<div style="padding:0 18px 16px"><div class="hint" style="margin:0 0 6px">Vendas por dia</div><div style="display:flex;align-items:flex-end;gap:4px;height:90px">${d.por_dia.map((x) => `<div title="${esc(x.dia.split('-').reverse().join('/'))}: ${esc(brl(x.valor))} · ${x.pedidos} pedido(s)" style="flex:1;min-width:6px;background:var(--lima);border-radius:4px 4px 0 0;height:${Math.max(4, Math.round((x.valor / maxDia) * 86))}px"></div>`).join('')}</div></div>` : ''}
       <div class="hint" style="padding:0 18px 14px">Os números contam a partir de 17/11/2026, quando o portal passou a registrar. Valores como o G360 devolveu em cada pedido.</div></div>
+    ${aparelhosHtml(d.aparelhos, brl)}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:0 14px">
     ${tab('Buscas mais feitas', [['Busca', '1fr'], ['Vezes', '70px']], d.top_buscas.map((b) => linha([esc(b.termo), b.vezes], '1fr 70px')), 'Nenhuma busca no período.')}
     ${tab('Buscas sem resultado <small class="hint" style="margin:0">— cadastre sinônimo ou produto</small>', [['Busca', '1fr'], ['Vezes', '70px']], d.sem_resultado.map((b) => linha([esc(b.termo), b.vezes], '1fr 70px')), 'Nenhuma busca ficou sem resultado. 👏')}
@@ -1850,6 +1851,22 @@ async function desenharInteligencia() {
     ${tab('Clientes que mais compraram', [['Cliente', '1fr'], ['Pedidos', '70px'], ['Total', '110px']], d.top_clientes.map((c) => linha([`${esc(c.nome || '—')}<br><small>Cód. ${esc(c.codigo)}</small>`, c.pedidos, esc(brl(c.total))], '1fr 70px 110px')), 'Nenhum pedido no período.')}
     </div>
     ${tab('Últimos pedidos', [['Quando', '150px'], ['Cliente', '1fr'], ['Número', '110px'], ['Valor', '110px']], d.ultimos_pedidos.map((p) => linha([esc(new Date(p.quando).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })), esc(p.cliente), esc(p.numero || 'aguardando aprovação'), esc(brl(p.valor))], '150px 1fr 110px 110px')), 'Nenhum pedido no período.')}`;
+}
+
+/** Computador × celular (Inteligência). Barras simples em %, com os números ao lado. */
+function aparelhosHtml(a, brl) {
+  if (!a) return '';
+  const tipos = [['computador', '💻 Computador'], ['celular', '📱 Celular'], ['tablet', '📲 Tablet']];
+  const bloco = (titulo, x, comValor) => {
+    const total = tipos.reduce((s, [k]) => s + (x[k] || 0), 0);
+    return `<div class="ap-bloco"><b>${titulo}</b>${total ? tipos.map(([k, rot]) => {
+      const pct = Math.round(((x[k] || 0) / total) * 100);
+      return `<div class="ap-linha"><span class="ap-rot">${rot}</span><span class="ap-barra"><i style="width:${pct}%"></i></span><span class="ap-num"><b>${pct}%</b> · ${x[k] || 0}${comValor ? ` · ${esc(brl(x.valor?.[k] || 0))}` : ''} <small>(${x.clientes?.[k] || 0} cliente${(x.clientes?.[k] || 0) === 1 ? '' : 's'})</small></span></div>`;
+    }).join('') + (x.app ? `<small class="hint" style="display:block;margin-top:4px">${x.app} pelo app instalado.</small>` : '') : '<small class="hint" style="display:block;margin-top:6px">Ainda sem registros no período.</small>'}</div>`;
+  };
+  return `<div class="panel" style="margin-top:14px"><div style="padding:14px 18px 4px"><b>Computador × celular</b> <small class="hint" style="margin:0">— por onde os clientes entram e compram</small></div>
+    <div class="ap-grade">${bloco('Acessos', a.acessos, false)}${bloco('Pedidos', a.pedidos, true)}</div>
+    <div class="hint" style="padding:0 18px 14px">Conta a partir de 24/11/2026, quando o portal passou a registrar o tipo de aparelho (só o tipo, nada pessoal). Acesso = login ou portal reaberto com a sessão guardada, no máximo um a cada 30 minutos por aba.</div></div>`;
 }
 
 /* ---------------- Ocorrências ---------------- */

@@ -494,7 +494,7 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
   if (acao === "inteligencia") {
     const dias = [7, 30, 90].includes(Number(d.dias)) ? Number(d.dias) : 30;
     const desde = new Date(Date.now() - dias * 86400000).toISOString();
-    const { data: ev, error } = await admin.from("portal_eventos").select("tipo, comprador_codigo, termo, resultados, valor, itens, criado_em, pedido_numero")
+    const { data: ev, error } = await admin.from("portal_eventos").select("tipo, comprador_codigo, termo, resultados, valor, itens, criado_em, pedido_numero, aparelho, app")
       .eq("loja", loja).gte("criado_em", desde).order("criado_em", { ascending: false }).limit(20000);
     if (error) throw error;
     const { data: acessos } = await admin.from("portal_acessos").select("comprador_codigo, nome, ultimo_em").eq("loja", loja);
@@ -513,12 +513,26 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     const cli = new Map<number, { codigo: number; nome: string | null; pedidos: number; total: number }>();
     for (const p of pedidos) { const c = Number(p.comprador_codigo); const r = cli.get(c) ?? { codigo: c, nome: nomes.get(c) ?? null, pedidos: 0, total: 0 }; r.pedidos += 1; r.total = Math.round((r.total + Number(p.valor || 0)) * 100) / 100; cli.set(c, r); }
     const ativos = (acessos ?? []).filter((a) => a.ultimo_em >= desde).length;
+    // Computador × celular: acessos (login ou sessão reaberta) e pedidos por tipo de aparelho.
+    const porAparelho = (lista: Array<{ aparelho?: string | null; app?: boolean | null; comprador_codigo?: number; valor?: number | null }>) => {
+      const r = { computador: 0, celular: 0, tablet: 0, app: 0, clientes: { computador: new Set<number>(), celular: new Set<number>(), tablet: new Set<number>() }, valor: { computador: 0, celular: 0, tablet: 0 } };
+      for (const e of lista) {
+        const t = e.aparelho as "computador" | "celular" | "tablet" | null | undefined;
+        if (!t || !(t in r.valor)) continue;
+        r[t]++; if (e.app) r.app++;
+        r.clientes[t].add(Number(e.comprador_codigo));
+        r.valor[t] = Math.round((r.valor[t] + Number(e.valor || 0)) * 100) / 100;
+      }
+      return { computador: r.computador, celular: r.celular, tablet: r.tablet, app: r.app,
+        clientes: { computador: r.clientes.computador.size, celular: r.clientes.celular.size, tablet: r.clientes.tablet.size }, valor: r.valor };
+    };
+    const aparelhos = { acessos: porAparelho((ev ?? []).filter((e) => e.tipo === "acesso")), pedidos: porAparelho(pedidos) };
     const porDia = new Map<string, { pedidos: number; valor: number }>();
     for (const p of pedidos) { const dia = String(p.criado_em).slice(0, 10); const r = porDia.get(dia) ?? { pedidos: 0, valor: 0 }; r.pedidos += 1; r.valor = Math.round((r.valor + Number(p.valor || 0)) * 100) / 100; porDia.set(dia, r); }
     return [200, { dados: {
       dias, pedidos: pedidos.length, valor: Math.round(soma * 100) / 100, ticket: pedidos.length ? Math.round((soma / pedidos.length) * 100) / 100 : 0,
       clientes_compraram: cli.size, clientes_entraram: ativos, buscas: buscas.length, buscas_sem_resultado: buscas.filter((b) => !b.resultados).length,
-      top_buscas: topBuscas, sem_resultado: semResultado,
+      top_buscas: topBuscas, sem_resultado: semResultado, aparelhos,
       top_produtos: [...prod.values()].sort((a, b) => b.total - a.total).slice(0, 15),
       top_clientes: [...cli.values()].sort((a, b) => b.total - a.total).slice(0, 15),
       por_dia: [...porDia.entries()].sort().map(([dia, v]) => ({ dia, ...v })),
