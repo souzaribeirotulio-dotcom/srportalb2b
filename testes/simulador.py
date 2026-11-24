@@ -651,7 +651,7 @@ class Sim:
             if getattr(self, 'clip_publico', None): return route.fulfill(status=200, headers={**cab, 'Content-Type': 'video/mp4'}, body=self.clip_publico)
             return route.fulfill(status=404, headers=cab, body='')
         if p.startswith('/storage/v1/object/upload/sign/portal-banners/'):
-            self.banner_uploads = getattr(self, 'banner_uploads', []) + [(p, len(req.post_data_buffer or b''))]; return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({'Key': p}))
+            self.banner_uploads = getattr(self, 'banner_uploads', []) + [(p, len(req.post_data_buffer or b''))]; self.banner_bytes = getattr(self, 'banner_bytes', []) + [req.post_data_buffer or b'']; return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({'Key': p}))
         if p.startswith('/storage/v1/object/public/portal-banners/') and p.endswith('.mp4'):
             return route.fulfill(status=200, headers={**cab, 'Content-Type': 'video/mp4'}, body=getattr(self, 'banner_video', b''))
         if p.startswith('/storage/v1/object/public/portal-banners/'):

@@ -650,7 +650,11 @@ with sync_playwright() as pw:
     pg.click('#bnNovo'); pg.click('#bnSalva'); pg.wait_for_function("document.getElementById('bnMsg').textContent.includes('título')")
     pg.fill('#bnTit', 'Natal Fictício'); pg.click('#bnSalva'); pg.wait_for_function("document.getElementById('bnMsg').textContent.includes('imagem do computador')")
     checar(not sim.banners, 'banner sem título ou sem imagem não é salvo')
-    pg.set_input_files('#bnImg', files=[{'name': 'natal.png', 'mimeType': 'image/png', 'buffer': _jpg(2400, 750, (180, 20, 20))}])
+    # Imagem do computador com o fundo transparente (comum em PNG gerado por IA): o fundo tem de virar verde-escuro, não branco
+    def _png_transp(w, h):
+        im = _Img.new('RGBA', (w, h), (0, 0, 0, 0)); im.paste((180, 20, 20, 255), (w // 4, h // 4, 3 * w // 4, 3 * h // 4))
+        b = io.BytesIO(); im.save(b, 'PNG'); return b.getvalue()
+    pg.set_input_files('#bnImg', files=[{'name': 'natal.png', 'mimeType': 'image/png', 'buffer': _png_transp(2400, 750)}])
     pg.set_input_files('#bnCel', files=[{'name': 'natal-cel.png', 'mimeType': 'image/png', 'buffer': _jpg(1080, 1080, (20, 120, 20))}])
     pg.select_option('#bnTipo', 'categoria'); pg.select_option('#bnVal', 'Limpeza')
     pg.fill('#bnIni', '2026-11-01'); pg.fill('#bnFim', '2026-10-01'); pg.click('#bnSalva')
@@ -659,6 +663,9 @@ with sync_playwright() as pw:
     b_ = sim.banners[0] if sim.banners else {}
     checar(len(sim.banners) == 1 and b_['destino_tipo'] == 'categoria' and b_['destino_valor'] == 'Limpeza' and b_['img_celular'] and b_['fim'] == '2026-12-25', f'banner salvo: {b_}')
     checar(len(sim.banner_uploads) == 2 and all(0 < t <= 400 * 1024 for _, t in sim.banner_uploads), f'imagens comprimidas antes do envio: {sim.banner_uploads}')
+    _b0 = sim.banner_bytes[0]; _b0 = _b0[_b0.find(b'\xff\xd8'):_b0.rfind(b'\xff\xd9') + 2]  # o envio vem em multipart: tira só o JPEG
+    _canto = _Img.open(io.BytesIO(_b0)).convert('RGB').getpixel((5, 5))
+    checar(max(_canto) < 60, f'parte transparente vira o fundo escuro do portal, não branco (teste que tem de dar errado se ficar claro): {_canto}')
     pg.click('#bnNovo'); pg.fill('#bnTit', 'Luvas Fictícias'); pg.set_input_files('#bnImg', files=[{'name': 'l.png', 'mimeType': 'image/png', 'buffer': _jpg(1600, 500, (20, 20, 160))}])
     pg.select_option('#bnTipo', 'busca'); pg.fill('#bnVal', 'copo'); pg.click('#bnSalva'); pg.wait_for_function("document.querySelectorAll('.bn-linha').length === 2")
     pg.click('.bn-linha:nth-child(2) [data-sobe]'); pg.wait_for_function("document.querySelector('.bn-linha b').textContent === 'Luvas Fictícias'")

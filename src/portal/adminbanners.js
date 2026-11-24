@@ -25,7 +25,8 @@ async function comprimir(arq, larguraMax) {
   let w = img.naturalWidth; let h = img.naturalHeight;
   if (w > larguraMax) { h = Math.round(h * (larguraMax / w)); w = larguraMax; }
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-  const c2 = cv.getContext('2d'); c2.fillStyle = '#fff'; c2.fillRect(0, 0, w, h); c2.drawImage(img, 0, 0, w, h);
+  const c2 = cv.getContext('2d'); // Fundo do portal (verde-escuro), não branco: PNG com partes transparentes ficava esbranquiçado no banner.
+  c2.fillStyle = '#0d220c'; c2.fillRect(0, 0, w, h); c2.drawImage(img, 0, 0, w, h);
   let blob = null;
   for (const q of [0.86, 0.8, 0.72, 0.64, 0.56]) {
     blob = await new Promise((ok) => cv.toBlob(ok, 'image/jpeg', q));
