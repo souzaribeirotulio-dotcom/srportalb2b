@@ -179,7 +179,14 @@ class Sim:
             t = base64.urlsafe_b64encode(uuid.uuid4().bytes + uuid.uuid4().bytes[:16]).decode()[:43]
             t = re.sub(r'[^A-Za-z0-9_-]', 'a', t)
             self.tokens[t] = corpo['usuario']
-            return self.ok(route, {'token': t, 'tipo': 'Bearer', 'expira_em': '2099-01-01T00:00:00Z', 'comprador': self.comprador_json(corpo['usuario']), 'loja': self.loja}, 201)
+            longa = corpo.get('continuar_conectado') is True and int(self.loja.get('continuar_conectado_dias') or 0) > 0
+            self.ultimo_login = corpo
+            return self.ok(route, {'token': t, 'tipo': 'Bearer', 'expira_em': '2099-01-01T00:00:00Z', 'continuar_conectado': longa, 'comprador': self.comprador_json(corpo['usuario']), 'loja': self.loja}, 201)
+        if caminho == 'acessos/senha' and m == 'POST':
+            # Link de senha fictício: self.links = {token: documento}; o token vale uma vez.
+            alvo = getattr(self, 'links', {}).pop(corpo.get('token'), None)
+            if not alvo: return self.erro(route, 422, 'LINK_INVALIDO', 'O link é inválido ou expirou. Solicite um novo link.', 'usuario')
+            self.compradores[alvo]['senha'] = corpo.get('senha_nova'); return route.fulfill(status=204, headers=CORS, body='')
         if caminho.startswith('operadores/'): return self.operador(route, caminho, m, corpo, q)
         if caminho.startswith('vitrine/'):
             self.vitrine_chamadas.append((caminho, dict(req.headers)))
