@@ -3,7 +3,9 @@ Roda contra http://localhost:5173 (npm run build && npm run preview), com o simu
 import os, sys, uuid
 sys.path.insert(0, os.path.dirname(__file__))
 from playwright.sync_api import sync_playwright
-from simulador import Sim, BASE, LOJA
+from simulador import Sim, BASE, LOJA, hoje_br
+import datetime
+HOJE = hoje_br(); ANTES = (datetime.date.fromisoformat(HOJE) - datetime.timedelta(days=3)).isoformat()
 CHROME = os.environ.get('CHROME') or None
 falhas = []
 def checar(c, m):
@@ -18,13 +20,14 @@ sim.executivos = [joao, maria]; sim.exec_senhas = {joao['id']: 'SenhaJoao123', m
 v = lambda e, nome, sit, cod=None: {'id': str(uuid.uuid4()), 'executivo_id': e['id'], 'cadastro_id': None, 'documento': '11111111000111', 'razao_social': nome, 'situacao': sit,
                                     'motivo': None, 'inicio': '2026-11-01' if sit == 'ativo' else None, 'fim': '2027-11-01' if sit == 'ativo' else None, 'cliente_codigo': cod, 'criado_em': '2026-11-01T10:00:00Z'}
 sim.vinculos = [v(joao, 'Padaria Fictícia', 'ativo', 1165), v(joao, 'Mercadinho Fictício', 'aguardando'), v(maria, 'Cliente da Maria Fictício', 'ativo', 1919)]
-c = lambda e, vid, ped, base, val, sit: {'id': str(uuid.uuid4()), 'executivo_id': e['id'], 'vinculo_id': vid, 'cliente_codigo': 1165, 'pedido_ref': f'P{ped}', 'pedido_numero': str(ped),
-                                         'pedido_data': '2026-11-20', 'competencia': '2026-11-01', 'base': base, 'percentual': 3.0, 'valor': val, 'situacao': sit, 'paga_em': '2026-11-23' if sit == 'paga' else None}
-sim.comissoes = [c(joao, sim.vinculos[0]['id'], 701, 100.0, 3.0, 'prevista'), c(joao, sim.vinculos[0]['id'], 702, 200.0, 6.0, 'paga'), c(maria, sim.vinculos[2]['id'], 703, 999.0, 29.97, 'liberada')]
+c = lambda e, vid, ped, base, val, sit, dia=HOJE: {'id': str(uuid.uuid4()), 'executivo_id': e['id'], 'vinculo_id': vid, 'cliente_codigo': 1165, 'pedido_ref': f'P{ped}', 'pedido_numero': str(ped),
+                                         'pedido_data': dia, 'pedido_em': dia + 'T17:32:00Z', 'competencia': dia[:8] + '01',
+                                         'itens': [{'nome': 'Saco Fictício 100 L', 'quantidade': '2'}, {'nome': 'Papel Toalha Fictício', 'quantidade': '1.5'}], 'base': base, 'percentual': 3.0, 'valor': val, 'situacao': sit, 'paga_em': '2026-11-23' if sit == 'paga' else None}
+sim.comissoes = [c(joao, sim.vinculos[0]['id'], 701, 100.0, 3.0, 'prevista'), c(joao, sim.vinculos[0]['id'], 702, 200.0, 6.0, 'paga', ANTES), c(maria, sim.vinculos[2]['id'], 703, 999.0, 29.97, 'liberada')]
 
 with sync_playwright() as pw:
     br = pw.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
-    for largura in (390, 1280):
+    for largura in (360, 390, 768, 1280, 1920):
         ctx = br.new_context(viewport={'width': largura, 'height': 900}, permissions=['clipboard-read', 'clipboard-write'])
         pg = ctx.new_page(); erros = []; console = []
         pg.on('pageerror', lambda e: erros.append(str(e))); pg.on('console', lambda m: console.append(m.text))
@@ -48,7 +51,20 @@ with sync_playwright() as pw:
         checar(zap.startswith('https://wa.me/?text=') and 'ex%3DJOAO' in zap, f'link do WhatsApp: {zap}')
         pg.click('#exCopiar'); pg.wait_for_timeout(200)
         checar(pg.evaluate('navigator.clipboard.readText()').endswith('/?ex=JOAO'), 'copiar link')
-        pg.click('.exa-mes summary'); checar(pg.locator('.exa-ped .exa-l').count() == 2, 'pedidos do mês')
+        # Suas vendas: abre em Hoje (há pedido hoje)
+        checar(pg.get_attribute('.exa-per [data-p="hoje"]', 'aria-pressed') == 'true', 'período inicial Hoje')
+        k = ' '.join(pg.inner_text('.exa-kpis').split())
+        checar('Vendido R$ 100,00' in k and 'Pedidos 1' in k and 'Clientes que compraram 1' in k and 'Sua comissão R$ 3,00' in k, f'números de hoje: {k}')
+        checar(pg.locator('.exa-pedido').count() == 1 and '14:32' in pg.inner_text('.exa-pedido summary'), 'pedido de hoje com a hora (Brasília)')
+        pg.click('.exa-per [data-p="7d"]'); pg.wait_for_timeout(100)
+        k = ' '.join(pg.inner_text('.exa-kpis').split())
+        checar('Vendido R$ 300,00' in k and 'Pedidos 2' in k and 'Sua comissão R$ 9,00' in k, f'números de 7 dias: {k}')
+        pg.click('.exa-pedido summary >> nth=0'); pg.wait_for_timeout(100)
+        it = ' '.join(pg.inner_text('.exa-pedido[open] .exa-itens').split())
+        checar('Saco Fictício 100 L' in it and '1,5' in it, f'produtos do pedido: {it}')
+        pc = ' '.join(pg.inner_text('.exa-porcli').split())
+        checar('Padaria Fictícia' in pc and 'R$ 300,00' in pc and '2 pedidos' in pc, f'por cliente: {pc}')
+        checar('999' not in ' '.join(pg.inner_text('#exVendas').split()), 'vendas de outro executivo')
         checar(pg.evaluate('document.documentElement.scrollWidth <= innerWidth'), f'rolagem horizontal em {largura}px')
         arm = pg.evaluate('JSON.stringify(localStorage)')
         checar('executivo-sessao' not in arm, 'sessão do executivo no localStorage (deveria ficar só na aba)')
@@ -61,7 +77,7 @@ with sync_playwright() as pw:
         # executivo desativado não entra
         joao['ativo'] = False
         pg.fill('#exEmail', 'joao@example.invalid'); pg.fill('#exSenha', 'SenhaJoao123'); pg.click('#exEntrar'); pg.wait_for_selector('#exLogin')
-        pg.wait_for_timeout(500)
+        pg.wait_for_function("document.getElementById('g360Conteudo').innerText.includes('não está ativo')", timeout=8000)
         checar('não está ativo' in pg.inner_text('#g360Conteudo'), 'executivo desativado entrou')
         joao['ativo'] = True
         # o catálogo continua igual depois de passar pela área do executivo
