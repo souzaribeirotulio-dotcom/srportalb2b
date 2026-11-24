@@ -451,3 +451,9 @@ body.com-passo-ios #souzinha-widget{display:none !important}
 .hcad small { flex-basis: 100%; color: var(--tx3); font-size: 13px; }
 .hcad.analise small { color: var(--lima, #b2e04a); font-size: 14px; }
 @media (max-width: 640px) { .hcad .btn { flex: 1 1 100%; } }
+
+/* Login: atalho para o cadastro, abaixo de Cancelar | Entrar. Só contorno, mais discreto que o Entrar. */
+.lg-novo { display: flex; width: 100%; min-height: 48px; margin-top: 12px; justify-content: center; align-items: center; gap: .3em; flex-wrap: wrap; flex-direction: row; white-space: nowrap; padding: 0 12px;
+  background: transparent; border: 1px solid rgba(178, 224, 74, .45); color: var(--tx2, #c9d6c3); font-size: 14px; font-weight: 500; border-radius: 12px; }
+.lg-novo b { color: var(--lima, #b2e04a); font-weight: 700; }
+.lg-novo:hover { border-color: var(--lima, #b2e04a); background: rgba(178, 224, 74, .06); }
