@@ -501,3 +501,13 @@ body.com-passo-ios #souzinha-widget{display:none !important}
 .ex-sit { display: inline-block; padding: 1px 8px; border-radius: 999px; background: rgba(255, 255, 255, .08); color: var(--tx2, #a9c19a); font-size: 12px; font-weight: 700; }
 .ex-link { color: var(--tx3, #6e8b60); word-break: break-all; font-size: 12px; }
 .ex-check { display: flex; gap: 8px; align-items: center; min-height: 44px; cursor: pointer; }
+.ex-cli { margin-top: 8px; }
+.ex-cli-lista { display: grid; gap: 6px; }
+.ex-cli-l { padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, .03); }
+.ex-cli-l small { display: block; margin-top: 2px; }
+.ex-st { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 700; background: rgba(255, 255, 255, .08); color: var(--tx2, #a9c19a); }
+.ex-st.ativo { background: rgba(178, 224, 74, .16); color: var(--lima, #b2e04a); }
+.ex-st.aguardando { background: rgba(255, 200, 80, .14); color: #ffd27a; }
+.ex-st.recusado, .ex-st.removido { background: rgba(255, 107, 107, .12); color: #ff9a9a; }
+.ex-ind { color: var(--lima, #b2e04a); }
+.ex-ind.sem { color: #ffd27a; }

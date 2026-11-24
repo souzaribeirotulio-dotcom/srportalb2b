@@ -4,6 +4,7 @@
    A lógica (API, sessão, envio, Minha Lista, ocorrências) vem dos módulos
    já testados; aqui só a tela.
    ===================================================================== */
+import { carregarOcultosComprador } from '../estado/ocultos.js';
 import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
 import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo, estoqueMinimoAtual, codigosAtivosPublicos } from '../catalogo/exibicao.js';
@@ -529,6 +530,9 @@ export async function desenharCatalogo() {
   const idsP = idsCarregados() === null ? carregarIds().catch(() => null) : null;
   try {
     await carregarExibicao();
+    // Cliente de executivo com produtos escondidos: a lista vem antes dos produtos (no máximo 2,5 s).
+    const esquecer = () => { vitrine = null; busca = null; esquecerBuscasRecentes(); };
+    if (await carregarOcultosComprador(() => { esquecer(); desenharCatalogo(); })) esquecer();
     const r = filtros.q ? await resultadoBusca() : await resultadoVitrine();
     if (idsP) { await idsP; desenharTopo(); }
     if (meu !== buscaN) return;

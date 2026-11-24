@@ -28,6 +28,8 @@ import { limparListaTela } from './portal/lista.js';
 try { document.getElementById('versao').textContent = `· versão ${__VERSAO__}`; } catch { /* sem rodapé */ }
 import { limparPedidosTela } from './portal/pedidos.js';
 import { iniciarAppInstalavel } from './ui/instalar.js';
+import { capturarCodigoExecutivo } from './estado/executivo.js';
+
 
 // App instalável: registra o service worker e oferece "Instalar app".
 try { iniciarAppInstalavel(); } catch { /* o portal segue normal sem isso */ }
@@ -35,6 +37,7 @@ try { iniciarAppInstalavel(); } catch { /* o portal segue normal sem isso */ }
 const ATIVO = window.SR_ADAPTADOR !== 'mock';
 
 // O script no topo do index.html já apagou o token do endereço; aqui ele sai do window e fica só no módulo.
+capturarCodigoExecutivo();
 if ('__srTokenSenha' in window) {
   receberTokenDoLink(window.__srTokenSenha);
   delete window.__srTokenSenha;

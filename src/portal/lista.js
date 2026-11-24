@@ -5,6 +5,7 @@
    e disponibilidade de agora (filtro ids, todas as páginas). Preço guardado
    nunca vai para a tela. Quantidades → carrinho ou pedido direto.
    ===================================================================== */
+import { carregarOcultosComprador } from '../estado/ocultos.js';
 import { carregarExibicao, apresentar, codigosAtivosPublicos, oculto } from '../catalogo/exibicao.js';
 import { produtosPorIds, consultarHistoricoCompras, listarPedidos, consultarPedido } from '../api/g360.js';
 import { sessao } from '../estado/sessao.js';
@@ -55,6 +56,7 @@ export async function desenharMinhaLista(ctx) {
   let achados; let ativos = null;
   try {
     await carregarExibicao();
+    await carregarOcultosComprador(() => desenharMinhaLista(ctx));
     const [porId, cods] = await Promise.all([produtosPorIds(sessao.token, ids), codigosAtivosPublicos()]);
     achados = new Map([...porId].map(([k, v]) => [k, apresentar(v)]));
     ativos = cods ? new Set(cods) : null;

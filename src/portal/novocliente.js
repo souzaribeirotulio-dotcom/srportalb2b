@@ -110,9 +110,11 @@ function desenhar(c) {
   const naoMostrados = [...obrig].filter((x) => !CONHECIDOS.has(x));
   const inp = (id, val, extra = '') => `<input class="inp" id="${id}" value="${esc(val ?? '')}" ${extra}>`;
   const lista = (campo) => {
-    const [, rot] = LISTAS[campo]; const r = ref[campo]; const pad = form.padroes?.[campo] ?? null;
+    const [, rot] = LISTAS[campo]; const r = ref[campo];
+    const sug = campo === 'vendedor_id' && opcoes.vendedorSugerido && Array.isArray(r) && r.some((o) => Number(o.id) === opcoes.vendedorSugerido.id) ? opcoes.vendedorSugerido : null;
+    const pad = sug ? sug.id : (form.padroes?.[campo] ?? null);
     if (r instanceof Error) return `<div><label>${rot}${req(campo)}</label><div class="okmsg" style="color:#ffb5ac">${esc(interpretarErro(r).mensagem)}</div></div>`;
-    return `<div><label for="n_${campo}">${rot}${req(campo)}</label><select class="inp" id="n_${campo}"><option value="">${pad ? 'Padrão do G360' : 'Escolha'}</option>${(r || []).filter((o) => o.id).map((o) => `<option value="${Number(o.id)}" ${Number(o.id) === pad ? 'selected' : ''}>${esc(o.nome)}</option>`).join('')}</select></div>`;
+    return `<div><label for="n_${campo}">${rot}${req(campo)}</label><select class="inp" id="n_${campo}"><option value="">${pad ? 'Padrão do G360' : 'Escolha'}</option>${(r || []).filter((o) => o.id).map((o) => `<option value="${Number(o.id)}" ${Number(o.id) === pad ? 'selected' : ''}>${esc(o.nome)}</option>`).join('')}</select>${sug ? `<small class="hint" style="display:block;margin-top:4px">Vendedor do executivo ${esc(sug.executivo || '')}, que indicou este cliente.</small>` : ''}</div>`;
   };
 
   box.innerHTML = `<div class="fxh"><div><h3>Novo cliente no G360</h3><div class="sub">${fisica ? 'Pessoa física · dados do pedido' : 'Pessoa jurídica · dados da Receita e do pedido'}. Confira tudo: grava direto no G360, com o acesso ao portal bloqueado.</div></div><button class="fxx" id="nX" title="Fechar">×</button></div>

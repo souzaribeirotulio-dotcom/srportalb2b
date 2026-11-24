@@ -5,6 +5,7 @@
    usa o "Primeiro acesso" para criar a senha. O portal não cria cliente no G360.
    CNPJ e CEP preenchem os campos por consultas públicas (BrasilAPI e ViaCEP).
    ===================================================================== */
+import { codigoExecutivoGuardado } from '../estado/executivo.js';
 import { supabaseComprador, LOJA } from '../api/supabase.js';
 import { $, esc, abrirModal, fecharModal } from './comum.js';
 
@@ -165,6 +166,7 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
     </div>
 
     <div class="ksec"${jaCliente ? ' hidden' : ''}><div class="kc"><label for="kOrigem">Como conheceu a Souza Ribeiro <span class="kop">(opcional)</span></label><select class="inp" id="kOrigem">${opcoes(ORIGENS)}</select></div></div>
+    <div class="ksec"${jaCliente ? ' hidden' : ''}><div class="kc"><label for="kExec">Código do executivo <span class="kop">(opcional)</span></label><input class="inp" id="kExec" maxlength="20" autocapitalize="characters" spellcheck="false" autocomplete="off" value="${esc(jaCliente ? '' : codigoExecutivoGuardado())}" placeholder="Se alguém indicou a Souza Ribeiro para você"></div></div>
     <div id="kRes" aria-live="polite"></div>
     <div class="act kact"><button type="button" class="btn sec" id="kCancelar">Cancelar</button><button type="button" class="btn pri" id="kEnviar">Enviar cadastro</button></div></div>`;
   abrirModal('mCad');
@@ -299,6 +301,7 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
       inscricao_estadual: pf ? '' : ($('kIsento').checked ? 'ISENTO' : v('kIe')), responsavel: v('kResp'),
       whats: fone(v('kWhats')), telefone: v('kTel') ? fone(v('kTel')) : '', email: v('kEmail').toLowerCase(), cep: v('kCep'), logradouro: v('kRua'), numero: v('kNum'),
       complemento: v('kComp'), bairro: v('kBairro'), cidade: v('kCidade'), uf: $('kUf').value, origem: jaCliente ? ORIGEM_JA_CLIENTE : $('kOrigem').value, segmento: $('kSeg').value,
+      executivo: jaCliente ? '' : String($('kExec').value || '').toUpperCase().replace(/[^A-Z0-9]/g, ''),
     };
     const sb = supabaseComprador();
     const { error } = sb ? await sb.rpc('portal_cadastro_solicitar', { p_loja: LOJA, d }) : { error: { message: 'Cadastro indisponível no momento.' } };
