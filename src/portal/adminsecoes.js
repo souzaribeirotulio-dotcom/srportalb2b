@@ -42,7 +42,7 @@ export async function montarEditorSecoes(alvo, { painel }) {
         <button class="btn pri" type="button" id="sxSalvar">Salvar seções de ${esc(dep)}</button><span class="hint" id="sxRes" style="margin:0" aria-live="polite">${mudou ? 'Alterações não salvas.' : ''}</span></div>
       <details class="sx-sem" ${semSecao.length && semSecao.length <= 40 ? 'open' : ''}><summary>Produtos sem seção neste departamento (${semSecao.length})</summary>
         ${semSecao.length ? `<ul>${semSecao.slice(0, 200).map((p) => `<li><span class="sx-cod">${esc(p.codigo)}</span> · ${esc(p.nome)}</li>`).join('')}</ul>${semSecao.length > 200 ? `<small class="hint">…e mais ${semSecao.length - 200}.</small>` : ''}` : '<small class="hint">Todos os produtos estão em alguma seção. 👏</small>'}</details>
-      <small class="hint" style="display:block;margin-top:8px">Como funciona: o produto do departamento entra na seção se o nome tiver todas as palavras de algum item (separe itens por vírgula). Sem acento; palavra de 3 letras ou mais vale pelo começo ("copo" pega "copos"). Um produto pode aparecer em mais de uma seção.</small>`;
+      <small class="hint" style="display:block;margin-top:8px">Como funciona: o produto do departamento entra na seção se o nome tiver todas as palavras de algum item (separe itens por vírgula). Sem acento; palavra de 5 letras ou mais vale pelo começo ("vassoura" pega "vassouras"); mais curta só vale inteira ou no plural ("copo" pega "copos"). Um produto pode aparecer em mais de uma seção.</small>`;
     ligar();
   }
 

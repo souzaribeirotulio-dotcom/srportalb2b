@@ -9,7 +9,7 @@ import { indexar, definirSinonimos } from './busca.js';
 
 const estado = { carregado: false, carregando: null, porCodigo: new Map(), porId: new Map(), categorias: [], secoes: [] };
 
-export const CATEGORIAS_PADRAO = ['Limpeza', 'Descartáveis', 'Embalagens', 'Copa & Alimentos', 'Higiene', 'Utensílios & EPI', 'Papelaria', 'Outros'];
+export const CATEGORIAS_PADRAO = ['Limpeza', 'Descartáveis e Embalagens', 'Higiene e Cuidados Pessoais', 'Café e Coffee Break', 'Alimentícios', 'Snacks e Doces', 'Bebidas', 'EPIs e Segurança', 'Escritório e Papelaria', 'Utilidades e Cia', 'Informática e Tecnologia', 'Festas e Brinquedos', 'Outros'];
 
 /* Cópia local da lista (nomes, categorias, sinônimos e configuração): da segunda visita em diante o catálogo
    aparece na hora com ela, e a lista nova chega por trás. São dados públicos do catálogo, nada do comprador. */
@@ -149,7 +149,28 @@ export function nomeExibicao(p) {
 
 export function categoriaExibicao(p) {
   const r = registro(p);
-  return r?.categoria || categoriaPeloNome(p?.nome_g360 ?? p?.nome, nomeExibicao(p));
+  return r?.categoria || categoriaAutomatica(p?.nome_g360 ?? p?.nome, nomeExibicao(p));
+}
+
+const menorLex = (a, b) => { for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return a[i] < b[i]; return false; };
+/* Departamentos antigos → novos (para a regra antiga, usada só quando a árvore não reconhece o nome). */
+const ANTIGAS = { 'Descartáveis': 'Descartáveis e Embalagens', 'Embalagens': 'Descartáveis e Embalagens', 'Copa & Alimentos': 'Alimentícios', 'Higiene': 'Higiene e Cuidados Pessoais', 'Utensílios & EPI': 'EPIs e Segurança', 'Papelaria': 'Escritório e Papelaria', 'Utilidades Domésticas': 'Utilidades e Cia', 'Eletrônicos & Informática': 'Informática e Tecnologia', 'Festas & Brinquedos': 'Festas e Brinquedos' };
+/** Departamento automático pelo nome: o item de seção que bate com mais palavras (empate: o que aparece primeiro
+   no nome; depois a ordem dos departamentos e das seções). Igual à classificação feita no banco. */
+export function categoriaAutomatica(...nomes) {
+  const tk = palavrasDe(nomes.filter(Boolean).join(' '));
+  const cats = categorias(); const ordemCat = new Map(cats.map((c, i) => [c, i]));
+  let best = null;
+  for (const s of estado.secoes) {
+    if (s.pai || !ordemCat.has(s.categoria)) continue;
+    const m = melhorTermo(tk, s.termos); if (!m) continue;
+    const k = [-m.n, m.pos, ordemCat.get(s.categoria), s.ordem];
+    if (!best || menorLex(k, best.k)) best = { k, cat: s.categoria };
+  }
+  if (best) return best.cat;
+  const antiga = categoriaPeloNome(...nomes);
+  const nova = ANTIGAS[antiga] || antiga;
+  return cats.includes(nova) ? nova : (cats.includes('Outros') ? 'Outros' : nova);
 }
 
 /** Produto da API com o nome do portal (o nome do G360 fica em nome_g360). */
@@ -185,13 +206,14 @@ export function aplicarLocal(linhas) {
     estado.porCodigo.set(String(r.codigo), atual);
     if (atual.produto_id) estado.porId.set(Number(atual.produto_id), atual);
   }
+  cacheSecao = new Map();
 }
 export function definirCategoriasLocal(lista) { estado.categorias = lista; }
 
 /* ---------- Árvore do catálogo: departamento (categoria) → seção → linha ----------
    Cada seção/linha é uma lista de termos; o produto da categoria entra se o nome (do portal ou do G360)
-   tiver todas as palavras de algum termo. Palavra de 3+ letras vale pelo começo ("copo" pega "copos");
-   mais curta, só a palavra inteira ("pa", "pp"). Linha: precisa estar na seção e bater num termo da linha. */
+   tiver todas as palavras de algum termo. Palavra de 5+ letras vale pelo começo ("vassoura" pega "vassouras");
+   mais curta, só inteira ou no plural ("copo"/"copos", "bala"/"balas", mas não "balança"). */
 const normalTexto = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const palavrasDe = (t) => normalTexto(t).split(' ').filter(Boolean);
 let cacheSecao = new Map();
@@ -208,25 +230,68 @@ export function secoesDe(categoria) {
 export function secaoPorId(id) { return estado.secoes.find((s) => s.id === String(id)) || null; }
 /** Termos (texto) de uma seção, para o painel. */
 export function termosTexto(s) { return (s?.termos || []).map((w) => w.join(' ')); }
+const bate1 = (w, t) => (w.length >= 5 ? t.startsWith(w) : (t === w || t === `${w}s` || t === `${w}es`));
 export function bateTermos(nome, termos) {
   if (!termos?.length) return false;
   const tokens = palavrasDe(nome);
-  return termos.some((ws) => ws.every((w) => tokens.some((t) => (w.length >= 3 ? t.startsWith(w) : t === w))));
+  return termos.some((ws) => ws.every((w) => tokens.some((t) => bate1(w, t))));
 }
-/** Códigos (visíveis) de uma seção ou linha. */
+const tokensDe = (r) => palavrasDe(`${r.nome || ''} ${r.nome_g360 || ''}`);
+/** Item da seção que melhor descreve o produto: o de mais palavras; empate = o que aparece primeiro no nome. */
+function melhorTermo(tokens, termos) {
+  let m = null;
+  termos.forEach((ws, idx) => {
+    let pos = -1;
+    for (const w of ws) { const i = tokens.findIndex((t) => bate1(w, t)); if (i < 0) return; if (pos < 0) pos = i; }
+    if (!m || ws.length > m.n || (ws.length === m.n && pos < m.pos)) m = { n: ws.length, pos, idx };
+  });
+  return m;
+}
+const nomeOrdem = (r) => normalTexto(r.nome || r.nome_g360 || r.codigo);
+/** Ordem "por tipo" (pedido da equipe: as águas sanitárias juntas, depois os detergentes; os rodos de plástico
+   juntos, depois os de madeira): departamento → seção do produto → item da seção → nome (com números em ordem). */
+function ordenarPorTipo(regs, sec) {
+  const chave = new Map();
+  for (const r of regs) {
+    const tk = tokensDe(r); let k = [9999, 9999];
+    if (sec) { const m = melhorTermo(tk, sec.termos); if (m) k = [0, m.idx]; } else {
+      let best = null;
+      for (const s of estado.secoes) {
+        if (s.pai || s.categoria !== r.categoria) continue;
+        const m = melhorTermo(tk, s.termos); if (!m) continue;
+        if (!best || m.n > best.m.n || (m.n === best.m.n && (m.pos < best.m.pos || (m.pos === best.m.pos && s.ordem < best.s.ordem)))) best = { s, m };
+      }
+      if (best) k = [best.s.ordem, best.m.idx];
+    }
+    chave.set(r, [k[0], k[1], nomeOrdem(r)]);
+  }
+  return regs.sort((a, b) => { const x = chave.get(a); const y = chave.get(b); return x[0] - y[0] || x[1] - y[1] || x[2].localeCompare(y[2], 'pt', { numeric: true }); });
+}
+/** Códigos (visíveis) de uma seção ou linha, na ordem por tipo. */
 export function codigosDaSecao(id) {
   const k = String(id);
   if (cacheSecao.has(k)) return cacheSecao.get(k);
-  const s = secaoPorId(k); let out = [];
+  const s = secaoPorId(k); const regs = [];
   if (s) {
     const mae = s.pai ? secaoPorId(s.pai) : null;
     for (const r of estado.porCodigo.values()) {
       if (r.oculto || r.categoria !== s.categoria) continue;
       const nome = `${r.nome || ''} ${r.nome_g360 || ''}`;
       if (mae && !bateTermos(nome, mae.termos)) continue;
-      if (bateTermos(nome, s.termos)) out.push(String(r.codigo));
+      if (bateTermos(nome, s.termos)) regs.push(r);
     }
   }
+  const out = (s ? ordenarPorTipo(regs, s) : regs).map((r) => String(r.codigo));
+  cacheSecao.set(k, out);
+  return out;
+}
+/** Códigos (visíveis) de um departamento, na ordem por tipo. */
+function codigosDoDepartamento(cat) {
+  const k = `dep:${cat}`;
+  if (cacheSecao.has(k)) return cacheSecao.get(k);
+  const regs = [];
+  for (const r of estado.porCodigo.values()) if (r.categoria === cat && !r.oculto) regs.push(r);
+  const out = ordenarPorTipo(regs, null).map((r) => String(r.codigo));
   cacheSecao.set(k, out);
   return out;
 }
@@ -266,7 +331,7 @@ export function produtosDaCategoria(cat) {
 /** Códigos do filtro atual do catálogo: linha > seção > departamento. */
 export function codigosDoFiltro(f) {
   if (f?.secao && secaoPorId(f.secao)) return codigosDaSecao(f.secao);
-  return f?.grupo ? codigosDaCategoria(f.grupo, Infinity) : null;
+  return f?.grupo ? codigosDoDepartamento(f.grupo) : null;
 }
 /** "Limpeza › Sacos de lixo › Preto" (só o que estiver escolhido). */
 export function caminhoDoFiltro(f) {

@@ -39,6 +39,11 @@ with sync_playwright() as pw:
         sub = ' '.join(pg.inner_text('#mSecs' if largura < 1000 else '#depLado').split())
         if largura < 1000: pg.keyboard.press('Escape')
         checar('Sacos de lixo 4' in sub and 'Panos e flanelas 1' in sub and 'Vazia' not in sub, f'seções: {sub}')
+        # ordem por tipo: seção → item da seção → nome (sacos 100L juntos, depois 60L; pano; o resto por nome)
+        pg.wait_for_timeout(800)
+        em_ordem = ' '.join(pg.eval_on_selector_all('#grid .card', 'cs => cs.map(c => c.innerText)')).replace('\n', ' ')
+        pos = [em_ordem.find(x) for x in ('100L Branco', '100L Preto', '60L Preto', 'Pano Multiuso', 'Detergente', 'Esponja', 'Vassoura')]
+        checar(-1 not in pos and pos == sorted(pos), f'ordem por tipo: {pos}')
         secao(pg, largura, sid); pg.wait_for_timeout(1200)
         checar(pg.inner_text('#depTit') == 'Sacos de lixo', f"título: {pg.inner_text('#depTit')}")
         g = ' '.join(' '.join(cards(pg)).split())
