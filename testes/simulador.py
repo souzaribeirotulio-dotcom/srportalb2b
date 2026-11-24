@@ -335,7 +335,7 @@ class Sim:
             return self.ok(route, {'obrigatorios': ['telefone', 'categoria'], 'obrigatorios_pessoa_fisica': ['rg_se_nao_contribuinte'], 'editaveis': ['fantasia', 'email', 'telefone', 'contato', 'categoria', 'situacao', 'limite_credito_mensal'], 'padroes': {'categoria_id': None, 'situacao_id': 2, 'vendedor_id': None}})
         if caminho == 'operadores/referencias':
             t = q.get('tipo', [''])[0]
-            return self.ok(route, {'categoria': [{'id': 1, 'nome': 'Varejo'}, {'id': 3, 'nome': 'Atacado'}], 'situacao': [{'id': 2, 'nome': 'Normal'}]}.get(t, []))
+            return self.ok(route, {'categoria': [{'id': 1, 'nome': 'Varejo'}, {'id': 3, 'nome': 'Atacado'}], 'situacao': [{'id': 2, 'nome': 'Normal'}], 'vendedor': [{'id': 3, 'nome': 'Vendedor Exemplo'}, {'id': 7, 'nome': 'Parceiro Fictício'}]}.get(t, []))
         if caminho == 'operadores/cadastro/cnpj':
             doc = re.sub(r'[^0-9A-Za-z]', '', corpo['cnpj']).upper()
             if set(corpo) != {'cnpj'}: return self.erro(route, 422, 'CAMPO_NAO_PERMITIDO', 'A solicitação tem campos que a API não aceita.', 'integracao')
@@ -425,6 +425,46 @@ class Sim:
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({
                 'sessao': {'access_token': at, 'refresh_token': 'r' + uuid.uuid4().hex}, 'api_expira_em': '2099-01-01T00:00:00.000Z',
                 'api_inatividade_minutos': self.loja['sessao_minutos'], 'api_vinculo_expira_em': iso(exp)}))
+        if p == '/functions/v1/permissoes-g360':
+            # Permissões próprias do painel: sim.perms_painel (padrão: tudo, menos 'executivos').
+            corpo = json.loads(req.post_data or '{}')
+            if corpo.get('token') not in self.op_tokens: return route.fulfill(status=401, headers=cab, content_type='application/json', body=json.dumps({'mensagem': 'Sua sessão do painel terminou. Entre novamente.'}))
+            pp = getattr(self, 'perms_painel', ['visita', 'cli', 'neg', 'prod', 'cong', 'mrg', 'intel', 'souzinha', 'cfg', 'ocor'])
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({'permissoes': pp, 'codigo': 12, 'nome': 'Operador Fictício'}))
+        if p == '/functions/v1/executivos-g360':
+            # Programa Executivo de Contas (painel). exec_pode: o operador tem a permissão 'executivos'.
+            corpo = json.loads(req.post_data or '{}')
+            res = lambda st, b: route.fulfill(status=st, headers=cab, content_type='application/json', body=json.dumps(b))
+            if corpo.get('token') not in self.op_tokens: return res(401, {'mensagem': 'Sua sessão do painel terminou. Entre novamente.'})
+            ac = corpo.get('acao'); d = corpo.get('dados') or {}
+            self.chamadas.append(('EXEC', ac, {k: v for k, v in d.items() if k != 'executivo'}))
+            pode = getattr(self, 'exec_pode', True)
+            if ac == 'pode': return res(200, {'dados': {'pode': pode}})
+            if not pode: return res(403, {'mensagem': 'Só o administrador do programa de executivos pode ver esta área.'})
+            ex = self.__dict__.setdefault('executivos', []); cfg = self.__dict__.setdefault('exec_cfg', {'percentual': 3, 'liberar_em': 'pagamento', 'so_novos': True, 'prazo_meses': 12})
+            if ac == 'listar': return res(200, {'dados': {'executivos': [{k: v for k, v in e.items() if k != 'senha'} for e in ex], 'config': cfg}})
+            if ac == 'salvar':
+                e = d['executivo']; cod = str(e.get('codigo', '')).upper()
+                if not re.fullmatch(r'[A-Z0-9]{3,20}', cod): return res(400, {'mensagem': 'Código com 3 a 20 letras ou números, sem espaços (ex.: JOAO).'})
+                if any(x['codigo'] == cod and x['id'] != e.get('id') for x in ex): return res(409, {'mensagem': f'O código {cod} já é de outro executivo.'})
+                if not e.get('id') and len(e.get('senha') or '') < 8: return res(400, {'mensagem': 'Defina a senha de acesso do executivo (8 caracteres ou mais).'})
+                if '@' not in (e.get('email') or ''): return res(400, {'mensagem': 'Digite um e-mail válido. Ele é o login do executivo.'})
+                self.exec_senhas = getattr(self, 'exec_senhas', {})
+                atual = next((x for x in ex if x['id'] == e.get('id')), None)
+                if not atual: atual = {'id': str(uuid.uuid4()), 'ativo': True, 'tem_acesso': True, 'clientes': {'ativos': 0, 'aguardando': 0}, 'criado_em': '2026-11-24T12:00:00Z'}; ex.append(atual)
+                pct = str(e.get('percentual') or '').replace(',', '.')
+                atual.update(codigo=cod, nome=e.get('nome'), documento=e.get('documento'), whatsapp=e.get('whatsapp') or None, email=e.get('email'),
+                             percentual=float(pct) if pct else None, vendedor_g360=e.get('vendedor_g360'), vendedor_nome=e.get('vendedor_nome') or None)
+                if e.get('senha'): self.exec_senhas[atual['id']] = e['senha']
+                return res(200, {'dados': atual})
+            if ac == 'situacao':
+                for x in ex:
+                    if x['id'] == d.get('id'): x['ativo'] = d.get('ativo') is True
+                return res(200, {'ok': True})
+            if ac == 'config_salvar':
+                cfg.update(percentual=float(str(d.get('percentual')).replace(',', '.')), liberar_em=d.get('liberar_em'), so_novos=d.get('so_novos') is not False, prazo_meses=d.get('prazo_meses'))
+                return res(200, {'dados': cfg})
+            return res(400, {'mensagem': 'Ação desconhecida.'})
         if p == '/functions/v1/painel-g360':
             corpo = json.loads(req.post_data or '{}')
             res = lambda st, b: route.fulfill(status=st, headers=cab, content_type='application/json', body=json.dumps(b))

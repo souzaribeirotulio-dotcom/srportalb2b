@@ -117,7 +117,7 @@ export function mostrarAdmin(contexto) {
   restaurarOp();
   // Aviso tocado no celular abre a aba certa (/painel?aba=neg, /painel?aba=cli).
   const abaPedida = new URLSearchParams(location.search).get('aba');
-  if (abaPedida && ['ini', 'vendas', 'estoque', 'visita', 'cli', 'prod', 'cong', 'mrg', 'intel', 'neg', 'souzinha', 'cfg', 'ocor', 'mais', 'perm'].includes(abaPedida)) aba = abaPedida;
+  if (abaPedida && ['ini', 'vendas', 'estoque', 'visita', 'cli', 'prod', 'cong', 'mrg', 'intel', 'neg', 'souzinha', 'cfg', 'ocor', 'mais', 'perm', 'exe'].includes(abaPedida)) aba = abaPedida;
   modoAppEquipe(true);
   document.body.classList.add('g360-painel');
   document.querySelectorAll('.view').forEach((el) => { el.hidden = el.id !== 'vAdm'; });
@@ -142,8 +142,9 @@ function ligar() {
     <div class="row"><span class="hint" id="aQuem" style="margin:0"></span><button class="tool" id="aSair">Sair do admin</button></div>`;
   // Abas do portal antigo + Ocorrências.
   const abas = v.querySelector('.atabs');
-  if (!abas.querySelector('[data-at="ocor"]')) abas.insertAdjacentHTML('beforeend', '<button data-at="ocor">Ocorrências</button><button data-at="perm" hidden>🔐 Permissões</button>');
+  if (!abas.querySelector('[data-at="ocor"]')) abas.insertAdjacentHTML('beforeend', '<button data-at="exe" hidden>🤝 Executivos</button><button data-at="ocor">Ocorrências</button><button data-at="perm" hidden>🔐 Permissões</button>');
   if (!$('atOcor')) v.insertAdjacentHTML('beforeend', '<div id="atOcor" hidden><div class="panel" id="ocPanel"></div></div>');
+  if (!$('atExe')) v.insertAdjacentHTML('beforeend', '<div id="atExe" hidden><div class="panel" id="exePanel"></div></div>');
   if (!abas.querySelector('[data-at="ini"]')) abas.insertAdjacentHTML('afterbegin', '<button data-at="ini">Início</button><button data-at="vendas" hidden>📊 Vendas</button><button data-at="estoque" hidden>⚠ Estoque em queda <span class="mk" id="estN" style="background:rgba(255,107,107,.16);color:#ff8a8a"></span></button><button data-at="visita">➕ Preparar cliente</button>');
   if (!$('atIni')) v.insertAdjacentHTML('beforeend', '<div id="atIni" hidden><div id="iniPanel"></div></div><div id="atVendas" hidden><div id="vendasPanel"></div></div><div id="atEstoque" hidden><div id="estPanel"></div></div><div id="atVisita" hidden><div class="panel vis" id="visPanel"></div></div><div id="atMais" hidden><div id="maisPanel"></div></div><div id="atPerm" hidden><div class="panel" id="permPanel"></div></div>');
   if (!$('eqBar')) document.body.insertAdjacentHTML('beforeend', `<nav class="eqbar" id="eqBar" aria-label="Painel da equipe">
@@ -373,10 +374,11 @@ const NOMES_PERM = {
   vendas: ['📊 Painel de vendas', 'Vendas, margens, produtos e clientes'],
   estoque: ['⚠ Estoque em queda', 'Produtos que estão acabando no G360'],
   avisos: ['🔔 Avisos no celular', 'Vendas, negociações e cadastros novos'],
+  executivos: ['🤝 Executivos', 'Programa de executivos de contas e comissões'],
   permissoes: ['🔐 Permissões', 'Mudar o que cada pessoa vê no painel'],
 };
 let perms = null; let permsCarregando = null; let permsDados = null; let permsErro = '';
-const pode = (k) => { if (k === 'perm') k = 'permissoes'; return k === 'ini' || k === 'mais' || (perms ? perms.has(k) : PADRAO.includes(k)); };
+const pode = (k) => { if (k === 'perm') k = 'permissoes'; if (k === 'exe') k = 'executivos'; return k === 'ini' || k === 'mais' || (perms ? perms.has(k) : PADRAO.includes(k)); };
 
 function carregarPermissoes() {
   if (permsCarregando || !op.token) return permsCarregando;
@@ -470,9 +472,9 @@ async function desenharPermissoes(msg = '') {
 function desenharAba() {
   if (!pode(aba)) aba = 'ini';
   document.querySelectorAll('#vAdm [data-at]').forEach((b) => b.classList.toggle('on', b.dataset.at === aba));
-  const MAIS = ['vendas', 'estoque', 'prod', 'cong', 'mrg', 'intel', 'souzinha', 'cfg', 'ocor', 'perm', 'mais'];
+  const MAIS = ['vendas', 'estoque', 'prod', 'cong', 'mrg', 'intel', 'souzinha', 'cfg', 'ocor', 'perm', 'exe', 'mais'];
   document.querySelectorAll('#eqBar [data-eq]').forEach((b) => b.classList.toggle('on', b.dataset.eq === aba || (b.dataset.eq === 'mais' && MAIS.includes(aba))));
-  const ids = { ini: 'atIni', vendas: 'atVendas', estoque: 'atEstoque', visita: 'atVisita', mais: 'atMais', cli: 'atCli', prod: 'atProd', cong: 'atCong', mrg: 'atMrg', intel: 'atIntel', neg: 'atNeg', souzinha: 'atSouzinha', cfg: 'atCfg', ocor: 'atOcor', perm: 'atPerm' };
+  const ids = { ini: 'atIni', vendas: 'atVendas', estoque: 'atEstoque', visita: 'atVisita', mais: 'atMais', cli: 'atCli', prod: 'atProd', cong: 'atCong', mrg: 'atMrg', intel: 'atIntel', neg: 'atNeg', souzinha: 'atSouzinha', cfg: 'atCfg', ocor: 'atOcor', perm: 'atPerm', exe: 'atExe' };
   Object.entries(ids).forEach(([k, id]) => { $(id).hidden = k !== aba; });
   if ($('aAvisos')) $('aAvisos').classList.toggle('so-inicio', aba !== 'ini');
   if (aba === 'ini') desenharInicio();
@@ -490,6 +492,7 @@ function desenharAba() {
   else if (aba === 'intel') desenharInteligencia();
   else if (aba === 'souzinha') desenharEscola();
   else if (aba === 'neg') desenharNegociacoes();
+  else if (aba === 'exe') import('./adminexecutivos.js').then((m) => m.desenharExecutivosPainel($('exePanel'), { token: op.token, aoEncerrar: encerrarOperador })).catch((e) => toast(e.message));
 }
 
 /* ---------------- Negociações ---------------- */
@@ -2021,6 +2024,7 @@ const AREAS = [
   ['souzinha', '🎓', 'Escola do Souzinha', 'O que a assistente responde'],
   ['cfg', '⚙', 'Configurações', 'Categorias, pagamento, banners'],
   ['ocor', '⚠', 'Ocorrências', 'Avisos do G360 para a equipe'],
+  ['exe', '🤝', 'Executivos', 'Parceiros que indicam clientes'],
 ];
 const AREA_VENDAS = ['vendas', '📊', 'Vendas', 'Vendas, margens, produtos e clientes'];
 const AREA_ESTOQUE = ['estoque', '⚠', 'Estoque em queda', 'Produtos que estão acabando no G360'];

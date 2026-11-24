@@ -22,7 +22,7 @@ const LOJA = obrigatoria("G360_LOJA");
 const ORIGENS = new Set(obrigatoria("PORTAL_ORIGENS").split(",").map((o) => o.trim()));
 const chave = JSON.parse(obrigatoria("SUPABASE_SECRET_KEYS")).default as string;
 const admin = createClient(obrigatoria("SUPABASE_URL"), chave, { auth: { persistSession: false, autoRefreshToken: false } });
-const CHAVES = ["visita", "cli", "neg", "prod", "cong", "mrg", "intel", "souzinha", "cfg", "ocor", "vendas", "estoque", "avisos", "permissoes"];
+const CHAVES = ["visita", "cli", "neg", "prod", "cong", "mrg", "intel", "souzinha", "cfg", "ocor", "vendas", "estoque", "avisos", "executivos", "permissoes"];
 
 Deno.serve(async (req) => {
   const origem = req.headers.get("Origin");
