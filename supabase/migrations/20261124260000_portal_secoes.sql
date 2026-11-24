@@ -1,4 +1,4 @@
--- Árvore do catálogo: departamento (a categoria do portal) → seção → linha.
+-- Árvore do catálogo: departamento (a categoria do portal) → seção. Dois níveis só (a coluna pai fica para uso futuro).
 -- Cada seção ou linha é uma lista de palavras: entra o produto da categoria cujo nome tem todas
 -- as palavras de algum item (sem acento; palavra de 3+ letras vale pelo começo: "copo" pega "copos").
 -- Leitura liberada (é o catálogo público, igual a portal_categorias); gravação só pela função
@@ -25,7 +25,7 @@ do $seed$
 declare
   arv jsonb := $j$[
   ["Limpeza", [
-    ["Sacos de lixo", ["saco lixo", "saco p lixo"], [["Preto", ["preto"]], ["Branco infectante", ["infectante"]], ["Branco comum", ["branco"]], ["Azul e coloridos", ["azul"], ["verde"], ["laranja"], ["vermelho"], ["amarelo"]]]],
+    ["Sacos de lixo", ["saco lixo", "saco p lixo"]],
     ["Panos e flanelas", ["pano"], ["flanela"], ["wiper"], ["wypall"], ["perfex"]],
     ["Detergentes e sabões", ["detergente"], ["sabao"], ["lava louca"], ["lava roupa"], ["amaciante"]],
     ["Desinfetantes e limpadores", ["desinfetante"], ["limpador"], ["limpa"], ["multiuso"], ["agua sanitaria"], ["cloro"], ["removedor"], ["desengraxante"], ["alvejante"]],
@@ -38,7 +38,7 @@ declare
     ["Inseticidas", ["inseticida"]]
   ]],
   ["Descartáveis", [
-    ["Copos", ["copo"], [["Isopor", ["isopor"]], ["Plástico", ["pp"], ["ps"], ["plastico"]], ["Papel", ["papel"]]]],
+    ["Copos", ["copo"]],
     ["Potes e tampas", ["pote"], ["tampa"]],
     ["Marmitex e bandejas", ["marmitex"], ["bandeja"], ["base"], ["hamburgueira"]],
     ["Pratos", ["prato"]],
@@ -67,8 +67,8 @@ declare
     ["Laticínios", ["leite"], ["iogurte"], ["margarina"], ["manteiga"]]
   ]],
   ["Higiene", [
-    ["Papel higiênico", ["papel higienico"], ["papel hig"], [["Folha simples", ["folha simples"]], ["Folha dupla", ["folha dupla"]], ["Folha tripla", ["folha tripla"]], ["Rolão", ["rolao"]]]],
-    ["Papel toalha", ["papel toalha"], [["Interfolhado", ["interf"]], ["Bobina", ["bobina"], ["bob"]], ["Rolo", ["rolo"]]]],
+    ["Papel higiênico", ["papel higienico"], ["papel hig"]],
+    ["Papel toalha", ["papel toalha"]],
     ["Sabonetes", ["sabonete"]],
     ["Álcool", ["alcool"]],
     ["Fraldas", ["fralda"]],

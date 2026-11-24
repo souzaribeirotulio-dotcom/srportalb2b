@@ -269,7 +269,7 @@ function desenharChips() {
   desenharTrilha();
 }
 
-/* ---------------- árvore: departamento → seção → linha ---------------- */
+/* ---------------- árvore: departamento → seção ---------------- */
 
 /** O endereço manda no departamento/seção: /limpeza/sacos-de-lixo → filtros. Início e /catalogo = sem departamento. */
 async function lerEndereco() {
@@ -318,7 +318,7 @@ async function contadorAtivos() {
   return (cods) => cods.filter((c) => !set || set.has(String(c))).length;
 }
 
-/** Segunda faixa (seções do departamento) e terceira (linhas da seção escolhida). */
+/** Segunda faixa: seções do departamento escolhido. */
 async function desenharSubcats() {
   const el = $('subcats'); if (!el) return;
   const grupo = filtros.grupo;
@@ -331,23 +331,21 @@ async function desenharSubcats() {
   const atual = filtros.secao ? secaoPorId(filtros.secao) : null;
   const mae = atual ? secs.find((s) => s.id === (atual.pai || atual.id)) : null;
   const chip = (id, nome, n, on) => `<button type="button" class="chip sub ${on ? 'on' : ''}" data-s="${esc(id)}" aria-pressed="${on}">${esc(nome)}${n ? `<span>${n}</span>` : ''}</button>`;
-  const linhas = mae ? mae.linhas.map((l) => ({ ...l, n: conta(codigosDaSecao(l.id)) })).filter((l) => l.n) : [];
-  el.innerHTML = `<div class="sub-l1" role="group" aria-label="Seções de ${esc(grupo)}">${chip('', `Tudo em ${grupo}`, 0, !filtros.secao)}${secs.map((s) => chip(s.id, s.nome, s.n, mae?.id === s.id)).join('')}</div>`
-    + (linhas.length ? `<div class="sub-l2" role="group" aria-label="Linhas de ${esc(mae.nome)}">${chip(mae.id, `Todos: ${mae.nome}`, 0, atual?.id === mae.id)}${linhas.map((l) => chip(l.id, l.nome, l.n, atual?.id === l.id)).join('')}</div>` : '');
+  el.innerHTML = `<div class="sub-l1" role="group" aria-label="Seções de ${esc(grupo)}">${chip('', `Tudo em ${grupo}`, 0, !filtros.secao)}${secs.map((s) => chip(s.id, s.nome, s.n, mae?.id === s.id)).join('')}</div>`;
   el.hidden = false;
   // A escolha fica à vista na faixa (no celular a faixa rola de lado).
   el.querySelectorAll('.chip.on').forEach((c) => { const f = c.parentElement; f.scrollLeft = c.offsetLeft - (f.clientWidth - c.offsetWidth) / 2; });
   const cat = $('cats')?.querySelector('.chip.on'); if (cat) { const f = cat.parentElement; f.scrollLeft = cat.offsetLeft - (f.clientWidth - cat.offsetWidth) / 2; }
 }
 
-/** Menu "Departamentos" (como nos grandes atacados online):
- *  computador = lista de departamentos à esquerda e as seções (e linhas) abrindo ao lado;
+/** Menu "Departamentos" (como nos grandes atacados online), dois níveis: departamento → seção.
+ *  computador = lista de departamentos à esquerda e as seções abrindo ao lado;
  *  celular = tela cheia que entra de nível em nível, com "‹ Voltar" e "Ver tudo em…". */
 async function abrirDepartamentos() {
   await carregarExibicao();
   const conta = await contadorAtivos();
   const deps = categoriasPortal().map((nome) => ({ nome, n: conta(codigosDaCategoria(nome, Infinity)),
-    secoes: secoesDe(nome).map((s) => ({ ...s, n: conta(codigosDaSecao(s.id)), linhas: s.linhas.map((l) => ({ ...l, n: conta(codigosDaSecao(l.id)) })).filter((l) => l.n) })).filter((s) => s.n) })).filter((d) => d.n);
+    secoes: secoesDe(nome).map((s) => ({ ...s, n: conta(codigosDaSecao(s.id)), linhas: [] })).filter((s) => s.n) })).filter((d) => d.n);
   document.getElementById('mDeps')?.remove();
   const largo = window.matchMedia('(min-width: 900px)').matches;
   const seta = '<svg class="dm-seta" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
