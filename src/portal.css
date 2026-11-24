@@ -744,13 +744,14 @@ details.ferr > .afil{margin:0 !important;padding:0 12px 12px}
 .bnr-pontos button::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, .55); box-shadow: 0 0 0 1px rgba(0, 0, 0, .25); transition: width .2s; }
 .bnr-pontos button[aria-current]::before { width: 20px; border-radius: 4px; background: #fff; }
 @media (max-width: 640px) {
-  /* Celular: banner de ponta a ponta na largura, baixo (2:1), sem cantos; bolinhas por cima, no rodapé da imagem. */
-  .bnr { padding: 0; margin-top: 0; }
-  .bnr-trilho { border-radius: 0; }
+  /* Celular: banner como um cartão alinhado às mesmas margens do texto de baixo (12px), cantos
+     arredondados e sem bordas esmaecidas, para não parecer solto nem desalinhado. */
+  .bnr { padding: 0 12px; margin-top: 12px; }
+  .bnr-trilho { border-radius: 14px; }
   .bnr-slide { flex: 0 0 100%; aspect-ratio: 2 / 1; }
   .bnr-slide:not(:has(source)) { aspect-ratio: 16 / 5; }
   .bnr-seta { display: none; }
-  .bnr-pontos { bottom: 4px; }
-  /* No celular a imagem vai de ponta a ponta: esmaece só em cima e embaixo. */
-  .bnr-slide img, .bnr-slide video { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 80%, transparent 100%); mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 80%, transparent 100%); }
+  .bnr-pontos { bottom: 6px; }
+  .bnr-slide img, .bnr-slide video { -webkit-mask-image: none; mask-image: none; }
+  .bnr:not([hidden]) + .hero { padding-top: 18px; }
 }
