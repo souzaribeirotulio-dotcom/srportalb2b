@@ -72,6 +72,7 @@ function montar() {
   $('tbConta').addEventListener('click', () => (sessao.ativa ? abrirConta() : abrirLogin()));
   $('heroCadB').addEventListener('click', () => abrirCadastro(ctxCadastro()));
   $('heroEntrar').addEventListener('click', () => abrirLogin());
+  $('heroAcesso').addEventListener('click', () => abrirCadastro(ctxCadastro(), { jaCliente: true }));
   window.addEventListener('g360:cadastro-enviado', pintarChamadaCadastro);
   $('cartBtn').addEventListener('click', () => exigirLogin(abrirCarrinho));
   $('dClose').addEventListener('click', fecharCarrinho);
@@ -221,6 +222,7 @@ function pintarChamadaCadastro() {
   if (sessao.ativa) { box.hidden = true; esquecerCadastroEmAnalise(); return; }
   const enviado = cadastroEmAnalise();
   box.hidden = false; box.classList.toggle('analise', !!enviado);
+  $('heroAcesso').hidden = !!enviado || ctx?.loja?.troca_senha !== true;
   $('heroCadB').textContent = enviado ? 'Ver meu cadastro' : 'Quero ser cliente';
   $('heroCadT').textContent = enviado
     ? `Seu cadastro está em análise (enviado em ${enviado.split('-').reverse().join('/')}). Quando for aprovado, o link para criar a senha chega no e-mail cadastrado.`
@@ -719,6 +721,8 @@ function ligarLogin() {
   // Sem "Primeiro acesso" (23/11): quem ainda não é cliente usa "Quero ser cliente"; a equipe confere o e-mail no G360
   // e manda o link pelo painel. O "Esqueci minha senha" continua para quem já tem senha.
   $('lgEsqL').textContent = 'Esqueci minha senha';
+  if (!$('lgSemSenha')) $('lgEsqL').insertAdjacentHTML('afterend', ' · <a id="lgSemSenha" href="#" role="button">Ainda não tenho senha</a>');
+  $('lgSemSenha').onclick = (e) => { e.preventDefault(); fecharModal('mLogin'); abrirCadastro(ctxCadastro(), { jaCliente: true }); };
   $('lgEsqL').onclick = () => { fecharModal('mLogin'); ctx.ir('/esqueci-senha'); };
   $('lgAdm').textContent = 'Acesso da equipe Souza Ribeiro';
   $('lgAdm').onclick = () => { fecharModal('mLogin'); ctx.ir('/painel'); };
@@ -791,6 +795,8 @@ export function abrirLogin(depois = null, mensagemErro = null, mensagemOk = null
     : '';
   const semTroca = ctx?.loja?.troca_senha !== true;
   $('lgEsqL').style.display = semTroca ? 'none' : '';
+  // Sem troca de senha pelo portal, a senha é do fornecedor: não oferece "Ainda não tenho senha".
+  $('lgSemSenha').style.display = semTroca ? 'none' : ''; $('lgSemSenha').previousSibling.textContent = semTroca ? '' : ' · ';
   const lembrado = docLembrado();
   if (lembrado && !$('lgC').value) $('lgC').value = lembrado;
   $('lgOutro').hidden = !lembrado;
