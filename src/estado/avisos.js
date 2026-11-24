@@ -4,7 +4,7 @@
    automaticamente por aqui: o único envio é o "Enviar aviso de teste", pedido pelo próprio cliente. */
 import { sessao, garantirVinculo } from './sessao.js';
 import { supabaseComprador, LOJA } from '../api/supabase.js';
-import { chavePublicaPush, enviarAvisoTeste, inscreverPainelPush, desinscreverPainelPush, testarPainelPush } from '../api/push.js';
+import { chavePublicaPush, enviarAvisoTeste, inscreverPainelPush, desinscreverPainelPush, testarPainelPush, inscreverExecutivoPush, desinscreverExecutivoPush, testarExecutivoPush } from '../api/push.js';
 
 const ehIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const ehApp = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
@@ -84,3 +84,16 @@ export async function desativarAvisosPainel(token) {
   try { await desinscreverPainelPush(token, sub.endpoint); } finally { await sub.unsubscribe(); }
 }
 export const testarAvisoPainel = (token) => testarPainelPush(token);
+
+/* ---------- Executivo de contas ("Você vendeu!") ---------- */
+export async function ativarAvisosExecutivo(sessaoSupabase) {
+  const j = await inscreverAparelho();
+  await inscreverExecutivoPush(sessaoSupabase, j, nomeAparelho());
+}
+export async function desativarAvisosExecutivo(sessaoSupabase) {
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = reg && await reg.pushManager.getSubscription();
+  if (!sub) return;
+  try { await desinscreverExecutivoPush(sessaoSupabase, sub.endpoint); } finally { await sub.unsubscribe(); }
+}
+export const testarAvisoExecutivo = (sessaoSupabase) => testarExecutivoPush(sessaoSupabase);

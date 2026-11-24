@@ -453,6 +453,19 @@ class Sim:
             if corpo.get('token') not in self.op_tokens: return route.fulfill(status=401, headers=cab, content_type='application/json', body=json.dumps({'mensagem': 'Sua sessão do painel terminou. Entre novamente.'}))
             pp = getattr(self, 'perms_painel', ['visita', 'cli', 'neg', 'prod', 'cong', 'mrg', 'intel', 'souzinha', 'cfg', 'ocor'])
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({'permissoes': pp, 'codigo': 12, 'nome': 'Operador Fictício'}))
+        if p == '/functions/v1/push-g360':
+            # Avisos no celular: só a parte do executivo (exec_*) e a chave pública.
+            corpo = json.loads(req.post_data or '{}')
+            res = lambda st, b: route.fulfill(status=st, headers=cab, content_type='application/json', body=json.dumps(b))
+            self.__dict__.setdefault('push_chamadas', []).append(corpo.get('acao'))
+            if corpo.get('acao') == 'chave': return res(200, {'chave': 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U'})
+            if str(corpo.get('acao', '')).startswith('exec_'):
+                s2 = self.supa.get(corpo.get('sessao') or '') or {}
+                e = next((x for x in getattr(self, 'executivos', []) if x['id'] == s2.get('executivo') and x['ativo']), None)
+                if not e: return res(401, {'mensagem': 'Sua sessão terminou. Entre novamente.'})
+                if corpo['acao'] == 'exec_teste': return res(200, {'enviados': 1, 'aparelhos': 1})
+                return res(200, {'ok': True})
+            return res(400, {'mensagem': 'Ação desconhecida.'})
         if p == '/functions/v1/executivos-g360':
             # Programa Executivo de Contas (painel). exec_pode: o operador tem a permissão 'executivos'.
             corpo = json.loads(req.post_data or '{}')

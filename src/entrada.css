@@ -202,3 +202,5 @@ footer .rodape-exec { color: inherit; opacity: .75; }
 .exa-cli .exa-st { white-space: nowrap; max-width: none; }
 .exa-cli .exa-l > span:first-child { min-width: 0; }
 .exa-obs.exa-nota { margin-top: 12px; }
+.exa-av-msg { margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; background: rgba(178, 224, 74, .1); color: var(--tx); font-size: 13px; }
+.exa-avisos .exa-botoes { margin-top: 6px; }

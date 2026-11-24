@@ -9,6 +9,8 @@ import Decimal from 'decimal.js';
 import { supabaseExecutivo, supabaseConfigurado } from '../api/supabase.js';
 import { esc } from '../ui/util.js';
 import { dinheiro, dataBr } from '../ui/formato.js';
+import { situacaoAvisos, ativarAvisosExecutivo, desativarAvisosExecutivo, testarAvisoExecutivo } from '../estado/avisos.js';
+import { podeInstalarApp, estaNoApp, instalarApp, aoMudarInstalacao } from '../ui/instalar.js';
 
 const SITV = { aguardando: 'Aguardando aprovação', ativo: 'Aprovado', recusado: 'Recusado', removido: 'Vínculo removido', sem_comissao: 'Aprovado — já era cliente (sem comissão)' };
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -130,6 +132,7 @@ async function painelExecutivo(sb, conteudo) {
         </section>
       </div>
       <aside class="exa-lado">
+        <section class="exa-bloco exa-avisos" aria-labelledby="exaAvT"><h2 id="exaAvT">🔔 Avisos de venda</h2><div id="exAvisos" aria-live="polite"></div></section>
         <section class="exa-bloco" aria-labelledby="exaLinkT">
           <h2 id="exaLinkT">Seu link de indicação</h2>
           <p class="g360-info g360-esquerda">Quem se cadastra por este link já chega indicado por você.</p>
@@ -209,6 +212,11 @@ async function painelExecutivo(sb, conteudo) {
   if (!comissoes.some((c) => c.pedido_data === hoje) && comissoes.some((c) => String(c.pedido_data).slice(0, 7) === mesAtual)) periodo = 'mes';
   marcar(); pintarVendas();
 
+  // App instalado: abre direto na área do executivo (ver o script no topo do index.html).
+  if (estaNoApp()) { try { localStorage.setItem('sr:app:abrir-em', '/executivo'); } catch { /* sem armazenamento */ } }
+  desenharAvisos(sb, conteudo);
+  aoMudarInstalacao(() => desenharAvisos(sb, conteudo));
+  ouvirSomDeVenda();
   conteudo.querySelector('#exSair').onclick = () => sair(sb, conteudo, 'Você saiu da área do executivo.');
   conteudo.querySelector('#exCopiar').onclick = async (ev) => {
     const b = ev.currentTarget;
@@ -216,4 +224,66 @@ async function painelExecutivo(sb, conteudo) {
     catch { const r = document.createRange(); r.selectNodeContents(conteudo.querySelector('#exLink')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = 'Link selecionado: copie'; }
     setTimeout(() => { b.textContent = 'Copiar link'; }, 2500);
   };
+}
+
+/* ----- App e avisos no celular ("Você vendeu!"). Só com o "Permitir" do próprio executivo. ----- */
+async function tokenSessao(sb) { try { return (await sb.auth.getSession()).data?.session?.access_token || ''; } catch { return ''; } }
+
+async function desenharAvisos(sb, conteudo, msg = '') {
+  const el = conteudo.querySelector('#exAvisos'); if (!el) return;
+  const nota = msg ? `<p class="exa-av-msg" role="status">${esc(msg)}</p>` : '';
+  const botaoInstalar = podeInstalarApp() ? '<button type="button" class="g360-btn sec" id="exInst">📲 Instalar app no celular</button>' : '';
+  const st = await situacaoAvisos();
+  const pronto = (html) => { el.innerHTML = html + nota; const b = el.querySelector('#exInst'); if (b) b.onclick = () => instalarApp(); };
+  if (st === 'instalar_primeiro') {
+    return pronto(`<p class="g360-info g360-esquerda">Receba um aviso no celular a cada venda dos seus clientes, com a sua comissão. No iPhone, primeiro instale o app: no Safari, <b>Compartilhar → Adicionar à Tela de Início</b>, e abra pelo ícone <b>SR Executivo</b>.</p><div class="exa-botoes">${botaoInstalar}</div>`);
+  }
+  if (st === 'sem_suporte') return pronto(`<p class="g360-info g360-esquerda">Este navegador não recebe avisos. Instale o app no celular para receber.</p><div class="exa-botoes">${botaoInstalar}</div>`);
+  if (st === 'bloqueado') return pronto('<p class="g360-info g360-esquerda">Os avisos estão bloqueados neste aparelho. Libere em <b>Ajustes do celular → Notificações → SR Executivo</b> (ou nas permissões do navegador) e volte aqui.</p>');
+  if (st === 'ativo') {
+    pronto(`<p class="g360-info g360-esquerda">✅ Avisos <b>ativados</b> neste aparelho. A cada venda de um cliente seu pelo portal chega: <i>"💰 Você vendeu!"</i> com o valor e a comissão.</p>
+      <div class="exa-botoes"><button type="button" class="g360-btn sec" id="exAvT">Enviar teste</button><button type="button" class="g360-btn sec" id="exAvD">Desativar</button></div>`);
+    el.querySelector('#exAvT').onclick = async (ev) => {
+      ev.currentTarget.disabled = true;
+      try { const r = await testarAvisoExecutivo(await tokenSessao(sb)); desenharAvisos(sb, conteudo, r.enviados ? 'Aviso de teste enviado. Confira o celular.' : 'Não foi possível entregar o aviso neste aparelho. Desative e ative de novo.'); }
+      catch (e) { if (e.status === 401) return sair(sb, conteudo, 'Sua sessão terminou. Entre novamente.'); desenharAvisos(sb, conteudo, e.message); }
+    };
+    el.querySelector('#exAvD').onclick = async (ev) => {
+      ev.currentTarget.disabled = true;
+      try { await desativarAvisosExecutivo(await tokenSessao(sb)); desenharAvisos(sb, conteudo, 'Avisos desativados neste aparelho.'); }
+      catch { desenharAvisos(sb, conteudo, 'Não foi possível desativar agora. Tente de novo.'); }
+    };
+    return;
+  }
+  pronto(`<p class="g360-info g360-esquerda">Receba no celular um aviso a cada venda dos seus clientes pelo portal, com a sua comissão.</p>
+    <div class="exa-botoes"><button type="button" class="g360-btn pri" id="exAvA">Ativar avisos</button>${botaoInstalar}</div>`);
+  el.querySelector('#exAvA').onclick = async (ev) => {
+    const b = ev.currentTarget; b.disabled = true; b.textContent = 'Ativando…';
+    try { await ativarAvisosExecutivo(await tokenSessao(sb)); desenharAvisos(sb, conteudo, 'Pronto! Toque em "Enviar teste" para conferir.'); }
+    catch (e) { if (e.status === 401) return sair(sb, conteudo, 'Sua sessão terminou. Entre novamente.'); desenharAvisos(sb, conteudo, e.message || 'Não foi possível ativar agora.'); }
+  };
+}
+
+/* "Plim" de venda: quando chega o aviso com a área aberta na tela, a página toca um som curto
+   (gerado aqui, sem arquivo). Com o app fechado, o celular usa o som de notificação dele. */
+let ouvindoSom = false;
+function ouvirSomDeVenda() {
+  if (ouvindoSom || !('serviceWorker' in navigator)) return;
+  ouvindoSom = true;
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data?.tipo === 'sr-aviso' && e.data.som === 'venda' && document.visibilityState === 'visible') tocarPlim();
+  });
+}
+function tocarPlim() {
+  try {
+    const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
+    const ctx = new C(); const agora = ctx.currentTime;
+    [[988, 0], [1319, 0.12], [1760, 0.24]].forEach(([f, t]) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, agora + t); g.gain.exponentialRampToValueAtTime(0.25, agora + t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, agora + t + 0.35);
+      o.connect(g).connect(ctx.destination); o.start(agora + t); o.stop(agora + t + 0.4);
+    });
+    setTimeout(() => ctx.close().catch(() => {}), 1200);
+  } catch { /* sem som: o aviso continua aparecendo */ }
 }

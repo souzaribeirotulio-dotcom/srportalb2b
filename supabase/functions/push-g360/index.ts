@@ -16,7 +16,15 @@
    - {"acao":"evento","tipo":"cadastro"} → cadastros pendentes dos últimos 30 min ainda não avisados.
    - {"acao":"evento","tipo":"negociacao"} → negociações abertas dos últimos 30 min ainda não avisadas.
    - {"acao":"evento","tipo":"pedido","pedido_id":N,"token":<comprador>} → confere o pedido com
-     GET pedidos/{id} usando o token do próprio comprador; cada pedido é avisado uma vez só. */
+     GET pedidos/{id} usando o token do próprio comprador; cada pedido é avisado uma vez só.
+     Se o pedido gerou comissão para um executivo de contas, o executivo também recebe
+     "Você vendeu!" (cliente, valor e comissão lidos do banco; cada comissão avisa uma vez só).
+
+   Executivo de contas (área /executivo; "sessao" = token da sessão do executivo no Supabase Auth,
+   conferido no servidor; só executivo ativo da loja):
+   - {"acao":"exec_inscrever","sessao","endpoint","p256dh","auth","aparelho"}
+   - {"acao":"exec_desinscrever","sessao","endpoint"}
+   - {"acao":"exec_teste","sessao"} → aviso de teste para os aparelhos desse executivo. */
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import webpush from "npm:web-push@3.6.7";
 
@@ -51,7 +59,7 @@ async function obterChaves() {
 
 type Inscricao = { id: number; endpoint: string; p256dh: string; auth: string };
 /** Envia um aviso para uma lista de aparelhos; apaga os que não existem mais. */
-async function enviar(lista: Inscricao[], tabela: string, aviso: { titulo: string; texto: string; url: string; tag?: string }) {
+async function enviar(lista: Inscricao[], tabela: string, aviso: { titulo: string; texto: string; url: string; tag?: string; som?: string }) {
   const k = await obterChaves();
   webpush.setVapidDetails(CONTATO, k.publica, k.privada);
   const corpo = JSON.stringify(aviso);
@@ -111,6 +119,50 @@ const dinheiro = (v: unknown) => {
   const n = Number(v);
   return Number.isFinite(n) ? n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "";
 };
+const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Executivo ativo da loja dono da sessão do Supabase Auth, ou null. */
+async function executivoDaSessao(jwt: string) {
+  if (!jwt || jwt.length > 4096 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(jwt)) return null;
+  const { data, error } = await admin.auth.getUser(jwt);
+  if (error || !data?.user?.id) return null;
+  const { data: e, error: e2 } = await admin.from("executivos").select("id, nome").eq("loja", LOJA).eq("user_id", data.user.id).eq("ativo", true).maybeSingle();
+  if (e2) throw e2;
+  return e;
+}
+
+async function aparelhosDoExecutivo(executivoId: string): Promise<Inscricao[]> {
+  const { data, error } = await admin.from("executivo_push_inscricoes").select("id, endpoint, p256dh, auth").eq("loja", LOJA).eq("executivo_id", executivoId);
+  if (error) throw error;
+  return data || [];
+}
+
+/** "Você vendeu!": a comissão nasce pelo gatilho do banco quando o portal registra o pedido,
+ *  que pode chegar um pouco depois deste aviso. Espera até ~6 s por ela. */
+async function avisarExecutivo(pedidoId: number, comprador: number) {
+  for (let tentativa = 0; tentativa < 5; tentativa++) {
+    const { data: c, error } = await admin.from("comissoes").select("id, executivo_id, vinculo_id, pedido_numero, base, valor")
+      .eq("loja", LOJA).eq("pedido_ref", `P${pedidoId}`).eq("cliente_codigo", comprador).maybeSingle();
+    if (error) throw error;
+    if (c) {
+      const { data: meu } = await admin.from("comissoes").update({ avisado_em: new Date().toISOString() }).eq("id", c.id).is("avisado_em", null).select("id");
+      if (!meu?.length) return 0; // já avisado por outra chamada
+      const [{ data: v }, lista] = await Promise.all([
+        admin.from("executivo_clientes").select("razao_social").eq("id", c.vinculo_id).maybeSingle(),
+        aparelhosDoExecutivo(c.executivo_id),
+      ]);
+      if (!lista.length) return 0;
+      return await enviar(lista, "executivo_push_inscricoes", {
+        titulo: "💰 Você vendeu!",
+        texto: `${curto(v?.razao_social || "Seu cliente")} · pedido ${c.pedido_numero ? c.pedido_numero : "em aprovação"} · ${dinheiro(c.base)}\nComissão prevista: ${dinheiro(c.valor)}`,
+        url: "/executivo", tag: `exv-${pedidoId}`, som: "venda",
+      });
+    }
+    await esperar(1500);
+  }
+  return 0;
+}
+
 const curto = (t: unknown, max = 60) => { const s = String(t ?? "").trim(); return s.length > max ? s.slice(0, max - 1) + "…" : s; };
 
 Deno.serve(async (req) => {
@@ -147,6 +199,30 @@ Deno.serve(async (req) => {
       if (!lista?.length) return responder(404, { mensagem: "Nenhum celular com avisos ativados nesta conta." });
       const enviados = await enviar(lista, "push_inscricoes", { titulo: "Souza Ribeiro", texto: "🚚 Sua entrega saiu e está a caminho! (aviso de teste)", url: "/pedidos" });
       return responder(200, { enviados, aparelhos: lista.length });
+    }
+
+    /* ---------- executivo de contas ---------- */
+    if (typeof corpo.acao === "string" && corpo.acao.startsWith("exec_")) {
+      const ex = await executivoDaSessao(typeof corpo.sessao === "string" ? corpo.sessao : "");
+      if (!ex) return responder(401, { mensagem: "Sua sessão terminou. Entre novamente." });
+      if (corpo.acao === "exec_inscrever") {
+        const endpoint = String(corpo.endpoint ?? ""), p256dh = String(corpo.p256dh ?? ""), auth = String(corpo.auth ?? "");
+        if (!/^https:\/\//.test(endpoint) || endpoint.length > 1000 || !p256dh || p256dh.length > 200 || !auth || auth.length > 100) return responder(400, { mensagem: "Pedido inválido." });
+        const { error } = await admin.from("executivo_push_inscricoes").upsert({ loja: LOJA, executivo_id: ex.id, endpoint, p256dh, auth, aparelho: curto(corpo.aparelho, 60) }, { onConflict: "loja,executivo_id,endpoint" });
+        if (error) throw error;
+        return responder(200, { ok: true });
+      }
+      if (corpo.acao === "exec_desinscrever") {
+        await admin.from("executivo_push_inscricoes").delete().eq("loja", LOJA).eq("executivo_id", ex.id).eq("endpoint", String(corpo.endpoint ?? ""));
+        return responder(200, { ok: true });
+      }
+      if (corpo.acao === "exec_teste") {
+        const lista = await aparelhosDoExecutivo(ex.id);
+        if (!lista.length) return responder(404, { mensagem: "Nenhum celular com avisos ativados para você." });
+        const enviados = await enviar(lista, "executivo_push_inscricoes", { titulo: "💰 Você vendeu!", texto: "Cliente Exemplo · pedido 1234 · R$ 300,00\nComissão prevista: R$ 9,00 (aviso de teste)", url: "/executivo", som: "venda" });
+        return responder(200, { enviados, aparelhos: lista.length });
+      }
+      return responder(400, { mensagem: "Ação desconhecida." });
     }
 
     /* ---------- gestores (painel) ---------- */
@@ -233,13 +309,16 @@ Deno.serve(async (req) => {
         const p = (await rp.json())?.dados; const c = (await rm.json())?.dados?.comprador;
         const quando = Date.parse(`${p?.data}T${p?.hora || "00:00"}:00-03:00`);
         if (!p || (Number.isFinite(quando) && Date.now() - quando > 6 * 3600_000)) return responder(200, { avisados: 0 }); // pedido antigo: não avisa
-        if (!(await marcar("pedido", String(id)))) return responder(200, { avisados: 0 });
+        // Executivo do cliente (se houver comissão): em paralelo ao aviso dos gestores; falha aqui não atrapalha o resto.
+        const exec = Number.isSafeInteger(c?.codigo) ? avisarExecutivo(id, c.codigo).catch((e) => { console.error("push-g360 executivo", (e as Error)?.message ?? "erro"); return 0; }) : Promise.resolve(0);
+        if (!(await marcar("pedido", String(id)))) { await exec; return responder(200, { avisados: 0 }); }
         const lista = await aparelhosDosGestores();
         if (lista.length) await enviar(lista, "painel_push_inscricoes", {
           titulo: "🛒 Novo pedido pelo portal",
           texto: `${curto(c?.fantasia || c?.nome || "Cliente")} — ${dinheiro(p.total)}${p.numero ? ` · nº ${p.numero}` : " · aguardando aprovação"}`,
           url: "/painel", tag: `ped-${id}`,
         });
+        await exec;
         return responder(200, { avisados: 1 });
       }
       return responder(400, { mensagem: "Tipo desconhecido." });

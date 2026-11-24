@@ -93,6 +93,15 @@ function mostrarPassoIOS() {
   fundo.querySelector('.passo-ios-ok').focus();
 }
 
+/** Para telas próprias (área do executivo): dá para oferecer "Instalar app" agora? */
+export const podeInstalarApp = () => podeInstalar();
+export const estaNoApp = () => ehApp();
+export function instalarApp() { return instalar(); }
+export function aoMudarInstalacao(fn) {
+  window.addEventListener('beforeinstallprompt', () => setTimeout(fn, 0));
+  window.addEventListener('appinstalled', () => setTimeout(fn, 0));
+}
+
 async function instalar() {
   if (pedidoInstalacao) {
     const pedido = pedidoInstalacao;

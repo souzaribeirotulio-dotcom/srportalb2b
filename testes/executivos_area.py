@@ -28,10 +28,12 @@ sim.comissoes = [c(joao, sim.vinculos[0]['id'], 701, 100.0, 3.0, 'prevista'), c(
 with sync_playwright() as pw:
     br = pw.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
     for largura in (360, 390, 768, 1280, 1920):
-        ctx = br.new_context(viewport={'width': largura, 'height': 900}, permissions=['clipboard-read', 'clipboard-write'])
+        ctx = br.new_context(viewport={'width': largura, 'height': 900}, permissions=['clipboard-read', 'clipboard-write', 'notifications'])
         pg = ctx.new_page(); erros = []; console = []
         pg.on('pageerror', lambda e: erros.append(str(e))); pg.on('console', lambda m: console.append(m.text))
         pg.route('**/*', sim.rota)
+        # O Chrome de teste bloqueia notificações; simula o celular que ainda não respondeu ao "Permitir".
+        pg.add_init_script("try { Object.defineProperty(Notification, 'permission', { get: () => 'default' }); Notification.requestPermission = async () => 'denied'; } catch (e) {}")
         pg.goto(BASE + '/'); pg.wait_for_selector('#grid .card')
         checar(pg.locator('footer .rodape-exec').count() == 1, 'link "Área do executivo" no rodapé')
         pg.goto(BASE + '/executivo'); pg.wait_for_selector('#exLogin')
@@ -65,6 +67,13 @@ with sync_playwright() as pw:
         pc = ' '.join(pg.inner_text('.exa-porcli').split())
         checar('Padaria Fictícia' in pc and 'R$ 300,00' in pc and '2 pedidos' in pc, f'por cliente: {pc}')
         checar('999' not in ' '.join(pg.inner_text('#exVendas').split()), 'vendas de outro executivo')
+        # Avisos de venda: bloco aparece com um caminho claro (ativar ou instalar o app)
+        av = ' '.join(pg.inner_text('#exAvisos').split())
+        checar(pg.locator('#exAvA').count() == 1 and 'cada venda' in av, f'bloco de avisos: {av}')
+        # teste que tem de dar erro: a pessoa nega o "Permitir"
+        pg.click('#exAvA'); pg.wait_for_selector('.exa-av-msg')
+        checar('não foram permitidos' in pg.inner_text('.exa-av-msg'), 'negar permissão não avisou')
+        checar(pg.get_attribute('link[rel="manifest"]', 'href') == '/manifest-executivo.webmanifest', 'manifesto do app SR Executivo')
         checar(pg.evaluate('document.documentElement.scrollWidth <= innerWidth'), f'rolagem horizontal em {largura}px')
         arm = pg.evaluate('JSON.stringify(localStorage)')
         checar('executivo-sessao' not in arm, 'sessão do executivo no localStorage (deveria ficar só na aba)')

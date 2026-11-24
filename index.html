@@ -27,14 +27,18 @@
 <script>
 (function () {
   var equipe = /^\/painel(\/|$)/.test(location.pathname);
+  var executivo = /^\/executivo(\/|$)/.test(location.pathname);
   var app = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
   // App instalado que já foi usado como app da equipe (cada app instalado tem o próprio armazenamento):
   // se abrir na página inicial, vai direto para o painel.
   try {
-    if (app && !equipe && location.pathname === '/' && localStorage.getItem('sr:app:abrir-em') === '/painel') { location.replace('/painel'); return; }
+    var abrirEm = localStorage.getItem('sr:app:abrir-em');
+    if (app && !equipe && !executivo && location.pathname === '/' && (abrirEm === '/painel' || abrirEm === '/executivo')) { location.replace(abrirEm); return; }
   } catch (e) { /* sem armazenamento */ }
   document.write(equipe
     ? '<link rel="manifest" href="/manifest-equipe.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="/icones/equipe-180.png"><meta name="apple-mobile-web-app-title" content="SR Equipe">'
+    : executivo
+    ? '<link rel="manifest" href="/manifest-executivo.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"><meta name="apple-mobile-web-app-title" content="SR Executivo">'
     : '<link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"><meta name="apple-mobile-web-app-title" content="Souza Ribeiro">');
 })();
 </script>

@@ -28,6 +28,11 @@ export const inscreverPainelPush = (token, j, aparelho) => chamar({ acao: 'paine
 export const desinscreverPainelPush = (token, endpoint) => chamar({ acao: 'painel_desinscrever', token, endpoint });
 export const testarPainelPush = (token) => chamar({ acao: 'painel_teste', token });
 
+/* Executivo de contas: "sessao" é o token da sessão do executivo no Supabase (conferido no servidor). */
+export const inscreverExecutivoPush = (sessao, j, aparelho) => chamar({ acao: 'exec_inscrever', sessao, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, aparelho });
+export const desinscreverExecutivoPush = (sessao, endpoint) => chamar({ acao: 'exec_desinscrever', sessao, endpoint });
+export const testarExecutivoPush = (sessao) => chamar({ acao: 'exec_teste', sessao });
+
 /* Eventos para os gestores: só avisa o servidor que algo novo aconteceu; ele confere no banco/G360
    o que existe de verdade e manda o aviso. Nunca trava a tela do cliente. */
 export function avisarEvento(tipo, extra = {}) {

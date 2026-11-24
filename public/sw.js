@@ -2,7 +2,7 @@
    Regra de segurança: NADA da API, do Supabase ou das telas com dados do cliente
    é guardado aqui. Tudo vai direto para a rede; o único arquivo guardado é a
    página "Sem conexão" e os ícones, usados quando o celular está sem internet. */
-const CACHE = 'sr-app-v3';
+const CACHE = 'sr-app-v4';
 const OFFLINE = '/offline.html';
 
 self.addEventListener('install', (e) => {
@@ -33,7 +33,12 @@ self.addEventListener('push', (e) => {
     badge: '/icones/icone-192.png',
     tag: typeof d.tag === 'string' ? d.tag : undefined,
     data: { url: typeof d.url === 'string' && d.url.startsWith('/') ? d.url : '/' },
-  }));
+    // Aviso de venda do executivo: vibra no Android (o som é o padrão de notificação do celular)
+    // e toca de novo mesmo com o mesmo "tag".
+    ...(d.som === 'venda' ? { vibrate: [180, 90, 180, 90, 320], renotify: !!d.tag, silent: false } : {}),
+  }).then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
+    // App aberto na tela: avisa a página, que toca o "plim" de venda.
+    .then((lista) => { if (d.som === 'venda') for (const c of lista) c.postMessage({ tipo: 'sr-aviso', som: 'venda' }); }));
 });
 
 self.addEventListener('notificationclick', (e) => {
