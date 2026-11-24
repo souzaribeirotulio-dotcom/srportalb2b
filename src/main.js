@@ -59,6 +59,8 @@ const LOJA = [
   [/^\/pedidos$/, 'ped', true],
   [/^\/clips$/, 'clips', false],
   [/^\/pedidos\/(\d{1,10})$/, 'ped', true],
+  // Departamento › seção › linha do catálogo (ex.: /limpeza/sacos-de-lixo/preto). Endereço que não for da árvore volta ao início.
+  [/^\/[a-z0-9-]{1,60}(?:\/[a-z0-9-]{1,60}){0,2}$/, 'cat', false, { arvore: true }],
 ];
 
 let raiz = null;

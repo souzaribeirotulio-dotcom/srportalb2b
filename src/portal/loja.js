@@ -7,7 +7,7 @@
 import { carregarOcultosComprador, carregarOcultosVisitante } from '../estado/ocultos.js';
 import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
-import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, codigosDoFiltro, secoesDe, caminhoDoFiltro, secaoPorId, codigosDaSecao, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo, estoqueMinimoAtual, codigosAtivosPublicos } from '../catalogo/exibicao.js';
+import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, codigosDoFiltro, secoesDe, caminhoDoFiltro, secaoPorId, codigosDaSecao, filtroDoEndereco, enderecoDoFiltro, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo, estoqueMinimoAtual, codigosAtivosPublicos } from '../catalogo/exibicao.js';
 
 import { buscarLocal, temEstoque, variacoes, corrigirBusca, nomeBate, variacoesMedida } from '../catalogo/busca.js';
 import { listarProdutos, buscarProdutos, listarMarcas, produtosPorIds } from '../api/g360.js';
@@ -112,12 +112,12 @@ function montar() {
   $('cats').addEventListener('click', (e) => {
     if (e.target.closest('[data-deps]')) { abrirDepartamentos(); return; }
     const b = e.target.closest('.chip'); if (!b) return;
-    filtros.grupo = b.dataset.c; filtros.secao = ''; filtros.pagina = 1; desenharChips(); desenharCatalogo();
+    filtros.grupo = b.dataset.c; filtros.secao = ''; filtros.pagina = 1; marcarEndereco(); desenharChips(); desenharCatalogo();
   });
   // Seções e linhas do departamento escolhido (segunda e terceira faixa).
   $('subcats').addEventListener('click', (e) => {
     const b = e.target.closest('[data-s]'); if (!b) return;
-    filtros.secao = b.dataset.s; filtros.pagina = 1; desenharChips(); desenharCatalogo();
+    filtros.secao = b.dataset.s; filtros.pagina = 1; marcarEndereco(); desenharChips(); desenharCatalogo();
   });
 
   $('grid').addEventListener('click', cliqueCartao);
@@ -184,6 +184,7 @@ export function mostrarLoja(contexto, rota, params = [], estado = {}) {
   if (rota !== 'clips') pausarClips();
   if (rota !== 'cat') pausarBanners();
   document.querySelector('header nav').style.display = rota === 'cat' ? '' : 'none';
+  if (rota !== 'cat') document.body.classList.remove('com-dep');
   desenharTopo();
   window.scrollTo(0, 0);
   if (estado.aviso === 'sessao_encerrada' || estado.aviso === 'entre') {
@@ -191,7 +192,15 @@ export function mostrarLoja(contexto, rota, params = [], estado = {}) {
   } else if (estado.aviso === 'senha_definida') {
     abrirLogin(null, null, 'Senha definida. Agora é só entrar com o seu CPF ou CNPJ e a senha nova.');
   } else if (estado.aviso === 'saiu') toast('Você saiu da conta');
-  if (rota === 'cat') { desenharHero(); desenharChips(); desenharCatalogo(); }
+  else if (estado.aviso === 'entrou_senha_nova' && sessao.ativa) {
+    // Entrou pela página de senha nova: mesmos passos do login comum.
+    pintarChamadaCadastro(); limparEventosSessao(); registrarAcesso();
+    toast(`Senha criada. Bem-vindo, ${sessao.comprador?.fantasia || sessao.comprador?.nome || ''}!`);
+  }
+  if (rota === 'cat') {
+    desenharHero();
+    lerEndereco().then(() => { if (ctx.rota === 'cat') { desenharChips(); desenharCatalogo(); } });
+  }
   if (rota === 'lista') desenharMinhaLista(ctx);
   if (rota === 'ped') { desenharPedidos(ctx, params[0]); desenharMinhasNegociacoes(); }
   if (rota === 'clips') desenharClips(estado.clip || null, opcoesClips());
@@ -244,7 +253,7 @@ function desenharChips() {
       if (sessao.ativa) return;
       el.innerHTML = BOTAO_DEPS + [['', 'Todos', ''], ...grupos.filter((g) => g.quantidade).map((g) => [g.codigo, g.nome, g.quantidade])]
         .map(([c, n, qt]) => `<button type="button" class="chip ${c === String(filtros.grupo) ? 'on' : ''}" data-c="${esc(c)}">${esc(n)}<span>${Number(qt) || ''}</span></button>`).join('');
-      desenharSubcats();
+      desenharSubcats(); desenharTrilha();
     }).catch(() => { el.innerHTML = ''; });
     marcasPublicas().then((ms) => {
       if (sessao.ativa) return;
@@ -259,9 +268,50 @@ function desenharChips() {
   el.innerHTML = BOTAO_DEPS + [['', 'Todos', total], ...grupos.map((g) => [String(g.codigo), g.nome, g.quantidade])]
     .map(([c, n, q]) => `<button type="button" class="chip ${c === String(filtros.grupo) ? 'on' : ''}" data-c="${esc(c)}">${esc(n)}<span>${Number(q) || ''}</span></button>`).join('');
   desenharSubcats();
+  desenharTrilha();
 }
 
 /* ---------------- árvore: departamento → seção → linha ---------------- */
+
+/** O endereço manda no departamento/seção: /limpeza/sacos-de-lixo → filtros. Início e /catalogo = sem departamento. */
+async function lerEndereco() {
+  const c = location.pathname.replace(/\/+$/, '') || '/';
+  if (c === '/' || c === '/catalogo' || c === '/carrinho' || c === '/minha-conta') {
+    if (c === '/' || c === '/catalogo') { filtros.grupo = ''; filtros.secao = ''; }
+    tituloDaPagina(); return;
+  }
+  await carregarExibicao();
+  const f = filtroDoEndereco(c);
+  if (!f) { history.replaceState(null, '', '/'); filtros.grupo = ''; filtros.secao = ''; tituloDaPagina(); return; }
+  if (f.grupo !== filtros.grupo || f.secao !== filtros.secao) { filtros.grupo = f.grupo; filtros.secao = f.secao; filtros.q = ''; filtros.pagina = 1; const q = $('q'); if (q) q.value = ''; }
+  if (f.incompleto) history.replaceState(null, '', enderecoDoFiltro(filtros)); // seção que mudou de nome: fica no que existe
+  tituloDaPagina();
+}
+/** Grava o departamento/seção escolhido no endereço (dá para compartilhar o link e usar o Voltar do navegador). */
+function marcarEndereco() {
+  const destino = enderecoDoFiltro(filtros) || '/';
+  if ((location.pathname.replace(/\/+$/, '') || '/') !== destino) history.pushState(null, '', destino);
+  tituloDaPagina();
+}
+/** "Início › Limpeza › Sacos de lixo" acima dos produtos (cada parte leva de volta àquele nível). */
+function desenharTrilha() {
+  const el = $('trilha'); if (!el) return;
+  document.body.classList.toggle('com-dep', !!filtros.grupo && ctx?.rota === 'cat');
+  if (!filtros.grupo) { el.hidden = true; el.innerHTML = ''; return; }
+  const s = filtros.secao ? secaoPorId(filtros.secao) : null; const m = s?.pai ? secaoPorId(s.pai) : null;
+  const niveis = [['/', 'Início', '', ''], [null, filtros.grupo, filtros.grupo, '']];
+  if (m) niveis.push([null, m.nome, filtros.grupo, m.id]);
+  if (s) niveis.push([null, s.nome, filtros.grupo, s.id]);
+  el.innerHTML = niveis.map(([, nome, g, sid], i) => (i === niveis.length - 1
+    ? `<span aria-current="page">${esc(nome)}</span>` : `<button type="button" data-g="${esc(g)}" data-s="${esc(sid)}">${esc(nome)}</button>`)).join('<span class="sep" aria-hidden="true">›</span>');
+  el.hidden = false;
+  el.onclick = (e) => { const b = e.target.closest('button'); if (!b) return; filtros.grupo = b.dataset.g; filtros.secao = b.dataset.s; filtros.pagina = 1; marcarEndereco(); desenharChips(); desenharCatalogo(); };
+}
+function tituloDaPagina() {
+  const nome = ctx?.loja?.nome || 'Souza Ribeiro';
+  const partes = caminhoDoFiltro(filtros);
+  document.title = partes.length ? `${partes.reverse().join(' | ')} | ${nome}` : nome;
+}
 const BOTAO_DEPS = '<button type="button" class="chip deps" data-deps aria-haspopup="dialog"><span aria-hidden="true">☰</span> Departamentos</button>';
 
 /** Contagem do que aparece no portal (mesma regra dos números dos departamentos). */
@@ -292,34 +342,84 @@ async function desenharSubcats() {
   const cat = $('cats')?.querySelector('.chip.on'); if (cat) { const f = cat.parentElement; f.scrollLeft = cat.offsetLeft - (f.clientWidth - cat.offsetWidth) / 2; }
 }
 
-/** Menu "Departamentos": a árvore inteira (computador: colunas; celular: lista que abre por departamento). */
+/** Menu "Departamentos" (como nos grandes atacados online):
+ *  computador = lista de departamentos à esquerda e as seções (e linhas) abrindo ao lado;
+ *  celular = tela cheia que entra de nível em nível, com "‹ Voltar" e "Ver tudo em…". */
 async function abrirDepartamentos() {
   await carregarExibicao();
   const conta = await contadorAtivos();
   const deps = categoriasPortal().map((nome) => ({ nome, n: conta(codigosDaCategoria(nome, Infinity)),
-    secoes: secoesDe(nome).map((s) => ({ ...s, n: conta(codigosDaSecao(s.id)) })).filter((s) => s.n) })).filter((d) => d.n);
+    secoes: secoesDe(nome).map((s) => ({ ...s, n: conta(codigosDaSecao(s.id)), linhas: s.linhas.map((l) => ({ ...l, n: conta(codigosDaSecao(l.id)) })).filter((l) => l.n) })).filter((s) => s.n) })).filter((d) => d.n);
   document.getElementById('mDeps')?.remove();
+  const largo = window.matchMedia('(min-width: 900px)').matches;
+  const seta = '<svg class="dm-seta" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
   const m = document.createElement('div');
-  m.id = 'mDeps'; m.className = 'deps-fundo'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-labelledby', 'mDepsT');
-  m.innerHTML = `<div class="deps-caixa"><div class="deps-topo"><h2 id="mDepsT">Departamentos</h2><button type="button" class="deps-x" aria-label="Fechar">✕</button></div>
-    <div class="deps-grade">${deps.map((d) => `<details class="deps-dep" ${d.nome === filtros.grupo ? 'open' : ''}><summary><span>${esc(d.nome)}</span><small>${d.n}</small></summary>
-      <ul><li><button type="button" data-g="${esc(d.nome)}" data-s="">Tudo em ${esc(d.nome)}</button></li>${d.secoes.map((s) => `<li><button type="button" data-g="${esc(d.nome)}" data-s="${esc(s.id)}">${esc(s.nome)} <small>${s.n}</small></button></li>`).join('')}</ul></details>`).join('')}</div></div>`;
-  const fechar = () => { m.remove(); document.removeEventListener('keydown', esc_); $('cats')?.querySelector('[data-deps]')?.focus(); };
-  function esc_(e) { if (e.key === 'Escape') fechar(); }
-  document.addEventListener('keydown', esc_);
-  m.addEventListener('click', (e) => {
-    if (e.target === m || e.target.closest('.deps-x')) { fechar(); return; }
-    const b = e.target.closest('button[data-g]'); if (!b) return;
-    filtros.grupo = b.dataset.g; filtros.secao = b.dataset.s || ''; filtros.q = ''; filtros.pagina = 1;
+  m.id = 'mDeps'; m.className = `dm-fundo ${largo ? 'largo' : 'cel'}`;
+  m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-label', 'Departamentos');
+  // estado: dep (índice) e sec (índice) abertos; no celular, o nível mostrado
+  let dep = Math.max(0, deps.findIndex((d) => d.nome === filtros.grupo)); let sec = -1;
+  if (!largo) dep = -1; // celular começa sempre pela lista de departamentos
+  const ir = (g, s) => {
+    filtros.grupo = g; filtros.secao = s || ''; filtros.q = ''; filtros.pagina = 1;
     const q = $('q'); if (q) q.value = '';
-    fechar(); desenharChips();
-    if (ctx.rota === 'cat') desenharCatalogo(); else ctx.ir('/catalogo');
+    fechar();
+    if (ctx.rota === 'cat') { marcarEndereco(); desenharChips(); desenharCatalogo(); } else ctx.ir(enderecoDoFiltro(filtros) || '/catalogo');
     document.querySelector('.bar')?.scrollIntoView({ behavior: 'smooth' });
+  };
+  const item = (attrs, texto, n, on, temFilhos) => `<li><button type="button" class="dm-item ${on ? 'on' : ''}" ${attrs}><span>${esc(texto)}${n ? ` <small>${n}</small>` : ''}</span>${temFilhos ? seta : ''}</button></li>`;
+  const colDeps = () => `<ul class="dm-col dm-deps" role="list">${deps.map((d, i) => item(`data-dep="${i}"`, d.nome, 0, i === dep, true)).join('')}</ul>`;
+  const colSecs = (d) => `<ul class="dm-col dm-secs" role="list"><li><button type="button" class="dm-tudo" data-ir-dep="${dep}">Ver tudo em ${esc(d.nome)} <small>${d.n}</small>${seta}</button></li>
+    ${d.secoes.map((s, j) => item(`data-sec="${j}"`, s.nome, s.n, j === sec, s.linhas.length > 0)).join('') || '<li class="dm-vazio">Ainda sem seções.</li>'}</ul>`;
+  const colLins = (d, s) => `<ul class="dm-col dm-lins" role="list"><li><button type="button" class="dm-tudo" data-ir-sec="${sec}">Ver tudo em ${esc(s.nome)} <small>${s.n}</small>${seta}</button></li>
+    ${s.linhas.map((l) => item(`data-lin="${esc(l.id)}"`, l.nome, l.n, filtros.secao === l.id, false)).join('')}</ul>`;
+  function pintar() {
+    const d = deps[dep]; const s = d && sec >= 0 ? d.secoes[sec] : null;
+    let corpo;
+    if (largo) corpo = colDeps() + (d ? colSecs(d) : '') + (s && s.linhas.length ? colLins(d, s) : '');
+    else if (s && s.linhas.length) corpo = `<button type="button" class="dm-voltar" data-voltar="sec">‹ Voltar</button><p class="dm-onde">${esc(d.nome)}</p>${colLins(d, s)}`;
+    else if (d) corpo = `<button type="button" class="dm-voltar" data-voltar="dep">‹ Voltar</button>${colSecs(d)}`;
+    else corpo = colDeps();
+    m.innerHTML = `<div class="dm-caixa"><div class="dm-topo"><b>Departamentos</b><button type="button" class="dm-x" aria-label="Fechar">✕</button></div><div class="dm-corpo">${corpo}</div></div>`;
+    if (largo) { const b = $('cats')?.querySelector('[data-deps]'); const r = b?.getBoundingClientRect(); const cx = m.querySelector('.dm-caixa'); if (r) { cx.style.top = `${Math.round(r.bottom + 6)}px`; cx.style.left = `${Math.max(12, Math.round(r.left))}px`; } }
+  }
+  const fechar = () => { m.remove(); document.removeEventListener('keydown', tecla); $('cats')?.querySelector('[data-deps]')?.focus(); };
+  function tecla(e) { if (e.key === 'Escape') fechar(); }
+  document.addEventListener('keydown', tecla);
+  m.addEventListener('click', (e) => {
+    if (e.target === m || e.target.closest('.dm-x')) { fechar(); return; }
+    const b = e.target.closest('button'); if (!b) return;
+    const d = deps[dep];
+    if (b.dataset.voltar === 'sec') { sec = -1; pintar(); return; }
+    if (b.dataset.voltar === 'dep') { dep = -1; sec = -1; pintar(); return; }
+    if (b.dataset.dep !== undefined) {
+      const i = Number(b.dataset.dep);
+      if (largo && i === dep) { ir(deps[i].nome, ''); return; } // segundo clique no mesmo departamento: abre tudo dele
+      dep = i; sec = -1; pintar(); m.querySelector('.dm-secs .dm-tudo')?.focus(); return;
+    }
+    if (b.dataset.irDep !== undefined) { ir(d.nome, ''); return; }
+    if (b.dataset.sec !== undefined) {
+      const j = Number(b.dataset.sec); const s = d.secoes[j];
+      if (!s.linhas.length || (largo && j === sec)) { ir(d.nome, s.id); return; }
+      sec = j; pintar(); m.querySelector('.dm-lins .dm-tudo')?.focus(); return;
+    }
+    if (b.dataset.irSec !== undefined) { ir(d.nome, d.secoes[Number(b.dataset.irSec)].id); return; }
+    if (b.dataset.lin) ir(d.nome, b.dataset.lin);
   });
-  // No computador, todos os departamentos abertos (colunas); no celular, só o escolhido.
-  if (window.matchMedia('(min-width: 900px)').matches) m.querySelectorAll('details').forEach((d) => { d.open = true; });
+  // Computador: passar o mouse abre o departamento e a seção (sem precisar clicar).
+  if (largo) {
+    let espera = null;
+    m.addEventListener('mouseover', (e) => {
+      const b = e.target.closest('button[data-dep], button[data-sec]'); if (!b) return;
+      clearTimeout(espera);
+      espera = setTimeout(() => {
+        if (b.dataset.dep !== undefined && Number(b.dataset.dep) !== dep) { dep = Number(b.dataset.dep); sec = -1; pintar(); }
+        else if (b.dataset.sec !== undefined && Number(b.dataset.sec) !== sec) { sec = Number(b.dataset.sec); pintar(); }
+      }, 120);
+    });
+  }
+  pintar();
   document.body.appendChild(m);
-  m.querySelector('.deps-x').focus();
+  (m.querySelector('.dm-item.on') || m.querySelector('.dm-item'))?.focus();
 }
 
 /* ---------------- catálogo ---------------- */
