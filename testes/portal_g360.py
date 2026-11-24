@@ -638,6 +638,61 @@ with sync_playwright() as pw:
     pg.fill('#aQ', 'P-102'); pg.press('#aQ', 'Enter'); pg.wait_for_selector('.arow[data-id="102"]')
     pg.click('.arow[data-id="102"] [data-mais]'); pg.wait_for_selector('.aedit .eOculto'); pg.check('.aedit .eOculto'); pg.click('.aedit .eSalvar'); pg.wait_for_timeout(400)
     checar(sim.exibicao.get('P-102', {}).get('oculto') is True, 'produto ocultado')
+    # Banners: cadastro no painel (imagem comprimida no navegador) e carrossel no catálogo
+    import io
+    from PIL import Image as _Img
+    def _jpg(w, h, cor):
+        b = io.BytesIO(); _Img.new('RGB', (w, h), cor).save(b, 'PNG'); return b.getvalue()
+    pg.click('[data-at="ban"]'); pg.wait_for_selector('#bnNovo')
+    checar('Nenhum banner' in n.tc('#banPanel'), 'aba Banners vazia')
+    pg.click('#bnNovo'); pg.click('#bnSalva'); pg.wait_for_function("document.getElementById('bnMsg').textContent.includes('título')")
+    pg.fill('#bnTit', 'Natal Fictício'); pg.click('#bnSalva'); pg.wait_for_function("document.getElementById('bnMsg').textContent.includes('imagem do computador')")
+    checar(not sim.banners, 'banner sem título ou sem imagem não é salvo')
+    # Imagem do computador com o fundo transparente (comum em PNG gerado por IA): o fundo tem de virar verde-escuro, não branco
+    def _png_transp(w, h):
+        im = _Img.new('RGBA', (w, h), (0, 0, 0, 0)); im.paste((180, 20, 20, 255), (w // 4, h // 4, 3 * w // 4, 3 * h // 4))
+        b = io.BytesIO(); im.save(b, 'PNG'); return b.getvalue()
+    pg.set_input_files('#bnImg', files=[{'name': 'natal.png', 'mimeType': 'image/png', 'buffer': _png_transp(2400, 750)}])
+    pg.set_input_files('#bnCel', files=[{'name': 'natal-cel.png', 'mimeType': 'image/png', 'buffer': _jpg(1080, 1080, (20, 120, 20))}])
+    pg.select_option('#bnTipo', 'categoria'); pg.select_option('#bnVal', 'Limpeza')
+    pg.fill('#bnIni', '2026-11-01'); pg.fill('#bnFim', '2026-10-01'); pg.click('#bnSalva')
+    pg.wait_for_function("document.getElementById('bnMsg').textContent.includes('depois do início')")
+    pg.fill('#bnFim', '2026-12-25'); pg.click('#bnSalva'); pg.wait_for_selector('.bn-linha')
+    b_ = sim.banners[0] if sim.banners else {}
+    checar(len(sim.banners) == 1 and b_['destino_tipo'] == 'categoria' and b_['destino_valor'] == 'Limpeza' and b_['img_celular'] and b_['fim'] == '2026-12-25', f'banner salvo: {b_}')
+    checar(len(sim.banner_uploads) == 2 and all(0 < t <= 400 * 1024 for _, t in sim.banner_uploads), f'imagens comprimidas antes do envio: {sim.banner_uploads}')
+    _b0 = sim.banner_bytes[0]; _b0 = _b0[_b0.find(b'\xff\xd8'):_b0.rfind(b'\xff\xd9') + 2]  # o envio vem em multipart: tira só o JPEG
+    _canto = _Img.open(io.BytesIO(_b0)).convert('RGB').getpixel((5, 5))
+    checar(max(_canto) < 60, f'parte transparente vira o fundo escuro do portal, não branco (teste que tem de dar errado se ficar claro): {_canto}')
+    pg.click('#bnNovo'); pg.fill('#bnTit', 'Luvas Fictícias'); pg.set_input_files('#bnImg', files=[{'name': 'l.png', 'mimeType': 'image/png', 'buffer': _jpg(1600, 500, (20, 20, 160))}])
+    pg.select_option('#bnTipo', 'busca'); pg.fill('#bnVal', 'copo'); pg.click('#bnSalva'); pg.wait_for_function("document.querySelectorAll('.bn-linha').length === 2")
+    pg.click('.bn-linha:nth-child(2) [data-sobe]'); pg.wait_for_function("document.querySelector('.bn-linha b').textContent === 'Luvas Fictícias'")
+    checar([b['titulo'] for b in sorted(sim.banners, key=lambda b: b['ordem'])] == ['Luvas Fictícias', 'Natal Fictício'], 'mudar a ordem dos banners')
+    n_ = N(pw, sim); vp = n_.pg
+    vp.wait_for_selector('#banners:not([hidden]) .bnr-slide')
+    checar(vp.locator('#banners .bnr-slide').count() == 2 and vp.locator('#banners .bnr-pontos button').count() == 2, 'carrossel com 2 banners para o visitante')
+    checar(vp.locator('#banners .bnr-slide').first.get_attribute('aria-label').startswith('Luvas Fictícias'), 'banner com o título para leitor de tela')
+    vp.locator('#banners .bnr-slide').nth(1).scroll_into_view_if_needed()
+    vp.click('#banners [data-p="1"]'); vp.wait_for_timeout(700)
+    vp.click('#banners .bnr-slide[data-i="1"]'); vp.wait_for_selector('.chip.on[data-c="Limpeza"]')
+    checar(vp.locator('#banners').is_hidden(), 'banner leva à categoria e some com a categoria escolhida')
+    n_.fechar()
+    pg.click('.bn-linha:nth-child(1) [data-liga]'); pg.wait_for_function("document.querySelector('.bn-linha [data-liga]').textContent === 'Ligar'")
+    pg.click('.bn-linha:nth-child(2) [data-apaga]'); pg.click('.bn-linha:nth-child(2) [data-apaga]'); pg.wait_for_function("document.querySelectorAll('.bn-linha').length === 1")
+    checar(len(sim.banners) == 1 and sim.banners[0]['ativo'] is False, f'desligar e apagar banner: {sim.banners}')
+    n_ = N(pw, sim); n_.pg.wait_for_selector('#grid .card'); n_.pg.wait_for_timeout(500)
+    checar(n_.pg.locator('#banners').is_hidden(), 'banner desligado não aparece (teste que tem de dar errado)')
+    n_.fechar()
+    # Banner com vídeo: sem imagem escolhida, a capa sai do próprio vídeo; o portal põe o vídeo por cima da capa
+    subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=1600x500:rate=30', '-t', '2', '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '/tmp/banner_teste.mp4'], check=True)
+    vid_ = open('/tmp/banner_teste.mp4', 'rb').read(); sim.banner_video = vid_; n_up_ = len(sim.banner_uploads)
+    pg.click('#bnNovo'); pg.fill('#bnTit', 'Conheça o portal'); pg.set_input_files('#bnVid', files=[{'name': 'b.mp4', 'mimeType': 'video/mp4', 'buffer': vid_}])
+    pg.click('#bnSalva'); pg.wait_for_function("[...document.querySelectorAll('.bn-linha')].some(e => e.textContent.includes('com vídeo'))", timeout=20000)
+    bv_ = next((b for b in sim.banners if b['titulo'] == 'Conheça o portal'), {})
+    checar(bool(bv_.get('video_desktop', '').endswith('.mp4')) and bool(bv_.get('img_desktop', '').endswith('.jpg')) and len(sim.banner_uploads) == n_up_ + 2, f'banner com vídeo e capa tirada do vídeo: {bv_}')
+    n_ = N(pw, sim, largura=1280); n_.pg.wait_for_selector('#banners .bnr-slide video')
+    checar(n_.pg.locator('#banners video').get_attribute('data-src').endswith('.mp4') and n_.pg.evaluate("document.querySelector('#banners video').muted"), 'vídeo do banner sem som, por cima da capa')
+    n_.fechar(); sim.banners = []
     # Ficha do cliente no G360 (alterar cadastro, CEP pela API, liberar acesso e link)
     pg.click('[data-at="cli"]'); pg.wait_for_selector('#clCad .crow2[data-id] [data-g360]')
     pg.click('#clCad .crow2[data-id] [data-g360]'); pg.wait_for_selector('#mAdm.open #gSalvar')

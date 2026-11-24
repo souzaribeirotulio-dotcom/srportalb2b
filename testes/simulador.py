@@ -764,6 +764,18 @@ class Sim:
         if p.startswith('/storage/v1/object/public/portal-clips/'):
             if getattr(self, 'clip_publico', None): return route.fulfill(status=200, headers={**cab, 'Content-Type': 'video/mp4'}, body=self.clip_publico)
             return route.fulfill(status=404, headers=cab, body='')
+        if p.startswith('/storage/v1/object/upload/sign/portal-banners/'):
+            self.banner_uploads = getattr(self, 'banner_uploads', []) + [(p, len(req.post_data_buffer or b''))]; self.banner_bytes = getattr(self, 'banner_bytes', []) + [req.post_data_buffer or b'']; return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({'Key': p}))
+        if p.startswith('/storage/v1/object/public/portal-banners/') and p.endswith('.mp4'):
+            return route.fulfill(status=200, headers={**cab, 'Content-Type': 'video/mp4'}, body=getattr(self, 'banner_video', b''))
+        if p.startswith('/storage/v1/object/public/portal-banners/'):
+            # JPEG 1x1 branco (só para a imagem carregar)
+            jpg = base64.b64decode('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=')
+            return route.fulfill(status=200, headers={**cab, 'Content-Type': 'image/jpeg'}, body=jpg)
+        if tabela == 'portal_banners':
+            hoje = '2026-11-21'
+            vis = [b for b in sorted(self.banners, key=lambda b: b['ordem']) if b['ativo'] and (not b['inicio'] or b['inicio'] <= hoje) and (not b['fim'] or b['fim'] >= hoje)]
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps(vis))
         if tabela == 'portal_clips':
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps([c for c in self.clips if c['ativo']]))
         if tabela == 'rpc/portal_condicoes_sincronizar':
