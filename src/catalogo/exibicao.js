@@ -230,6 +230,30 @@ export function codigosDaSecao(id) {
   cacheSecao.set(k, out);
   return out;
 }
+/** Endereço amigável: "Copa & Alimentos" → "copa-alimentos", "Sacos de lixo" → "sacos-de-lixo". */
+export function slug(t) { return normalTexto(t).replace(/ /g, '-'); }
+/** Endereço → filtro: "/limpeza/sacos-de-lixo/preto" → { grupo, secao } (null se não for da árvore). */
+export function filtroDoEndereco(caminho) {
+  const p = String(caminho || '').replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+  if (!p.length || p.length > 3) return null;
+  const grupo = categorias().find((c) => slug(c) === p[0]);
+  if (!grupo) return null;
+  if (p.length === 1) return { grupo, secao: '' };
+  const sec = estado.secoes.find((s) => s.categoria === grupo && !s.pai && slug(s.nome) === p[1]);
+  if (!sec) return { grupo, secao: '', incompleto: true };
+  if (p.length === 2) return { grupo, secao: sec.id };
+  const lin = estado.secoes.find((s) => s.pai === sec.id && slug(s.nome) === p[2]);
+  return lin ? { grupo, secao: lin.id } : { grupo, secao: sec.id, incompleto: true };
+}
+/** Filtro → endereço ("" sem departamento). */
+export function enderecoDoFiltro(f) {
+  if (!f?.grupo) return '';
+  const partes = [slug(f.grupo)];
+  const s = f.secao ? secaoPorId(f.secao) : null;
+  if (s) { if (s.pai) { const m = secaoPorId(s.pai); if (m) partes.push(slug(m.nome)); } partes.push(slug(s.nome)); }
+  return `/${partes.join('/')}`;
+}
+
 /** Painel: "saco lixo, saco p lixo" → [['saco','lixo'], ['saco','p','lixo']]. */
 export function termosDeTexto(texto) { return String(texto || '').split(',').map(palavrasDe).filter((w) => w.length); }
 /** Painel: produtos visíveis de um departamento ({ codigo, nome }), para contar e achar os sem seção. */
