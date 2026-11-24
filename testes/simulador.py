@@ -432,6 +432,23 @@ class Sim:
                 'cep': dig(e.get('cep')) or None, 'logradouro': e.get('logradouro') or None, 'numero': e.get('numero') or None, 'complemento': e.get('complemento') or None,
                 'bairro': (e.get('bairro') or {}).get('nome'), 'cidade': (e.get('cidade') or {}).get('nome'), 'uf': e.get('uf')}
 
+    def comissao_do_pedido(self, r):
+        # Igual ao gatilho do banco: pedido de cliente com vínculo ativo → comissão prevista (soma dos itens).
+        if r.get('tipo') != 'pedido' or not r.get('pedido_id'): return
+        from decimal import Decimal
+        v = next((x for x in getattr(self, 'vinculos', []) if x.get('cliente_codigo') == r['comprador_codigo'] and x['situacao'] == 'ativo'), None)
+        e = v and next((x for x in getattr(self, 'executivos', []) if x['id'] == v['executivo_id'] and x['ativo']), None)
+        if not e: return
+        com = self.__dict__.setdefault('comissoes', [])
+        ref = f"P{r['pedido_id']}"
+        if any(c['pedido_ref'] == ref for c in com): return
+        base = sum((Decimal(str(i.get('total'))) for i in r.get('itens') or [] if re.fullmatch(r'\d+(\.\d+)?', str(i.get('total')))), Decimal(0))
+        if base <= 0: return
+        pct = Decimal(str(e['percentual'] if e.get('percentual') is not None else getattr(self, 'exec_cfg', {}).get('percentual', 3)))
+        com.append({'id': str(uuid.uuid4()), 'executivo_id': e['id'], 'vinculo_id': v['id'], 'cliente_codigo': r['comprador_codigo'], 'pedido_ref': ref, 'pedido_numero': r.get('pedido_numero'),
+                    'pedido_data': '2026-11-24', 'competencia': '2026-11-01', 'base': float(base.quantize(Decimal('0.01'))), 'percentual': float(pct),
+                    'valor': float((base * pct / 100).quantize(Decimal('0.01'))), 'situacao': 'prevista', 'faturado_em': None, 'liberada_em': None, 'paga_em': None, 'observacao': None})
+
     # ---------- ponte e Supabase ----------
     def jwt(self, sub, extra):
         return f"{b64u({'alg': 'HS256', 'typ': 'JWT'})}.{b64u({'sub': sub, 'exp': int(time.time()) + 3600, 'role': 'authenticated', **extra})}.assinatura"
@@ -481,6 +498,26 @@ class Sim:
             if not pode: return res(403, {'mensagem': 'Só o administrador do programa de executivos pode ver esta área.'})
             if ac == 'vinculos_cadastros': return res(200, {'dados': {'executivos': [{k: e[k] for k in ('id', 'codigo', 'nome', 'ativo')} for e in ex], 'vinculos': [v for v in vs if v.get('cadastro_id')]}})
             if ac == 'clientes': return res(200, {'dados': [v for v in vs if v['executivo_id'] == d.get('executivo_id')]})
+            com = self.__dict__.setdefault('comissoes', [])
+            if ac == 'relatorio':
+                nomes = {v['id']: v.get('razao_social') for v in vs}
+                return res(200, {'dados': {'config': cfg, 'executivos': [{k: e.get(k) for k in ('id', 'codigo', 'nome', 'ativo', 'percentual')} for e in ex],
+                                           'comissoes': [{**c, 'cliente': nomes.get(c['vinculo_id']) or f"Cliente {c['cliente_codigo']}"} for c in com if c['competencia'] == d['mes'] + '-01']}})
+            if ac == 'recalcular':
+                n0 = len(com)
+                for r in self.eventos: self.comissao_do_pedido(r)
+                return res(200, {'dados': {'novas': len(com) - n0}})
+            if ac == 'comissao_marcar':
+                dia = d.get('data') or '2026-11-24'; obs = d.get('observacao') or None
+                regras = {'faturada': (['prevista'], {'situacao': 'liberada', 'faturado_em': dia, 'liberada_em': dia} if cfg['liberar_em'] == 'faturamento' else {'situacao': 'faturada', 'faturado_em': dia}),
+                          'cliente_pagou': (['prevista', 'faturada'], {'situacao': 'liberada', 'liberada_em': dia}),
+                          'paga': (['liberada'], {'situacao': 'paga', 'paga_em': dia, **({'observacao': obs} if obs else {})}),
+                          'cancelar': (['prevista', 'faturada', 'liberada'], {'situacao': 'cancelada', **({'observacao': obs} if obs else {})}),
+                          'reabrir': (['cancelada'], {'situacao': 'prevista'})}
+                de, mud = regras[d['acao']]; n = 0
+                for c in com:
+                    if c['id'] in d['ids'] and c['situacao'] in de: c.update(mud); n += 1
+                return res(200, {'dados': {'alterados': n}})
             if ac == 'vinculo_definir':
                 abertos = [v for v in vs if v['cadastro_id'] == d['cadastro_id'] and v['situacao'] in ('aguardando', 'ativo')]
                 if d.get('executivo_id') is None:
@@ -790,7 +827,7 @@ class Sim:
             if not valido: return route.fulfill(status=403, headers=cab, content_type='application/json', body='{"code":"42501"}')
             r = json.loads(req.post_data)
             if r.get('comprador_codigo') != s['codigo']: return route.fulfill(status=403, headers=cab, body='{"code":"42501"}')
-            self.eventos.append(r); return route.fulfill(status=201, headers=cab, body='')
+            self.eventos.append(r); self.comissao_do_pedido(r); return route.fulfill(status=201, headers=cab, body='')
         if tabela == 'rpc/portal_ocultos_comprador':
             vazio = {'termos': [], 'codigos': []}
             if not valido: return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps(vazio))

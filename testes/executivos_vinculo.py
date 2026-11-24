@@ -43,8 +43,9 @@ with sync_playwright() as pw:
     checar('ex=' not in pg.url, f'código ficou no endereço: {pg.url}')
     guard = pg.evaluate(f"localStorage.getItem('g360:{LOJA}:executivo')") or ''
     checar('"c":"JOAO"' in guard, f'código não guardado: {guard}')
-    pg.click('#heroCadB'); pg.wait_for_selector('#mCad.open #kExec')
-    checar(pg.input_value('#kExec') == 'JOAO', 'campo do executivo não veio preenchido')
+    pg.click('#heroCadB'); pg.wait_for_selector('#mCad.open #kExec', state='attached')
+    checar(pg.input_value('#kExec') == 'JOAO' and pg.locator('#kExec').is_visible(), 'campo do executivo não veio preenchido')
+    checar(pg.input_value('#kOrigem') == 'Indicação de um executivo de contas', 'Como conheceu não veio marcado como indicação de executivo')
     preencher(pg, '12.ABC.345/01DE-35'); pg.click('#kEnviar'); pg.wait_for_selector('#cadBox .ok')
     cad = sim.cadastros[-1]
     checar(cad.get('executivo_codigo') == 'JOAO', f'código não foi no cadastro: {cad}')
@@ -56,8 +57,11 @@ with sync_playwright() as pw:
 
     # 2) Sem link: campo vazio e opcional (cadastro segue como hoje)
     br, pg, erros = pagina(pw, sim, '/'); pg.wait_for_selector('#grid .card')
-    pg.click('#heroCadB'); pg.wait_for_selector('#mCad.open #kExec')
-    checar(pg.input_value('#kExec') == '', 'campo do executivo preenchido sem link')
+    pg.click('#heroCadB'); pg.wait_for_selector('#mCad.open #kExec', state='attached')
+    checar(pg.input_value('#kExec') == '' and not pg.locator('#kExec').is_visible(), 'campo do executivo aparece sem link e sem escolher a indicação')
+    pg.select_option('#kOrigem', 'Indicação de um executivo de contas')
+    checar(pg.locator('#kExec').is_visible(), 'escolher a indicação não mostrou o campo do código')
+    pg.select_option('#kOrigem', 'Instagram')
     preencher(pg, '98.765.432/0001-10'); pg.click('#kEnviar'); pg.wait_for_selector('#cadBox .ok')
     checar(sim.cadastros[-1].get('executivo_codigo') is None, 'cadastro sem código ganhou executivo')
     br.close()

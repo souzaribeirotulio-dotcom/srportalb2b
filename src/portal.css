@@ -511,3 +511,18 @@ body.com-passo-ios #souzinha-widget{display:none !important}
 .ex-st.recusado, .ex-st.removido { background: rgba(255, 107, 107, .12); color: #ff9a9a; }
 .ex-ind { color: var(--lima, #b2e04a); }
 .ex-ind.sem { color: #ffd27a; }
+.ex-rel { margin-top: 14px; padding: 14px; }
+.ex-rel-topo { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ex-rel-bloco { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--linha, #ffffff1a); }
+.ex-rel-cab { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: flex-start; }
+.ex-rel-cab small { display: block; margin-top: 2px; }
+.ex-rel-tot { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--tx2, #a9c19a); }
+.ex-rel-tot b { color: var(--tx, #f3f8ee); }
+.ex-rel-pagar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+.ex-rel-pagar .inp { flex: 1 1 200px; }
+.ex-rel-tab { display: grid; gap: 6px; margin-top: 10px; }
+.ex-rel-l { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; padding: 10px; border-radius: 10px; background: rgba(255, 255, 255, .03); }
+.ex-rel-l small { display: block; margin-top: 2px; }
+.ex-rel-l .row { grid-column: 1 / -1; }
+.ex-rel-l.cancelada { opacity: .6; }
+.ex-rel-v { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }

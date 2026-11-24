@@ -20,6 +20,9 @@
    - clientes {executivo_id}            → clientes vinculados (com início e fim)
    - vinculos_cadastros                 → "Indicado por" dos pedidos de Quero ser cliente
    - vinculo_definir {cadastro_id, executivo_id|null} → confirma, troca ou remove antes de aprovar
+   - relatorio {mes: "AAAA-MM"}         → comissões do mês (por pedido), com o cliente
+   - comissao_marcar {ids, acao, data, observacao} → faturada | cliente_pagou | paga | cancelar | reabrir
+   - recalcular {desde: "AAAA-MM-DD"}   → refaz as comissões que faltarem a partir dos pedidos do portal
    Ações que qualquer operador do painel dispara ao aprovar ou reprovar um pedido
    (não mostram nada além do necessário):
    - vinculo_do_cadastro {cadastro_id}  → executivo indicado (nome, código, vendedor no G360)
@@ -266,6 +269,58 @@ async function executar(acao: string, d: Record<string, unknown>): Promise<[numb
       }
     }
     return [200, { ok: true }];
+  }
+
+  if (acao === "relatorio") {
+    const mes = texto(d.mes, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) return [400, { mensagem: "Escolha o mês." }];
+    const { data: ex, error: e1 } = await admin.from("executivos").select("id, codigo, nome, ativo, percentual").eq("loja", LOJA).order("nome");
+    if (e1) throw e1;
+    const { data: c, error: e2 } = await admin.from("comissoes")
+      .select("id, executivo_id, vinculo_id, cliente_codigo, pedido_ref, pedido_numero, pedido_data, base, percentual, valor, situacao, faturado_em, liberada_em, paga_em, observacao")
+      .eq("loja", LOJA).eq("competencia", `${mes}-01`).order("pedido_data").limit(5000);
+    if (e2) throw e2;
+    const vids = [...new Set((c ?? []).map((x) => x.vinculo_id).filter(Boolean))];
+    const nomes = new Map<string, string>();
+    for (let i = 0; i < vids.length; i += 200) {
+      const { data: v, error } = await admin.from("executivo_clientes").select("id, razao_social").in("id", vids.slice(i, i + 200));
+      if (error) throw error;
+      for (const x of v ?? []) nomes.set(x.id, x.razao_social);
+    }
+    return [200, { dados: { config: await lerConfig(), executivos: ex, comissoes: (c ?? []).map((x) => ({ ...x, cliente: nomes.get(x.vinculo_id) || `Cliente ${x.cliente_codigo}` })) } }];
+  }
+
+  if (acao === "comissao_marcar") {
+    const ids = [...new Set((Array.isArray(d.ids) ? d.ids : []).map((x) => texto(x, 40)).filter((x) => uuid.test(x)))].slice(0, 1000);
+    const tipo = texto(d.acao, 20);
+    const dia = texto(d.data, 10) || hoje();
+    const obs = texto(d.observacao, 300) || null;
+    if (!ids.length) return [400, { mensagem: "Escolha ao menos um pedido." }];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return [400, { mensagem: "Data inválida." }];
+    const cfg = await lerConfig();
+    const regras: Record<string, { de: string[]; mud: Record<string, unknown> }> = {
+      faturada: { de: ["prevista"], mud: cfg.liberar_em === "faturamento" ? { situacao: "liberada", faturado_em: dia, liberada_em: dia } : { situacao: "faturada", faturado_em: dia } },
+      cliente_pagou: { de: ["prevista", "faturada"], mud: { situacao: "liberada", liberada_em: dia } },
+      paga: { de: ["liberada"], mud: { situacao: "paga", paga_em: dia, ...(obs ? { observacao: obs } : {}) } },
+      cancelar: { de: ["prevista", "faturada", "liberada"], mud: { situacao: "cancelada", ...(obs ? { observacao: obs } : {}) } },
+      reabrir: { de: ["cancelada"], mud: { situacao: "prevista", faturado_em: null, liberada_em: null, paga_em: null } },
+    };
+    const r = regras[tipo];
+    if (!r) return [400, { mensagem: "Ação inválida." }];
+    const { data, error } = await admin.from("comissoes").update({ ...r.mud, atualizado_em: new Date().toISOString() })
+      .eq("loja", LOJA).in("id", ids).in("situacao", r.de).select("id");
+    if (error) throw error;
+    // "Cliente pagou" num pedido que ainda não estava marcado como faturado: conta o mesmo dia.
+    if (tipo === "cliente_pagou" && data?.length) await admin.from("comissoes").update({ faturado_em: dia }).eq("loja", LOJA).in("id", data.map((x) => x.id)).is("faturado_em", null);
+    return [200, { dados: { alterados: data?.length ?? 0 } }];
+  }
+
+  if (acao === "recalcular") {
+    const desde = texto(d.desde, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(desde)) return [400, { mensagem: "Data inválida." }];
+    const { data, error } = await admin.rpc("portal_comissoes_recalcular", { p_loja: LOJA, p_desde: desde });
+    if (error) throw error;
+    return [200, { dados: { novas: Number(data) || 0 } }];
   }
 
   return [400, { mensagem: "Ação desconhecida." }];
