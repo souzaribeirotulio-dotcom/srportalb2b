@@ -72,6 +72,7 @@ class Sim:
         self.fichas_put = []
         self.vendedores = []
         self.clips = []
+        self.banners = []
         self.negociacoes = []
         self.config = {'so_estoque': False, 'margem_minima': 15, 'estoque_minimo': 0}
         self.uploads = []
@@ -664,6 +665,22 @@ class Sim:
                     return res(200, {'ok': True})
                 c = {'id': str(uuid.uuid4()), 'produto_id': d['produto_id'], 'codigo': d['codigo'], 'titulo': d.get('titulo') or None, 'caminho': d['caminho'], 'ativo': True, 'criado_em': '2026-11-17T18:00:00+00:00'}
                 self.clips.insert(0, c); return res(200, {'dados': {'id': c['id']}})
+            if ac == 'banners_listar': return res(200, {'dados': sorted(self.banners, key=lambda b: b['ordem'])})
+            if ac == 'banner_upload_url':
+                video = d.get('tipo') == 'video/mp4'
+                assert (video and 0 < d.get('tamanho', 0) <= 8 * 1024 * 1024) or (d.get('tipo') == 'image/jpeg' and 0 < d.get('tamanho', 0) <= 3 * 1024 * 1024), d
+                cam = f"{LOJA}/{uuid.uuid4()}.{'mp4' if video else 'jpg'}"; return res(200, {'dados': {'caminho': cam, 'url': f'https://sb.example/storage/v1/object/upload/sign/portal-banners/{cam}?token=t', 'token': 't'}})
+            if ac == 'banner_salvar':
+                campos = ('titulo', 'img_desktop', 'img_celular', 'video_desktop', 'video_celular', 'destino_tipo', 'destino_valor', 'ordem', 'inicio', 'fim', 'ativo')
+                val = {k: (d[k] if d[k] != '' else None) for k in campos if k in d}
+                if d.get('id'):
+                    for b in self.banners:
+                        if b['id'] == d['id']: b.update(val)
+                    return res(200, {'ok': True})
+                if not val.get('titulo') or not val.get('img_desktop'): return res(400, {'mensagem': 'Título e imagem do computador são obrigatórios.'})
+                b = {'id': str(uuid.uuid4()), 'img_celular': None, 'video_desktop': None, 'video_celular': None, 'destino_valor': None, 'inicio': None, 'fim': None, 'ativo': True, 'ordem': 0, 'criado_em': '2026-11-21T02:00:00+00:00', **val}
+                self.banners.append(b); return res(200, {'dados': {'id': b['id']}})
+            if ac == 'banner_apagar': self.banners = [b for b in self.banners if b['id'] != d['id']]; return res(200, {'ok': True})
             if ac == 'clip_apagar': self.clips = [c for c in self.clips if c['id'] != d['id']]; return res(200, {'ok': True})
             if ac == 'negociacoes_listar': return res(200, {'dados': list(reversed(self.negociacoes))})
             if ac == 'negociacao_decidir':
