@@ -8,6 +8,7 @@
 import { codigoExecutivoGuardado } from '../estado/executivo.js';
 import { supabaseComprador, LOJA } from '../api/supabase.js';
 import { cadastroAutomatico } from '../api/cadastroauto.js';
+import { pedirLink, ErroPonte, MENSAGEM_PONTE_FALHOU } from '../api/ponte.js';
 import { $, esc, abrirModal, fecharModal } from './comum.js';
 
 const UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
@@ -337,9 +338,19 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
       esquecerCadastroEmAnalise(); window.dispatchEvent(new Event('g360:cadastro-enviado'));
       $('cadBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>Pronto! Seu acesso foi criado</h3>
         <p>Mandamos para o e-mail <b>${esc(d.email || '')}</b> o link para você criar a sua senha. O link vale 30 minutos; se passar, use "Esqueci minha senha".</p>
-        <p>Depois de criar a senha, é só entrar com o CNPJ: os preços e as compras já estão liberados.</p></div>
-        <div class="act" style="justify-content:center"><button type="button" class="btn pri" id="kOk">Entendi</button></div>`;
+        <p>Depois de criar a senha, é só entrar com o CNPJ: os preços e as compras já estão liberados.</p>
+        <p class="hint">Não chegou em alguns minutos? Olhe também a caixa de spam ou de promoções.</p></div>
+        <div class="act" style="justify-content:center;flex-wrap:wrap"><button type="button" class="btn out" id="kReenviar">Mandar o link de novo</button><button type="button" class="btn pri" id="kOk">Entendi</button></div>
+        <div id="kReRes" aria-live="polite" style="text-align:center"></div>`;
       $('kOk').onclick = () => fecharModal('mCad');
+      // Mesmo pedido do "Esqueci minha senha": um link novo invalida o anterior (no máximo 3 a cada 15 minutos).
+      $('kReenviar').onclick = async () => {
+        const b = $('kReenviar'); b.disabled = true; b.textContent = 'Mandando…';
+        try { $('kReRes').innerHTML = `<p class="hint">${esc(await pedirLink(d.documento))} Vale sempre o e-mail mais recente.</p>`; }
+        catch (e) { $('kReRes').innerHTML = `<p class="hint">${esc(e instanceof ErroPonte ? e.message : MENSAGEM_PONTE_FALHOU)}</p>`; }
+        // Espera 1 minuto antes de deixar pedir outro, para não gastar o limite de pedidos.
+        b.textContent = 'Mandar o link de novo'; setTimeout(() => { b.disabled = false; }, 60000);
+      };
       return;
     }
     $('cadBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>${jaCliente ? 'Pedido de acesso em análise' : 'Cadastro em análise'}</h3>
