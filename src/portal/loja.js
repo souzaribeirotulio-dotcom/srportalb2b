@@ -256,12 +256,25 @@ async function secoesMaisProcuradas(max = 6) {
   return lista.sort((a, b) => b.pontos - a.pontos || b.n - a.n).slice(0, max);
 }
 
+/** No computador, a barra mostra só os atalhos que cabem inteiros (sem cortar nome no meio); no celular, rola para o lado. */
+function caberAtalhos() {
+  const el = $('cats'); if (!el) return;
+  const atalhos = [...el.querySelectorAll('.chip.atalho')];
+  atalhos.forEach((b) => { b.style.display = ''; });
+  if (!window.matchMedia('(min-width: 900px)').matches) return;
+  const fim = el.getBoundingClientRect().right - parseFloat(getComputedStyle(el).paddingRight || '0');
+  atalhos.forEach((b) => { if (b.getBoundingClientRect().right > fim + 0.5) b.style.display = 'none'; });
+}
+let tCaber = null;
+window.addEventListener('resize', () => { clearTimeout(tCaber); tCaber = setTimeout(caberAtalhos, 150); });
+
 /** Barra do catálogo: ☰ Departamentos + atalhos para as seções mais procuradas (com o desenho de cada uma). */
 function desenharChips() {
   pintarChamadaCadastro();
   const el = $('cats');
   const pintar = (secs) => {
-    el.innerHTML = BOTAO_DEPS + secs.map((s) => `<button type="button" class="chip atalho ${filtros.secao === s.id ? 'on' : ''}" data-c="${esc(s.grupo)}" data-s="${esc(s.id)}" title="${esc(`${s.grupo} › ${s.nome}`)}">${desenho(chaveSecao(s.nome, s.grupo), 'at-ic')}${esc(s.nome)}</button>`).join('');
+    el.innerHTML = BOTAO_DEPS + (secs.length ? '<span class="at-rot" aria-hidden="true">Mais procuradas</span>' : '') + secs.map((s) => `<button type="button" class="chip atalho ${filtros.secao === s.id ? 'on' : ''}" data-c="${esc(s.grupo)}" data-s="${esc(s.id)}" title="${esc(`${s.grupo} › ${s.nome}`)}"><span class="at-bola">${desenho(chaveSecao(s.nome, s.grupo), 'at-ic')}</span>${esc(s.nome)}</button>`).join('');
+    caberAtalhos();
     desenharDepartamento();
   };
   if (!sessao.ativa) {
