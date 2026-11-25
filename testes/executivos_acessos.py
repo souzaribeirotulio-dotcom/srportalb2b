@@ -34,21 +34,24 @@ with sync_playwright() as pw:
         pg.goto(BASE + '/executivo'); pg.wait_for_selector('#exLogin')
         pg.fill('#exEmail', 'joao@example.invalid'); pg.fill('#exSenha', 'SenhaJoao123'); pg.click('#exEntrar')
         pg.wait_for_selector('.exa-cli')
-        linhas = {pg.locator('.exa-cli .exa-l').nth(i).inner_text().split('\n')[0]: ' '.join(pg.locator('.exa-cli .exa-l').nth(i).inner_text().split()) for i in range(pg.locator('.exa-cli .exa-l').count())}
+        linhas = {pg.locator('.exa-cli .exa-c2').nth(i).inner_text().split('\n')[0]: ' '.join(pg.locator('.exa-cli .exa-c2').nth(i).inner_text().split()) for i in range(pg.locator('.exa-cli .exa-c2').count())}
         pad = next((t for k, t in linhas.items() if 'Padaria' in k), ''); ofi = next((t for k, t in linhas.items() if 'Oficina' in k), ''); mer = next((t for k, t in linhas.items() if 'Mercadinho' in k), '')
-        checar('Último acesso' in pad and '7 acessos' in pad and '24/11/2026' in pad, f'{largura}: acesso da Padaria: {pad}')
-        checar('Ainda não acessou o portal' in ofi and 'Reenviar link de acesso' in ofi, f'{largura}: Oficina sem acesso: {ofi}')
+        tit = pg.get_attribute('.exa-cli .exa-c2:has-text("Padaria") .exa-c2-l2', 'title') or ''
+        checar('Acessou ontem' in pad or 'Acessou há' in pad, f'{largura}: acesso da Padaria: {pad}')
+        checar('7 acessos' in tit and '24/11/2026' in tit, f'{largura}: detalhe do acesso: {tit}')
+        checar('Nunca acessou' in ofi and 'Reenviar link' in ofi, f'{largura}: Oficina sem acesso: {ofi}')
         checar('Reenviar' not in mer and 'acess' not in mer.lower(), f'{largura}: cliente aguardando aprovação com botão/acesso: {mer}')
         html = pg.content()
         checar(all(d not in html for d in ('11111111000111', '22222222000122', '44444444000144')), f'{largura}: documento de cliente apareceu na página')
         checar('Maria' not in pg.inner_text('#g360Conteudo'), f'{largura}: viu cliente de outro executivo')
         checar(pg.evaluate('document.documentElement.scrollWidth <= innerWidth'), f'{largura}: rolagem horizontal')
-        h = pg.locator('.exa-cli .exa-l:has-text("Oficina") .exa-btlink').bounding_box()
+        checar('1 de 2 aprovados já acessaram' in pg.inner_text('#g360Conteudo'), f'{largura}: resumo de acessos')
+        h = pg.locator('.exa-cli .exa-c2:has-text("Oficina") .exa-btlink').bounding_box()
         checar(h and h['height'] >= 44, f'{largura}: botão menor que 44 px')
         # Reenviar link da Oficina
-        pg.click('.exa-cli .exa-l:has-text("Oficina") .exa-btlink')
-        pg.wait_for_function("document.querySelector('.exa-cli .exa-l:nth-child(2) .exa-ac-msg, .exa-ac-msg') && [...document.querySelectorAll('.exa-ac-msg')].some(m => m.textContent.includes('Pedido enviado'))")
-        bt = pg.locator('.exa-cli .exa-l:has-text("Oficina") .exa-btlink')
+        pg.click('.exa-cli .exa-c2:has-text("Oficina") .exa-btlink')
+        pg.wait_for_function("document.querySelector('.exa-cli .exa-c2:nth-child(2) .exa-ac-msg, .exa-ac-msg') && [...document.querySelectorAll('.exa-ac-msg')].some(m => m.textContent.includes('Pedido enviado'))")
+        bt = pg.locator('.exa-cli .exa-c2:has-text("Oficina") .exa-btlink')
         checar(bt.is_disabled() and 'pedido' in bt.inner_text(), f'{largura}: botão depois do envio: {bt.inner_text()}')
         env = [c for c in sim.chamadas if c[0] == 'EXEC_LINK']
         ofi_id = sim.vinculos[1]['id']
