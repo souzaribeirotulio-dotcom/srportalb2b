@@ -260,7 +260,9 @@ async function processar(id: string, k: Record<string, unknown>, doc: string, or
       });
       await v.body?.cancel();
     } catch { /* sem executivo ou função fora: a equipe confere no painel */ }
-    // 5. Link de senha (mesmo caminho do "esqueci minha senha": vai para o e-mail da ficha)
+    // 5. Link de senha (mesmo caminho do "esqueci minha senha": vai para o e-mail da ficha).
+    //    Espera uns segundos: logo depois de liberar, o G360 pode ainda não ter gravado o acesso.
+    await new Promise((r) => setTimeout(r, 4000));
     const p = await pedirLink(doc, origem);
     if (p.status !== 202) await marcar(id, { auto_obs: `Ficha ${codigo} criada com acesso liberado, mas o link de senha não saiu (${p.status}). Gere pela ficha.${catObs}` });
     await registrar("criado");
