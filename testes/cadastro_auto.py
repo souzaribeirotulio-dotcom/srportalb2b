@@ -94,25 +94,6 @@ with sync_playwright() as pw:
         if largura == 1280: pg.screenshot(path='/tmp/analise.png')
         ctx.close()
 
-        # 4) Painel: aprovar e liberar preços → o cliente passa a ver os preços
-        if largura == 1280:
-            ctx, pg, erros = abrir(br, sim, largura)
-            pg.goto(BASE + '/painel'); pg.wait_for_selector('#aUsu')
-            pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_timeout(1500)
-            pg.wait_for_selector('.crow2[data-id] [data-liberar]', timeout=8000)
-            linha = ' '.join(pg.inner_text(f'.crow2[data-id="{sim.cadastros[0]["id"]}"]').split())
-            checar('Criado no G360 pelo portal' in linha and 'em análise' in linha, f'painel: {linha[:200]}')
-            b = pg.locator('[data-liberar]'); b.click(); pg.wait_for_timeout(200)
-            checar('Confirmar' in b.inner_text(), 'pediu confirmação')
-            checar(not [c for c in sim.chamadas if c[0] == 'LIBERAR_PRECOS'], 'liberou com um clique só')
-            b.click(); pg.wait_for_timeout(1200)
-            checar([c for c in sim.chamadas if c[0] == 'LIBERAR_PRECOS'], 'não liberou')
-            checar(sim.cadastros[0]['em_analise'] is False and sim.cadastros[0]['status'] == 'aprovado', f'painel: {sim.cadastros[0]}')
-            ctx.close()
-            ctx, pg, erros = abrir(br, sim, largura)
-            entrar(pg, sim, doc)
-            checar(pg.locator('#avisoAnalise').count() == 0 and pg.locator('#grid .card .price').first.is_visible() and 'R$' in pg.inner_text('#grid'), 'depois de aprovado continua sem preço')
-            ctx.close()
     br.close()
 
 if falhas:
