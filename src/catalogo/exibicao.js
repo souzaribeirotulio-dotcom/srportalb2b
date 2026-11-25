@@ -165,7 +165,7 @@ export function nomeDoItem(i) {
 /** Códigos G360 de uma categoria (para o filtro do catálogo, até 500). */
 export function codigosDaCategoria(cat, max = 500) {
   const out = [];
-  for (const r of estado.porCodigo.values()) if (r.categoria === cat && !r.oculto) out.push(String(r.codigo));
+  for (const r of estado.porCodigo.values()) if (r.categoria === cat && !r.oculto && !ocultoDoExecutivo(r)) out.push(String(r.codigo));
   return out.slice(0, max);
 }
 

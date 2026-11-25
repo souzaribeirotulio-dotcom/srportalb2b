@@ -4,7 +4,7 @@
    A lógica (API, sessão, envio, Minha Lista, ocorrências) vem dos módulos
    já testados; aqui só a tela.
    ===================================================================== */
-import { carregarOcultosComprador } from '../estado/ocultos.js';
+import { carregarOcultosComprador, carregarOcultosVisitante } from '../estado/ocultos.js';
 import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
 import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo, estoqueMinimoAtual, codigosAtivosPublicos } from '../catalogo/exibicao.js';
@@ -432,6 +432,9 @@ async function desenharCatalogoPublico(grid, pag) {
   const meu = ++buscaN;
   grid.innerHTML = '<div class="empty">Carregando produtos…</div>';
   try {
+    // Visitante que veio pelo link de um executivo: os produtos que os clientes dele não veem já ficam de fora.
+    await carregarExibicao();
+    if (await carregarOcultosVisitante(() => { limparVisitante(); desenharCatalogo(); })) limparVisitante();
     const r = await resultadoPublico(filtros);
     if (meu !== buscaN || sessao.ativa) return;
     $('cnt').innerHTML = htmlAviso(r.aviso) + mostrando((filtros.pagina - 1) * POR_PAGINA + r.itens.length, r.total, r.aviso?.corrigida || filtros.q) + ' · entre para ver os preços';

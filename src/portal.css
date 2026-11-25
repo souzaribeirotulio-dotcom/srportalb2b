@@ -712,3 +712,4 @@ details.ferr > .afil{margin:0 !important;padding:0 12px 12px}
 .ap-barra i { display: block; height: 100%; background: var(--lima, #b2e04a); border-radius: 999px; }
 .ap-num { white-space: nowrap; font-variant-numeric: tabular-nums; }
 @media (max-width: 520px) { .ap-linha { grid-template-columns: 1fr auto; } .ap-barra { grid-column: 1 / -1; grid-row: 2; } }
+.exa-link-rot { margin: 12px 0 4px; font-size: 12.5px; font-weight: 700; color: var(--tx2, #cfe0c6); }

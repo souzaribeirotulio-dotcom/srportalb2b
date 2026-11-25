@@ -7,6 +7,7 @@ import { montarSeletorOcultos } from './adminocultos.js';
 import { esc, toast } from './comum.js';
 import Decimal from 'decimal.js';
 import { dataBr, dinheiro } from '../ui/formato.js';
+import { linkDoExecutivo } from '../estado/executivo.js';
 
 export const SITC = { prevista: 'Prevista', faturada: 'Faturada', liberada: 'Liberada', paga: 'Paga', cancelada: 'Cancelada' };
 export const SITV = { aguardando: 'Aguardando aprovação', ativo: 'Ativo', recusado: 'Recusado', removido: 'Removido', sem_comissao: 'Sem comissão' };
@@ -14,7 +15,8 @@ const LIBERAR = { pagamento: 'Depois que o cliente paga', faturamento: 'Quando o
 const soNum = (t) => String(t || '').replace(/\D/g, '');
 const docLimpo = (t) => String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const pct = (v) => (v === null || v === undefined || v === '' ? '' : String(Number(v)).replace('.', ','));
-export const linkExecutivo = (codigo) => `${location.origin}/?ex=${encodeURIComponent(codigo)}`;
+export const linkExecutivo = (codigo, comOcultos = false) => linkDoExecutivo(codigo, comOcultos);
+const temOcultos = (x) => !!((x.ocultar_termos || []).length || (x.ocultar_codigos || []).length);
 
 /** Pergunta à função se o operador pode ver a aba (falha de rede = não mostra). */
 export async function podeVerExecutivos(token) {
@@ -41,10 +43,11 @@ export async function desenharExecutivosPainel(alvo, { token, aoEncerrar }) {
       <div class="ex-dados"><b>${esc(x.nome)}</b> <span class="ex-cod">${esc(x.codigo)}</span>${x.ativo ? '' : ' <span class="ex-sit">Desativado</span>'}
         <small class="hint">${x.clientes.ativos} cliente${x.clientes.ativos === 1 ? '' : 's'} ativo${x.clientes.ativos === 1 ? '' : 's'}${x.clientes.aguardando ? ` · ${x.clientes.aguardando} aguardando aprovação` : ''} · ${x.percentual !== null ? `${pct(x.percentual)}% (próprio)` : `${pct(config?.percentual ?? 3)}% (padrão)`}${x.vendedor_nome ? ` · vendedor no G360: ${esc(x.vendedor_nome)}` : ''}${x.tem_acesso ? '' : ' · sem acesso à área'}</small>
         ${(x.ocultar_termos || []).length || (x.ocultar_codigos || []).length ? `<small class="hint">Os clientes dele não veem: ${esc([...(x.ocultar_termos || []), ...(x.ocultar_codigos || []).map((c) => `cód. ${c}`)].join(', '))}</small>` : ''}
-        <small class="ex-link">${esc(linkExecutivo(x.codigo))}</small>
+        <small class="ex-link">${temOcultos(x) ? 'Link completo: ' : ''}${esc(linkExecutivo(x.codigo))}</small>
+        ${temOcultos(x) ? `<small class="ex-link">Link sem os escondidos: ${esc(linkExecutivo(x.codigo, true))}</small>` : ''}
         <div class="ex-cli" hidden></div></div>
       <div class="row" style="gap:6px;flex-wrap:wrap">
-        <button class="tool" data-clientes type="button">Clientes</button><button class="tool" data-copia type="button">Copiar link</button><button class="tool" data-edita type="button">Editar</button>
+        <button class="tool" data-clientes type="button">Clientes</button><button class="tool" data-copia type="button">${temOcultos(x) ? 'Copiar link completo' : 'Copiar link'}</button>${temOcultos(x) ? '<button class="tool" data-copia-oc type="button">Copiar link sem os escondidos</button>' : ''}<button class="tool" data-edita type="button">Editar</button>
         <button class="tool" data-liga type="button">${x.ativo ? 'Desativar' : 'Reativar'}</button></div></div>`;
 
   const formHtml = (x) => `<form id="exForm" class="panel" style="margin-top:14px;padding:14px" novalidate autocomplete="off">
@@ -113,6 +116,10 @@ export async function desenharExecutivosPainel(alvo, { token, aoEncerrar }) {
       const x = lista.find((e) => e.id === l.dataset.id);
       l.querySelector('[data-copia]').onclick = async () => {
         try { await navigator.clipboard.writeText(linkExecutivo(x.codigo)); toast('Link copiado'); } catch { toast(linkExecutivo(x.codigo)); }
+      };
+      const bOc = l.querySelector('[data-copia-oc]');
+      if (bOc) bOc.onclick = async () => {
+        try { await navigator.clipboard.writeText(linkExecutivo(x.codigo, true)); toast('Link sem os escondidos copiado'); } catch { toast(linkExecutivo(x.codigo, true)); }
       };
       l.querySelector('[data-edita]').onclick = () => { editando = { ...x }; verConfig = false; pintar(); carregarVendedores(); };
       l.querySelector('[data-clientes]').onclick = async (ev) => {

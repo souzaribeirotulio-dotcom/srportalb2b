@@ -49,10 +49,14 @@ with sync_playwright() as pw:
         checar('Maria' not in t and '29,97' not in t and 'Cliente da Maria' not in t, 'executivo viu dados de outro executivo')
         for proibido in ('custo', 'margem', 'Seu preço', 'Carrinho', 'Preço congelado'):
             checar(proibido.lower() not in t.lower(), f'área do executivo mostra "{proibido}"')
-        zap = pg.get_attribute('#exZap', 'href')
+        zap = pg.get_attribute('.exa-botoes a', 'href')
         checar(zap.startswith('https://wa.me/?text=') and 'ex%3DJOAO' in zap, f'link do WhatsApp: {zap}')
-        pg.click('#exCopiar'); pg.wait_for_timeout(200)
+        pg.click('[data-copiar="exLink"]'); pg.wait_for_timeout(200)
         checar(pg.evaluate('navigator.clipboard.readText()').endswith('/?ex=JOAO'), 'copiar link')
+        # com produtos escondidos, aparece também o link "sem os produtos escondidos" (?ex=JOAO&oc=1)
+        if pg.locator('#exLinkOc').count():
+            pg.click('[data-copiar="exLinkOc"]'); pg.wait_for_timeout(200)
+            checar(pg.evaluate('navigator.clipboard.readText()').endswith('/?ex=JOAO&oc=1'), 'copiar link sem os escondidos')
         # Suas vendas: abre em Hoje (há pedido hoje)
         checar(pg.get_attribute('.exa-per [data-p="hoje"]', 'aria-pressed') == 'true', 'período inicial Hoje')
         k = ' '.join(pg.inner_text('.exa-kpis').split())
