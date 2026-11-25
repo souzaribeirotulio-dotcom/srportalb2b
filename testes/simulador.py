@@ -467,6 +467,17 @@ class Sim:
                 if corpo['acao'] == 'exec_teste': return res(200, {'enviados': 1, 'aparelhos': 1})
                 return res(200, {'ok': True})
             return res(400, {'mensagem': 'Ação desconhecida.'})
+        if p == '/functions/v1/cadastro-g360':
+            # Cadastro automático: com cenario['auto'] == 'criado', o pedido recém-enviado ganha código no G360 e fica em análise.
+            corpo = json.loads(req.post_data or '{}')
+            doc = re.sub(r'[^A-Za-z0-9]', '', str(corpo.get('documento', ''))).upper()
+            self.chamadas.append(('CADASTRO_AUTO', corpo.get('acao'), sorted(corpo.keys())))
+            k = next((c for c in self.cadastros if c['documento'] == doc and not c.get('auto_status')), None)
+            if corpo.get('acao') == 'cadastrar' and k and self.cenario.get('auto') == 'criado' and len(doc) == 14:
+                k.update({'codigo_g360': self.cenario.get('auto_codigo', 4242), 'em_analise': False, 'auto_status': 'criado', 'auto_obs': 'Ficha criada pelo portal.', 'status': 'aprovado'})
+                return route.fulfill(status=200, headers=cab, content_type='application/json', body='{"resultado":"criado"}')
+            if k: k.update({'auto_status': 'revisar', 'auto_obs': 'Ficou para a equipe.'})
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body='{"resultado":"analise"}')
         if p == '/functions/v1/executivo-link':
             # Executivo pede o link de acesso de um cliente aprovado dele (a função lê o documento e chama a ponte).
             corpo = json.loads(req.post_data or '{}')
@@ -726,6 +737,11 @@ class Sim:
                         if not f or f['documento'] != c['documento']: return res(409, {'mensagem': 'O cliente do G360 tem outro documento. O pedido não foi vinculado.'})
                         c.update(codigo_g360=cod, status='aprovado'); return res(200, {'dados': c})
                 return res(404, {'mensagem': 'Cadastro não encontrado.'})
+            if ac == 'cadastro_liberar_precos':
+                k = next((c for c in self.cadastros if c.get('id') == d.get('id') and c.get('em_analise')), None)
+                if not k: return res(409, {'mensagem': 'Este pedido não está mais em análise. Atualize a lista.'})
+                k.update({'em_analise': False, 'status': 'aprovado'}); self.chamadas.append(('LIBERAR_PRECOS', k['id']))
+                return res(200, {'dados': k, 'email_enviado': True})
             if ac == 'cadastro_decidir':
                 for c in self.cadastros:
                     if c.get('id') == d.get('id'): c['status'] = d['status']; c['observacao_equipe'] = d.get('observacao') or None; return res(200, {'ok': True})
@@ -892,7 +908,9 @@ class Sim:
             if not valido: return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps(vazio))
             v = next((x for x in getattr(self, 'vinculos', []) if x.get('cliente_codigo') == s['codigo'] and x['situacao'] == 'ativo'), None)
             e = v and next((x for x in getattr(self, 'executivos', []) if x['id'] == v['executivo_id'] and x['ativo']), None)
-            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({'termos': e.get('ocultar_termos', []), 'codigos': e.get('ocultar_codigos', [])} if e else vazio))
+            r = {'termos': e.get('ocultar_termos', []), 'codigos': e.get('ocultar_codigos', [])} if e else dict(vazio)
+            r['em_analise'] = any(c.get('codigo_g360') == s['codigo'] and c.get('em_analise') for c in self.cadastros)
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps(r))
         if tabela == 'rpc/portal_registrar_acesso':
             if valido: self.acessos[s['codigo']] = json.loads(req.post_data).get('p_nome')
             return route.fulfill(status=204, headers=cab, body='')

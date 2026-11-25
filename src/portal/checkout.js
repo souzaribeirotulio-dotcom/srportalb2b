@@ -4,6 +4,7 @@
    - Envio sem duplicar: estado/envio.js (matriz da seção 9).
    - Pendências do fornecedor viram ocorrência (estado/ocorrencias.js).
    ===================================================================== */
+import { MSG_ANALISE, clienteEmAnalise } from '../estado/analise.js';
 import { registrarPedido } from '../estado/eventos.js';
 import { nomeDoItem } from '../catalogo/exibicao.js';
 import { consultarOpcoes, revisarPedido } from '../api/g360.js';
@@ -55,6 +56,7 @@ function cabecalho() {
 /** Abre a revisão a partir do carrinho. */
 export async function abrirCheckout(contexto) {
   ctx = contexto;
+  if (clienteEmAnalise()) { try { (await import('./comum.js')).toast(MSG_ANALISE); } catch { /* sem toast */ } return; }
   abrirModal('mChk');
   const box = $('chkBox');
   const pend = pendenteDoComprador();

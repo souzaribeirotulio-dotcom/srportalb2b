@@ -1236,7 +1236,8 @@ function pintarCadastros() {
         <small>IE: ${esc(k.inscricao_estadual || 'não informada')}${k.email ? ` · ${esc(k.email)}` : ''}</small>
         <small>${k.segmento ? `<b style="color:var(--lima)">${esc(k.segmento)}</b> · ` : ''}${esc(k.origem || (k.criado_por === 'equipe' ? 'Cadastrado pela equipe' : 'Quero ser cliente'))}${k.whats ? ` · ${esc(fmtTel(k.whats))}` : ''}${k.vendedor ? ` · Vendedor: ${esc(k.vendedor)}` : ''}</small>
         ${htmlIndicado(k)}
-        ${k.observacao_equipe ? `<small>Obs.: ${esc(k.observacao_equipe)}</small>` : ''}</div>
+        ${k.observacao_equipe ? `<small>Obs.: ${esc(k.observacao_equipe)}</small>` : ''}
+        ${htmlAuto(k)}</div>
       <div class="sm sm2">${k.codigo_g360 ? esc(k.codigo_g360) : '<span style="color:var(--tx3)">—</span>'}</div>
       <div class="sm">${esc(k.cidade || '')}${k.uf ? `/${esc(k.uf)}` : ''}${k.codigo_g360 ? `<span class="som"> · cód. ${esc(k.codigo_g360)}</span>` : ''}</div>
       <div class="stw"><span class="stt ${k.status === 'recusado' ? 'reprovado' : esc(k.status)}">${SIT[k.status] || esc(k.status)}</span></div>
@@ -1449,6 +1450,14 @@ async function abrirFicha(k) {
     }
   };
   $('admBox').addEventListener('input', (e) => { if (e.target.classList?.contains('faltou')) e.target.classList.remove('faltou'); });
+}
+
+/** Cadastro automático: o que a função fez com o pedido (ficha criada, já existia, ficou para a equipe). */
+function htmlAuto(k) {
+  if (!k.auto_status) return '';
+  const cor = k.auto_status === 'criado' ? 'var(--lima-tx, var(--lima))' : k.auto_status === 'processando' ? 'var(--tx2)' : '#d9822b';
+  const rot = { criado: k.em_analise ? '🤖 Criado no G360 pelo portal · em análise (o cliente vê o catálogo sem preço)' : '🤖 Criado no G360 pelo portal', ja_existe: '🤖 Cadastro automático: já existe no G360', revisar: '🤖 Cadastro automático não concluído', erro: '🤖 Cadastro automático com falha', processando: '🤖 Cadastro automático em andamento' }[k.auto_status] || '';
+  return `<small style="color:${cor};font-weight:600">${esc(rot)}</small>${k.auto_obs ? `<small>${esc(k.auto_obs)}</small>` : ''}`;
 }
 
 /** "Quero ser cliente" aprovado → cadastro no G360 (nasce bloqueado) → vincula o pedido ao código devolvido → ficha para liberar e mandar o link. */

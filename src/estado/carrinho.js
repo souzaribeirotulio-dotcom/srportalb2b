@@ -9,6 +9,7 @@
    O mesmo conteúdo vai para o Supabase (carrinho-nuvem.js), para aparecer em
    outro navegador; vale a versão mais nova (carimbo da última mudança). */
 import { somarQuantidades } from '../ui/formato.js';
+import { clienteEmAnalise } from './analise.js';
 
 export const MAX_LINHAS = 100;
 const linhas = new Map(); // "produto|unidade" → linha
@@ -82,6 +83,7 @@ export function quantidadeLinhas() { return linhas.size; }
  * Devolve 'incluido' | 'somado' | 'limite'.
  */
 export function adicionar(linha) {
+  if (clienteEmAnalise()) return 'analise';
   const k = chave(linha.produto_id, linha.unidade);
   const existente = linhas.get(k);
   if (existente) {

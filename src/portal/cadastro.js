@@ -7,6 +7,7 @@
    ===================================================================== */
 import { codigoExecutivoGuardado } from '../estado/executivo.js';
 import { supabaseComprador, LOJA } from '../api/supabase.js';
+import { cadastroAutomatico } from '../api/cadastroauto.js';
 import { $, esc, abrirModal, fecharModal } from './comum.js';
 import { avisarEvento } from '../api/push.js';
 
@@ -325,6 +326,20 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
     }
     avisarEvento('cadastro'); // aviso para os gestores
     marcarEmAnalise(); window.dispatchEvent(new Event('g360:cadastro-enviado'));
+    // Cliente novo com CNPJ: a função cria a ficha no G360 e já manda o link de senha.
+    let auto = { resultado: 'analise' };
+    if (!jaCliente && d.documento.replace(/[^A-Za-z0-9]/g, '').length === 14) {
+      $('cadBox').innerHTML = '<div class="ok"><div class="ic2">…</div><h3>Criando o seu acesso</h3><p>Conferindo o CNPJ e preparando o seu cadastro. Leva alguns segundos.</p></div>';
+      auto = await cadastroAutomatico(d.documento);
+    }
+    if (auto.resultado === 'criado') {
+      $('cadBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>Pronto! Seu acesso foi criado</h3>
+        <p>Mandamos para o e-mail <b>${esc(d.email || '')}</b> o link para você criar a sua senha. O link vale 30 minutos; se passar, use "Esqueci minha senha".</p>
+        <p>Depois de criar a senha, é só entrar com o CNPJ: os preços e as compras já estão liberados.</p></div>
+        <div class="act" style="justify-content:center"><button type="button" class="btn pri" id="kOk">Entendi</button></div>`;
+      $('kOk').onclick = () => fecharModal('mCad');
+      return;
+    }
     $('cadBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>${jaCliente ? 'Pedido de acesso em análise' : 'Cadastro em análise'}</h3>
       <p>Recebemos os dados da <b>${esc(d.razao_social)}</b>. A equipe da Souza Ribeiro confere e fala com você pelo WhatsApp <b>${esc(foneBonito(d.whats))}</b>.</p>
       <p>Quando ${jaCliente ? 'o acesso for liberado' : 'o cadastro for aprovado'}, chega no e-mail <b>${esc(d.email || '')}</b> o link para você criar a sua senha e começar a comprar.</p></div>

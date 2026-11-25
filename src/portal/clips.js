@@ -5,6 +5,7 @@
    compra e disponibilidade vêm da API na hora (regra única do cartao.js);
    visitante vê o produto com "Entre para ver os preços".
    ===================================================================== */
+import { MSG_ANALISE } from '../estado/analise.js';
 import { supabaseComprador, supabaseConfigurado, LOJA } from '../api/supabase.js';
 import { listarProdutos, listarVitrine, urlVitrine } from '../api/g360.js';
 import { sessao } from '../estado/sessao.js';
@@ -211,6 +212,7 @@ export function ligarClips() {
       if (!q) { toast('Quantidade inválida: use um número maior que zero, com até 4 casas depois da vírgula.'); return; }
       const semSaldo = conferir(p, '', q); if (semSaldo) { toast(semSaldo); return; }
       const r = adicionar(linhaCarrinho(p, '', q));
+      if (r === 'analise') { toast(MSG_ANALISE); return; }
       if (r === 'limite') { toast('O carrinho aceita até 100 linhas. Envie este pedido ou remova itens.'); return; }
       toast(`${r === 'somado' ? 'Quantidade somada' : 'Adicionado'} · ${p.nome.slice(0, 40)}`);
       return;
