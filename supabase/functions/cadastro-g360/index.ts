@@ -57,6 +57,7 @@ async function entrar(): Promise<{ token: string | null; motivo: string; codigo?
 // Padrões da ficha criada pelo portal (decisão da Souza Ribeiro em 25/11/2026).
 const CATEGORIA = (Deno.env.get("G360_CADASTRO_CATEGORIA") ?? "PORTAL").trim().toUpperCase();
 const SITUACAO = (Deno.env.get("G360_CADASTRO_SITUACAO") ?? "LIBERADO").trim().toUpperCase();
+const CATEGORIA_RESERVA = (Deno.env.get("G360_CADASTRO_CATEGORIA_RESERVA") ?? "EMPRESA").trim().toUpperCase();
 const LIMITE = (Deno.env.get("G360_CADASTRO_LIMITE") ?? "500.00").trim();
 const POR_HORA = 20;
 const SUPABASE_URL = obrigatoria("SUPABASE_URL").replace(/\/$/, "");
@@ -102,6 +103,7 @@ Deno.serve(async (req) => {
       const me = await api("operadores/me", { token: s.token });
       const form = await api("operadores/cadastro/cliente", { token: s.token });
       const sit = await api("operadores/referencias?tipo=situacao", { token: s.token });
+      const cat = await api("operadores/referencias?tipo=categoria", { token: s.token });
       const d = (me.corpo?.dados ?? {}) as Record<string, unknown>;
       const op = (d.operador ?? {}) as Record<string, unknown>;
       return json(200, {
@@ -110,6 +112,8 @@ Deno.serve(async (req) => {
         permissoes: d.permissoes ?? null,
         formulario: form.status === 200 ? form.corpo?.dados ?? null : { erro: form.erro?.codigo ?? form.status },
         situacoes: sit.status === 200 ? sit.corpo?.dados ?? [] : { erro: sit.erro?.codigo ?? sit.status, mensagem: sit.erro?.mensagem ?? null },
+        categorias: cat.status === 200 ? cat.corpo?.dados ?? [] : { erro: cat.erro?.codigo ?? cat.status, mensagem: cat.erro?.mensagem ?? null },
+        categoria_procurada: CATEGORIA,
       });
     } finally { await sair(s.token); }
   } catch (e) {
@@ -192,9 +196,16 @@ async function processar(id: string, k: Record<string, unknown>, doc: string, or
     const ref = async (tipo: string, nome: string) => {
       const r = await api(`operadores/referencias?tipo=${tipo}`, { token });
       const l = Array.isArray(r.corpo?.dados) ? r.corpo!.dados as Array<{ id: number | null; nome: string }> : [];
-      return l.find((x) => String(x.nome).trim().toUpperCase() === nome)?.id ?? null;
+      const norm = (v: unknown) => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toUpperCase();
+      return l.find((x) => norm(x.nome) === norm(nome))?.id ?? null;
     };
-    const categoria_id = await ref("categoria", CATEGORIA);
+    // Sem a categoria PORTAL no G360, usa a reserva (EMPRESA) para o cliente novo não parar; fica anotado no painel.
+    let categoria_id = await ref("categoria", CATEGORIA);
+    let catObs = "";
+    if (!categoria_id && CATEGORIA_RESERVA && CATEGORIA_RESERVA !== CATEGORIA) {
+      categoria_id = await ref("categoria", CATEGORIA_RESERVA);
+      if (categoria_id) catObs = ` Categoria ${CATEGORIA} não existe no G360: usei ${CATEGORIA_RESERVA}.`;
+    }
     const situacao_id = await ref("situacao", SITUACAO);
     if (!categoria_id || !situacao_id) {
       await marcar(id, { auto_status: "revisar", auto_obs: `Não achei no G360 ${!categoria_id ? `a categoria ${CATEGORIA}` : `a situação ${SITUACAO}`}.` }); await registrar("referencia"); return analise;
@@ -240,7 +251,7 @@ async function processar(id: string, k: Record<string, unknown>, doc: string, or
       await registrar("acesso"); return analise;
     }
     // CNPJ novo (decisão da Souza Ribeiro em 25/11/2026): aprovado na hora, já vê preço e compra.
-    await marcar(id, { codigo_g360: codigo, em_analise: false, status: "aprovado", decidido_por: "Portal (cadastro automático)", auto_status: "criado", auto_obs: `Ficha ${codigo} criada pelo portal com acesso liberado.` });
+    await marcar(id, { codigo_g360: codigo, em_analise: false, status: "aprovado", decidido_por: "Portal (cadastro automático)", auto_status: "criado", auto_obs: `Ficha ${codigo} criada pelo portal com acesso liberado.${catObs}` });
     // Indicado por executivo: o vínculo começa a contar (cliente novo), pela mesma regra do painel.
     try {
       const v = await fetch(`${SUPABASE_URL}/functions/v1/executivos-g360`, {
@@ -251,7 +262,7 @@ async function processar(id: string, k: Record<string, unknown>, doc: string, or
     } catch { /* sem executivo ou função fora: a equipe confere no painel */ }
     // 5. Link de senha (mesmo caminho do "esqueci minha senha": vai para o e-mail da ficha)
     const p = await pedirLink(doc, origem);
-    if (p.status !== 202) await marcar(id, { auto_obs: `Ficha ${codigo} criada com acesso liberado, mas o link de senha não saiu (${p.status}). Gere pela ficha.` });
+    if (p.status !== 202) await marcar(id, { auto_obs: `Ficha ${codigo} criada com acesso liberado, mas o link de senha não saiu (${p.status}). Gere pela ficha.${catObs}` });
     await registrar("criado");
     return { resultado: "criado" };
   } finally { await sair(token); }
