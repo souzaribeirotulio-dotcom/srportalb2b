@@ -110,10 +110,11 @@ function montar() {
   });
   q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (q.value.trim() === filtros.q && ctx.rota === 'cat') return; filtros.q = q.value.trim(); filtros.pagina = 1; if (ctx.rota === 'cat') desenharCatalogo(); else ctx.ir('/catalogo'); } });
   $('marca').addEventListener('change', () => { filtros.marca = $('marca').value; filtros.pagina = 1; desenharCatalogo(); });
-  $('cats').addEventListener('click', (e) => {
-    if (e.target.closest('[data-deps]')) { abrirDepartamentos(); return; }
-    const b = e.target.closest('.chip[data-s]'); if (!b) return;
+  $('cats').addEventListener('click', (e) => { if (e.target.closest('[data-deps]')) abrirDepartamentos(); });
+  $('destaques')?.addEventListener('click', (e) => {
+    const b = e.target.closest('.dest-card[data-s]'); if (!b) return;
     filtros.grupo = b.dataset.c; filtros.secao = b.dataset.s; filtros.q = ''; $('q').value = ''; filtros.pagina = 1; marcarEndereco(); desenharChips(); desenharCatalogo();
+    document.querySelector('.bar')?.scrollIntoView({ behavior: 'smooth' });
   });
 
   $('grid').addEventListener('click', cliqueCartao);
@@ -258,28 +259,13 @@ async function secoesMaisProcuradas(max = 6) {
   return lista.sort((a, b) => b.pontos - a.pontos || b.n - a.n).slice(0, max);
 }
 
-/** No computador, a barra mostra só os atalhos que cabem inteiros (sem cortar nome no meio); no celular, rola para o lado. */
-function caberAtalhos() {
-  const el = $('cats'); if (!el) return;
-  const atalhos = [...el.querySelectorAll('.chip.atalho')];
-  atalhos.forEach((b) => { b.style.display = ''; });
-  const trilho = el.querySelector('.at-trilho');
-  if (!window.matchMedia('(min-width: 900px)').matches) { trilho?.querySelector('.chip.on')?.scrollIntoView({ block: 'nearest', inline: 'center' }); return; }
-  const fim = trilho.getBoundingClientRect().right;
-  atalhos.forEach((b) => { if (b.getBoundingClientRect().right > fim + 0.5) b.style.display = 'none'; });
-}
-let tCaber = null;
-window.addEventListener('resize', () => { clearTimeout(tCaber); tCaber = setTimeout(caberAtalhos, 150); });
-
-/** Barra do catálogo: ☰ Departamentos + atalhos para as seções mais procuradas (com o desenho de cada uma). */
+/** Barra do catálogo: só o ☰ Departamentos (a busca fica no topo). As seções mais procuradas aparecem como
+ *  cartões "Seções em destaque" na página inicial (desenharDestaques). */
 function desenharChips() {
   pintarChamadaCadastro();
   const el = $('cats');
-  const pintar = (secs) => {
-    el.innerHTML = BOTAO_DEPS + (secs.length ? '<span class="at-rot" aria-hidden="true">Mais procuradas</span>' : '') + '<div class="at-trilho">' + secs.map((s) => `<button type="button" class="chip atalho ${filtros.secao === s.id ? 'on' : ''}" data-c="${esc(s.grupo)}" data-s="${esc(s.id)}" title="${esc(`${s.grupo} › ${s.nome}`)}"><span class="at-bola">${desenho(chaveSecao(s.nome, s.grupo), 'at-ic')}</span>${esc(s.nome)}</button>`).join('') + '</div>';
-    caberAtalhos();
-    desenharDepartamento();
-  };
+  el.innerHTML = BOTAO_DEPS + '<span class="cats-dica">Encontre por departamento ou busque acima</span>';
+  desenharDepartamento();
   if (!sessao.ativa) {
     marcasPublicas().then((ms) => {
       if (sessao.ativa) return;
@@ -287,8 +273,21 @@ function desenharChips() {
       $('marca').value = filtros.marca; $('nMarcas').textContent = ms.length;
     }).catch(() => {});
   } else if (!classificacoes) { carregarClassificacoes().then(desenharChips).catch(() => {}); }
+  desenharDestaques();
+}
+
+/** Página inicial (sem departamento, sem busca, página 1): cartões das seções mais procuradas. */
+function desenharDestaques() {
+  const box = $('destaques'); if (!box) return;
+  const mostrar = ctx?.rota === 'cat' && !filtros.grupo && !filtros.q && (filtros.pagina || 1) === 1;
+  if (!mostrar) { box.hidden = true; return; }
   const vez = sessao.token;
-  secoesMaisProcuradas().then((secs) => { if (vez === sessao.token) pintar(secs); }).catch(() => pintar([]));
+  secoesMaisProcuradas(8).then((secs) => {
+    if (vez !== sessao.token || filtros.grupo || filtros.q) return;
+    if (!secs.length) { box.hidden = true; return; }
+    box.innerHTML = `<h2 class="dest-tit">Seções em destaque</h2><div class="dest-grade">${secs.map((s) => `<button type="button" class="dest-card" data-c="${esc(s.grupo)}" data-s="${esc(s.id)}"><span class="dest-ic">${desenho(chaveSecao(s.nome, s.grupo))}</span><b>${esc(s.nome)}</b><small>${esc(s.grupo)} · ${s.n.toLocaleString('pt-BR')} produto${s.n === 1 ? '' : 's'}</small><span class="dest-ver">Ver produtos ›</span></button>`).join('')}</div>`;
+    box.hidden = false;
+  }).catch(() => { box.hidden = true; });
 }
 
 /* ---------------- árvore: departamento → seção ---------------- */
@@ -753,6 +752,7 @@ async function abrirDestinoBanner(b) {
 
 export async function desenharCatalogo() {
   atualizarBanners();
+  desenharDestaques();
   atualizarCarrinhoGuardado();
   sincronizarCarrinho();
   const grid = $('grid'); const pag = $('g360Pag');

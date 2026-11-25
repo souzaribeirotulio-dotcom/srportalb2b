@@ -899,27 +899,32 @@ details.ferr > .afil{margin:0 !important;padding:0 12px 12px}
 
 /* Barra do catálogo: ☰ Departamentos em destaque + atalhos para as seções mais procuradas */
 .cats { align-items: center; overflow: visible !important; }
-.cats .at-trilho { flex: 1; min-width: 0; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 1px 0; }
-.cats .at-trilho::-webkit-scrollbar { display: none; }
 .cats .chip.deps { flex: none; }
 .cats .chip.deps { height: 40px; padding: 0 16px; border-radius: 10px; background: var(--lima, #b2e04a); color: #0b2207; border-color: var(--lima, #b2e04a); font-weight: 800; }
 .cats .chip.deps span { color: #0b2207; }
 .cats .chip:not(.deps) { height: 40px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--tx2); font-weight: 600; font-size: 13.5px; position: relative; }
 .cats .chip:not(.deps) span { display: none; }
-.cats .at-rot { flex: none; align-self: center; margin: 0 2px 0 10px; padding-left: 14px; border-left: 1px solid rgba(255, 255, 255, .1); color: var(--tx3); font-size: 11.5px; font-weight: 700; letter-spacing: .3px; white-space: nowrap; }
-.cats .chip.atalho { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; height: 40px; padding: 0 14px 0 5px; border-radius: 999px;
-  background: rgba(255, 255, 255, .035); border: 1px solid rgba(178, 224, 74, .16); color: var(--tx); font-weight: 600; font-size: 13.5px; transition: background .15s, border-color .15s, color .15s; }
-.cats .chip.atalho .at-bola { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 50%; background: rgba(178, 224, 74, .13); }
-.cats .at-ic { width: 17px; height: 17px; color: var(--lima, #b2e04a); }
-.cats .chip.atalho:hover, .cats .chip.atalho:focus-visible { background: rgba(178, 224, 74, .08); border-color: rgba(178, 224, 74, .45); color: var(--tx); }
-.cats .chip.atalho.on { background: rgba(178, 224, 74, .16); border-color: var(--lima, #b2e04a); color: var(--lima, #b2e04a); font-weight: 800; }
-.cats .chip.atalho.on::after { display: none; }
-.cats .chip.atalho.on .at-bola { background: var(--lima, #b2e04a); }
-.cats .chip.atalho.on .at-ic { color: #0b2207; }
+.cats .cats-dica { align-self: center; color: var(--tx3); font-size: 13px; line-height: 1.35; }
+
+/* Página inicial: seções em destaque (as mais procuradas, pela curva ABC) */
+.destaques { max-width: 1360px; margin: 18px auto 0; padding: 0 22px; }
+.destaques[hidden] { display: none; }
+.dest-tit { margin: 0 0 12px; font-size: 18px; letter-spacing: -.2px; }
+.dest-grade { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.dest-card { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-height: 44px; padding: 16px; border-radius: 16px; text-align: left; cursor: pointer;
+  background: linear-gradient(160deg, rgba(178, 224, 74, .09), rgba(178, 224, 74, .02)); border: 1px solid rgba(178, 224, 74, .18); color: var(--tx); font: inherit; transition: border-color .15s, transform .15s; }
+.dest-card:hover, .dest-card:focus-visible { border-color: rgba(178, 224, 74, .55); outline: none; transform: translateY(-2px); }
+.dest-ic { width: 46px; height: 46px; display: grid; place-items: center; margin-bottom: 8px; border-radius: 13px; background: rgba(178, 224, 74, .14); color: var(--lima, #b2e04a); }
+.dest-ic svg { width: 26px; height: 26px; }
+.dest-card b { font-size: 15px; line-height: 1.25; }
+.dest-card small { color: var(--tx3); font-size: 12px; }
+.dest-ver { margin-top: 6px; color: var(--lima, #b2e04a); font-size: 12.5px; font-weight: 700; }
 @media (max-width: 899px) {
-  .cats .at-rot { display: none; }
-  .cats .at-trilho { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 82%, transparent); mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 82%, transparent); padding-left: 6px; }
-  .cats .chip.deps { padding: 0 14px; }
+  .destaques { padding: 0 12px; margin-top: 14px; }
+  .dest-grade { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .dest-card { padding: 14px; }
+  .dest-card:nth-child(n+7) { display: none; }
+  .cats .cats-dica { font-size: 12.5px; }
 }
 .cats .chip:not(.deps):hover { color: var(--tx); background: rgba(255, 255, 255, .04); }
 .cats .chip:not(.deps).on { background: transparent; color: var(--lima, #b2e04a); font-weight: 800; }
