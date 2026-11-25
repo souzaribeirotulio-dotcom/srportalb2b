@@ -109,11 +109,6 @@ function montar() {
   q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (q.value.trim() === filtros.q && ctx.rota === 'cat') return; filtros.q = q.value.trim(); filtros.pagina = 1; if (ctx.rota === 'cat') desenharCatalogo(); else ctx.ir('/catalogo'); } });
   $('marca').addEventListener('change', () => { filtros.marca = $('marca').value; filtros.pagina = 1; desenharCatalogo(); });
   $('cats').addEventListener('click', (e) => { if (e.target.closest('[data-deps]')) abrirDepartamentos(); });
-  $('destaques')?.addEventListener('click', (e) => {
-    const b = e.target.closest('.dest-card[data-s]'); if (!b) return;
-    filtros.grupo = b.dataset.c; filtros.secao = b.dataset.s; filtros.q = ''; $('q').value = ''; filtros.pagina = 1; marcarEndereco(); desenharChips(); desenharCatalogo();
-    document.querySelector('.bar')?.scrollIntoView({ behavior: 'smooth' });
-  });
 
   $('grid').addEventListener('click', cliqueCartao);
   ligarDetalhe();
@@ -240,25 +235,8 @@ function pintarChamadaCadastro() {
     : 'Cadastro em 2 minutos: digite o CNPJ e a gente preenche o resto.';
 }
 
-/** Seções mais procuradas (para a barra ao lado de Departamentos): as que têm mais produtos vendidos,
- *  pela curva ABC importada do G360 (A vale 3, B 2, C 1), contando só o que aparece no portal. */
-async function secoesMaisProcuradas(max = 6) {
-  await carregarExibicao();
-  const ativos = await codigosAtivosPublicos(); const set = ativos ? new Set(ativos.map(String)) : null;
-  const peso = [3, 2, 1, 0];
-  const lista = [];
-  for (const grupo of categoriasPortal()) {
-    for (const s of secoesDe(grupo)) {
-      const cods = codigosDaSecao(s.id).filter((c) => !set || set.has(String(c)));
-      if (!cods.length) continue;
-      lista.push({ grupo, id: s.id, nome: s.nome, pontos: cods.reduce((t, c) => t + peso[pesoCurva({ codigo: c })], 0), n: cods.length });
-    }
-  }
-  return lista.sort((a, b) => b.pontos - a.pontos || b.n - a.n).slice(0, max);
-}
 
-/** Barra do catálogo: só o ☰ Departamentos (a busca fica no topo). As seções mais procuradas aparecem como
- *  cartões "Seções em destaque" na página inicial (desenharDestaques). */
+/** Barra do catálogo: só o ☰ Departamentos (a busca fica no topo) e a dica de onde procurar. */
 function desenharChips() {
   pintarChamadaCadastro();
   const el = $('cats');
@@ -271,21 +249,6 @@ function desenharChips() {
       $('marca').value = filtros.marca; $('nMarcas').textContent = ms.length;
     }).catch(() => {});
   } else if (!classificacoes) { carregarClassificacoes().then(desenharChips).catch(() => {}); }
-  desenharDestaques();
-}
-
-/** Página inicial (sem departamento, sem busca, página 1): cartões das seções mais procuradas. */
-function desenharDestaques() {
-  const box = $('destaques'); if (!box) return;
-  const mostrar = ctx?.rota === 'cat' && !filtros.grupo && !filtros.q && (filtros.pagina || 1) === 1;
-  if (!mostrar) { box.hidden = true; return; }
-  const vez = sessao.token;
-  secoesMaisProcuradas(8).then((secs) => {
-    if (vez !== sessao.token || filtros.grupo || filtros.q) return;
-    if (!secs.length) { box.hidden = true; return; }
-    box.innerHTML = `<h2 class="dest-tit">Seções em destaque</h2><div class="dest-grade">${secs.map((s) => `<button type="button" class="dest-card" data-c="${esc(s.grupo)}" data-s="${esc(s.id)}"><span class="dest-ic">${desenho(chaveSecao(s.nome, s.grupo))}</span><b>${esc(s.nome)}</b><small>${esc(s.grupo)} · ${s.n.toLocaleString('pt-BR')} produto${s.n === 1 ? '' : 's'}</small><span class="dest-ver">Ver produtos ›</span></button>`).join('')}</div>`;
-    box.hidden = false;
-  }).catch(() => { box.hidden = true; });
 }
 
 /* ---------------- árvore: departamento → seção ---------------- */
@@ -747,7 +710,6 @@ async function abrirDestinoBanner(b) {
 
 export async function desenharCatalogo() {
   atualizarBanners();
-  desenharDestaques();
   atualizarCarrinhoGuardado();
   sincronizarCarrinho();
   const grid = $('grid'); const pag = $('g360Pag');

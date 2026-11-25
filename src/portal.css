@@ -595,7 +595,7 @@ body.com-passo-ios #souzinha-widget{display:none !important}
 .dm-vazio { padding: 10px 12px; color: var(--tx3); font-size: 13px; }
 .dm-fundo.cel .dm-item, .dm-fundo.cel .dm-tudo { min-height: 50px; font-size: 15.5px; }
 
-/* Barra do catálogo: ☰ Departamentos em destaque + atalhos para as seções mais procuradas */
+/* Barra do catálogo: ☰ Departamentos em destaque + dica */
 .cats { align-items: center; overflow: visible !important; }
 .cats .chip.deps { flex: none; }
 .cats .chip.deps { height: 40px; padding: 0 16px; border-radius: 10px; background: var(--lima, #b2e04a); color: #0b2207; border-color: var(--lima, #b2e04a); font-weight: 800; }
@@ -604,26 +604,7 @@ body.com-passo-ios #souzinha-widget{display:none !important}
 .cats .chip:not(.deps) span { display: none; }
 .cats .cats-dica { align-self: center; color: var(--tx3); font-size: 13px; line-height: 1.35; }
 
-/* Página inicial: seções em destaque (as mais procuradas, pela curva ABC) */
-.destaques { max-width: 1360px; margin: 18px auto 0; padding: 0 22px; }
-.destaques[hidden] { display: none; }
-.dest-tit { margin: 0 0 12px; font-size: 18px; letter-spacing: -.2px; }
-.dest-grade { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.dest-card { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-height: 44px; padding: 16px; border-radius: 16px; text-align: left; cursor: pointer;
-  background: linear-gradient(160deg, rgba(178, 224, 74, .09), rgba(178, 224, 74, .02)); border: 1px solid rgba(178, 224, 74, .18); color: var(--tx); font: inherit; transition: border-color .15s, transform .15s; }
-.dest-card:hover, .dest-card:focus-visible { border-color: rgba(178, 224, 74, .55); outline: none; transform: translateY(-2px); }
-.dest-ic { width: 46px; height: 46px; display: grid; place-items: center; margin-bottom: 8px; border-radius: 13px; background: rgba(178, 224, 74, .14); color: var(--lima, #b2e04a); }
-.dest-ic svg { width: 26px; height: 26px; }
-.dest-card b { font-size: 15px; line-height: 1.25; }
-.dest-card small { color: var(--tx3); font-size: 12px; }
-.dest-ver { margin-top: 6px; color: var(--lima, #b2e04a); font-size: 12.5px; font-weight: 700; }
-@media (max-width: 899px) {
-  .destaques { padding: 0 12px; margin-top: 14px; }
-  .dest-grade { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .dest-card { padding: 14px; }
-  .dest-card:nth-child(n+7) { display: none; }
-  .cats .cats-dica { font-size: 12.5px; }
-}
+@media (max-width: 899px) { .cats .cats-dica { font-size: 12.5px; } }
 .cats .chip:not(.deps):hover { color: var(--tx); background: rgba(255, 255, 255, .04); }
 .cats .chip:not(.deps).on { background: transparent; color: var(--lima, #b2e04a); font-weight: 800; }
 .cats .chip:not(.deps).on::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: 4px; height: 2px; border-radius: 2px; background: var(--lima, #b2e04a); }
