@@ -61,6 +61,34 @@ async function conferir(token: string): Promise<boolean> {
 }
 
 const SITUACOES = new Set(["pendente", "aprovado", "recusado"]);
+
+/** E-mail "compras liberadas" (mesmo provedor da ponte: EMAIL_ENDPOINT e EMAIL_CHAVE). Falha não desfaz a aprovação. */
+async function emailComprasLiberadas(para: string, nome: string): Promise<boolean> {
+  const endpoint = Deno.env.get("EMAIL_ENDPOINT")?.trim(); const chaveEmail = Deno.env.get("EMAIL_CHAVE")?.trim();
+  if (!endpoint || !chaveEmail || !/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(para)) return false;
+  const portal = [...origens].find((o) => o.startsWith("https://")) ?? "";
+  const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
+  try {
+    const r = await fetch(endpoint, {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${chaveEmail}` },
+      body: JSON.stringify({
+        from: "Souza Ribeiro <nao-responda@souzaribeiro.net>", to: [para],
+        subject: "Suas compras no Portal B2B estão liberadas",
+        text: `Olá!\n\nO cadastro da ${nome} foi aprovado pela Souza Ribeiro. Os preços e as compras já estão liberados no Portal B2B.\n\nEntre com o seu CNPJ e a sua senha: ${portal}\n\nAinda não criou a senha? Use "Esqueci minha senha" na tela de entrada.`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#17242e">` +
+          `<div style="background:#061505;padding:20px 22px;border-radius:14px 14px 0 0"><span style="color:#b2e04a;font-weight:800;font-size:20px">Souza Ribeiro</span>` +
+          `<span style="color:#a9c19a;font-size:13px;margin-left:8px">Portal B2B</span></div>` +
+          `<div style="border:1px solid #e2e6e1;border-top:none;padding:24px;border-radius:0 0 14px 14px">` +
+          `<p>Olá!</p><p>O cadastro da <b>${esc(nome)}</b> foi aprovado. Os preços e as compras já estão liberados no Portal B2B.</p>` +
+          (portal ? `<p style="text-align:center;margin:26px 0"><a href="${esc(portal)}" style="background:#b2e04a;color:#132c09;text-decoration:none;font-weight:700;padding:13px 22px;border-radius:10px;display:inline-block">Entrar no portal</a></p>` : "") +
+          `<p style="font-size:13px;color:#4b5a52">Ainda não criou a senha? Use "Esqueci minha senha" na tela de entrada.</p></div></div>`,
+      }),
+      redirect: "error", signal: AbortSignal.timeout(8000),
+    });
+    await r.body?.cancel();
+    return r.ok;
+  } catch { return false; }
+}
 const docLimpo = (v: unknown) => String(v ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 
 /** GET operadores/clientes/{codigo} com o token do operador: [status, ficha | null]. */
@@ -124,6 +152,19 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     if (error) throw error;
     if (!data?.length) return [404, { mensagem: "Cadastro não encontrado." }];
     return [200, { ok: true }];
+  }
+  if (acao === "cadastro_liberar_precos") {
+    // Cadastro automático: a ficha já está no G360; aqui a equipe aprova e o cliente passa a ver preços e comprar.
+    const id = texto(d.id, 40);
+    if (!/^[0-9a-f-]{36}$/.test(id)) return [400, { mensagem: "Dados inválidos." }];
+    const { data, error } = await admin.from("portal_cadastros").update({
+      em_analise: false, status: "aprovado", decidido_por: "Equipe (usuário do G360)", atualizado_em: new Date().toISOString(),
+    }).eq("id", id).eq("loja", loja).eq("em_analise", true).select("*");
+    if (error) throw error;
+    if (!data?.length) return [409, { mensagem: "Este pedido não está mais em análise. Atualize a lista." }];
+    const k = data[0] as Record<string, unknown>;
+    const enviado = d.avisar === false ? false : await emailComprasLiberadas(String(k.email ?? ""), String(k.fantasia || k.razao_social || "sua empresa"));
+    return [200, { dados: k, email_enviado: enviado }];
   }
   if (acao === "cadastro_vincular") {
     // Liga o pedido do portal ao cliente que a API devolveu (Novo cliente ou cadastro já existente)

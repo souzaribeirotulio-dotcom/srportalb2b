@@ -6,6 +6,7 @@ import { sessao, garantirVinculo, aoEncerrar } from './sessao.js';
 import { supabaseComprador } from '../api/supabase.js';
 import { definirOcultosExecutivo } from '../catalogo/exibicao.js';
 import { codigoExecutivoGuardado, linkComOcultos } from './executivo.js';
+import { definirEmAnalise } from './analise.js';
 
 let dono = null; let pedindo = null;
 aoEncerrar(() => { dono = null; pedindo = null; definirOcultosExecutivo(null); });
@@ -13,7 +14,7 @@ aoEncerrar(() => { dono = null; pedindo = null; definirOcultosExecutivo(null); }
 /** Espera no máximo `ms` (padrão 2,5 s). Devolve true quando a lista mudou para este comprador.
  *  Se a resposta chegar depois do prazo e esconder algo, chama `depois()` para redesenhar a tela. */
 export async function carregarOcultosComprador(depois = null, ms = 2500) {
-  if (!sessao.ativa || !sessao.comprador) { if (dono !== null) { dono = null; definirOcultosExecutivo(null); } return false; }
+  if (!sessao.ativa || !sessao.comprador) { definirEmAnalise(false); if (dono !== null) { dono = null; definirOcultosExecutivo(null); } return false; }
   const cod = sessao.comprador.codigo;
   if (dono === cod) return false;
   if (!pedindo) {
@@ -22,7 +23,7 @@ export async function carregarOcultosComprador(depois = null, ms = 2500) {
         if (!(await garantirVinculo())) return false;
         const { data, error } = await supabaseComprador().rpc('portal_ocultos_comprador');
         if (error || sessao.comprador?.codigo !== cod) return false;
-        definirOcultosExecutivo(data); dono = cod;
+        definirOcultosExecutivo(data); dono = cod; definirEmAnalise(data?.em_analise === true);
         return !!(data?.termos?.length || data?.codigos?.length);
       } catch { return false; } finally { pedindo = null; }
     })();

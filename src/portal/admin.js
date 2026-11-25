@@ -1027,11 +1027,12 @@ function pintarCadastros() {
         <small>IE: ${esc(k.inscricao_estadual || 'não informada')}${k.email ? ` · ${esc(k.email)}` : ''}</small>
         <small>${k.segmento ? `<b style="color:var(--lima)">${esc(k.segmento)}</b> · ` : ''}${esc(k.origem || (k.criado_por === 'equipe' ? 'Cadastrado pela equipe' : 'Quero ser cliente'))}${k.whats ? ` · ${esc(fmtTel(k.whats))}` : ''}${k.vendedor ? ` · Vendedor: ${esc(k.vendedor)}` : ''}</small>
         ${htmlIndicado(k)}
-        ${k.observacao_equipe ? `<small>Obs.: ${esc(k.observacao_equipe)}</small>` : ''}</div>
+        ${k.observacao_equipe ? `<small>Obs.: ${esc(k.observacao_equipe)}</small>` : ''}
+        ${htmlAuto(k)}</div>
       <div class="sm sm2">${k.codigo_g360 ? esc(k.codigo_g360) : '<span style="color:var(--tx3)">—</span>'}</div>
       <div class="sm">${esc(k.cidade || '')}${k.uf ? `/${esc(k.uf)}` : ''}${k.codigo_g360 ? `<span class="som"> · cód. ${esc(k.codigo_g360)}</span>` : ''}</div>
       <div class="stw"><span class="stt ${k.status === 'recusado' ? 'reprovado' : esc(k.status)}">${SIT[k.status] || esc(k.status)}</span></div>
-      <div class="ab2">${k.status === 'pendente' ? '<button class="ap" data-d="aprovado">Aprovar</button><button class="rp" data-d="recusado">Reprovar</button>' : ''}${k.status === 'aprovado' && !k.codigo_g360 ? '<button class="ap" data-novo>➕ Cadastrar no G360</button>' : ''}<button data-lista ${k.codigo_g360 ? '' : 'disabled title="Cadastre no G360 primeiro (➕ Cadastrar no G360)"'}>⭐ Minha Lista</button>${k.codigo_g360 ? '<button data-g360>📋 Ficha G360</button><button data-sinc title="Copiar para a ficha do portal os dados atuais do G360">🔄 Dados do G360</button>' : ''}${podeVincular() && k.origem !== 'Já é cliente (pedir acesso)' ? '<button data-exec>🤝 Executivo</button>' : ''}<button data-ed>Editar</button></div></div>`).join('')
+      <div class="ab2">${k.em_analise ? '<button class="ap" data-liberar>✅ Aprovar e liberar preços</button>' : ''}${k.status === 'pendente' && !k.em_analise ? '<button class="ap" data-d="aprovado">Aprovar</button><button class="rp" data-d="recusado">Reprovar</button>' : ''}${k.status === 'aprovado' && !k.codigo_g360 ? '<button class="ap" data-novo>➕ Cadastrar no G360</button>' : ''}<button data-lista ${k.codigo_g360 ? '' : 'disabled title="Cadastre no G360 primeiro (➕ Cadastrar no G360)"'}>⭐ Minha Lista</button>${k.codigo_g360 ? '<button data-g360>📋 Ficha G360</button><button data-sinc title="Copiar para a ficha do portal os dados atuais do G360">🔄 Dados do G360</button>' : ''}${podeVincular() && k.origem !== 'Já é cliente (pedir acesso)' ? '<button data-exec>🤝 Executivo</button>' : ''}<button data-ed>Editar</button></div></div>`).join('')
       : vazio(cadastros.length ? 'Nenhum cliente encontrado com essa busca.' : 'Nenhum cliente ainda. Clique em "+ Novo cliente" ou aguarde os pedidos de "Quero ser cliente".'))
     + '<div class="hint" style="padding:10px 18px">A ficha é do portal: preço, condições de pagamento, crédito e endereços de entrega continuam vindo do G360. Para o cliente entrar, ele precisa estar no G360 com "Acesso à API dos sistemas externos" marcado.</div>';
   alvo.querySelectorAll('.crow2[data-id] button').forEach((b) => b.addEventListener('click', async () => {
@@ -1040,6 +1041,7 @@ function pintarCadastros() {
     if (b.hasAttribute('data-exec')) { abrirVinculoPedido(k, { token: () => op.token, depois: pintarCadastros }); return; }
     if (b.hasAttribute('data-g360')) { abrirFichaG360(k.codigo_g360, opcoesFichaG360()); return; }
     if (b.hasAttribute('data-novo')) { novoClienteG360(k); return; }
+    if (b.hasAttribute('data-liberar')) { liberarPrecos(k, b); return; }
     if (b.hasAttribute('data-lista')) { montarLista({ codigo: k.codigo_g360, nome: k.fantasia || k.razao_social }); return; }
     if (b.hasAttribute('data-sinc')) {
       b.disabled = true;
@@ -1277,6 +1279,34 @@ async function sincronizarComG360(k, codigo) {
   if (cadastros && r) { const i = cadastros.findIndex((x) => x.id === r.id); if (i >= 0) cadastros[i] = r; }
   pintarCadastros();
   return r;
+}
+
+/** Cadastro automático: o que a função fez com o pedido (ficha criada, já existia, ficou para a equipe). */
+function htmlAuto(k) {
+  if (!k.auto_status) return '';
+  const cor = k.auto_status === 'criado' ? 'var(--lima-tx, var(--lima))' : k.auto_status === 'processando' ? 'var(--tx2)' : '#d9822b';
+  const rot = { criado: k.em_analise ? '🤖 Criado no G360 pelo portal · em análise (o cliente vê o catálogo sem preço)' : '🤖 Criado no G360 pelo portal', ja_existe: '🤖 Cadastro automático: já existe no G360', revisar: '🤖 Cadastro automático não concluído', erro: '🤖 Cadastro automático com falha', processando: '🤖 Cadastro automático em andamento' }[k.auto_status] || '';
+  return `<small style="color:${cor};font-weight:600">${esc(rot)}</small>${k.auto_obs ? `<small>${esc(k.auto_obs)}</small>` : ''}`;
+}
+
+/** Aprovar um cadastro automático: libera preços e compra no portal e avisa o cliente por e-mail. */
+async function liberarPrecos(k, b) {
+  if (!confirmarDuplo(b, 'Confirmar: liberar preços?')) return;
+  b.disabled = true; b.textContent = 'Liberando…';
+  try {
+    const r = await painel('cadastro_liberar_precos', { id: k.id });
+    if (cadastros && r.dados) { const i = cadastros.findIndex((x) => x.id === r.dados.id); if (i >= 0) cadastros[i] = r.dados; }
+    try { await ativarVinculo(op.token, k, k.codigo_g360, true); } catch { /* sem executivo ou sem permissão */ }
+    toast(r.email_enviado ? 'Preços liberados ✓ — o cliente recebeu o e-mail.' : 'Preços liberados ✓ — o e-mail não saiu; avise o cliente.');
+  } catch (e) { b.disabled = false; b.textContent = '✅ Aprovar e liberar preços'; toast(e.message); return; }
+  pintarCadastros();
+}
+/** Primeiro clique pede confirmação (o botão muda de texto por 3 s). */
+function confirmarDuplo(b, texto) {
+  if (b.dataset.conf === '1') return true;
+  const antes = b.textContent; b.dataset.conf = '1'; b.textContent = texto;
+  setTimeout(() => { if (b.isConnected && b.dataset.conf === '1') { b.dataset.conf = ''; b.textContent = antes; } }, 3000);
+  return false;
 }
 
 /** Aprovar um pedido de "Quero ser cliente": confere no G360 antes de aprovar. */

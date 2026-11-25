@@ -5,6 +5,7 @@
    e disponibilidade de agora (filtro ids, todas as páginas). Preço guardado
    nunca vai para a tela. Quantidades → carrinho ou pedido direto.
    ===================================================================== */
+import { MSG_ANALISE, clienteEmAnalise } from '../estado/analise.js';
 import { carregarOcultosComprador } from '../estado/ocultos.js';
 import { carregarExibicao, apresentar, codigosAtivosPublicos, oculto } from '../catalogo/exibicao.js';
 import { produtosPorIds, consultarHistoricoCompras, listarPedidos, consultarPedido } from '../api/g360.js';
@@ -213,6 +214,7 @@ function atualizarTotais() {
 }
 
 function mandarParaCarrinho() {
+  if (clienteEmAnalise()) { toast(MSG_ANALISE); return false; }
   const { it, erro } = itensEscolhidos();
   if (erro) { toast(`Quantidade inválida em ${erro.slice(0, 40)}.`); return false; }
   let limite = false;

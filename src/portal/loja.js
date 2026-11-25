@@ -4,6 +4,7 @@
    A lógica (API, sessão, envio, Minha Lista, ocorrências) vem dos módulos
    já testados; aqui só a tela.
    ===================================================================== */
+import { MSG_ANALISE } from '../estado/analise.js';
 import { carregarOcultosComprador, carregarOcultosVisitante } from '../estado/ocultos.js';
 import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
@@ -830,6 +831,7 @@ async function cliqueCartao(e) {
     if (!q) { toast('Quantidade inválida: use um número maior que zero, com até 4 casas depois da vírgula.'); campo.focus(); return; }
     const semSaldo = conferir(p, card.dataset.un, q); if (semSaldo) { toast(semSaldo); campo.focus(); return; }
     const r = adicionar(linhaCarrinho(p, card.dataset.un, q));
+    if (r === 'analise') { toast(MSG_ANALISE); return; }
     if (r === 'limite') { toast('O carrinho aceita até 100 linhas. Envie este pedido ou remova itens.'); return; }
     campo.value = '1';
     toast(`${r === 'somado' ? 'Quantidade somada' : 'Adicionado'} · ${p.nome.slice(0, 40)}${p.nome.length > 40 ? '…' : ''}`);

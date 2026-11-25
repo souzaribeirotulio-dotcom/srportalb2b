@@ -1,6 +1,7 @@
 /* Detalhe do produto (modal #mDet do portal antigo): galeria, preço, embalagem,
    quantidade, carrinho, Minha Lista, descrição (aplicação do G360) e características.
    Mesma regra única do cartão (cartao.js). */
+import { MSG_ANALISE } from '../estado/analise.js';
 import { esc, toast, abrirModal, fecharModal, passoQuantidade } from './comum.js';
 import { podeComprar, htmlPreco, htmlEstoque, htmlUnidades, opcoesUnidade, unidadeEscolhida, linhaCarrinho } from './cartao.js';
 import { adicionar } from '../estado/carrinho.js';
@@ -100,6 +101,7 @@ export function ligarDetalhe() {
       if (!q) { toast('Quantidade inválida: use um número maior que zero, com até 4 casas depois da vírgula.'); return; }
       const semSaldo = conferir(atual.p, atual.un, q); if (semSaldo) { toast(semSaldo); return; }
       const r = adicionar(linhaCarrinho(atual.p, atual.un, q));
+      if (r === 'analise') { toast(MSG_ANALISE); return; }
       if (r === 'limite') { toast('O carrinho aceita até 100 linhas. Envie este pedido ou remova itens.'); return; }
       toast(`${r === 'somado' ? 'Quantidade somada' : 'Adicionado ao carrinho'} · ${atual.p.nome.slice(0, 40)}`);
       fechar(); return;
