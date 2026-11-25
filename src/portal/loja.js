@@ -220,7 +220,7 @@ async function carregarClassificacoes() {
   const ativos = await codigosAtivosPublicos(); const set = ativos ? new Set(ativos) : null;
   const grupos = categoriasPortal().map((nome) => ({ codigo: nome, nome, quantidade: codigosDaCategoria(nome, Infinity).filter((c) => !set || set.has(String(c))).length || '' }));
   classificacoes = { token: sessao.token, grupos, marcas, total: ativos ? ativos.length : null };
-  $('marca').innerHTML = '<option value="">Todas as marcas</option>' + marcas.map((m) => `<option value="${Number(m.codigo)}">${esc(m.nome)}</option>`).join('');
+  $('marca').innerHTML = '<option value="">Marca: todas</option>' + marcas.map((m) => `<option value="${Number(m.codigo)}">${esc(m.nome)}</option>`).join('');
   $('marca').value = filtros.marca;
   $('nMarcas').textContent = marcas.length;
   return classificacoes;
@@ -261,8 +261,9 @@ function caberAtalhos() {
   const el = $('cats'); if (!el) return;
   const atalhos = [...el.querySelectorAll('.chip.atalho')];
   atalhos.forEach((b) => { b.style.display = ''; });
-  if (!window.matchMedia('(min-width: 900px)').matches) return;
-  const fim = el.getBoundingClientRect().right - parseFloat(getComputedStyle(el).paddingRight || '0');
+  const trilho = el.querySelector('.at-trilho');
+  if (!window.matchMedia('(min-width: 900px)').matches) { trilho?.querySelector('.chip.on')?.scrollIntoView({ block: 'nearest', inline: 'center' }); return; }
+  const fim = trilho.getBoundingClientRect().right;
   atalhos.forEach((b) => { if (b.getBoundingClientRect().right > fim + 0.5) b.style.display = 'none'; });
 }
 let tCaber = null;
@@ -273,14 +274,14 @@ function desenharChips() {
   pintarChamadaCadastro();
   const el = $('cats');
   const pintar = (secs) => {
-    el.innerHTML = BOTAO_DEPS + (secs.length ? '<span class="at-rot" aria-hidden="true">Mais procuradas</span>' : '') + secs.map((s) => `<button type="button" class="chip atalho ${filtros.secao === s.id ? 'on' : ''}" data-c="${esc(s.grupo)}" data-s="${esc(s.id)}" title="${esc(`${s.grupo} › ${s.nome}`)}"><span class="at-bola">${desenho(chaveSecao(s.nome, s.grupo), 'at-ic')}</span>${esc(s.nome)}</button>`).join('');
+    el.innerHTML = BOTAO_DEPS + (secs.length ? '<span class="at-rot" aria-hidden="true">Mais procuradas</span>' : '') + '<div class="at-trilho">' + secs.map((s) => `<button type="button" class="chip atalho ${filtros.secao === s.id ? 'on' : ''}" data-c="${esc(s.grupo)}" data-s="${esc(s.id)}" title="${esc(`${s.grupo} › ${s.nome}`)}"><span class="at-bola">${desenho(chaveSecao(s.nome, s.grupo), 'at-ic')}</span>${esc(s.nome)}</button>`).join('') + '</div>';
     caberAtalhos();
     desenharDepartamento();
   };
   if (!sessao.ativa) {
     marcasPublicas().then((ms) => {
       if (sessao.ativa) return;
-      $('marca').innerHTML = '<option value="">Todas as marcas</option>' + ms.map((m) => `<option value="${Number(m.codigo)}">${esc(m.nome)}</option>`).join('');
+      $('marca').innerHTML = '<option value="">Marca: todas</option>' + ms.map((m) => `<option value="${Number(m.codigo)}">${esc(m.nome)}</option>`).join('');
       $('marca').value = filtros.marca; $('nMarcas').textContent = ms.length;
     }).catch(() => {});
   } else if (!classificacoes) { carregarClassificacoes().then(desenharChips).catch(() => {}); }
