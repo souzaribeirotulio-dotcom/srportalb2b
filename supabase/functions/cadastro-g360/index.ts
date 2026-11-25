@@ -148,6 +148,17 @@ async function cadastrar(documentoBruto: string, origem: string): Promise<Record
   }
 }
 
+/** Link de senha pela ponte, igual ao "esqueci minha senha": vai para o e-mail da ficha no G360
+ *  (e só sai se o acesso estiver liberado lá). A resposta da ponte é sempre a mesma. */
+async function pedirLink(doc: string, origem: string) {
+  const p = await fetch(`${SUPABASE_URL}/functions/v1/ponte-g360`, {
+    method: "POST", headers: { "Content-Type": "application/json", Origin: origem },
+    body: JSON.stringify({ acao: "pedir_link", documento: doc }), redirect: "error", signal: AbortSignal.timeout(15_000),
+  });
+  await p.body?.cancel();
+  return p;
+}
+
 async function processar(id: string, k: Record<string, unknown>, doc: string, origem: string, registrar: (r: string) => PromiseLike<unknown>): Promise<Record<string, unknown>> {
   const analise = { resultado: "analise" };
   // Pedido de "Já sou cliente": é cliente antigo, a equipe libera.
@@ -169,7 +180,9 @@ async function processar(id: string, k: Record<string, unknown>, doc: string, or
       await marcar(id, { auto_status: "revisar", auto_obs: `Consulta do CNPJ recusada (${c.erro?.codigo ?? c.status}${c.requestId ? `, ${c.requestId}` : ""}).` }); await registrar("cnpj_erro"); return analise;
     }
     if (sug.ja_existe === true) {
-      await marcar(id, { auto_status: "ja_existe", auto_obs: sug.cliente_id ? `Já existe no G360 (código ${sug.cliente_id}). Vincule o pedido a esse cliente.` : "Já existe no G360, fora do recorte ou em mais de um cadastro. Confira no G360." });
+      await marcar(id, { auto_status: "ja_existe", auto_obs: sug.cliente_id ? `Já existe no G360 (código ${sug.cliente_id}). Link de senha pedido para o e-mail do G360; vincule o pedido a esse cliente.` : "Já existe no G360, fora do recorte ou em mais de um cadastro. Confira no G360." });
+      // Já é cliente: pede o link de senha para o e-mail do cadastro no G360 (o navegador não fica sabendo).
+      try { await pedirLink(doc, origem); } catch { /* a equipe segue pelo painel */ }
       await registrar("ja_existe"); return analise;
     }
     if (sug.situacao_irregular === true) {
@@ -216,6 +229,7 @@ async function processar(id: string, k: Record<string, unknown>, doc: string, or
       const campos = er.campos && typeof er.campos === "object" ? Object.keys(er.campos as object).slice(0, 6).join(", ") : "";
       const repetido = /DOCUMENTO_(E_IE_)?REPETIDO/.test(String(er.codigo ?? ""));
       await marcar(id, { auto_status: repetido ? "ja_existe" : "revisar", auto_obs: `${repetido ? "Documento já tem cadastro no G360" : "O G360 recusou a ficha"} (${er.codigo ?? f.status}${campos ? `: ${campos}` : ""}${fc?.request_id ? `, ${fc.request_id}` : ""}).` });
+      if (repetido) { try { await pedirLink(doc, origem); } catch { /* a equipe segue pelo painel */ } }
       await registrar(repetido ? "repetido" : `ficha_${er.codigo ?? f.status}`); return analise;
     }
     const codigo = ficha.id as number;
@@ -236,11 +250,7 @@ async function processar(id: string, k: Record<string, unknown>, doc: string, or
       await v.body?.cancel();
     } catch { /* sem executivo ou função fora: a equipe confere no painel */ }
     // 5. Link de senha (mesmo caminho do "esqueci minha senha": vai para o e-mail da ficha)
-    const p = await fetch(`${SUPABASE_URL}/functions/v1/ponte-g360`, {
-      method: "POST", headers: { "Content-Type": "application/json", Origin: origem },
-      body: JSON.stringify({ acao: "pedir_link", documento: doc }), redirect: "error", signal: AbortSignal.timeout(15_000),
-    });
-    await p.body?.cancel();
+    const p = await pedirLink(doc, origem);
     if (p.status !== 202) await marcar(id, { auto_obs: `Ficha ${codigo} criada com acesso liberado, mas o link de senha não saiu (${p.status}). Gere pela ficha.` });
     await registrar("criado");
     return { resultado: "criado" };

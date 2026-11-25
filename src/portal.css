@@ -738,7 +738,10 @@ details.ferr > .afil{margin:0 !important;padding:0 12px 12px}
   .bnr:not([hidden]) + .hero .hcad { grid-column: 2; grid-row: 1 / span 2; margin-top: 0; justify-content: flex-end; gap: 4px 10px; }
   .bnr:not([hidden]) + .hero .hcad .btn { min-height: 44px; padding: 0 18px; font-size: 15px; }
   .bnr:not([hidden]) + .hero .hcad small { display: none; }
-  .bnr:not([hidden]) + .hero .hcad.analise small { display: block; text-align: right; }
+  /* Com o aviso do cadastro, os botões e o aviso descem para uma linha própria: o título não espreme. */
+  .bnr:not([hidden]) + .hero > div:first-child { grid-template-columns: minmax(260px, 1fr) auto; }
+  .bnr:not([hidden]) + .hero .hcad.analise { grid-column: 1 / -1; grid-row: auto; justify-content: flex-start; margin-top: 12px; }
+  .bnr:not([hidden]) + .hero .hcad.analise small { display: block; text-align: left; }
   .bnr:not([hidden]) + .hero .hcad-acesso { flex-basis: 100%; text-align: right; margin-top: 0; padding: 2px 0; min-height: 30px; font-size: 13.5px; }
 }
 @media (min-width: 641px) and (max-width: 1000px) {

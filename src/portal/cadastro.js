@@ -333,6 +333,8 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
       auto = await cadastroAutomatico(d.documento);
     }
     if (auto.resultado === 'criado') {
+      // Acesso criado: o topo volta ao normal ("Já sou cliente: entrar"), sem o aviso de análise.
+      esquecerCadastroEmAnalise(); window.dispatchEvent(new Event('g360:cadastro-enviado'));
       $('cadBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>Pronto! Seu acesso foi criado</h3>
         <p>Mandamos para o e-mail <b>${esc(d.email || '')}</b> o link para você criar a sua senha. O link vale 30 minutos; se passar, use "Esqueci minha senha".</p>
         <p>Depois de criar a senha, é só entrar com o CNPJ: os preços e as compras já estão liberados.</p></div>
@@ -342,7 +344,8 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
     }
     $('cadBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>${jaCliente ? 'Pedido de acesso em análise' : 'Cadastro em análise'}</h3>
       <p>Recebemos os dados da <b>${esc(d.razao_social)}</b>. A equipe da Souza Ribeiro confere e fala com você pelo WhatsApp <b>${esc(foneBonito(d.whats))}</b>.</p>
-      <p>Quando ${jaCliente ? 'o acesso for liberado' : 'o cadastro for aprovado'}, chega no e-mail <b>${esc(d.email || '')}</b> o link para você criar a sua senha e começar a comprar.</p></div>
+      <p>${jaCliente ? `Quando o acesso for liberado, chega no e-mail <b>${esc(d.email || '')}</b> o link para você criar a sua senha e começar a comprar.`
+        : 'Se esse CNPJ já tem cadastro com a gente, o link para criar a senha chega em instantes no e-mail desse cadastro. Se não chegar, a equipe fala com você.'}</p></div>
       <div class="act" style="justify-content:center"><button type="button" class="btn pri" id="kOk">Entendi</button></div>`;
     $('kOk').onclick = () => fecharModal('mCad');
     void ctx;
