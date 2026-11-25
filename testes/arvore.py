@@ -49,7 +49,7 @@ with sync_playwright() as pw:
         if largura < 1000: pg.click('#depFiltrar'); pg.wait_for_selector('#mSecs')
         sub = ' '.join(pg.inner_text('#mSecs' if largura < 1000 else '#depLado').split())
         if largura < 1000: pg.keyboard.press('Escape')
-        checar('Sacos de lixo 4' in sub and 'Panos e flanelas 1' in sub and 'Vazia' not in sub, f'seções: {sub}')
+        checar('Sacos de lixo 4' in sub and 'Panos e flanelas 1' in sub and 'Vazia' not in sub, f'seções ({largura}): {sub}')
         # ordem por tipo: seção → item da seção → nome (sacos 100L juntos, depois 60L; pano; o resto por nome)
         pg.wait_for_timeout(800)
         em_ordem = ' '.join(pg.eval_on_selector_all('#grid .card', 'cs => cs.map(c => c.innerText)')).replace('\n', ' ')
@@ -69,7 +69,7 @@ with sync_playwright() as pw:
         pg.fill('#q', ''); pg.keyboard.press('Enter'); pg.wait_for_timeout(600)
         # endereço da seção e trilha
         checar(pg.evaluate('location.pathname') == '/limpeza/sacos-de-lixo', f"endereço: {pg.evaluate('location.pathname')}")
-        checar('Início › Limpeza › Sacos de lixo' in ' '.join(pg.inner_text('.dep-trilha').split()), f"trilha: {pg.inner_text('.dep-trilha')}")
+        checar('Início › Limpeza › Sacos de lixo' in ' '.join(pg.inner_text('.dep-trilha').split()), f"trilha ({largura}): {pg.inner_text('.dep-trilha')}")
         # menu Departamentos
         pg.click('#cats [data-deps]'); pg.wait_for_selector('#mDeps .dm-item')
         checar(pg.locator('#mDeps').get_attribute('role') == 'dialog', 'menu sem role dialog')

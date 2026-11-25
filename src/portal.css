@@ -312,22 +312,67 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
 #detBox .gmain { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 #detBox .gmain img { -webkit-user-drag: none; pointer-events: none; }
 
+/* Banners do topo do catálogo (carrossel com rolagem nativa). */
+.bnr { position: relative; max-width: 1360px; margin: 18px auto 0; padding: 0 22px; }
+/* Com banner no topo, a saudação fica mais compacta. */
+.bnr:not([hidden]) + .hero { padding-top: 22px; }
+.bnr:not([hidden]) + .hero h1 { font-size: clamp(26px, 3.2vw, 40px); }
+.bnr-trilho { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; border-radius: 18px; overscroll-behavior-x: contain; outline: none; }
+.bnr-trilho::-webkit-scrollbar { display: none; }
+.bnr-slide { flex: 0 0 100%; scroll-snap-align: start; border: 0; padding: 0; margin: 0; background: var(--n900, #0d220c); cursor: pointer; display: block; aspect-ratio: 16 / 5; overflow: hidden; }
+.bnr-slide[tabindex="-1"] { cursor: default; }
+.bnr-slide picture, .bnr-slide img { display: block; width: 100%; height: 100%; object-fit: cover; user-select: none; -webkit-user-drag: none; }
+/* Bordas esmaecidas: a imagem se mistura ao fundo do portal em vez de terminar numa linha reta. */
+.bnr-slide img {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 4%, #000 96%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 7%, #000 92%, transparent 100%);
+  -webkit-mask-composite: source-in; mask-image: linear-gradient(to right, transparent 0, #000 4%, #000 96%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 7%, #000 92%, transparent 100%);
+  mask-composite: intersect;
+}
+.bnr-slide { background: transparent; position: relative; }
+/* Vídeo por cima da imagem de capa; aparece quando começa a tocar. Mesmas bordas esmaecidas. */
+.bnr-slide video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .3s; pointer-events: none;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 4%, #000 96%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 7%, #000 92%, transparent 100%);
+  -webkit-mask-composite: source-in; mask-image: linear-gradient(to right, transparent 0, #000 4%, #000 96%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 7%, #000 92%, transparent 100%); mask-composite: intersect; }
+.bnr-slide.com-video video { opacity: 1; }
+.bnr-slide:focus-visible { outline: 3px solid var(--lima, #b2e04a); outline-offset: -3px; }
+.bnr-seta { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(8, 27, 6, .55); color: #fff; font-size: 26px; line-height: 1; cursor: pointer; display: grid; place-items: center; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.bnr-seta.p { left: 34px; } .bnr-seta.n { right: 34px; }
+.bnr-seta:hover { background: rgba(8, 27, 6, .8); }
+.bnr-pontos { position: absolute; left: 0; right: 0; bottom: 10px; display: flex; justify-content: center; gap: 2px; pointer-events: none; }
+.bnr-pontos button { pointer-events: auto; width: 22px; height: 22px; border: 0; background: transparent; padding: 0; cursor: pointer; display: grid; place-items: center; }
+.bnr-pontos button::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, .55); box-shadow: 0 0 0 1px rgba(0, 0, 0, .25); transition: width .2s; }
+.bnr-pontos button[aria-current]::before { width: 20px; border-radius: 4px; background: #fff; }
+@media (max-width: 640px) {
+  /* Celular: banner de ponta a ponta na largura, baixo (2:1), sem cantos; bolinhas por cima, no rodapé da imagem. */
+  .bnr { padding: 0; margin-top: 0; }
+  .bnr-trilho { border-radius: 0; }
+  .bnr-trilho { align-items: center; }
   /* O cartão segue o formato da imagem que está de fato na tela (a de celular, ou a do computador quando não há):
      nada é cortado nas laterais, mesmo se a imagem de celular enviada não estiver em 2:1. */
   .bnr-slide { flex: 0 0 100%; aspect-ratio: var(--ar, 2 / 1); }
+  .bnr-slide:not(:has(source)) { aspect-ratio: var(--ar, 16 / 5); }
+  .bnr-seta { display: none; }
+  .bnr-pontos { bottom: 4px; }
+  /* No celular a imagem vai de ponta a ponta: esmaece só em cima e embaixo. */
+  .bnr-slide img, .bnr-slide video { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 80%, transparent 100%); mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 80%, transparent 100%); }
+  /* Com banner, a capa vira compacta: uma linha de saudação e os botões lado a lado; o banner é a capa. */
+  .bnr:not([hidden]) + .hero { padding-top: 10px; padding-bottom: 0; }
+  .bnr:not([hidden]) + .hero h1, .bnr:not([hidden]) + .hero #hiSub, .bnr:not([hidden]) + .hero .hcad small { display: none; }
+  .bnr:not([hidden]) + .hero .hi-curto { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; line-height: 1.25; }
+  .bnr:not([hidden]) + .hero > div:first-child { flex: 1 1 100%; min-width: 0; }
+  .bnr:not([hidden]) + .hero .hcad { margin-top: 10px; flex-wrap: nowrap; gap: 8px; }
+  .bnr:not([hidden]) + .hero .hcad .btn { flex: 1 1 0; min-height: 44px; padding: 0 10px; font-size: 14px; white-space: nowrap; }
+  .bnr:not([hidden]) + .hero .hcad.analise small { display: block; flex-basis: 100%; }
+  .bnr:not([hidden]) + .hero .hcad.analise { flex-wrap: wrap; }
+  .bnr:not([hidden]) + .hero .hcad-x { display: none; }
+  .bnr:not([hidden]) + .hero .hcad-y { display: inline-block; }
+  .bnr:not([hidden]) + .hero .hcad-y::first-letter { text-transform: uppercase; }
+}
+.hi-curto { display: none; font-size: 17px; font-weight: 700; color: var(--tx, #f3f8ee); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100vw - 24px); }
 
 /* Busca: "Você quis dizer" e "nada nesta categoria" (acima da contagem). */
 .g360-aviso-busca { display: block; margin-bottom: 4px; color: var(--lima, #b2e04a); text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 500; }
 .g360-aviso-busca b { color: inherit; }
-
-/* Continuar conectado (login do comprador) */
-.lg-cont { margin: 12px 0 2px; }
-.lg-cont label { text-transform: none; letter-spacing: normal; font-weight: 500; display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; font-size: 15px; color: var(--tx); }
-.lg-cont input { width: 22px; height: 22px; accent-color: var(--lima); flex-shrink: 0; margin: 0; }
-.lg-cont input:focus-visible { outline: 2px solid var(--lima); outline-offset: 2px; }
-.lg-cont small { display: block; font-size: 12.5px; color: #ffd45c; margin-left: 32px; }
-.lg-outro { float: right; background: none; border: 0; color: var(--lima); font-size: 13px; text-decoration: underline; cursor: pointer; min-height: 32px; margin-top: -6px; }
-.lg-outro:focus-visible { outline: 2px solid var(--lima); outline-offset: 2px; }
 
 /* ===== App instalável (faixa "Instalar" e passo a passo do iPhone) ===== */
 .instalar-link{background:none;border:0;color:var(--lima);text-decoration:underline;font-size:13px;cursor:pointer;min-height:44px;padding:0 6px}
@@ -351,6 +396,14 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
 body.g360-painel .faixa-app, body.g360-painel #btnInstalarRodape { display: none !important; }
 @media (max-width:400px){.faixa-app{gap:8px;padding:10px}.faixa-app-tx span{display:none}.faixa-app-sim{padding:0 14px}.faixa-app-nao{min-width:40px}}
 
+/* Continuar conectado (login do comprador) */
+.lg-cont { margin: 12px 0 2px; }
+.lg-cont label { text-transform: none; letter-spacing: normal; font-weight: 500; display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; font-size: 15px; color: var(--tx); }
+.lg-cont input { width: 22px; height: 22px; accent-color: var(--lima); flex-shrink: 0; margin: 0; }
+.lg-cont input:focus-visible { outline: 2px solid var(--lima); outline-offset: 2px; }
+.lg-cont small { display: block; font-size: 12.5px; color: #ffd45c; margin-left: 32px; }
+.lg-outro { float: right; background: none; border: 0; color: var(--lima); font-size: 13px; text-decoration: underline; cursor: pointer; min-height: 32px; margin-top: -6px; }
+.lg-outro:focus-visible { outline: 2px solid var(--lima); outline-offset: 2px; }
 /* Faixa "Instale o app" na tela: a Souzinha sobe para ficar acima dela (não cobrem uma à outra) */
 body.com-faixa-app #souzinha-widget:not(.sz-open) .sz-fab { bottom: calc(166px + env(safe-area-inset-bottom, 0px)) !important; }
 /* Avisos neste celular (Minha conta) */
@@ -651,9 +704,49 @@ details.ferr > .afil{margin:0 !important;padding:0 12px 12px}
 .hcad[hidden] { display: none; }
 .hcad { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 18px; }
 .hcad .btn { min-height: 48px; padding: 0 22px; font-size: 16px; }
+.hcad-e { gap: .3em; }
 .hcad small { flex-basis: 100%; color: var(--tx3); font-size: 13px; }
 .hcad.analise small { color: var(--lima, #b2e04a); font-size: 14px; }
 @media (max-width: 640px) { .hcad .btn { flex: 1 1 100%; } }
+
+/* Login: atalho para o cadastro, abaixo de Cancelar | Entrar. Só contorno, mais discreto que o Entrar. */
+.lg-novo { display: flex; width: 100%; min-height: 48px; margin-top: 12px; justify-content: center; align-items: center; gap: .3em; flex-wrap: wrap; flex-direction: row; white-space: nowrap; padding: 0 12px;
+  background: transparent; border: 1px solid rgba(178, 224, 74, .45); color: var(--tx2, #c9d6c3); font-size: 14px; font-weight: 500; border-radius: 12px; }
+.lg-novo b { color: var(--lima, #b2e04a); font-weight: 700; }
+.lg-novo:hover { border-color: var(--lima, #b2e04a); background: rgba(178, 224, 74, .06); }
+
+/* "Já é cliente e ainda não tem senha?": link discreto abaixo dos botões da capa. */
+.hcad-acesso { flex-basis: 100%; text-align: left; background: none; border: 0; padding: 6px 0; min-height: 44px; color: var(--tx2, #c9d6c3); font: inherit; font-size: 14px; cursor: pointer; }
+.hcad-acesso b { color: var(--lima, #b2e04a); white-space: nowrap; }
+.hcad small + .hcad-acesso { margin-top: -8px; }
+.hcad-acesso:hover b { text-decoration: underline; }
+.hcad-acesso[hidden] { display: none; }
+@media (max-width: 640px) { .bnr:not([hidden]) + .hero .hcad { flex-wrap: wrap; } .bnr:not([hidden]) + .hero .hcad .btn { flex: 1 1 calc(50% - 4px); } .hcad-acesso { font-size: 13.5px; } }
+
+/* Computador com banner: o banner é a capa; embaixo fica um cartão na largura toda, com a saudação
+   e a chamada à esquerda e os botões à direita (sem o título grande, o parágrafo e o quadro de marcas). */
+.hi-curto-sub { display: none; }
+@media (min-width: 641px) {
+  .bnr:not([hidden]) + .hero { padding-top: 16px; padding-bottom: 4px; }
+  .bnr:not([hidden]) + .hero h1, .bnr:not([hidden]) + .hero #hiSub, .bnr:not([hidden]) + .hero .stats { display: none; }
+  .bnr:not([hidden]) + .hero > div:first-child { flex: 1 1 100%; display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 24px; }
+  .bnr:not([hidden]) + .hero > div:first-child:has(.hcad:not([hidden])) {
+    padding: 16px 22px; border-radius: 18px; border: 1px solid rgba(178, 224, 74, .18);
+    background: linear-gradient(90deg, rgba(178, 224, 74, .07), rgba(255, 255, 255, .02)); }
+  .bnr:not([hidden]) + .hero .hi-curto { display: block; grid-column: 1; font-size: 22px; font-weight: 800; letter-spacing: -.4px; max-width: none; color: var(--tx, #f3f8ee); opacity: 1; }
+  .bnr:not([hidden]) + .hero > div:first-child:has(.hcad:not([hidden])) .hi-curto-sub { display: block; grid-column: 1; margin: 2px 0 0; color: var(--tx2, #a9c19a); font-size: 14px; }
+  .bnr:not([hidden]) + .hero .hcad { grid-column: 2; grid-row: 1 / span 2; margin-top: 0; justify-content: flex-end; gap: 4px 10px; }
+  .bnr:not([hidden]) + .hero .hcad .btn { min-height: 44px; padding: 0 18px; font-size: 15px; }
+  .bnr:not([hidden]) + .hero .hcad small { display: none; }
+  .bnr:not([hidden]) + .hero .hcad.analise small { display: block; text-align: right; }
+  .bnr:not([hidden]) + .hero .hcad-acesso { flex-basis: 100%; text-align: right; margin-top: 0; padding: 2px 0; min-height: 30px; font-size: 13.5px; }
+}
+@media (min-width: 641px) and (max-width: 1000px) {
+  /* Tablet: os botões descem para baixo da saudação, para o texto não espremer. */
+  .bnr:not([hidden]) + .hero > div:first-child { grid-template-columns: 1fr; }
+  .bnr:not([hidden]) + .hero .hcad { grid-column: 1; grid-row: auto; justify-content: flex-start; margin-top: 12px; }
+  .bnr:not([hidden]) + .hero .hcad-acesso, .bnr:not([hidden]) + .hero .hcad.analise small { text-align: left; }
+}
 
 /* Painel: aba Executivos */
 .ex-linha { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--linha, #ffffff1a); flex-wrap: wrap; }
@@ -710,153 +803,9 @@ details.ferr > .afil{margin:0 !important;padding:0 12px 12px}
 .oc-palavras { margin-top: 8px; }
 .oc-palavras summary { cursor: pointer; font-size: 13px; color: var(--tx2, #a9c19a); min-height: 32px; display: flex; align-items: center; }
 
-/* Painel › Inteligência: computador × celular */
-.ap-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px 24px; padding: 8px 18px 12px; }
-.ap-linha { display: grid; grid-template-columns: 120px 1fr auto; gap: 10px; align-items: center; margin-top: 8px; font-size: 13px; }
-.ap-barra { height: 10px; border-radius: 999px; background: rgba(255, 255, 255, .08); overflow: hidden; }
-.ap-barra i { display: block; height: 100%; background: var(--lima, #b2e04a); border-radius: 999px; }
-.ap-num { white-space: nowrap; font-variant-numeric: tabular-nums; }
-@media (max-width: 520px) { .ap-linha { grid-template-columns: 1fr auto; } .ap-barra { grid-column: 1 / -1; grid-row: 2; } }
-.exa-link-rot { margin: 12px 0 4px; font-size: 12.5px; font-weight: 700; color: var(--tx2, #cfe0c6); }
-/* Banners do topo do catálogo (carrossel com rolagem nativa). */
-.bnr { position: relative; max-width: 1360px; margin: 18px auto 0; padding: 0 22px; }
-/* Com banner no topo, a saudação fica mais compacta. */
-.bnr:not([hidden]) + .hero { padding-top: 22px; }
-.bnr:not([hidden]) + .hero h1 { font-size: clamp(26px, 3.2vw, 40px); }
-.bnr-trilho { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; border-radius: 18px; overscroll-behavior-x: contain; outline: none; }
-.bnr-trilho::-webkit-scrollbar { display: none; }
-.bnr-slide { flex: 0 0 100%; scroll-snap-align: start; border: 0; padding: 0; margin: 0; background: var(--n900, #0d220c); cursor: pointer; display: block; aspect-ratio: 16 / 5; overflow: hidden; }
-.bnr-slide[tabindex="-1"] { cursor: default; }
-.bnr-slide picture, .bnr-slide img { display: block; width: 100%; height: 100%; object-fit: cover; user-select: none; -webkit-user-drag: none; }
-/* Bordas esmaecidas: a imagem se mistura ao fundo do portal em vez de terminar numa linha reta. */
-.bnr-slide img {
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 4%, #000 96%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 7%, #000 92%, transparent 100%);
-  -webkit-mask-composite: source-in; mask-image: linear-gradient(to right, transparent 0, #000 4%, #000 96%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 7%, #000 92%, transparent 100%);
-  mask-composite: intersect;
-}
-.bnr-slide { background: transparent; position: relative; }
-/* Vídeo por cima da imagem de capa; aparece quando começa a tocar. Mesmas bordas esmaecidas. */
-.bnr-slide video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .3s; pointer-events: none;
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 4%, #000 96%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 7%, #000 92%, transparent 100%);
-  -webkit-mask-composite: source-in; mask-image: linear-gradient(to right, transparent 0, #000 4%, #000 96%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 7%, #000 92%, transparent 100%); mask-composite: intersect; }
-.bnr-slide.com-video video { opacity: 1; }
-.bnr-slide:focus-visible { outline: 3px solid var(--lima, #b2e04a); outline-offset: -3px; }
-.bnr-seta { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(8, 27, 6, .55); color: #fff; font-size: 26px; line-height: 1; cursor: pointer; display: grid; place-items: center; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
-.bnr-seta.p { left: 34px; } .bnr-seta.n { right: 34px; }
-.bnr-seta:hover { background: rgba(8, 27, 6, .8); }
-.bnr-pontos { position: absolute; left: 0; right: 0; bottom: 10px; display: flex; justify-content: center; gap: 2px; pointer-events: none; }
-.bnr-pontos button { pointer-events: auto; width: 22px; height: 22px; border: 0; background: transparent; padding: 0; cursor: pointer; display: grid; place-items: center; }
-.bnr-pontos button::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, .55); box-shadow: 0 0 0 1px rgba(0, 0, 0, .25); transition: width .2s; }
-.bnr-pontos button[aria-current]::before { width: 20px; border-radius: 4px; background: #fff; }
-@media (max-width: 640px) {
-  /* Celular: banner de ponta a ponta na largura, baixo (2:1), sem cantos; bolinhas por cima, no rodapé da imagem. */
-  .bnr { padding: 0; margin-top: 0; }
-  .bnr-trilho { border-radius: 0; }
-  .bnr-trilho { align-items: center; }
-  .bnr-slide { flex: 0 0 100%; aspect-ratio: 2 / 1; }
-  .bnr-slide:not(:has(source)) { aspect-ratio: var(--ar, 16 / 5); }
-  .bnr-seta { display: none; }
-  .bnr-pontos { bottom: 4px; }
-  /* No celular a imagem vai de ponta a ponta: esmaece só em cima e embaixo. */
-  .bnr-slide img, .bnr-slide video { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 80%, transparent 100%); mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 80%, transparent 100%); }
-  /* Com banner, a capa vira compacta: uma linha de saudação e os botões lado a lado; o banner é a capa. */
-  .bnr:not([hidden]) + .hero { padding-top: 10px; padding-bottom: 0; }
-  .bnr:not([hidden]) + .hero h1, .bnr:not([hidden]) + .hero #hiSub, .bnr:not([hidden]) + .hero .hcad small { display: none; }
-  .bnr:not([hidden]) + .hero .hi-curto { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; line-height: 1.25; }
-  .bnr:not([hidden]) + .hero > div:first-child { flex: 1 1 100%; min-width: 0; }
-  .bnr:not([hidden]) + .hero .hcad { margin-top: 10px; flex-wrap: nowrap; gap: 8px; }
-  .bnr:not([hidden]) + .hero .hcad .btn { flex: 1 1 0; min-height: 44px; padding: 0 10px; font-size: 14px; white-space: nowrap; }
-  .bnr:not([hidden]) + .hero .hcad.analise small { display: block; flex-basis: 100%; }
-  .bnr:not([hidden]) + .hero .hcad.analise { flex-wrap: wrap; }
-  .bnr:not([hidden]) + .hero .hcad-x { display: none; }
-  .bnr:not([hidden]) + .hero .hcad-y { display: inline-block; }
-  .bnr:not([hidden]) + .hero .hcad-y::first-letter { text-transform: uppercase; }
-}
-.hi-curto { display: none; font-size: 17px; font-weight: 700; color: var(--tx, #eef5e9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100vw - 24px); }
-.hi-curto { display: none; font-size: 17px; font-weight: 700; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100vw - 24px); }
-.hi-curto { display: none; font-size: 17px; font-weight: 700; color: var(--tx, #f3f8ee); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100vw - 24px); }
-
-
-
-
-
-.hcad-e { gap: .3em; }
-
-/* Login: atalho para o cadastro, abaixo de Cancelar | Entrar. Só contorno, mais discreto que o Entrar. */
-.lg-novo { display: flex; width: 100%; min-height: 48px; margin-top: 12px; justify-content: center; align-items: center; gap: .3em; flex-wrap: wrap; flex-direction: row; white-space: nowrap; padding: 0 12px;
-  background: transparent; border: 1px solid rgba(178, 224, 74, .45); color: var(--tx2, #c9d6c3); font-size: 14px; font-weight: 500; border-radius: 12px; }
-.lg-novo b { color: var(--lima, #b2e04a); font-weight: 700; }
-.lg-novo:hover { border-color: var(--lima, #b2e04a); background: rgba(178, 224, 74, .06); }
-
-/* "Já é cliente e ainda não tem senha?": link discreto abaixo dos botões da capa. */
-.hcad-acesso { flex-basis: 100%; text-align: left; background: none; border: 0; padding: 6px 0; min-height: 44px; color: var(--tx2, #c9d6c3); font: inherit; font-size: 14px; cursor: pointer; }
-.hcad-acesso b { color: var(--lima, #b2e04a); white-space: nowrap; }
-.hcad small + .hcad-acesso { margin-top: -8px; }
-.hcad-acesso:hover b { text-decoration: underline; }
-.hcad-acesso[hidden] { display: none; }
-@media (max-width: 640px) { .bnr:not([hidden]) + .hero .hcad { flex-wrap: wrap; } .bnr:not([hidden]) + .hero .hcad .btn { flex: 1 1 calc(50% - 4px); } .hcad-acesso { font-size: 13.5px; } }
-
-/* Computador com banner: o banner é a capa; embaixo fica um cartão na largura toda, com a saudação
-   e a chamada à esquerda e os botões à direita (sem o título grande, o parágrafo e o quadro de marcas). */
-.hi-curto-sub { display: none; }
-@media (min-width: 641px) {
-  .bnr:not([hidden]) + .hero { padding-top: 16px; padding-bottom: 4px; }
-  .bnr:not([hidden]) + .hero h1, .bnr:not([hidden]) + .hero #hiSub, .bnr:not([hidden]) + .hero .stats { display: none; }
-  .bnr:not([hidden]) + .hero > div:first-child { flex: 1 1 100%; display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 24px; }
-  .bnr:not([hidden]) + .hero > div:first-child:has(.hcad:not([hidden])) {
-    padding: 16px 22px; border-radius: 18px; border: 1px solid rgba(178, 224, 74, .18);
-    background: linear-gradient(90deg, rgba(178, 224, 74, .07), rgba(255, 255, 255, .02)); }
-  .bnr:not([hidden]) + .hero .hi-curto { display: block; grid-column: 1; font-size: 22px; font-weight: 800; letter-spacing: -.4px; max-width: none; color: var(--tx, #f3f8ee); opacity: 1; }
-  .bnr:not([hidden]) + .hero > div:first-child:has(.hcad:not([hidden])) .hi-curto-sub { display: block; grid-column: 1; margin: 2px 0 0; color: var(--tx2, #a9c19a); font-size: 14px; }
-  .bnr:not([hidden]) + .hero .hcad { grid-column: 2; grid-row: 1 / span 2; margin-top: 0; justify-content: flex-end; gap: 4px 10px; }
-  .bnr:not([hidden]) + .hero .hcad .btn { min-height: 44px; padding: 0 18px; font-size: 15px; }
-  .bnr:not([hidden]) + .hero .hcad small { display: none; }
-  .bnr:not([hidden]) + .hero .hcad.analise small { display: block; text-align: right; }
-  .bnr:not([hidden]) + .hero .hcad-acesso { flex-basis: 100%; text-align: right; margin-top: 0; padding: 2px 0; min-height: 30px; font-size: 13.5px; }
-}
-@media (min-width: 641px) and (max-width: 1000px) {
-  /* Tablet: os botões descem para baixo da saudação, para o texto não espremer. */
-  .bnr:not([hidden]) + .hero > div:first-child { grid-template-columns: 1fr; }
-  .bnr:not([hidden]) + .hero .hcad { grid-column: 1; grid-row: auto; justify-content: flex-start; margin-top: 12px; }
-  .bnr:not([hidden]) + .hero .hcad-acesso, .bnr:not([hidden]) + .hero .hcad.analise small { text-align: left; }
-}
 /* Árvore do catálogo: botão Departamentos, faixas de seções/linhas e o menu */
 .chip.deps { background: rgba(178, 224, 74, .1); border-color: rgba(178, 224, 74, .35); color: var(--tx); font-weight: 700; }
 .chip.deps span { opacity: 1; margin: 0 4px 0 0; font-size: 13px; }
-.subcats { max-width: 1360px; margin: 0 auto; padding: 0 22px 10px; display: grid; gap: 8px; }
-.subcats[hidden] { display: none; }
-.sub-l1, .sub-l2 { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
-.sub-l1::-webkit-scrollbar, .sub-l2::-webkit-scrollbar { display: none; }
-.chip.sub { height: 30px; font-size: 12px; background: rgba(255, 255, 255, .03); }
-.sub-l2 .chip.sub { height: 28px; border-style: dashed; }
-.sub-l2 .chip.sub.on { border-style: solid; }
-.deps-fundo { position: fixed; inset: 0; z-index: 10050; background: rgba(0, 0, 0, .55); display: flex; justify-content: center; align-items: flex-start; padding: 70px 16px 16px; }
-.deps-caixa { width: min(1180px, 100%); max-height: calc(100vh - 90px); overflow: auto; background: linear-gradient(180deg, #12320c, #0b2407); border: 1px solid var(--linha2); border-radius: 18px; padding: 18px 20px 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
-.deps-topo { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.deps-topo h2 { margin: 0; font-size: 18px; }
-.deps-x { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--linha2); background: transparent; color: var(--tx); font-size: 16px; cursor: pointer; }
-.deps-grade { columns: 4 240px; column-gap: 22px; }
-.deps-dep { break-inside: avoid; margin: 0 0 14px; }
-.deps-dep summary { list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 8px; cursor: pointer; font-weight: 800; color: var(--lima); padding: 6px 0; min-height: 40px; }
-.deps-dep summary::-webkit-details-marker { display: none; }
-.deps-dep summary small { color: var(--tx3); font-weight: 500; }
-.deps-dep ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-.deps-dep li button { width: 100%; text-align: left; background: none; border: 0; color: var(--tx2); font: inherit; font-size: 14px; padding: 8px 6px; border-radius: 8px; cursor: pointer; min-height: 40px; }
-.deps-dep li button:hover, .deps-dep li button:focus-visible { background: rgba(178, 224, 74, .1); color: var(--tx); outline: none; }
-.deps-dep li button small { color: var(--tx3); }
-@media (max-width: 899px) {
-  .deps-fundo { padding: 0; align-items: stretch; }
-  .deps-caixa { max-height: 100vh; border-radius: 0; padding: 14px 16px 24px; }
-  .deps-grade { columns: 1; }
-  .deps-dep { margin: 0; border-bottom: 1px solid var(--linha2); }
-  .deps-dep summary { min-height: 52px; font-size: 15px; }
-  .deps-dep summary::after { content: '›'; color: var(--tx3); transition: transform .15s; }
-  .deps-dep[open] summary::after { transform: rotate(90deg); }
-  .deps-dep ul { padding-bottom: 8px; }
-  .deps-dep li button { min-height: 44px; }
-  .subcats { padding: 0 12px 10px; }
-@media (max-width: 899px) { .subcats { padding: 0 12px 10px; } }
-
 .sub-l2 
 /* Painel › Seções e linhas */
 .sx-topo { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
@@ -986,3 +935,11 @@ body.com-dep #vCat .hero { display: none; }
 body.g360-painel .arow .pdep { display: grid; gap: 6px; min-width: 0; }
 body.g360-painel .arow .pdep select { width: 100%; min-width: 0; height: auto; min-height: 40px; padding: 6px 28px 6px 10px; line-height: 1.3; text-overflow: ellipsis; }
 body.g360-painel .arow .pdep .psec { font-size: 12.5px; color: var(--tx2); }
+/* Painel › Inteligência: computador × celular */
+.ap-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px 24px; padding: 8px 18px 12px; }
+.ap-linha { display: grid; grid-template-columns: 120px 1fr auto; gap: 10px; align-items: center; margin-top: 8px; font-size: 13px; }
+.ap-barra { height: 10px; border-radius: 999px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.ap-barra i { display: block; height: 100%; background: var(--lima, #b2e04a); border-radius: 999px; }
+.ap-num { white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 520px) { .ap-linha { grid-template-columns: 1fr auto; } .ap-barra { grid-column: 1 / -1; grid-row: 2; } }
+.exa-link-rot { margin: 12px 0 4px; font-size: 12.5px; font-weight: 700; color: var(--tx2, #cfe0c6); }
