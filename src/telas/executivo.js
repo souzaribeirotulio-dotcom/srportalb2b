@@ -8,6 +8,7 @@
 import Decimal from 'decimal.js';
 import { linkDoExecutivo } from '../estado/executivo.js';
 import { supabaseExecutivo, supabaseConfigurado, lembrarExecutivo } from '../api/supabase.js';
+import { pedirLinkDoCliente } from '../api/executivos.js';
 import { esc } from '../ui/util.js';
 import { dinheiro, dataBr } from '../ui/formato.js';
 
@@ -90,7 +91,7 @@ function haQuanto(dia, hoje) {
 async function painelExecutivo(sb, conteudo) {
   conteudo.closest('.g360-cartao')?.classList.add('g360-cartao-largo', 'g360-cartao-exec');
   conteudo.innerHTML = '<div class="g360-estado">Carregando os seus dados…</div>';
-  let eu; let clientes; let comissoes;
+  let eu; let clientes; let comissoes; const acessos = new Map();
   try {
     const [r1, r2, r3] = await Promise.all([
       sb.from('executivos').select('id, codigo, nome, ocultar_termos, ocultar_codigos').limit(1),
@@ -100,6 +101,11 @@ async function painelExecutivo(sb, conteudo) {
     ]);
     if (r1.error || r2.error || r3.error) throw r1.error || r2.error || r3.error;
     eu = r1.data?.[0]; clientes = r2.data || []; comissoes = r3.data || [];
+    // Acesso ao portal dos clientes aprovados: se falhar, a área abre sem essa informação.
+    try {
+      const r4 = await sb.rpc('executivo_acessos');
+      if (!r4.error) for (const a of r4.data || []) acessos.set(a.vinculo_id, a);
+    } catch { /* segue sem o acesso */ }
   } catch (e) {
     if (e?.code === 'PGRST301' || /JWT|token/i.test(e?.message || '')) return sair(sb, conteudo, 'Sua sessão terminou. Entre novamente.');
     conteudo.innerHTML = '<div class="g360-msg" role="alert">Não foi possível carregar os seus dados agora. Confira a conexão e tente de novo.</div><button class="g360-btn sec" type="button" id="exDeNovo">Tentar de novo</button>';
@@ -122,6 +128,15 @@ async function painelExecutivo(sb, conteudo) {
     paga: soma(comissoes.filter((c) => c.situacao === 'paga').map((c) => c.valor)),
   };
   const hoje = hojeBr(); const mesAtual = hoje.slice(0, 7);
+  const quando = (iso) => { const d = String(iso || '').slice(0, 10); try { const l = new Intl.DateTimeFormat('en-CA', { timeZone: FUSO }).format(new Date(iso)); return `${haQuanto(l, hoje)} (${dataBr(l)} às ${hora(iso)})`; } catch { return dataBr(d); } };
+  function linhaAcesso(id) {
+    const a = acessos.get(id); if (!a) return '';
+    const entrou = a.ultimo_em
+      ? `<small class="exa-ac ok">Último acesso ${esc(quando(a.ultimo_em))}${a.acessos ? ` · ${a.acessos} ${a.acessos === 1 ? 'acesso' : 'acessos'}` : ''}</small>`
+      : '<small class="exa-ac nunca">Ainda não acessou o portal</small>';
+    const pedido = a.link_em ? `<small class="exa-ac">Link pedido ${esc(quando(a.link_em))}</small>` : '';
+    return `<div class="exa-acesso">${entrou}${pedido}<button type="button" class="g360-btn ${a.ultimo_em ? 'sec' : 'pri'} exa-btlink" data-link="${esc(id)}">Reenviar link de acesso</button><small class="exa-ac-msg" aria-live="polite"></small></div>`;
+  }
   const outrosMeses = [...new Set(comissoes.map((c) => String(c.competencia).slice(0, 7)))].filter((m) => m !== mesAtual).sort().reverse();
   let periodo = 'hoje';
 
@@ -153,7 +168,8 @@ async function painelExecutivo(sb, conteudo) {
         </section>
         <section class="exa-bloco" aria-labelledby="exaCliT">
           <h2 id="exaCliT">Clientes indicados (${clientes.length})</h2>
-          ${clientes.length ? `<div class="exa-cli">${clientes.map((c) => `<div class="exa-l"><span>${esc(c.razao_social || 'Cliente')}<small>${c.inicio ? `desde ${esc(dataBr(c.inicio))}${c.fim ? ` · até ${esc(dataBr(c.fim))}` : ''}` : `indicado em ${esc(dataBr(String(c.criado_em).slice(0, 10)))}`}</small></span><span class="exa-st ${esc(c.situacao)}">${esc(SITV[c.situacao] || c.situacao)}</span></div>`).join('')}</div>`
+          ${clientes.length ? `<div class="exa-cli">${clientes.map((c) => `<div class="exa-l${acessos.has(c.id) ? ' com-acesso' : ''}"><span>${esc(c.razao_social || 'Cliente')}<small>${c.inicio ? `desde ${esc(dataBr(c.inicio))}${c.fim ? ` · até ${esc(dataBr(c.fim))}` : ''}` : `indicado em ${esc(dataBr(String(c.criado_em).slice(0, 10)))}`}</small></span><span class="exa-st ${esc(c.situacao)}">${esc(SITV[c.situacao] || c.situacao)}</span>${linhaAcesso(c.id)}</div>`).join('')}</div>
+            <p class="exa-obs g360-esquerda">O link de acesso vai para o e-mail do cadastro do cliente no G360. Vale 30 minutos e serve uma vez só; um link novo cancela o anterior.</p>`
             : '<p class="g360-info g360-esquerda">Nenhum cliente ainda. Mande o seu link para as empresas que você conhece.</p>'}
         </section>
       </aside>
@@ -224,5 +240,22 @@ async function painelExecutivo(sb, conteudo) {
     try { await navigator.clipboard.writeText(caixa.textContent); b.textContent = 'Link copiado ✓'; }
     catch { const r = document.createRange(); r.selectNodeContents(caixa); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = 'Link selecionado: copie'; }
     setTimeout(() => { b.textContent = 'Copiar link'; }, 2500);
+  }; });
+  conteudo.querySelectorAll('[data-link]').forEach((b) => { b.onclick = async () => {
+    const msg = b.parentElement.querySelector('.exa-ac-msg');
+    b.disabled = true; b.textContent = 'Enviando…'; msg.textContent = ''; msg.classList.remove('erro');
+    try {
+      const { data } = await sb.auth.getSession();
+      const token = data?.session?.access_token;
+      if (!token) return sair(sb, conteudo, 'Sua sessão terminou. Entre novamente.');
+      const r = await pedirLinkDoCliente(token, b.dataset.link);
+      msg.textContent = r.mensagem || 'Pedido enviado.';
+      b.textContent = 'Link pedido ✓';
+      setTimeout(() => { if (b.isConnected) { b.disabled = false; b.textContent = 'Reenviar link de acesso'; } }, 120000);
+    } catch (e) {
+      if (e?.status === 401) return sair(sb, conteudo, 'Sua sessão terminou. Entre novamente.');
+      msg.textContent = e?.message || 'Não foi possível pedir o link agora. Tente de novo em instantes.'; msg.classList.add('erro');
+      b.disabled = false; b.textContent = 'Reenviar link de acesso';
+    }
   }; });
 }

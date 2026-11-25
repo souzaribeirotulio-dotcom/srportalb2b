@@ -194,7 +194,7 @@ footer .rodape-exec { color: inherit; opacity: .75; }
   .exa-lado .exa-bloco:first-child, .exa-principal .exa-bloco:first-child { border-top: 0; padding-top: 0; margin-top: 4px; }
   .exa-lado .exa-bloco { padding: 16px; border: 1px solid var(--linha2); border-radius: 16px; background: rgba(0, 0, 0, .14); margin-top: 12px; }
   .exa-lado .exa-bloco:first-child { padding-top: 16px; }
-  .exa-lado .exa-cli { max-height: 340px; overflow: auto; }
+  .exa-lado .exa-cli { max-height: 520px; overflow: auto; }
   .exa-topo { padding-bottom: 14px; border-bottom: 1px solid var(--linha2); margin-bottom: 18px; }
 }
 .exa-obs { color: var(--tx3); font-size: 12px; margin: 0; line-height: 1.45; }
@@ -202,3 +202,12 @@ footer .rodape-exec { color: inherit; opacity: .75; }
 .exa-cli .exa-st { white-space: nowrap; max-width: none; }
 .exa-cli .exa-l > span:first-child { min-width: 0; }
 .exa-obs.exa-nota { margin-top: 12px; }
+/* Área do executivo › clientes: acesso ao portal e reenvio do link */
+.exa-l.com-acesso { flex-wrap: wrap; }
+.exa-acesso { flex: 1 1 100%; text-align: left; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding-top: 8px; margin-top: 2px; border-top: 1px solid rgba(255, 255, 255, .06); }
+.exa-acesso small { margin: 0; }
+.exa-ac.ok { color: var(--lima, #b2e04a); }
+.exa-ac.nunca { color: #ffd27a; }
+.exa-acesso .exa-btlink { min-height: 44px; padding: 0 14px; font-size: 13px; margin-left: auto; }
+.exa-ac-msg { flex: 1 1 100%; color: var(--tx2); }
+.exa-ac-msg.erro { color: #ff9a9a; }

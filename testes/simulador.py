@@ -500,6 +500,24 @@ class Sim:
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({
                 'sessao': {'access_token': at, 'refresh_token': 'r' + uuid.uuid4().hex}, 'api_expira_em': '2099-01-01T00:00:00.000Z',
                 'api_inatividade_minutos': self.loja['sessao_minutos'], 'api_vinculo_expira_em': iso(exp)}))
+        if p == '/functions/v1/executivo-link':
+            # Executivo pede o link de acesso de um cliente aprovado dele (a função lê o documento e chama a ponte).
+            corpo = json.loads(req.post_data or '{}')
+            ses = self.supa.get(corpo.get('token') or '') or {}
+            eid = ses.get('executivo'); e = next((x for x in getattr(self, 'executivos', []) if x['id'] == eid and x['ativo']), None)
+            rs = lambda st, b: route.fulfill(status=st, headers=cab, content_type='application/json', body=json.dumps(b))
+            if not e: return rs(401, {'mensagem': 'Sua sessão terminou. Entre novamente.'})
+            v = next((x for x in getattr(self, 'vinculos', []) if x['id'] == corpo.get('vinculo_id') and x['executivo_id'] == eid and x['situacao'] in ('ativo', 'sem_comissao') and x.get('cliente_codigo')), None)
+            if not v: return rs(404, {'mensagem': 'Este cliente não está na sua lista de clientes aprovados.'})
+            links = self.__dict__.setdefault('exec_links', [])
+            agora = time.time()
+            if any(l['vinculo_id'] == v['id'] and agora - l['t'] < 120 for l in links):
+                return rs(429, {'mensagem': 'O link acabou de ser enviado. Peça ao cliente para olhar o e-mail (e a caixa de spam) antes de pedir outro.'})
+            em = time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime(agora)) + '.000Z'
+            links.append({'vinculo_id': v['id'], 't': agora, 'em': em})
+            self.chamadas.append(('PONTE', 'pedir_link', {'via': 'executivo-link'}, {'documento': v['documento']}))
+            self.chamadas.append(('EXEC_LINK', v['id'], sorted(corpo.keys())))
+            return rs(200, {'dados': {'link_em': em}, 'mensagem': 'Pedido enviado. Se o acesso do cliente estiver liberado no G360, ele recebe o link no e-mail do cadastro. O link vale 30 minutos e serve uma vez só.'})
         if p == '/functions/v1/executivos-g360':
             # Programa Executivo de Contas (painel). exec_pode: o operador tem a permissão 'executivos'.
             corpo = json.loads(req.post_data or '{}')
@@ -794,6 +812,17 @@ class Sim:
             e = next((x for x in getattr(self, 'executivos', []) if x['codigo'] == cod and x['ativo']), None)
             self.chamadas.append(('RPC', 'portal_ocultos_executivo', cod))
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({'termos': e.get('ocultar_termos', []), 'codigos': e.get('ocultar_codigos', [])} if e else {'termos': [], 'codigos': []}))
+        if tabela == 'rpc/executivo_acessos':
+            # Último acesso dos clientes aprovados do executivo logado (portal_acessos) e o último link pedido.
+            eid = (s or {}).get('executivo'); e = next((x for x in getattr(self, 'executivos', []) if x['id'] == eid and x['ativo']), None)
+            linhas = []
+            for v in (getattr(self, 'vinculos', []) if e else []):
+                if v['executivo_id'] != eid or v['situacao'] not in ('ativo', 'sem_comissao') or not v.get('cliente_codigo'): continue
+                a = getattr(self, 'acessos_portal', {}).get(v['cliente_codigo'], {})
+                ls = [l['em'] for l in getattr(self, 'exec_links', []) if l['vinculo_id'] == v['id']]
+                linhas.append({'vinculo_id': v['id'], 'primeiro_em': a.get('primeiro_em'), 'ultimo_em': a.get('ultimo_em'), 'acessos': a.get('acessos'), 'link_em': max(ls) if ls else None})
+            self.chamadas.append(('RPC', 'executivo_acessos', eid))
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps(linhas))
         if tabela in ('executivos', 'executivo_clientes', 'comissoes'):
             # RLS: só o executivo logado (e ativo) lê as próprias linhas; qualquer outra sessão recebe lista vazia.
             eid = (s or {}).get('executivo'); e = next((x for x in getattr(self, 'executivos', []) if x['id'] == eid and x['ativo']), None)
