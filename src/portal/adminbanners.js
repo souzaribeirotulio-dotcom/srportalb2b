@@ -135,6 +135,22 @@ export async function desenharBannersPainel(alvo, { painel }) {
     const val = () => { f.querySelector('#bnValBox').innerHTML = valorHtml(tipo.value, tipo.value === editando.destino_tipo ? editando.destino_valor : ''); };
     tipo.addEventListener('change', val); val();
     f.querySelector('#bnCancela').addEventListener('click', () => { editando = null; pintar(); });
+    // Aviso de formato: imagem fora da proporção indicada aparece inteira, mas menor (celular) ou com faixas.
+    const avisoFormato = (sel, alvoW, alvoH, nome) => f.querySelector(sel)?.addEventListener('change', (ev) => {
+      const arq = ev.target.files?.[0]; let aviso = ev.target.parentElement.querySelector('.bn-formato');
+      if (!aviso) { aviso = document.createElement('small'); aviso.className = 'hint bn-formato'; aviso.style.display = 'block'; ev.target.after(aviso); }
+      aviso.textContent = '';
+      if (!arq) return;
+      const u = URL.createObjectURL(arq); const im = new Image();
+      im.onload = () => {
+        const r = im.naturalWidth / im.naturalHeight; const alvoR = alvoW / alvoH;
+        if (Math.abs(r - alvoR) / alvoR > 0.15) aviso.innerHTML = `<span class="ruim">⚠ Esta imagem tem ${im.naturalWidth}×${im.naturalHeight} px, fora do formato ${nome} (${alvoW}×${alvoH}). Ela aparece inteira, mas ${r > alvoR ? 'baixinha' : 'alta'} no ${nome}. Use uma versão em ${alvoW}×${alvoH}.</span>`;
+        URL.revokeObjectURL(u);
+      };
+      im.src = u;
+    });
+    avisoFormato('#bnCel', 1080, 540, 'celular');
+    avisoFormato('#bnImg', 1600, 500, 'computador');
     f.addEventListener('submit', async (e) => {
       e.preventDefault();
       const msg = f.querySelector('#bnMsg'); const btn = f.querySelector('#bnSalva');

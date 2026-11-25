@@ -113,6 +113,9 @@ with sync_playwright() as pw:
     secao(pg, 390, sid); pg.wait_for_timeout(1500)
     g = ' '.join(' '.join(cards(pg)).split())
     checar('Saco' in g and 'Pano' not in g and 'Entre para ver' in pg.inner_text('#cnt') + g, f'visitante na seção: {g[:200]}')
+    # logo no topo volta para a página inicial (sem departamento, seção nem busca)
+    pg.fill('#q', 'pano'); pg.click('header .logo'); pg.wait_for_timeout(1200)
+    checar(pg.evaluate('location.pathname') == '/' and pg.locator('#depCab').is_hidden() and pg.input_value('#q') == '', f"logo não voltou ao início: {pg.evaluate('location.pathname')}")
     checar(not erros, f'erros visitante: {erros}')
     ctx.close()
     # painel: editor de seções

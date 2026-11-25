@@ -311,6 +311,11 @@ html.g360-travado, html.g360-travado body { overflow: hidden; }
 /* A foto do detalhe aceita deslizar para o lado: o navegador só cuida da rolagem vertical ali. */
 #detBox .gmain { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 #detBox .gmain img { -webkit-user-drag: none; pointer-events: none; }
+
+  /* O cartão segue o formato da imagem que está de fato na tela (a de celular, ou a do computador quando não há):
+     nada é cortado nas laterais, mesmo se a imagem de celular enviada não estiver em 2:1. */
+  .bnr-slide { flex: 0 0 100%; aspect-ratio: var(--ar, 2 / 1); }
+
 /* Busca: "Você quis dizer" e "nada nesta categoria" (acima da contagem). */
 .g360-aviso-busca { display: block; margin-bottom: 4px; color: var(--lima, #b2e04a); text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 500; }
 .g360-aviso-busca b { color: inherit; }
