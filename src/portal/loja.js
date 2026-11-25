@@ -68,6 +68,15 @@ function montar() {
     else if (v === 'adm') ctx.ir('/painel');
     else if (v === 'clips') ctx.ir('/clips');
   }));
+  // Logo no topo: volta para a página inicial do catálogo (sem departamento, busca nem filtro), de qualquer tela.
+  document.querySelector('header .logo')?.addEventListener('click', (e) => {
+    if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) return; // abrir em outra aba continua funcionando
+    e.preventDefault();
+    fecharCarrinho();
+    limparLoja(); $('q').value = ''; $('marca').value = '';
+    ctx.ir('/');
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  });
   $('tbConta').addEventListener('click', () => (sessao.ativa ? abrirConta() : abrirLogin()));
   $('heroCadB').addEventListener('click', () => abrirCadastro(ctxCadastro()));
   $('heroEntrar').addEventListener('click', () => abrirLogin());
