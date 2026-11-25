@@ -594,7 +594,12 @@ class Sim:
                 for l in d.get('linhas', []):
                     atual = self.exibicao.get(l['codigo'])
                     if d.get('preservar') and atual and atual['origem'] != 'automatico': continue
-                    self.exibicao[l['codigo']] = {k: l.get(k) for k in ('codigo', 'produto_id', 'nome', 'categoria', 'origem')}; n += 1
+                    novo = {k: l.get(k) for k in ('codigo', 'produto_id', 'nome', 'categoria', 'origem')}
+                    if 'secao' in l:
+                        ok_sec = any(x['categoria'] == l.get('categoria') and x['nome'] == l['secao'] and not x.get('pai') for x in getattr(self, 'secoes', []))
+                        novo['secao'] = l['secao'] if l['secao'] and ok_sec else None
+                    elif atual and 'secao' in atual: novo['secao'] = atual['secao']
+                    self.exibicao[l['codigo']] = {**(atual or {}), **novo}; n += 1
                 self.chamadas.append(('PAINEL', ac, n))
                 return res(200, {'gravados': n})
             if ac in ('lista_ler', 'lista_incluir', 'lista_remover'):
