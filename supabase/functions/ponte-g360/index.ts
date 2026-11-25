@@ -83,7 +83,22 @@ Deno.serve(criarPonte({
   reconferenciaMinutos,
   chaveOcorrencias,
 }, {
-  fetch,
+  // Diagnóstico da emissão do link: registra só o status e o código de erro do G360
+  // (sem documento, e-mail, token ou chave), porque a ponte não avisa quando o G360 não emite.
+  async fetch(entrada: RequestInfo | URL, init?: RequestInit) {
+    const resposta = await fetch(entrada, init);
+    if (String(entrada).endsWith("/acessos/links")) {
+      if (resposta.status === 201) console.info("Ponte de acesso", "link_emitido");
+      else {
+        const env = await resposta.clone().json().catch(() => null);
+        const cod = typeof env?.erro?.codigo === "string" && /^[A-Z][A-Z0-9_]{1,79}$/.test(env.erro.codigo) ? env.erro.codigo : "";
+        const resp = typeof env?.erro?.responsavel === "string" && /^[a-z_]{1,30}$/.test(env.erro.responsavel) ? env.erro.responsavel : "";
+        const rid = typeof env?.request_id === "string" && /^[a-f0-9]{16}$/.test(env.request_id) ? env.request_id : "";
+        console.warn("Ponte de acesso", "link_nao_emitido", resposta.status, cod, resp, rid);
+      }
+    }
+    return resposta;
+  },
   aguardar: (tarefa) => EdgeRuntime.waitUntil(tarefa),
   async enviarEmail({ para, link }) {
     // Adaptado ao Resend (https://resend.com/docs/api-reference/emails/send-email).
@@ -128,6 +143,7 @@ Deno.serve(criarPonte({
       console.warn("Ponte de acesso", "provedor_email_rede", (erro as Error)?.name ?? "");
       throw erro;
     }
+    if (resposta.ok) console.info("Ponte de acesso", "email_aceito_pelo_provedor");
     if (!resposta.ok) {
       // Só o status e o tipo de erro do provedor: sem e-mail, link, token ou chave.
       const erro = await resposta.json().catch(() => null);
