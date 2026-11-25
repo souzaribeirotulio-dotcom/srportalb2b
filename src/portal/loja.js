@@ -316,6 +316,7 @@ async function desenharDepartamento() {
   if (!ativo) { cab.hidden = true; lado.hidden = true; cab.innerHTML = ''; lado.innerHTML = ''; return; }
   const grupo = filtros.grupo;
   await carregarExibicao();
+  await ocultosDaTela(() => desenharDepartamento());
   const conta = await contadorAtivos();
   if (grupo !== filtros.grupo) return; // trocou no meio
   const secs = secoesDe(grupo).map((s) => ({ ...s, n: conta(codigosDaSecao(s.id)) })).filter((s) => s.n);
@@ -369,6 +370,12 @@ function tituloDaPagina() {
 }
 const BOTAO_DEPS = '<button type="button" class="chip deps" data-deps aria-haspopup="dialog"><span aria-hidden="true">☰</span> Departamentos</button>';
 
+/** Produtos escondidos pelo executivo (cliente dele logado, ou visitante do link ?oc=1): antes de contar
+ *  departamentos e seções, para a seção que só tem escondidos (ex.: Sacos de lixo) sumir do menu e da página. */
+function ocultosDaTela(depois) {
+  return sessao.ativa ? carregarOcultosComprador(depois) : carregarOcultosVisitante(depois);
+}
+
 /** Contagem do que aparece no portal (mesma regra dos números dos departamentos). */
 async function contadorAtivos() {
   const ativos = await codigosAtivosPublicos(); const set = ativos ? new Set(ativos) : null;
@@ -380,6 +387,7 @@ async function contadorAtivos() {
  *  celular = tela cheia que entra de nível em nível, com "‹ Voltar" e "Ver tudo em…". */
 async function abrirDepartamentos() {
   await carregarExibicao();
+  await ocultosDaTela(() => { if (document.getElementById('mDeps')) abrirDepartamentos(); });
   const conta = await contadorAtivos();
   const deps = categoriasPortal().map((nome) => ({ nome, n: conta(codigosDaCategoria(nome, Infinity)),
     secoes: secoesDe(nome).map((s) => ({ ...s, n: conta(codigosDaSecao(s.id)), linhas: [] })).filter((s) => s.n) })).filter((d) => d.n);

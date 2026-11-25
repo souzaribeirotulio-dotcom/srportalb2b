@@ -33,9 +33,25 @@ with sync_playwright() as pw:
             if esconde:
                 checar('Saco para Lixo' not in t and 'Detergente' not in t, f'{caminho} {w}: escondido aparecendo antes do cadastro: {t[:300]}')
                 checar(pg.evaluate("location.search") == '', 'código ficou no endereço')
+                # a seção que só tem escondidos some do menu Departamentos e da página do departamento
+                lado = ' '.join((pg.inner_text('#depLado') if pg.is_visible('#depLado') else '').split())
+                checar('Sacos de lixo' not in lado, f'{caminho} {w}: seção Sacos de lixo na página do departamento: {lado[:200]}')
+                pg.click('[data-deps]'); pg.wait_for_selector('#mDeps'); pg.wait_for_timeout(400)
+                if w < 900: pg.click('#mDeps .dm-item:has-text("Limpeza")'); pg.wait_for_timeout(300)
+                menu = ' '.join(pg.inner_text('#mDeps').split())
+                checar('Sacos de lixo' not in menu and 'Pano' not in menu[:0], f'{caminho} {w}: seção Sacos de lixo no menu: {menu[:300]}')
+                pg.keyboard.press('Escape'); pg.evaluate("document.getElementById('mDeps')?.remove()")
+                # busca também não mostra
+                pg.fill('#q', 'saco lixo'); pg.press('#q', 'Enter'); pg.wait_for_timeout(1500)
+                checar('Saco para Lixo' not in ' '.join(pg.inner_text('#grid').split()), 'busca mostrou o escondido')
             else:
                 # o que tem de dar errado se o link completo esconder: os sacos têm de aparecer
                 checar('Saco para Lixo' in t and 'Detergente' in t, f'{caminho} {w}: link completo escondendo: {t[:300]}')
+                # caso que tem de dar o contrário: no link completo a seção aparece no menu
+                pg.click('[data-deps]'); pg.wait_for_selector('#mDeps'); pg.wait_for_timeout(400)
+                if w < 900: pg.click('#mDeps .dm-item:has-text("Limpeza")'); pg.wait_for_timeout(300)
+                checar('Sacos de lixo' in ' '.join(pg.inner_text('#mDeps').split()), f'{caminho} {w}: link completo sem a seção no menu')
+                pg.evaluate("document.getElementById('mDeps')?.remove()")
             ctx.close()
     # trocar de link no mesmo navegador: vale o último usado
     ctx = br.new_context(viewport={'width': 1280, 'height': 900}); pg = ctx.new_page(); pg.route('**/*', sim.rota)
