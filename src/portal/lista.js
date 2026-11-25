@@ -15,7 +15,7 @@ import { normalizarQuantidade, dinheiro, quantidade as qtdBr, dataBr, estimar } 
 import { ligarFotos, htmlFoto } from '../ui/fotos.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { $, esc, toast, passoQuantidade } from './comum.js';
-import { podeComprar, htmlEstoque, htmlUnidades, unidadeEscolhida, linhaCarrinho } from './cartao.js';
+import { podeComprar, htmlEstoque, htmlUnidades, unidadeEscolhida, linhaCarrinho, htmlPreco } from './cartao.js';
 import { abrirCheckout } from './checkout.js';
 import { abrirCarrinho } from './loja.js';
 import { normalizar } from '../catalogo/busca.js';
@@ -155,7 +155,7 @@ function htmlLinha(x) {
     <div class="nm">${esc(p.nome)}<small>Cód. ${esc(p.codigo)} · ${esc(p.marca || '')}</small>${htmlEstoque(p)}${htmlUnidades(p, est.un, 'sm')}
       ${x.salvo ? '<button type="button" class="rm" data-rm>Remover da lista</button>' : ''}</div>
     <div class="hist">${hist}</div>
-    <div class="pr">${op.preco ? esc(dinheiro(op.preco)) : '—'}${(p.unidades || []).length ? `<small>/ ${esc(String(op.nome).toLowerCase())}</small>` : ''}${op.seu_preco ? '<span class="tagcg">Seu preço</span>' : ''}</div>
+    <div class="pr">${op.preco ? htmlPreco(op, (p.unidades || []).length > 0) : '—'}</div>
     <div class="qty"><button type="button" data-d="-1" ${comprar ? '' : 'disabled'} aria-label="Diminuir">−</button><input type="text" inputmode="decimal" value="${esc(est.q)}" placeholder="0" maxlength="13" aria-label="Quantidade de ${esc(p.nome)}" ${comprar ? '' : 'disabled'}><button type="button" data-d="1" ${comprar ? '' : 'disabled'} aria-label="Aumentar">+</button></div>
     <div class="sub2">${sub}</div></div>`;
 }

@@ -662,3 +662,10 @@ body.com-dep #vCat .hero { display: none; }
 .sec-topo b { font-size: 16px; }
 .sec-folha ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .sec-folha .dep-sec { min-height: 50px; font-size: 15.5px; }
+
+/* Promoções (bloco "promocao" da API): selo Oferta, preço de antes riscado, "Leve N e pague X cada", restam e término */
+.tagof { display: inline-block; font-size: 10px; font-weight: 800; background: #ff8a3d; color: #1d0d00; padding: 2px 7px; border-radius: 5px; margin-left: 6px; vertical-align: 2px; letter-spacing: .2px; }
+.tagof.leve { background: rgba(255, 138, 61, .16); color: #ffb27d; border: 1px solid rgba(255, 138, 61, .4); margin-left: 0; }
+.promo-de { color: var(--tx3); font-size: 12px; margin-left: 6px; }
+.promo { display: block; margin-top: 4px; font-size: 12px; line-height: 1.45; color: #ffcfae; }
+.promo-fim { display: block; color: var(--tx3); font-size: 11.5px; }

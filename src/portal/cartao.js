@@ -10,20 +10,23 @@ import { esc } from './comum.js';
 import { dinheiro } from '../ui/formato.js';
 import { htmlFoto } from '../ui/fotos.js';
 import { htmlDisponivel } from './estoque.js';
+import { seloOferta, linhaPromoCatalogo, ofertaValendo } from './promocao.js';
 
 export function opcoesUnidade(p) {
-  const base = { id: '', nome: p.unidade || 'UN', descricao: '', preco: p.preco, seu_preco: p.seu_preco ?? null, quantidade_disponivel: p.quantidade_disponivel ?? null };
-  return [base, ...(p.unidades || []).map((u) => ({ id: u.id, nome: u.nome, descricao: u.descricao, preco: u.preco, seu_preco: u.seu_preco ?? null, quantidade_disponivel: u.quantidade_disponivel ?? null }))];
+  const base = { id: '', nome: p.unidade || 'UN', descricao: '', preco: p.preco, seu_preco: p.seu_preco ?? null, promocao: p.promocao ?? null, quantidade_disponivel: p.quantidade_disponivel ?? null };
+  return [base, ...(p.unidades || []).map((u) => ({ id: u.id, nome: u.nome, descricao: u.descricao, preco: u.preco, seu_preco: u.seu_preco ?? null, promocao: u.promocao ?? null, quantidade_disponivel: u.quantidade_disponivel ?? null }))];
 }
 
 export function podeComprar(p) {
   return p?.compravel === true;
 }
 
-/** Preço da embalagem. A unidade ("/ un", "/ cx") só aparece quando o produto tem caixa ou pacote para escolher. */
+/** Preço da embalagem. A unidade ("/ un", "/ cx") só aparece quando o produto tem caixa ou pacote para escolher.
+ *  Com promoção (bloco "promocao" da API): selo "Oferta" e o preço de antes riscado quando ela vale, ou a linha
+ *  "Leve N e pague X cada" quando ainda não vale. O valor mostrado é sempre o "preco" da API. */
 export function htmlPreco(op, mostrarUnidade = false) {
   if (op.preco === null || op.preco === undefined) return '';
-  return `<b>${esc(dinheiro(op.preco))}</b>${mostrarUnidade ? `<small>/ ${esc(String(op.nome).toLowerCase())}</small>` : ''}${op.seu_preco ? '<span class="tagcg">Seu preço</span>' : ''}`;
+  return `<b>${esc(dinheiro(op.preco))}</b>${mostrarUnidade ? `<small>/ ${esc(String(op.nome).toLowerCase())}</small>` : ''}${seloOferta(op.promocao)}${op.seu_preco && !ofertaValendo(op.promocao) ? '<span class="tagcg">Seu preço</span>' : ''}${linhaPromoCatalogo(op.promocao, mostrarUnidade ? op.nome : '')}`;
 }
 
 /** Selo e aviso da regra única: selo só para comprável sob consulta; aviso só para não comprável, como veio. */
