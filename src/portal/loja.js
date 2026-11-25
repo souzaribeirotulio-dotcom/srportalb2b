@@ -241,7 +241,7 @@ function pintarChamadaCadastro() {
   $('heroAcesso').hidden = !!enviado || ctx?.loja?.troca_senha !== true;
   $('heroCadB').textContent = enviado ? 'Ver meu cadastro' : 'Quero ser cliente';
   $('heroCadT').textContent = enviado
-    ? `Seu cadastro está em análise (enviado em ${enviado.split('-').reverse().join('/')}). Quando for aprovado, o link para criar a senha chega no e-mail cadastrado.`
+    ? `Recebemos o seu cadastro em ${enviado.split('-').reverse().join('/')}. O link para criar a senha chega por e-mail; se não chegar, a equipe fala com você.`
     : 'Cadastro em 2 minutos: digite o CNPJ e a gente preenche o resto.';
 }
 
