@@ -20,6 +20,7 @@ import { $, esc, abrirModal, fecharModal, adiar } from './comum.js';
 import { formularioEndereco } from './endereco.js';
 import { podeConvidar, montarConvite } from '../ui/oferta-avisos.js';
 import { avisarEvento } from '../api/push.js';
+import { linhaPromoRevisao, ofertaValendo } from './promocao.js';
 
 const escolha = { modalidade: null, endereco_id: null, condicao_id: null, observacao: '' };
 let opcoes = null;
@@ -182,7 +183,8 @@ function desenharResumo() {
   const soFornecedor = (r.pendencias || []).length && r.pendencias.every((p) => p.responsavel === 'fornecedor');
   $('cResumo').innerHTML = `
     <div class="rv">${r.itens.map((i) => `<div class="rv-item"><div class="linha1"><span>${esc(quantidade(i.quantidade))} ${esc(String(i.unidade || '').toLowerCase())} · ${esc(nomeDoItem(i))}</span><b>${i.total ? esc(dinheiro(i.total)) : '—'}</b></div>
-      <small>${i.preco_unitario ? `${esc(dinheiro(i.preco_unitario))} por ${esc(String(i.unidade || '').toLowerCase())}` : 'Sem preço'}${i.seu_preco ? ' <span class="tagcg">Seu preço</span>' : ''}</small>
+      <small>${i.preco_unitario ? `${esc(dinheiro(i.preco_unitario))} por ${esc(String(i.unidade || '').toLowerCase())}` : 'Sem preço'}${i.seu_preco && !ofertaValendo(i.promocao) ? ' <span class="tagcg">Seu preço</span>' : ''}</small>
+      ${linhaPromoRevisao(i.promocao, i.unidade)}
       ${i.aviso ? `<small class="rv-pend">⚠ ${esc(i.aviso)}</small>` : ''}${i.pendencia ? `<small class="rv-pend">⚠ ${esc(i.pendencia)}</small>` : ''}</div>`).join('')}</div>
     <div class="rv-tot">
       <div><span>Subtotal dos produtos</span><span>${esc(dinheiro(r.subtotal))}</span></div>

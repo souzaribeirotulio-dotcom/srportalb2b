@@ -39,6 +39,8 @@ class Sim:
             '33.333.333/0001-33': {'senha': 'Teste56', 'codigo': 3030, 'nome': 'Comprador Bloqueado LTDA', 'fantasia': 'Bloqueado', 'bloq': True},
         }
         self.produtos = [produto(i) for i in range(101, 146)]
+        # Promoções fictícias (bloco promocao do contrato): produto_id -> regra; 'clientes' = códigos de comprador (None = todos)
+        self.promos = {}
         P = {p['id']: p for p in self.produtos}
         P[101].update(preco='11.50', seu_preco='11.50', quantidade_disponivel='30', unidades=[{'id': 'CX12', 'nome': 'CX', 'descricao': 'Caixa com 12', 'preco': '125.00', 'seu_preco': '125.00', 'quantidade_disponivel': '2'}])
         P[112].update(quantidade_disponivel='3')
@@ -115,6 +117,25 @@ class Sim:
         pag, lim = int(f.get('pagina') or 1), min(int(f.get('limite') or 20), getattr(self, 'limite_api', 500))
         return res[(pag - 1) * lim: pag * lim], {'pagina': pag, 'limite': lim, 'total': len(res)}
 
+    def bloco_promo(self, pid, cod, qtd):
+        r = self.promos.get(pid)
+        if not r or (r.get('clientes') is not None and cod not in r['clientes']): return None, None
+        meta, q, normal, oferta = Decimal(r['meta']), Decimal(qtd), Decimal(r['normal']), Decimal(r['oferta'])
+        vale = q >= meta if r.get('a_partir', True) else (meta == 0 or q % meta == 0)
+        alvo = q if vale else (meta if q < meta else (q // meta + 1) * meta)
+        faltam = Decimal('0') if vale else alvo - q
+        bloco = {'promocao': r.get('id', 812), 'item': 1, 'nome': r.get('nome', 'Promoção Fictícia'), 'preco_normal': r['normal'], 'preco_oferta': r['oferta'],
+                 'desconto_percentual': float(((normal - oferta) / normal * 100).quantize(Decimal('0.1'))), 'meta': r['meta'], 'a_partir': r.get('a_partir', True),
+                 'faltam': format(faltam.normalize(), 'f'), 'economia': str(((normal - oferta) * alvo).quantize(Decimal('0.01'))), 'restam': r.get('restam'),
+                 'fim': r.get('fim', {'data': '2026-12-31', 'hora': None})}
+        return bloco, (r['oferta'] if vale else r['normal'])
+
+    def com_promo(self, p, cod):
+        if p['id'] not in self.promos: return p
+        bloco, preco = self.bloco_promo(p['id'], cod, '1')
+        if not bloco: return p
+        return {**p, 'promocao': bloco, 'preco': preco}
+
     def revisar(self, doc, corpo):
         P = {p['id']: p for p in self.produtos}
         itens, sub, pend = [], Decimal('0'), []
@@ -122,6 +143,8 @@ class Sim:
             p = P.get(it['produto_id'])
             u = next((x for x in p['unidades'] if x['id'] == it.get('unidade')), None) if p else None
             preco = (u['seu_preco'] or u['preco']) if u else (p['seu_preco'] or p['preco']) if p else None
+            promo_item, preco_promo = self.bloco_promo(it['produto_id'], self.compradores[doc]['codigo'], it['quantidade']) if not u else (None, None)
+            if preco_promo: preco = preco_promo
             if self.preco_versao and preco: preco = str(Decimal(preco) + Decimal('1.00'))
             tot = (Decimal(preco) * Decimal(it['quantidade'])).quantize(Decimal('0.01')) if preco else None
             if tot: sub += tot
@@ -129,6 +152,7 @@ class Sim:
                           'unidade': u['nome'] if u else p['unidade'], 'kit': False, 'quantidade': it['quantidade'],
                           'preco_unitario': preco, 'seu_preco': (u['seu_preco'] if u else p['seu_preco']), 'total': str(tot) if tot else None,
                           'aviso': None, 'pendencia': None, 'quantidade_disponivel': (u.get('quantidade_disponivel') if u else p.get('quantidade_disponivel'))})
+            if promo_item: itens[-1]['promocao'] = promo_item
             disp = itens[-1]['quantidade_disponivel']
             if disp is not None and self.loja.get('bloqueia_sem_estoque') and Decimal(it['quantidade']) > Decimal(disp):
                 itens[-1]['pendencia'] = 'Quantidade maior que a disponível.'
@@ -219,7 +243,7 @@ class Sim:
             f = corpo if m == 'POST' else {k: (v if k == 'termos[]' else v[0]) for k, v in q.items()}
             if m == 'GET' and f.get('ids'): f['ids'] = f['ids'].split(',')
             dados, pag = self.filtrar(f)
-            return self.ok(route, dados, extra={'paginacao': pag})
+            return self.ok(route, [self.com_promo(p, cod) for p in dados], extra={'paginacao': pag})
         if caminho == 'grupos': return self.ok(route, [{'codigo': 1, 'nome': 'Grupo Um', 'quantidade': 30}, {'codigo': 2, 'nome': 'Grupo Dois', 'quantidade': 15}])
         if caminho == 'marcas': return self.ok(route, [{'codigo': 10, 'nome': 'Marca Exemplo', 'quantidade': 23}, {'codigo': 20, 'nome': 'Outra Marca', 'quantidade': 22}])
         mm = re.match(r'produtos/(\d+)/fotos/(\d+)$', caminho)
