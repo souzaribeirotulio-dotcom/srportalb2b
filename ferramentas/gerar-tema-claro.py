@@ -82,7 +82,11 @@ def prefixar(seletores):
         s = s.strip()
         if not s or na_ilha(s): continue
         if s in (':root', 'html'): continue
-        out.append(f'html.tema-claro {s}' if not s.startswith('body') else f'html.tema-claro {s}')
+        # não vale dentro das ilhas escuras (topo, faixa do bom dia, rodapé, banners, clips)
+        fora = ':not(header *, .hero *, footer *, .bnr *, .clips *, .toast *)'
+        if '::' in s: base, pe = s.split('::', 1); s2 = f'{base}{fora}::{pe}'
+        else: s2 = f'{s}{fora}'
+        out.append(f'html.tema-claro {s2}')
     return out
 
 def gerar():
