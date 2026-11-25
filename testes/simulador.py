@@ -789,11 +789,16 @@ class Sim:
                     'user': {'id': 'ex-' + e['id'], 'aud': 'authenticated', 'email': e['email'], 'app_metadata': {}, 'user_metadata': {}}}))
             return route.fulfill(status=400, headers=cab, content_type='application/json', body='{"error":"invalid_grant","error_description":"Invalid login credentials"}')
         tabela = p.replace('/rest/v1/', '')
+        if tabela == 'rpc/portal_ocultos_executivo':
+            cod = json.loads(req.post_data or '{}').get('p_codigo')
+            e = next((x for x in getattr(self, 'executivos', []) if x['codigo'] == cod and x['ativo']), None)
+            self.chamadas.append(('RPC', 'portal_ocultos_executivo', cod))
+            return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({'termos': e.get('ocultar_termos', []), 'codigos': e.get('ocultar_codigos', [])} if e else {'termos': [], 'codigos': []}))
         if tabela in ('executivos', 'executivo_clientes', 'comissoes'):
             # RLS: só o executivo logado (e ativo) lê as próprias linhas; qualquer outra sessão recebe lista vazia.
             eid = (s or {}).get('executivo'); e = next((x for x in getattr(self, 'executivos', []) if x['id'] == eid and x['ativo']), None)
             if not e: return route.fulfill(status=200, headers=cab, content_type='application/json', body='[]')
-            cols = {'executivos': ['id', 'codigo', 'nome'], 'executivo_clientes': ['id', 'razao_social', 'situacao', 'inicio', 'fim', 'criado_em'],
+            cols = {'executivos': ['id', 'codigo', 'nome', 'ocultar_termos', 'ocultar_codigos'], 'executivo_clientes': ['id', 'razao_social', 'situacao', 'inicio', 'fim', 'criado_em'],
                     'comissoes': ['id', 'vinculo_id', 'pedido_data', 'pedido_em', 'pedido_numero', 'itens', 'competencia', 'base', 'percentual', 'valor', 'situacao', 'paga_em']}[tabela]
             fonte = [e] if tabela == 'executivos' else [x for x in getattr(self, 'vinculos' if tabela == 'executivo_clientes' else 'comissoes', []) if x['executivo_id'] == eid]
             self.chamadas.append(('EXEC_RLS', tabela, eid))

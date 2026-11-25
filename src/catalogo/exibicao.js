@@ -111,6 +111,7 @@ export function definirOcultosExecutivo(d) {
     termos: (d?.termos || []).map((t) => normalNome(t).trim().split(' ').filter(Boolean)).filter((p) => p.length),
     codigos: new Set((d?.codigos || []).map((c) => String(c).toUpperCase())),
   };
+  cacheSecao = new Map(); // listas de departamento/seção já contadas sem os escondidos
 }
 function ocultoDoExecutivo(p) {
   if (!p || (!ocultosExec.termos.length && !ocultosExec.codigos.size)) return false;
@@ -167,7 +168,7 @@ export function nomeDoItem(i) {
 /** Códigos G360 de uma categoria (para o filtro do catálogo, até 500). */
 export function codigosDaCategoria(cat, max = 500) {
   const out = [];
-  for (const r of estado.porCodigo.values()) if (r.categoria === cat && !r.oculto) out.push(String(r.codigo));
+  for (const r of estado.porCodigo.values()) if (r.categoria === cat && !r.oculto && !ocultoDoExecutivo(r)) out.push(String(r.codigo));
   return out.slice(0, max);
 }
 
@@ -273,7 +274,7 @@ export function codigosDaSecao(id) {
   if (s) {
     const mae = s.pai ? secaoPorId(s.pai) : null;
     for (const r of estado.porCodigo.values()) {
-      if (r.oculto || r.categoria !== s.categoria) continue;
+      if (r.oculto || r.categoria !== s.categoria || ocultoDoExecutivo(r)) continue;
       // Seção escolhida pela equipe vale sozinha; sem escolha, valem as palavras do nome.
       const man = secaoManual(r);
       if (man) { if (man.id === (mae ? mae.id : s.id)) regs.push(r); continue; }
@@ -291,7 +292,7 @@ function codigosDoDepartamento(cat) {
   const k = `dep:${cat}`;
   if (cacheSecao.has(k)) return cacheSecao.get(k);
   const regs = [];
-  for (const r of estado.porCodigo.values()) if (r.categoria === cat && !r.oculto) regs.push(r);
+  for (const r of estado.porCodigo.values()) if (r.categoria === cat && !r.oculto && !ocultoDoExecutivo(r)) regs.push(r);
   const out = ordenarPorTipo(regs, null).map((r) => String(r.codigo));
   cacheSecao.set(k, out);
   return out;

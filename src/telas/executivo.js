@@ -6,6 +6,7 @@
    custo, margem, catálogo, outros clientes ou painel.
    ===================================================================== */
 import Decimal from 'decimal.js';
+import { linkDoExecutivo } from '../estado/executivo.js';
 import { supabaseExecutivo, supabaseConfigurado, lembrarExecutivo } from '../api/supabase.js';
 import { esc } from '../ui/util.js';
 import { dinheiro, dataBr } from '../ui/formato.js';
@@ -92,7 +93,7 @@ async function painelExecutivo(sb, conteudo) {
   let eu; let clientes; let comissoes;
   try {
     const [r1, r2, r3] = await Promise.all([
-      sb.from('executivos').select('id, codigo, nome').limit(1),
+      sb.from('executivos').select('id, codigo, nome, ocultar_termos, ocultar_codigos').limit(1),
       sb.from('executivo_clientes').select('id, razao_social, situacao, inicio, fim, criado_em').order('criado_em', { ascending: false }).limit(1000),
       sb.from('comissoes').select('id, vinculo_id, pedido_data, pedido_em, pedido_numero, itens, competencia, base, percentual, valor, situacao, paga_em')
         .order('pedido_data', { ascending: false }).order('pedido_em', { ascending: false, nullsFirst: false }).limit(5000),
@@ -108,8 +109,11 @@ async function painelExecutivo(sb, conteudo) {
   // Conta sem executivo ativo (desativado pela equipe ou não é conta de executivo): não mostra nada.
   if (!eu) return sair(sb, conteudo, 'Este acesso não está ativo. Fale com a equipe da Souza Ribeiro.');
 
-  const link = `${location.origin}/?ex=${encodeURIComponent(eu.codigo)}`;
-  const texto = `Compre os suprimentos da sua empresa no Portal B2B da Souza Ribeiro: ${link}`;
+  // Dois links quando a equipe escondeu produtos dos clientes dele: o completo e o sem os escondidos.
+  const temOcultos = !!((eu.ocultar_termos || []).length || (eu.ocultar_codigos || []).length);
+  const links = [{ id: 'exLink', rotulo: temOcultos ? 'Link completo (todos os produtos)' : '', url: linkDoExecutivo(eu.codigo) }];
+  if (temOcultos) links.push({ id: 'exLinkOc', rotulo: 'Link sem os produtos escondidos', url: linkDoExecutivo(eu.codigo, true) });
+  const texto = (url) => `Compre os suprimentos da sua empresa no Portal B2B da Souza Ribeiro: ${url}`;
   const nomeCli = new Map(clientes.map((c) => [c.id, c.razao_social || 'Cliente']));
   const validas = (l) => l.filter((c) => c.situacao !== 'cancelada');
   const geral = {
@@ -138,9 +142,9 @@ async function painelExecutivo(sb, conteudo) {
         <section class="exa-bloco" aria-labelledby="exaLinkT">
           <h2 id="exaLinkT">Seu link de indicação</h2>
           <p class="g360-info g360-esquerda">Quem se cadastra por este link já chega indicado por você.</p>
-          <div class="exa-link" id="exLink">${esc(link)}</div>
-          <div class="exa-botoes"><button type="button" class="g360-btn sec" id="exCopiar">Copiar link</button>
-            <a class="g360-btn pri" id="exZap" href="https://wa.me/?text=${encodeURIComponent(texto)}" target="_blank" rel="noopener noreferrer">Compartilhar no WhatsApp</a></div>
+          ${links.map((l) => `${l.rotulo ? `<p class="exa-link-rot">${esc(l.rotulo)}</p>` : ''}<div class="exa-link" id="${l.id}">${esc(l.url)}</div>
+          <div class="exa-botoes"><button type="button" class="g360-btn sec" data-copiar="${l.id}">Copiar link</button>
+            <a class="g360-btn pri" href="https://wa.me/?text=${encodeURIComponent(texto(l.url))}" target="_blank" rel="noopener noreferrer">Compartilhar no WhatsApp</a></div>`).join('')}
         </section>
         <section class="exa-bloco" aria-labelledby="exaTotT">
           <h2 id="exaTotT">Suas comissões</h2>
@@ -215,10 +219,10 @@ async function painelExecutivo(sb, conteudo) {
   marcar(); pintarVendas();
 
   conteudo.querySelector('#exSair').onclick = () => sair(sb, conteudo, 'Você saiu da área do executivo.');
-  conteudo.querySelector('#exCopiar').onclick = async (ev) => {
-    const b = ev.currentTarget;
-    try { await navigator.clipboard.writeText(link); b.textContent = 'Link copiado ✓'; }
-    catch { const r = document.createRange(); r.selectNodeContents(conteudo.querySelector('#exLink')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = 'Link selecionado: copie'; }
+  conteudo.querySelectorAll('[data-copiar]').forEach((b) => { b.onclick = async () => {
+    const caixa = conteudo.querySelector(`#${b.dataset.copiar}`);
+    try { await navigator.clipboard.writeText(caixa.textContent); b.textContent = 'Link copiado ✓'; }
+    catch { const r = document.createRange(); r.selectNodeContents(caixa); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = 'Link selecionado: copie'; }
     setTimeout(() => { b.textContent = 'Copiar link'; }, 2500);
-  };
+  }; });
 }
