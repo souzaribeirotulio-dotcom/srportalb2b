@@ -170,8 +170,9 @@ A Souza Ribeiro decidiu que a caixa **Continuar conectado** venha **marcada** no
 Pergunta: a Movimento tem alguma objeção ou exigência para a caixa vir marcada? Confirmar antes de levar para produção.
 
 ## Cupom de desconto no pedido (24/11)
-A Souza Ribeiro quer um cupom de boas-vindas (exemplo: R$ 50 de desconto em pedidos acima de R$ 200, só na primeira compra). O contrato B2B (`api-sistemas-externos-2026-11-19.yaml`) não tem cupom nem desconto em `POST revisoes` ou `POST pedidos`, e o portal não pode calcular desconto nem total no navegador (a API não aceita valor vindo da tela).
-Pedidos e perguntas:
-1. Existe ou está previsto um campo de cupom (código) na revisão e no pedido, com o desconto devolvido pela revisão (no total e na `assinatura`) e gravado no pedido do G360?
-2. Onde a equipe cadastraria o cupom (valor fixo ou percentual, valor mínimo do pedido, validade, uso único por cliente, só primeira compra)?
-3. Quais pendências/códigos de erro a revisão devolveria (cupom inválido, vencido, já usado, pedido abaixo do mínimo)?
+A Souza Ribeiro quer cupons de desconto no portal (primeiro caso: boas-vindas de R$ 50 em pedidos acima de R$ 200, só na primeira compra). O contrato B2B (`api-sistemas-externos-2026-11-19.yaml`) não tem cupom nem desconto em `POST revisoes` ou `POST pedidos`, e o portal não pode calcular desconto nem total no navegador (a API não aceita valor vindo da tela). Escopo que a Souza Ribeiro precisa:
+
+1. **Cadastro no G360** (tela de cupons): código, tipo (valor fixo em R$ ou percentual), valor, pedido mínimo, validade (início e fim), limite total de usos e limite por cliente, "só na primeira compra", clientes ou grupo de clientes permitidos (ou todos), canal (portal B2B), e ativar/inativar sem apagar.
+2. **Na API B2B**: um campo de código do cupom em `POST revisoes` e `POST pedidos`; a revisão devolve o desconto do cupom separado (linha própria no resumo, entrando no total e na `assinatura`) e pendências com código e mensagem (cupom inválido, vencido, esgotado, já usado pelo cliente, pedido abaixo do mínimo, não vale para este cliente).
+3. **Registro e análise**: o desconto do cupom gravado no pedido do G360 separado do desconto comercial comum, com o código do cupom no pedido, para a DRE e os relatórios mostrarem quanto cada cupom/campanha custou e vendeu (sem misturar com os outros descontos). Relatório de uso por cupom: pedidos, clientes, valor vendido e desconto concedido.
+4. **Perguntas**: o desconto do cupom pode ir como uma conta/tipo de desconto próprio na nota e no financeiro? Rateio do desconto nos itens (para a nota) é feito pelo G360? Cupom consumido em pedido cancelado volta a ficar disponível?
