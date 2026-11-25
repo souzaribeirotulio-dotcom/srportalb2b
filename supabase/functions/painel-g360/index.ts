@@ -472,8 +472,18 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
       origem: ["automatico", "equipe"].includes(String(l.origem)) ? String(l.origem) : "equipe",
       nome_g360: texto(l.nome_g360, 200) || null,
       atualizado_em: new Date().toISOString(),
+      // Seção escolhida pela equipe (pelo nome, no departamento do produto); só vai quando a tela mandou.
+      ...("secao" in l ? { secao: texto(l.secao, 40) || null } : {}),
     })).filter((l) => l.codigo && l.nome.length >= 2);
     if (!ok.length) return [400, { mensagem: "Nada para gravar." }];
+    // A seção tem de existir no departamento do produto; senão volta para a automática.
+    const comSecao = ok.filter((l) => "secao" in l && l.secao);
+    if (comSecao.length) {
+      const { data: secs, error: eS } = await admin.from("portal_secoes").select("categoria, nome").eq("loja", loja).is("pai", null);
+      if (eS) throw eS;
+      const validas = new Set((secs ?? []).map((x) => `${x.categoria}\u0000${x.nome}`));
+      for (const l of comSecao) if (!validas.has(`${l.categoria}\u0000${l.secao}`)) (l as Record<string, unknown>).secao = null;
+    }
     // "Gerar automático" não passa por cima do que a equipe (ou o portal antigo) já definiu.
     let linhasFinais = ok;
     if (d.preservar === true) {
@@ -508,7 +518,7 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     const { error } = await admin.from("portal_categorias").insert(lista.map((nome, ordem) => ({ loja, nome, ordem })));
     if (error) throw error;
     // Produtos de categoria apagada vão para "sem categoria" (o portal usa a categoria pelo nome).
-    await admin.from("portal_produtos_exibicao").update({ categoria: null }).eq("loja", loja).not("categoria", "in", `(${lista.map((c) => `"${c.replace(/"/g, '')}"`).join(",")})`);
+    await admin.from("portal_produtos_exibicao").update({ categoria: null, secao: null }).eq("loja", loja).not("categoria", "in", `(${lista.map((c) => `"${c.replace(/"/g, '')}"`).join(",")})`);
     // Seções de categoria apagada saem junto.
     await admin.from("portal_secoes").delete().eq("loja", loja).not("categoria", "in", `(${lista.map((c) => `"${c.replace(/"/g, '')}"`).join(",")})`);
     return [200, { ok: true }];
@@ -522,7 +532,7 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
     if (!cat?.length) return [404, { mensagem: "Departamento não encontrado. Salve as categorias antes." }];
     const limpaTermos = (v: unknown) => [...new Set((Array.isArray(v) ? v : []).map((t) => texto(t, 60).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean))].slice(0, 40);
     const secoes = (Array.isArray(d.secoes) ? d.secoes : []).slice(0, 60).map((x) => x as Record<string, unknown>)
-      .map((x) => ({ nome: texto(x.nome, 40), termos: limpaTermos(x.termos), linhas: (Array.isArray(x.linhas) ? x.linhas : []).slice(0, 30).map((l) => l as Record<string, unknown>).map((l) => ({ nome: texto(l.nome, 40), termos: limpaTermos(l.termos) })).filter((l) => l.nome) }))
+      .map((x) => ({ nome: texto(x.nome, 40), antes: texto(x.antes, 40), termos: limpaTermos(x.termos), linhas: (Array.isArray(x.linhas) ? x.linhas : []).slice(0, 30).map((l) => l as Record<string, unknown>).map((l) => ({ nome: texto(l.nome, 40), termos: limpaTermos(l.termos) })).filter((l) => l.nome) }))
       .filter((x) => x.nome);
     for (const x of secoes) {
       if (!x.termos.length) return [400, { mensagem: `A seção "${x.nome}" precisa de pelo menos uma palavra.` }];
@@ -541,6 +551,14 @@ async function executar(acao: string, d: Record<string, unknown>, token = ""): P
       }
     }
     if (antigas?.length) { const { error } = await admin.from("portal_secoes").delete().in("id", antigas.map((a) => a.id)); if (error) throw error; }
+    // Produtos com seção escolhida: seção renomeada acompanha o nome novo; seção apagada volta para a automática.
+    for (const x of secoes) {
+      if (x.antes && x.antes !== x.nome) await admin.from("portal_produtos_exibicao").update({ secao: x.nome }).eq("loja", loja).eq("categoria", categoria).eq("secao", x.antes);
+    }
+    const nomes = secoes.map((x) => x.nome);
+    let limpar = admin.from("portal_produtos_exibicao").update({ secao: null }).eq("loja", loja).eq("categoria", categoria).not("secao", "is", null);
+    if (nomes.length) limpar = limpar.not("secao", "in", `(${nomes.map((n) => `"${n.replace(/"/g, "")}"`).join(",")})`);
+    { const { error } = await limpar; if (error) throw error; }
     return [200, { gravadas: secoes.length }];
   }
   if (acao === "sinonimos_salvar") {

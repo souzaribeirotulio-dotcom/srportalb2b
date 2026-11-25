@@ -133,6 +133,24 @@ with sync_playwright() as pw:
     novas = [x for x in sim.secoes if x['categoria'] == 'Limpeza' and not x['pai']]
     checar([x['nome'] for x in novas] == ['Sacos de lixo', 'Panos e flanelas', 'Vazia', 'Detergentes'] and not [x for x in sim.secoes if x['pai']], f'gravado: {[x["nome"] for x in novas]}')
     pg.locator('#cfSecoes').screenshot(path='/tmp/vis/editor_secoes.png')
+    # aba Produtos: departamento e seção escolhidos na própria linha do produto
+    pg.click('[data-at="prod"]'); pg.fill('#aQ', 'P-125'); pg.press('#aQ', 'Enter'); pg.wait_for_selector('.arow[data-id="125"] .psec')
+    op = pg.locator('.arow[data-id="125"] .psec option').first.inner_text()
+    checar(op == 'Sem seção (automática)', f'opção automática: {op}')
+    checar(pg.locator('.arow[data-id="125"] .psec option').count() == 5, 'seções do departamento na caixinha')
+    pg.select_option('.arow[data-id="125"] .psec', 'Panos e flanelas'); pg.wait_for_timeout(800)
+    checar(sim.exibicao['P-125'].get('secao') == 'Panos e flanelas', f"seção gravada: {sim.exibicao['P-125']}")
+    checar(not erros, f'erros painel: {erros}')
+    # o catálogo respeita a seção escolhida: a vassoura aparece em Panos e flanelas
+    vis = br.new_context(viewport={'width': 1280, 'height': 900}); vp = vis.new_page(); vp.route('**/*', sim.rota)
+    vp.goto(BASE + '/limpeza/panos-e-flanelas'); vp.wait_for_selector('#grid .card'); vp.wait_for_timeout(800)
+    g = ' '.join(' '.join(cards(vp)).split())
+    checar('Vassoura' in g and 'Pano' in g, f'seção escolhida no catálogo: {g[:200]}')
+    vis.close()
+    # o que tem de dar errado: trocar o departamento não pode levar a seção junto (volta para a automática)
+    pg.select_option('.arow[data-id="125"] .pcat', 'Descartáveis'); pg.wait_for_timeout(800)
+    checar(sim.exibicao['P-125'].get('secao') is None and sim.exibicao['P-125'].get('categoria') == 'Descartáveis', f"trocar departamento: {sim.exibicao['P-125']}")
+    checar(pg.locator('.arow[data-id="125"] .psec').input_value() == '', 'caixinha da seção não voltou para automática')
     checar(not erros, f'erros painel: {erros}')
     br.close()
 

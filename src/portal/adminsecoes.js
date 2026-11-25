@@ -13,7 +13,7 @@ export async function montarEditorSecoes(alvo, { painel }) {
   let mudou = false;
 
   const ler = () => {
-    arvore = secoesDe(dep).map((s) => ({ nome: s.nome, termos: termosTexto(s).join(', '), linhas: s.linhas.map((l) => ({ nome: l.nome, termos: termosTexto(l).join(', ') })) }));
+    arvore = secoesDe(dep).map((s) => ({ nome: s.nome, antes: s.nome, termos: termosTexto(s).join(', '), linhas: s.linhas.map((l) => ({ nome: l.nome, termos: termosTexto(l).join(', ') })) }));
     mudou = false;
   };
   const produtos = () => produtosDaCategoria(dep);
@@ -75,7 +75,7 @@ export async function montarEditorSecoes(alvo, { painel }) {
     alvo.querySelector('#sxAdd').onclick = () => { arvore.push({ nome: '', termos: '', linhas: [] }); mudou = true; pintar(); alvo.querySelector('.sx-sec:last-of-type .sx-nome')?.focus(); };
     alvo.querySelector('#sxSalvar').onclick = async (ev) => {
       const b = ev.currentTarget; const res = alvo.querySelector('#sxRes');
-      const secoes = arvore.map((s) => ({ nome: s.nome.trim(), termos: s.termos.split(',').map((t) => t.trim()).filter(Boolean),
+      const secoes = arvore.map((s) => ({ nome: s.nome.trim(), antes: s.antes || '', termos: s.termos.split(',').map((t) => t.trim()).filter(Boolean),
         linhas: [] }))
         .filter((s) => s.nome || s.termos.length);
       const semNome = secoes.find((s) => !s.nome);

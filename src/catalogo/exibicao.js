@@ -13,8 +13,8 @@ export const CATEGORIAS_PADRAO = ['Limpeza', 'Descartáveis', 'Embalagens', 'Cop
 
 /* Cópia local da lista (nomes, categorias, sinônimos e configuração): da segunda visita em diante o catálogo
    aparece na hora com ela, e a lista nova chega por trás. São dados públicos do catálogo, nada do comprador. */
-const CHAVE_LOCAL = `g360:${LOJA}:exibicao:v2`;
-const COLUNAS = 'codigo, produto_id, nome, categoria, origem, nome_g360, curva, ean, oculto';
+const CHAVE_LOCAL = `g360:${LOJA}:exibicao:v3`;
+const COLUNAS = 'codigo, produto_id, nome, categoria, secao, origem, nome_g360, curva, ean, oculto';
 
 function aplicar(d) {
   estado.categorias = d.categorias?.length ? d.categorias : CATEGORIAS_PADRAO;
@@ -229,17 +229,36 @@ function melhorTermo(tokens, termos) {
 const nomeOrdem = (r) => normalTexto(r.nome || r.nome_g360 || r.codigo);
 /** Ordem "por tipo" (pedido da equipe: as águas sanitárias juntas, depois os detergentes; os rodos de plástico
    juntos, depois os de madeira): departamento → seção do produto → item da seção → nome (com números em ordem). */
+/** Seção escolhida pela equipe na aba Produtos (pelo nome, dentro do departamento do produto), se ainda existir. */
+function secaoManual(r) {
+  if (!r?.secao) return null;
+  return estado.secoes.find((s) => !s.pai && s.categoria === r.categoria && s.nome === r.secao) || null;
+}
+/** Seção automática (pelas palavras do nome): a de mais palavras; empate = a que aparece primeiro no nome. */
+function secaoPelasPalavras(r) {
+  const tk = tokensDe(r); let best = null;
+  for (const s of estado.secoes) {
+    if (s.pai || s.categoria !== r.categoria) continue;
+    const m = melhorTermo(tk, s.termos); if (!m) continue;
+    if (!best || m.n > best.m.n || (m.n === best.m.n && (m.pos < best.m.pos || (m.pos === best.m.pos && s.ordem < best.s.ordem)))) best = { s, m };
+  }
+  return best;
+}
+/** Para o painel: a seção automática e a que vale (a escolhida pela equipe, se houver). */
+export function secoesDoProduto(p) {
+  const r = registro(p) || { nome: p?.nome, nome_g360: p?.nome, categoria: categoriaExibicao(p) };
+  const auto = secaoPelasPalavras(r)?.s || null; const manual = secaoManual(r);
+  return { automatica: auto?.nome || null, escolhida: r.secao || null, vale: (manual || auto)?.nome || null };
+}
 function ordenarPorTipo(regs, sec) {
   const chave = new Map();
   for (const r of regs) {
     const tk = tokensDe(r); let k = [9999, 9999];
-    if (sec) { const m = melhorTermo(tk, sec.termos); if (m) k = [0, m.idx]; } else {
-      let best = null;
-      for (const s of estado.secoes) {
-        if (s.pai || s.categoria !== r.categoria) continue;
-        const m = melhorTermo(tk, s.termos); if (!m) continue;
-        if (!best || m.n > best.m.n || (m.n === best.m.n && (m.pos < best.m.pos || (m.pos === best.m.pos && s.ordem < best.s.ordem)))) best = { s, m };
-      }
+    const man = secaoManual(r);
+    if (sec) { const m = melhorTermo(tk, sec.termos); k = m ? [0, m.idx] : [0, 9998]; } else if (man) {
+      const m = melhorTermo(tk, man.termos); k = [man.ordem, m ? m.idx : 9998];
+    } else {
+      const best = secaoPelasPalavras(r);
       if (best) k = [best.s.ordem, best.m.idx];
     }
     chave.set(r, [k[0], k[1], nomeOrdem(r)]);
@@ -255,6 +274,9 @@ export function codigosDaSecao(id) {
     const mae = s.pai ? secaoPorId(s.pai) : null;
     for (const r of estado.porCodigo.values()) {
       if (r.oculto || r.categoria !== s.categoria) continue;
+      // Seção escolhida pela equipe vale sozinha; sem escolha, valem as palavras do nome.
+      const man = secaoManual(r);
+      if (man) { if (man.id === (mae ? mae.id : s.id)) regs.push(r); continue; }
       const nome = `${r.nome || ''} ${r.nome_g360 || ''}`;
       if (mae && !bateTermos(nome, mae.termos)) continue;
       if (bateTermos(nome, s.termos)) regs.push(r);

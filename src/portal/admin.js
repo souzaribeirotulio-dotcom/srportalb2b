@@ -29,7 +29,7 @@ import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { dinheiro, numeroPainel, dataBr } from '../ui/formato.js';
 import { $, esc, toast, abrirModal, fecharModal, adiar } from './comum.js';
 import { montarEditorSecoes } from './adminsecoes.js';
-import { carregarExibicao, codigosAtivosPublicos, esquecerAtivosPublicos, codigosOcultos, sinonimos as sinonimosPortal, categorias, registro, nomeExibicao, categoriaExibicao, codigosDaCategoria, aplicarLocal, definirCategoriasLocal } from '../catalogo/exibicao.js';
+import { carregarExibicao, codigosAtivosPublicos, esquecerAtivosPublicos, codigosOcultos, sinonimos as sinonimosPortal, categorias, registro, nomeExibicao, categoriaExibicao, codigosDaCategoria, aplicarLocal, definirCategoriasLocal, secoesDe, secoesDoProduto } from '../catalogo/exibicao.js';
 import { nomeEcommerce, categoriaPeloNome } from '../catalogo/nomes.js';
 import { buscarLocal } from '../catalogo/busca.js';
 import { fichaDoProduto, descricaoBasica } from '../catalogo/descricoes.js';
@@ -168,7 +168,7 @@ function ligar() {
   });
 
   // Produtos
-  $('aSt').innerHTML = '<option value="">Todos os produtos</option><option value="auto">Nome automático (revisar)</option><option value="semcat">Sem categoria definida</option><option value="baixa">Margem abaixo do mínimo</option><option value="semcusto">Sem custo cadastrado</option><option value="visivel">✅ Aparecendo no portal</option><option value="fora">🚫 Fora do portal (todos os motivos)</option><option value="oculto">🙈 Tirados pela equipe</option><option value="semdesc">Sem descrição da equipe</option>';
+  $('aSt').innerHTML = '<option value="">Todos os produtos</option><option value="auto">Nome automático (revisar)</option><option value="semcat">Sem departamento definido</option><option value="semsec">Sem seção</option><option value="baixa">Margem abaixo do mínimo</option><option value="semcusto">Sem custo cadastrado</option><option value="visivel">✅ Aparecendo no portal</option><option value="fora">🚫 Fora do portal (todos os motivos)</option><option value="oculto">🙈 Tirados pela equipe</option><option value="semdesc">Sem descrição da equipe</option>';
   $('aCat').innerHTML = '<option value="">Todas as categorias</option>';
   $('aPanel').insertAdjacentHTML('beforebegin', `<div class="afil" style="align-items:center;margin-top:-4px"><button class="btn sec" id="aGerar" style="height:36px">✨ Gerar nomes e categorias</button>
     <span class="hint" id="aGerarInfo" style="margin:0">Passa por todos os produtos do G360 e cria o nome no padrão de e-commerce e a categoria. Não mexe no que a equipe já ajustou nem nos nomes do portal antigo.</span></div>`);
@@ -628,6 +628,7 @@ async function desenharProdutos(buscar = true) {
   const L = (prod.lista || []).filter((p) => !st
     || (st === 'auto' && (!registro(p) || registro(p).origem === 'automatico'))
     || (st === 'semcat' && !registro(p)?.categoria)
+    || (st === 'semsec' && !secoesDoProduto(p).vale)
     || (st === 'baixa' && p.custo_visivel && p.margem_percentual !== null && p.margem_percentual < limiteMargem())
     || (st === 'semcusto' && p.custo_visivel && p.custo === null)
     || (st === 'oculto' && registro(p)?.oculto)
@@ -639,13 +640,14 @@ async function desenharProdutos(buscar = true) {
     : '<div class="rv-aviso" style="margin:10px 18px">Ainda não temos a lista de estoque do portal. Clique em 🔄 Atualizar produtos do portal (leva cerca de 1 minuto).</div>') : '';
   const paginas = Math.max(1, Math.ceil(prod.total / 20));
   const cats = categorias();
-  alvo.innerHTML = avisoEstoque + `<div class="arow h"><div></div><div>Nome no portal (${prod.total})</div><div>Preço de tabela</div><div>Categoria</div><div>Custo</div><div></div></div>`
+  alvo.innerHTML = avisoEstoque + `<div class="arow h"><div></div><div>Nome no portal (${prod.total})</div><div>Preço de tabela</div><div>Departamento e seção</div><div>Custo</div><div></div></div>`
     + (L.length ? L.map((p) => { const r = registro(p); const cat = categoriaExibicao(p); return `<div class="arow" data-id="${Number(p.id)}" data-nome="${esc(nomeExibicao(p))}" data-cod="${esc(p.codigo)}" data-g360="${esc(p.nome)}">
       <div class="amini g360-mini" data-foto="${Number(p.id)}" title="Fotos"><span>…</span></div>
       <div class="nm"><input class="inp pnome" value="${esc(nomeExibicao(p))}" maxlength="160" aria-label="Nome no portal" style="width:100%;font-weight:600">
         <small>G360: ${esc(p.nome)} · Cód. ${esc(p.codigo)} · ${esc(p.unidade || '—')}${dispPainel(p)}${r?.curva ? ` · <b style="color:var(--lima)">Curva ${esc(r.curva)}</b>` : ''} · ${margemHtml(p)} · ${(() => { const m = motivoFora(p); return m ? `<b style="color:#ff8a8a">${m}</b> · ` : (visAdm?.ok ? '<b style="color:var(--lima)">✅ no portal</b> · ' : ''); })()}${clipsAdm?.some((c) => Number(c.produto_id) === Number(p.id)) ? '▶ clip · ' : ''}<span class="org">${!r ? 'nome automático (não salvo)' : r.origem === 'automatico' ? 'nome automático' : r.origem === 'legado' ? 'portal antigo' : 'ajustado pela equipe'}</span></small></div>
       <div class="num"><b>${esc(dinheiro(p.preco))}</b>${p.origem_preco ? `<small style="display:block;color:var(--tx3);font-size:11px">${esc(p.origem_preco)}</small>` : ''}</div>
-      <div><select class="inp pcat" aria-label="Categoria">${cats.map((c) => `<option ${c === cat ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>${r?.categoria ? '' : '<small style="display:block;color:var(--tx3);font-size:11px">sugerida pelo nome</small>'}</div>
+      <div class="pdep"><select class="inp pcat" aria-label="Departamento">${cats.map((c) => `<option ${c === cat ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>${r?.categoria ? '' : '<small style="display:block;color:var(--tx3);font-size:11px">sugerido pelo nome</small>'}
+        <select class="inp psec" aria-label="Seção">${opcoesSecao(cat, secoesDoProduto(p))}</select></div>
       <div class="uns">${p.custo_visivel ? (p.custo === null ? '—' : `R$ ${esc(numeroPainel(p.custo, 2))}`) : 'sem acesso'}</div>
       <div class="ab2"><button class="tool ab" data-ed>🖼 Fotos</button><button class="tool ab" data-mais aria-expanded="false">📝 Descrição e clips</button><button class="tool ab" data-cg>❄ Congelar</button>${r?.oculto ? '<button class="tool ab" data-oc="0" style="color:var(--lima)">↩ Voltar ao portal</button>' : '<button class="tool ab" data-oc="1" style="color:#ff8a8a">🚫 Tirar do portal</button>'}</div></div>`; }).join('')
       : vazio('Nenhum produto encontrado. Tente outro nome ou código.'))
@@ -833,12 +835,27 @@ function preencherGrupos() {
   sel.innerHTML = '<option value="">Todas as categorias</option>' + categorias().map((c) => `<option ${c === atual ? 'selected' : ''}>${esc(c)}</option>`).join('');
 }
 
-/** Nome ou categoria mudou numa linha: grava como ajuste da equipe. */
+/** Opções da caixinha Seção: "Automática (pelo nome)" + as seções do departamento. */
+function opcoesSecao(cat, sp) {
+  const secs = secoesDe(cat);
+  const auto = `<option value="">${sp?.automatica ? `${esc(sp.automatica)} (automática)` : 'Sem seção (automática)'}</option>`;
+  return auto + secs.map((s) => `<option value="${esc(s.nome)}" ${sp?.escolhida === s.nome ? 'selected' : ''}>${esc(s.nome)}</option>`).join('');
+}
+
+/** Nome, departamento ou seção mudou numa linha: grava como ajuste da equipe. Trocar o departamento volta a seção
+ *  para a automática (cada departamento tem as suas seções). */
 async function salvarLinhaProduto(e) {
-  if (!e.target.matches('.pnome, .pcat')) return;
+  if (!e.target.matches('.pnome, .pcat, .psec')) return;
   const r = e.target.closest('.arow'); const nome = r.querySelector('.pnome').value.trim().replace(/\s+/g, ' ');
   if (nome.length < 2) { toast('O nome precisa ter pelo menos 2 letras.'); return; }
-  const linha = { codigo: r.dataset.cod, produto_id: Number(r.dataset.id), nome, categoria: r.querySelector('.pcat').value, origem: 'equipe', nome_g360: r.dataset.g360 };
+  const categoria = r.querySelector('.pcat').value;
+  const selSec = r.querySelector('.psec');
+  if (e.target.matches('.pcat')) {
+    // Mostra já a seção automática do novo departamento (o produto ainda não foi regravado aqui).
+    aplicarLocal([{ codigo: r.dataset.cod, produto_id: Number(r.dataset.id), nome, categoria, secao: null, nome_g360: r.dataset.g360 }]);
+    selSec.innerHTML = opcoesSecao(categoria, secoesDoProduto({ codigo: r.dataset.cod, id: Number(r.dataset.id), nome: r.dataset.g360 }));
+  }
+  const linha = { codigo: r.dataset.cod, produto_id: Number(r.dataset.id), nome, categoria, secao: selSec.value || null, origem: 'equipe', nome_g360: r.dataset.g360 };
   e.target.disabled = true;
   try {
     await painel('exibicao_salvar', { linhas: [linha] });
