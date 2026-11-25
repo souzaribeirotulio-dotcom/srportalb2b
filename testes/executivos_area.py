@@ -42,7 +42,7 @@ with sync_playwright() as pw:
         pg.fill('#exSenha', 'SenhaJoao123'); pg.click('#exEntrar'); pg.wait_for_selector('#exLink')
         t = ' '.join(pg.inner_text('#g360Conteudo').split())
         checar('Olá, João!' in t and 'JOAO' in t and '/?ex=JOAO' in t, f'topo e link: {t[:200]}')
-        checar('Padaria Fictícia' in t and 'Mercadinho Fictício' in t and 'Aguardando aprovação' in t and 'Aprovado' in t, 'clientes indicados')
+        checar('Padaria Fictícia' in t and 'Mercadinho Fictício' in t and 'Aguardando aprovação' in t and ('Aprovado' in t or 'acessou' in t.lower()), 'clientes indicados')
         checar('Prevista R$ 3,00' in t and 'Paga R$ 6,00' in t and 'Liberada R$ 0,00' in t, f'totais: {t}')
         checar('Maria' not in t and '29,97' not in t and 'Cliente da Maria' not in t, 'executivo viu dados de outro executivo')
         for proibido in ('custo', 'margem', 'Seu preço', 'Carrinho', 'Preço congelado'):

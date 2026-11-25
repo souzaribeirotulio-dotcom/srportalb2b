@@ -129,14 +129,29 @@ async function painelExecutivo(sb, conteudo) {
   };
   const hoje = hojeBr(); const mesAtual = hoje.slice(0, 7);
   const quando = (iso) => { const d = String(iso || '').slice(0, 10); try { const l = new Intl.DateTimeFormat('en-CA', { timeZone: FUSO }).format(new Date(iso)); return `${haQuanto(l, hoje)} (${dataBr(l)} às ${hora(iso)})`; } catch { return dataBr(d); } };
-  function linhaAcesso(id) {
+  // Linha compacta do cliente: nome + (situação, se ainda não aprovado) / acesso ao portal + desde quando / Reenviar link.
+  const curto = (iso) => { try { const l = new Intl.DateTimeFormat('en-CA', { timeZone: FUSO }).format(new Date(iso)); return haQuanto(l, hoje); } catch { return ''; } };
+  function acessoMeta(id) {
     const a = acessos.get(id); if (!a) return '';
-    const entrou = a.ultimo_em
-      ? `<small class="exa-ac ok">Último acesso ${esc(quando(a.ultimo_em))}${a.acessos ? ` · ${a.acessos} ${a.acessos === 1 ? 'acesso' : 'acessos'}` : ''}</small>`
-      : '<small class="exa-ac nunca">Ainda não acessou o portal</small>';
-    const pedido = a.link_em ? `<small class="exa-ac">Link pedido ${esc(quando(a.link_em))}</small>` : '';
-    return `<div class="exa-acesso">${entrou}${pedido}<button type="button" class="g360-btn ${a.ultimo_em ? 'sec' : 'pri'} exa-btlink" data-link="${esc(id)}">Reenviar link de acesso</button><small class="exa-ac-msg" aria-live="polite"></small></div>`;
+    if (!a.ultimo_em) return '<span class="exa-ac nunca">Nunca acessou</span>';
+    const det = `Último acesso ${quando(a.ultimo_em)}${a.acessos ? ` · ${a.acessos} ${a.acessos === 1 ? 'acesso' : 'acessos'}` : ''}`;
+    return `<span class="exa-ac ok" title="${esc(det)}">Acessou ${esc(curto(a.ultimo_em))}</span>`;
   }
+  const desde = (c) => (c.inicio ? `desde ${dataBr(c.inicio)}` : `indicado em ${dataBr(String(c.criado_em).slice(0, 10))}`);
+  const linhaCli = (c) => {
+    const a = acessos.get(c.id);
+    const aprovado = ['ativo', 'sem_comissao'].includes(c.situacao);
+    const det = [a?.ultimo_em ? `Último acesso ${quando(a.ultimo_em)}${a.acessos ? ` · ${a.acessos} ${a.acessos === 1 ? 'acesso' : 'acessos'}` : ''}` : '', a ? `Cliente ${desde(c)}` : ''].filter(Boolean).join(' · ');
+    return `<div class="exa-c2${a && !a.ultimo_em ? ' nunca' : ''}" data-busca="${esc(String(c.razao_social || '').toLowerCase())}">
+      <div class="exa-c2-l1"><span class="exa-c2-nome" title="${esc(c.razao_social || 'Cliente')}">${esc(c.razao_social || 'Cliente')}</span>
+        ${aprovado && a ? '' : `<span class="exa-st ${esc(c.situacao)}">${esc(SITV[c.situacao] || c.situacao)}</span>`}</div>
+      <div class="exa-c2-l2"${det ? ` title="${esc(det)}"` : ''}><small>${a ? acessoMeta(c.id) : `${esc(desde(c))}${c.situacao === 'sem_comissao' ? ' · já era cliente' : ''}`}</small>
+        ${a ? `<button type="button" class="exa-btlink" data-link="${esc(c.id)}" aria-label="Reenviar link de acesso para ${esc(c.razao_social || 'o cliente')}">Reenviar link</button>` : ''}</div>
+      ${a?.link_em ? `<small class="exa-c2-det">Link pedido ${esc(quando(a.link_em))}</small>` : ''}
+      ${a ? '<small class="exa-ac-msg" aria-live="polite"></small>' : ''}</div>`;
+  };
+  const aprovados = clientes.filter((c) => acessos.has(c.id));
+  const entraram = aprovados.filter((c) => acessos.get(c.id).ultimo_em).length;
   const outrosMeses = [...new Set(comissoes.map((c) => String(c.competencia).slice(0, 7)))].filter((m) => m !== mesAtual).sort().reverse();
   let periodo = 'hoje';
 
@@ -168,8 +183,10 @@ async function painelExecutivo(sb, conteudo) {
         </section>
         <section class="exa-bloco" aria-labelledby="exaCliT">
           <h2 id="exaCliT">Clientes indicados (${clientes.length})</h2>
-          ${clientes.length ? `<div class="exa-cli">${clientes.map((c) => `<div class="exa-l${acessos.has(c.id) ? ' com-acesso' : ''}"><span>${esc(c.razao_social || 'Cliente')}<small>${c.inicio ? `desde ${esc(dataBr(c.inicio))}${c.fim ? ` · até ${esc(dataBr(c.fim))}` : ''}` : `indicado em ${esc(dataBr(String(c.criado_em).slice(0, 10)))}`}</small></span><span class="exa-st ${esc(c.situacao)}">${esc(SITV[c.situacao] || c.situacao)}</span>${linhaAcesso(c.id)}</div>`).join('')}</div>
-            <p class="exa-obs g360-esquerda">O link de acesso vai para o e-mail do cadastro do cliente no G360. Vale 30 minutos e serve uma vez só; um link novo cancela o anterior.</p>`
+          ${aprovados.length ? `<p class="exa-c2-resumo">${entraram} de ${aprovados.length} ${aprovados.length === 1 ? 'aprovado já acessou' : 'aprovados já acessaram'} o portal</p>` : ''}
+          ${clientes.length > 6 ? '<input type="search" class="exa-c2-busca" id="exCliBusca" placeholder="Buscar cliente" aria-label="Buscar cliente indicado" autocomplete="off">' : ''}
+          ${clientes.length ? `<div class="exa-cli">${clientes.map(linhaCli).join('')}</div>
+            ${aprovados.length ? '<p class="exa-obs g360-esquerda">"Reenviar link" manda o link de acesso para o e-mail do cadastro do cliente no G360. Vale 30 minutos e serve uma vez só.</p>' : ''}`
             : '<p class="g360-info g360-esquerda">Nenhum cliente ainda. Mande o seu link para as empresas que você conhece.</p>'}
         </section>
       </aside>
@@ -241,8 +258,10 @@ async function painelExecutivo(sb, conteudo) {
     catch { const r = document.createRange(); r.selectNodeContents(caixa); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = 'Link selecionado: copie'; }
     setTimeout(() => { b.textContent = 'Copiar link'; }, 2500);
   }; });
+  const busca = conteudo.querySelector('#exCliBusca');
+  if (busca) busca.oninput = () => { const q = busca.value.trim().toLowerCase(); conteudo.querySelectorAll('.exa-c2').forEach((l) => { l.hidden = !!q && !l.dataset.busca.includes(q); }); };
   conteudo.querySelectorAll('[data-link]').forEach((b) => { b.onclick = async () => {
-    const msg = b.parentElement.querySelector('.exa-ac-msg');
+    const msg = b.closest('.exa-c2').querySelector('.exa-ac-msg');
     b.disabled = true; b.textContent = 'Enviando…'; msg.textContent = ''; msg.classList.remove('erro');
     try {
       const { data } = await sb.auth.getSession();
@@ -251,11 +270,11 @@ async function painelExecutivo(sb, conteudo) {
       const r = await pedirLinkDoCliente(token, b.dataset.link);
       msg.textContent = r.mensagem || 'Pedido enviado.';
       b.textContent = 'Link pedido ✓';
-      setTimeout(() => { if (b.isConnected) { b.disabled = false; b.textContent = 'Reenviar link de acesso'; } }, 120000);
+      setTimeout(() => { if (b.isConnected) { b.disabled = false; b.textContent = 'Reenviar link'; } }, 120000);
     } catch (e) {
       if (e?.status === 401) return sair(sb, conteudo, 'Sua sessão terminou. Entre novamente.');
       msg.textContent = e?.message || 'Não foi possível pedir o link agora. Tente de novo em instantes.'; msg.classList.add('erro');
-      b.disabled = false; b.textContent = 'Reenviar link de acesso';
+      b.disabled = false; b.textContent = 'Reenviar link';
     }
   }; });
 }
