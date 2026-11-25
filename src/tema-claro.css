@@ -1,0 +1,299 @@
+/* =====================================================================
+   Tema claro do portal (identidade da LP conteudo.souzaribeiro.net):
+   fundo #f4f8ee, cartões brancos com borda #e1e9d7, texto verde-escuro #0b2207,
+   texto secundário #4c5f43, lima #b2e04a para botões e destaques, verde #3f7d12
+   para texto em destaque sobre o claro.
+   Ligado por html.tema-claro (ver o primeiro script do index.html).
+   Ilhas escuras: topo, faixa do "bom dia", rodapé, clips e etiquetas sobre as fotos
+   continuam com as variáveis escuras, como o topo da LP.
+   A parte de baixo deste arquivo é gerada por ferramentas/gerar-tema-claro.py.
+   ===================================================================== */
+html.tema-claro {
+  --bg: #f4f8ee; --n950: #ffffff; --n900: #ffffff; --n850: #f7faf2; --n800: #eef4e6; --n700: #e1e9d7;
+  --linha: #e1e9d7; --linha2: #d3dec6;
+  --tx: #0b2207; --tx2: #4c5f43; --tx3: #7d8f73;
+  --lima: #b2e04a; --lima2: #9cc93a; --limas: rgba(178, 224, 74, .22); --lima-tx: #3f7d12;
+  --card: #ffffff; --red: #e5533f;
+  color-scheme: light;
+}
+html:not(.tema-claro) { --lima-tx: var(--lima); }
+/* Ilhas escuras: as variáveis escuras de volta */
+html.tema-claro header, html.tema-claro .hero, html.tema-claro footer, html.tema-claro .clips, html.tema-claro .toast,
+html.tema-claro .cat, html.tema-claro .eye, html.tema-claro .fxtag, html.tema-claro .ccard {
+  --bg: #061505; --n950: #081b06; --n900: #0c2408; --n850: #102d0a; --n800: #15370d; --n700: #1f4813;
+  --linha: rgba(255, 255, 255, .07); --linha2: rgba(255, 255, 255, .12);
+  --tx: #f3f8ee; --tx2: #a9c19a; --tx3: #6e8b60; --limas: rgba(178, 224, 74, .12); --lima-tx: #b2e04a;
+  --card: linear-gradient(180deg, rgba(24, 60, 14, .55), rgba(10, 32, 7, .92)); --red: #ff6b6b;
+  color-scheme: dark;
+}
+html.tema-claro body { background: var(--bg); color: var(--tx); }
+html.tema-claro .fundo { display: none; }
+html.tema-claro header { background: #0b2207; color: var(--tx); border-bottom: 0; }
+html.tema-claro header nav, html.tema-claro header .cats { background: transparent; }
+/* faixa do "bom dia" de ponta a ponta, como o topo da LP */
+html.tema-claro .hero { position: relative; color: var(--tx); padding-bottom: 34px; margin-bottom: 18px;
+  background: radial-gradient(70% 140% at 85% 30%, rgba(76, 140, 20, .55), transparent 60%), #0b3d0a;
+  box-shadow: 0 0 0 100vmax #0b3d0a; clip-path: inset(0 -100vmax); }
+html.tema-claro .hero h1 { color: #f3f8ee; }
+html.tema-claro .hero .stat { background: rgba(3, 20, 3, .45); border-color: rgba(178, 224, 74, .25); }
+html.tema-claro footer { background: #0b2207; color: #a9c19a; margin-top: 40px; padding-top: 22px; padding-bottom: 22px; }
+html.tema-claro footer a { color: #b2e04a; }
+/* cartões, painéis e caixas no estilo da LP */
+html.tema-claro .card { border-color: var(--linha); box-shadow: 0 1px 2px rgba(11, 34, 7, .05); }
+html.tema-claro .card:hover { border-color: #b2e04a; box-shadow: 0 16px 34px rgba(11, 34, 7, .12), 0 0 0 1px rgba(178, 224, 74, .35); }
+html.tema-claro .box, html.tema-claro .drawer { background: #ffffff; color: var(--tx); box-shadow: 0 30px 80px rgba(11, 34, 7, .22); }
+html.tema-claro .mod, html.tema-claro .ov, html.tema-claro .overlay { background-color: rgba(11, 34, 7, .45); }
+html.tema-claro input::placeholder, html.tema-claro textarea::placeholder { color: #8a9a80; }
+html.tema-claro .tabbar { background: rgba(255, 255, 255, .97); border-top-color: var(--linha); }
+html.tema-claro .tabbar { --tx: #0b2207; --tx2: #4c5f43; --lima-tx: #3f7d12; }
+html.tema-claro .chip.on, html.tema-claro .tool.on { color: #0b2207; }
+html.tema-claro .btn.pri, html.tema-claro .add, html.tema-claro .hb.cart { color: #0b2207; }
+html.tema-claro .btn.pri:hover, html.tema-claro .add:hover { box-shadow: 0 8px 20px rgba(178, 224, 74, .45); }
+/* destaque de "marcador" nos títulos, como na LP */
+html.tema-claro .hero h1 em { color: #b2e04a; }
+html.tema-claro body.g360-painel .hb.adm-only { color: #0b1a0b !important; }
+html.tema-claro .rv-aviso.forn { color: #24508f !important; background: rgba(60, 120, 220, .07); border-color: rgba(60, 120, 220, .3); }
+/* ===== gerado por ferramentas/gerar-tema-claro.py: não edite abaixo desta linha ===== */
+html.tema-claro .fundo .grade{background-image:linear-gradient(rgba(11,34,7,0.021) 1px,transparent 1px),linear-gradient(90deg,rgba(11,34,7,0.021) 1px,transparent 1px)}
+html.tema-claro .hb:hover{background:rgba(11,34,7,0.024)}
+html.tema-claro .hb.on{color:var(--lima-tx)}
+html.tema-claro .user a{color:var(--lima-tx)}
+html.tema-claro .chip{background:rgba(11,34,7,0.012)}
+html.tema-claro .stat b{color:var(--lima-tx)}
+html.tema-claro .bar .cnt b{color:var(--lima-tx)}
+html.tema-claro .edbar .t b{color:var(--lima-tx)}
+html.tema-claro .card:hover{box-shadow:0 18px 40px rgba(11,34,7,0.126),0 0 0 1px rgba(178,224,74,.08)}
+html.tema-claro .dots i{background:#f4f8ee}
+html.tema-claro .card:hover .dots i:first-child{background:#f4f8ee}
+html.tema-claro .edbtn{color:var(--lima-tx)}
+html.tema-claro .brand{color:var(--lima-tx)}
+html.tema-claro .name:hover{color:var(--lima-tx)}
+html.tema-claro .qty button:hover{color:var(--lima-tx)}
+html.tema-claro .unsel button.on{color:var(--lima-tx)}
+html.tema-claro .ueq b{color:var(--lima-tx)}
+html.tema-claro .tagcx{color:var(--lima-tx)}
+html.tema-claro .stk.ok{color:#476827}
+html.tema-claro .stk.low{color:#7f6a2e}
+html.tema-claro .warn{color:#7f6a2e}
+html.tema-claro .warn b{color:#7f6a2e}
+html.tema-claro .tagcg{color:#4e687f}
+html.tema-claro .mrow.h{background:#f4f8ee}
+html.tema-claro .mg.mid{color:#7f6a2e}
+html.tema-claro .mg.ok{color:#476827}
+html.tema-claro .lockp{color:var(--lima-tx)}
+html.tema-claro .csec{color:var(--lima-tx)}
+html.tema-claro .okmsg{color:#476827}
+html.tema-claro .addr{background:#f4f8ee}
+html.tema-claro .prev .ic{color:#476827}
+html.tema-claro .prev.out .ic{color:#7f6a2e}
+html.tema-claro .eitem{background:#f4f8ee}
+html.tema-claro .crow2.h{background:#f4f8ee}
+html.tema-claro .stt.pendente{color:#7f6a2e}
+html.tema-claro .stt.aprovado{color:#476827}
+html.tema-claro .crow2 .ab2 button{background:rgba(11,34,7,0.024)}
+html.tema-claro .chks label{background:#f4f8ee}
+html.tema-claro .tagl{background:#f4f8ee}
+html.tema-claro .ltabs button.on{color:var(--lima-tx)}
+html.tema-claro .arow.h{background:#f4f8ee}
+html.tema-claro .uns b{color:var(--lima-tx)}
+html.tema-claro .mk{color:#7f6a2e}
+html.tema-claro .addu{color:var(--lima-tx)}
+html.tema-claro .conta .av{color:var(--lima-tx)}
+html.tema-claro .fxact button{background:rgba(11,34,7,0.024)}
+html.tema-claro .drop .ic{color:var(--lima-tx)}
+html.tema-claro .fx .act{background:linear-gradient(180deg,rgba(255,255,255,.85),#ffffff 40%)}
+html.tema-claro .cnav button:hover{color:var(--lima-tx)}
+html.tema-claro .dclip{color:var(--lima-tx)}
+html.tema-claro .eclip{background:#f4f8ee}
+html.tema-claro .mod{background:rgba(255,255,255,.72)}
+html.tema-claro .box{background:linear-gradient(180deg,#ffffff,#ffffff);box-shadow:0 30px 80px rgba(11,34,7,0.168)}
+html.tema-claro .lnk{color:var(--lima-tx)}
+html.tema-claro .btn.sec{background:rgba(11,34,7,0.036)}
+html.tema-claro .btn.sec:hover{background:rgba(11,34,7,0.05)}
+html.tema-claro .btn.out{color:var(--lima-tx)}
+html.tema-claro .gnav{box-shadow:0 4px 12px rgba(11,34,7,0.022)}
+html.tema-claro .dinfo .x{background:rgba(255,255,255,.7)}
+html.tema-claro .dprice{background:#f4f8ee}
+html.tema-claro .dprice b{color:var(--lima-tx)}
+html.tema-claro .dfav.on{color:var(--lima-tx)}
+html.tema-claro .ph h2 em{color:var(--lima-tx)}
+html.tema-claro .intel-kpi strong{color:var(--lima-tx)}
+html.tema-claro .intel-rank-top b{color:var(--lima-tx)}
+html.tema-claro .intel-prod-num b{color:var(--lima-tx)}
+html.tema-claro .lrow.h{background:#f4f8ee}
+html.tema-claro .lrow.sel .sub2{color:var(--lima-tx)}
+html.tema-claro .sticky{background:rgba(255,255,255,.95)}
+html.tema-claro .sticky .tt b{color:var(--lima-tx)}
+html.tema-claro .drawer{background:linear-gradient(180deg,#ffffff,#ffffff);box-shadow:-20px 0 60px rgba(11,34,7,0.14)}
+html.tema-claro .df .t b{color:var(--lima-tx)}
+html.tema-claro .shade{background:rgba(255,255,255,.6)}
+html.tema-claro .rv{background:#f4f8ee}
+html.tema-claro .pay label{background:#f4f8ee}
+html.tema-claro .demo b{color:var(--lima-tx)}
+html.tema-claro .ped .v{color:var(--lima-tx)}
+html.tema-claro .st{color:#7f6a2e}
+html.tema-claro .ped summary{color:var(--lima-tx)}
+html.tema-claro .dinfo .x{background:rgba(255,255,255,.9)}
+html.tema-claro .dbuy{background:linear-gradient(180deg,transparent,#ffffff 30%)}
+html.tema-claro .demo-tag{color:#7f6a2e}
+html.tema-claro .demo-faixa{color:#7f6a2e}
+html.tema-claro .demo-box b{color:#7f6a2e}
+html.tema-claro .demo-box select{background:#ffffff}
+html.tema-claro .rv-aviso.bad{color:#7f5a56}
+html.tema-claro .rv .rvl .rv-av{color:#7f6a2e}
+html.tema-claro .rv-et{color:var(--lima-tx)}
+html.tema-claro .rv-final b{color:var(--lima-tx)}
+html.tema-claro .rv-falha b{color:#7f5a56}
+html.tema-claro .app-topo{background:rgba(255,255,255,.92)}
+html.tema-claro .app-link{color:var(--lima-tx)}
+html.tema-claro .app-link.perigo{color:#7f5a55}
+html.tema-claro .app-nav{background:rgba(255,255,255,.7)}
+html.tema-claro .app-nav button.ativo .app-badge{background:#ffffff;color:var(--lima-tx)}
+html.tema-claro .app-aviso{color:#7f7045}
+html.tema-claro .app-aviso.suave{background:rgba(11,34,7,0.018)}
+html.tema-claro .filtros input,html.tema-claro .filtros select,html.tema-claro .bloco select,html.tema-claro .bloco textarea,html.tema-claro .g360-form input,html.tema-claro .g360-form select{background:#f4f8ee}
+html.tema-claro .filtros-erro{color:#7f7045}
+html.tema-claro .foto{background:rgba(11,34,7,0.024)}
+html.tema-claro .cp-unidade{background:#f4f8ee}
+html.tema-claro .cp-disp.disp-ok{color:var(--lima-tx)}
+html.tema-claro .cp-disp.disp-fora{color:#7f5a55}
+html.tema-claro .cp-aviso{color:#7f7045}
+html.tema-claro .cp-qtd{background:#f4f8ee}
+html.tema-claro .cp-retorno.ret-ok{color:var(--lima-tx)}
+html.tema-claro .cp-retorno.ret-erro{color:#7f7045}
+html.tema-claro .linha{background:rgba(11,34,7,0.018)}
+html.tema-claro .linha-pendencia{color:#7f7045}
+html.tema-claro .linha-erro{color:#7f7045}
+html.tema-claro .novo-endereco summary{color:var(--lima-tx)}
+html.tema-claro .resumo{background:rgba(11,34,7,0.018)}
+html.tema-claro .cred-liberado strong{color:var(--lima-tx)}
+html.tema-claro .cred-aviso strong,html.tema-claro .cred-aguardando_aprovacao strong{color:#7f7045}
+html.tema-claro .pend-usuario{color:#7f7045}
+html.tema-claro .pend-fornecedor{color:#67707f}
+html.tema-claro .pend-tentar_de_novo,html.tema-claro .pend-integracao{background:rgba(11,34,7,0.024)}
+html.tema-claro .pedido-item{background:rgba(11,34,7,0.018)}
+html.tema-claro .sit-cancelado{color:#7f6865}
+html.tema-claro .sit-entregue,html.tema-claro .sit-faturado,html.tema-claro .sit-separado{color:var(--lima-tx)}
+html.tema-claro .sit-aguardando_aprovacao,html.tema-claro .sit-em_analise{color:#7f7045}
+html.tema-claro .tabela th{background:rgba(11,34,7,0.018)}
+html.tema-claro .rv .rv-item .rv-pend{color:#7f6a2e}
+html.tema-claro .rv-aviso.forn{color:#67707f}
+html.tema-claro .end-form{background:#f4f8ee}
+html.tema-claro .end-form .campo-erro{color:#7f5a56}
+html.tema-claro .sugestoes button:hover,html.tema-claro .sugestoes button:focus-visible{color:var(--lima-tx)}
+html.tema-claro .escolhido{color:var(--lima-tx)}
+html.tema-claro .ped .st{color:var(--lima-tx)}
+html.tema-claro .ped .st.sit-cancelado{color:#7f5a56}
+html.tema-claro .ped .st.sit-aguardando_aprovacao,html.tema-claro .ped .st.sit-em_analise{color:#7f6a2e}
+html.tema-claro body.g360-painel .mg.ok{color:#476827}
+html.tema-claro body.g360-painel input.inp,html.tema-claro body.g360-painel select.inp,html.tema-claro body.g360-painel #cgDatas input{background:#f4f8ee}
+html.tema-claro body.g360-painel select.inp option{background:#ffffff}
+html.tema-claro #detBox .gth.gvid{background:#ffffff}
+html.tema-claro .aedit{background:#f4f8ee}
+html.tema-claro .stk.disp{color:var(--lima-tx)}
+html.tema-claro .stk.disp.baixo{color:#7f6a2e}
+html.tema-claro .ifimp{background:rgba(11,34,7,0.496)}
+html.tema-claro .impbox{background:var(--n950, #ffffff)}
+html.tema-claro .impex code{color:var(--lima-tx)}
+html.tema-claro .impbar{background:var(--n950, #ffffff)}
+html.tema-claro .impst{color:var(--lima-tx)}
+html.tema-claro .impbarra{background:rgba(11,34,7,0.048)}
+html.tema-claro .implb{background:rgba(11,34,7,0.68)}
+html.tema-claro .ccarq{color:var(--lima-tx) !important}
+html.tema-claro .ccselo{background:#ffffff;color:#597025}
+html.tema-claro .ccolho{background:rgba(255,255,255,.15)}
+html.tema-claro .ccth button{background:#ffffff}
+html.tema-claro .img .dots i{background:#f4f8ee}
+html.tema-claro .kcad .ktit span{color:var(--lima-tx)}
+html.tema-claro .kcad .kst.ok{color:var(--lima-tx)}
+html.tema-claro .kcad .kact{background:linear-gradient(180deg, rgba(255,255,255,.85), #ffffff 40%)}
+html.tema-claro .kcad .kja1{color:var(--lima-tx)}
+html.tema-claro .g360-aviso-busca{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .instalar-link{color:var(--lima-tx)}
+html.tema-claro .faixa-app{background:#ffffff;box-shadow:0 10px 30px rgba(11,34,7,0.126)}
+html.tema-claro .passo-ios{background:rgba(11,34,7,0.48)}
+html.tema-claro .passo-ios-caixa{background:#ffffff}
+html.tema-claro .lg-cont small{color:#7f6a2e}
+html.tema-claro .lg-outro{color:var(--lima-tx)}
+html.tema-claro .passo-ios-seta{color:var(--lima-tx)}
+html.tema-claro .mod-x{background:rgba(255,255,255,.92);box-shadow:0 4px 14px rgba(11,34,7,0.098)}
+html.tema-claro .lbusca input{border:1px solid var(--bd, #ffffff);background:var(--bg2, #ffffff)}
+html.tema-claro .rs-lista{background:#f4f8ee}
+html.tema-claro .rs-item[data-st="bad"]{color:#7f5a56}
+html.tema-claro .rs-item[data-st="ok"] .rs-cont{color:#597025}
+html.tema-claro .hcad.analise small{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .lg-novo{color:var(--tx2, #646b61)}
+html.tema-claro .lg-novo b{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .hcad-acesso{color:var(--tx2, #646b61)}
+html.tema-claro .hcad-acesso b{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .ex-cod{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .ex-sit{background:rgba(11,34,7,0.048);color:var(--tx2, #54604d)}
+html.tema-claro .ex-cli-l{background:rgba(11,34,7,0.018)}
+html.tema-claro .ex-st{background:rgba(11,34,7,0.048);color:var(--tx2, #54604d)}
+html.tema-claro .ex-st.ativo{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .ex-st.aguardando{color:#7f693d}
+html.tema-claro .ex-st.recusado,html.tema-claro .ex-st.removido{color:#7f4d4d}
+html.tema-claro .ex-ind{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .ex-ind.sem{color:#7f693d}
+html.tema-claro .ex-rel-tot{color:var(--tx2, #54604d)}
+html.tema-claro .ex-rel-l{background:rgba(11,34,7,0.018)}
+html.tema-claro .lbl-like{color:var(--tx2, #54604d)}
+html.tema-claro .oc-box{background:#f4f8ee}
+html.tema-claro .oc-item{background:rgba(11,34,7,0.018)}
+html.tema-claro .oc-chip button{background:rgba(11,34,7,0.048)}
+html.tema-claro .oc-palavras summary{color:var(--tx2, #54604d)}
+html.tema-claro .sx-sec{background:#f4f8ee}
+html.tema-claro .sx-n{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .sx-n.zero{color:#7f4d4d}
+html.tema-claro .dm-fundo{background:rgba(11,34,7,0.36)}
+html.tema-claro .dm-caixa{background:#ffffff;box-shadow:0 24px 60px rgba(11,34,7,0.154)}
+html.tema-claro .dm-tudo{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .dm-voltar{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .dep-cab-in{background:radial-gradient(600px 220px at 0% 0%, rgba(178, 224, 74, .22), transparent 70%), linear-gradient(135deg, #ffffff, #ffffff 70%);box-shadow:0 14px 40px rgba(11,34,7,0.098)}
+html.tema-claro .dep-ic{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .dep-trilha button:hover,html.tema-claro .dep-trilha button:focus-visible{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .dep-trilha [aria-current]{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .dep-sec.on{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .dep-sec.on small{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .dep-filtrar{background:#f4f8ee}
+html.tema-claro .dep-filtrar small{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .sec-fundo{background:rgba(11,34,7,0.4)}
+html.tema-claro .sec-folha{background:#ffffff;box-shadow:0 -20px 50px rgba(11,34,7,0.14)}
+html.tema-claro .sec-topo{background:#ffffff}
+html.tema-claro .tagof.leve{color:#7f593e}
+html.tema-claro .promo{color:#7f6757}
+html.tema-claro .exa-link-rot{color:var(--tx2, #677063)}
+html.tema-claro .g360-cartao{background:linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,.94));box-shadow:0 20px 60px rgba(11,34,7,0.126)}
+html.tema-claro .g360-portal{color:var(--lima-tx)}
+html.tema-claro .g360-msg-corrigir .g360-msg-rotulo,html.tema-claro .g360-msg-corrigir p{color:#7f7045}
+html.tema-claro .g360-msg-fornecedor .g360-msg-rotulo,html.tema-claro .g360-msg-fornecedor p{color:#67707f}
+html.tema-claro .g360-msg-tentar .g360-msg-rotulo,html.tema-claro .g360-msg-rede .g360-msg-rotulo{color:var(--lima-tx)}
+html.tema-claro .g360-msg-integracao .g360-msg-rotulo,html.tema-claro .g360-msg-integracao p{color:#7f6865}
+html.tema-claro .g360-form input[type="text"],html.tema-claro .g360-form input[type="password"]{background:#f4f8ee}
+html.tema-claro .g360-erro-campo{color:#7f7045}
+html.tema-claro .g360-link{color:var(--lima-tx)}
+html.tema-claro .g360-ok strong{color:var(--lima-tx)}
+html.tema-claro .exa-cod{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .exa-link{background:#f4f8ee}
+html.tema-claro .exa-tot div{background:rgba(11,34,7,0.024)}
+html.tema-claro .exa-mes{background:rgba(11,34,7,0.018)}
+html.tema-claro .exa-l{background:rgba(11,34,7,0.018)}
+html.tema-claro .exa-st{background:rgba(11,34,7,0.048)}
+html.tema-claro .exa-st.ativo{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .exa-st.aguardando{color:#7f693d}
+html.tema-claro .exa-st.recusado,html.tema-claro .exa-st.removido{color:#7f4d4d}
+html.tema-claro .exa-per select{background:#f4f8ee}
+html.tema-claro .exa-kpis div{background:rgba(11,34,7,0.027);border:1px solid rgba(11,34,7,0.03)}
+html.tema-claro .exa-kpis .dest b{color:var(--lima-tx)}
+html.tema-claro .exa-pedido{background:rgba(11,34,7,0.021)}
+html.tema-claro .exa-st.prevista,html.tema-claro .exa-st.faturada{color:#7f693d}
+html.tema-claro .exa-st.liberada,html.tema-claro .exa-st.paga{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .exa-st.cancelada{color:#7f4d4d}
+html.tema-claro .exa-pc{background:rgba(11,34,7,0.021)}
+html.tema-claro .exa-lado .exa-bloco{background:#f4f8ee}
+html.tema-claro .exa-c2{background:rgba(11,34,7,0.018)}
+html.tema-claro .exa-ac.ok{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .exa-ac.nunca{color:#7f693d}
+html.tema-claro .exa-btlink{color:var(--lima-tx);color:var(--lima, #597025)}
+html.tema-claro .exa-ac-msg.erro{color:#7f4d4d}
+html.tema-claro .exa-c2-busca{border:1px solid rgba(11,34,7,0.05);background:#f4f8ee}

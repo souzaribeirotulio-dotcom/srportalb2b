@@ -8,6 +8,17 @@
    o token só em memória para src/main.js, que o retira daqui na hora.
    Qualquer script de análise que vier a existir tem de carregar depois deste. */
 (function () {
+  /* Tema claro (identidade da LP): por enquanto só na homologação e no localhost.
+     ?tema=claro ou ?tema=escuro troca e fica guardado neste navegador. */
+  try {
+    var teste = /(^localhost$|homologacao)/.test(location.hostname);
+    var q = new URLSearchParams(location.search).get('tema');
+    if (q === 'claro' || q === 'escuro') localStorage.setItem('sr:tema', q);
+    var t = localStorage.getItem('sr:tema') || (teste ? 'claro' : 'escuro');
+    if (t === 'claro') document.documentElement.classList.add('tema-claro');
+  } catch (e) { /* sem armazenamento: fica no tema padrão */ }
+})();
+(function () {
   if (location.pathname.replace(/\/+$/, '') !== '/definir-senha' || !location.hash) return;
   var token = new URLSearchParams(location.hash.slice(1)).get('token') || '';
   history.replaceState(null, '', location.pathname);

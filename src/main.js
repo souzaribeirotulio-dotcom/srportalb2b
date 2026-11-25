@@ -7,6 +7,7 @@
 import './entrada.css';
 import './app.css';
 import './portal.css';
+import './tema-claro.css';
 import { apresentarLoja } from './api/g360.js';
 import { mostrarMensagemErro } from './ui/mensagem.js';
 import { esc } from './ui/util.js';
