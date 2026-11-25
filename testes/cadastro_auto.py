@@ -48,6 +48,23 @@ with sync_playwright() as pw:
         checar(not erros, f'{largura}: erros: {erros}')
         ctx.close()
 
+        # 1b) Tem de dar erro: o e-mail da Receita não entra no campo; sem e-mail digitado, o cadastro não sai
+        sim = Sim(); sim.cenario['auto'] = 'criado'
+        ctx, pg, erros = abrir(br, sim, largura)
+        receita = {'razao_social': 'Empresa Fictícia LTDA', 'estabelecimento': {'email': 'contador@example.invalid', 'cep': '38400000', 'logradouro': 'Rua Exemplo',
+                   'numero': '10', 'bairro': 'Centro', 'cidade': {'nome': 'Cidade Exemplo'}, 'estado': {'sigla': 'MG'}, 'situacao_cadastral': 'Ativa'}}
+        pg.route('**/publica.cnpj.ws/**', lambda r: r.fulfill(status=200, headers={'Access-Control-Allow-Origin': '*'}, content_type='application/json', body=__import__('json').dumps(receita)))
+        pg.click('#heroCadB'); pg.wait_for_selector('#mCad.open #kDoc')
+        pg.fill('#kDoc', '12.ABC.345/01DE-35'); pg.fill('#kDoc', '12345678000195')
+        pg.wait_for_function("(document.querySelector('#kRazao')?.value||'').includes('Fictícia')", timeout=10000)
+        checar(pg.input_value('#kEmail') == '', f'{largura}: e-mail da Receita entrou no campo: {pg.input_value("#kEmail")}')
+        for i, v in [('kResp', 'Pessoa Fictícia'), ('kWhats', '(34) 99999-0000')]: pg.fill('#' + i, v)
+        pg.select_option('#kSeg', 'Escritório')
+        if pg.locator('#kOrigem').is_visible(): pg.select_option('#kOrigem', 'Instagram')
+        pg.click('#kEnviar'); pg.wait_for_timeout(600)
+        checar('e-mail' in pg.inner_text('#kEmailErr').lower() and not sim.cadastros, f'{largura}: cadastro saiu sem e-mail')
+        ctx.close()
+
         # 2) Tem de dar erro (não cria nada): CPF fica para a equipe, mensagem de análise de sempre
         sim = Sim(); sim.cenario['auto'] = 'criado'
         ctx, pg, erros = abrir(br, sim, largura)

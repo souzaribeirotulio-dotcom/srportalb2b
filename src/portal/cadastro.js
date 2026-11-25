@@ -234,7 +234,8 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
     if (so(doc.value) !== d) return;
     if (!dados) { $('kDocSt').textContent = 'Não conseguimos consultar este CNPJ agora. Preencha os dados abaixo.'; mostrarCampos(); return; }
     const pre = (id, v) => { if (v && !$(id).value.trim()) $(id).value = String(v).trim(); };
-    pre('kRazao', dados.razao); pre('kFantasia', dados.fantasia); pre('kIe', dados.ie); pre('kEmail', dados.email);
+    pre('kRazao', dados.razao); pre('kFantasia', dados.fantasia); pre('kIe', dados.ie);
+    // E-mail nunca vem da Receita (costuma estar errado ou ser do contador): a pessoa digita o dela. O link de senha vai para ele.
     pre('kCep', dados.cep ? `${dados.cep.slice(0, 5)}-${dados.cep.slice(5)}` : ''); pre('kRua', dados.rua);
     pre('kNum', dados.numero); pre('kComp', dados.complemento); pre('kBairro', dados.bairro); pre('kCidade', dados.cidade);
     if (dados.telefone && !$('kTel').value) $('kTel').value = foneBonito(dados.telefone);
