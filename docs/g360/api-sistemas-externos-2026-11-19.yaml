@@ -2,7 +2,6 @@ openapi: "3.1.0"
 info:
   title: "API dos sistemas externos"
   version: "2026.11.19"
-  x-edicao: "Etapas 1 e 2"
   description: |-
     Contrato de integração com o G360. As operações usam a URL-base da instalação, seguida de /b2b/v1/lojas/{loja}. As rotas GET também aceitam HEAD. O CORS permite apenas as origens configuradas na loja. Nas respostas reais dessas origens, Access-Control-Expose-Headers: Retry-After permite ao navegador ler a espera enviada em Retry-After. Origem não cadastrada e vitrine fechada não recebem CORS; o preflight permanece igual. O preflight aceita GET, HEAD, POST, PUT, DELETE e OPTIONS, com Authorization, Content-Type e Idempotency-Key. A vitrine usa GET e HEAD simples, sem cabeçalhos que exijam preflight no navegador. Requisições sem Origin seguem a autenticação da operação. Recusas por método inexistente ou parâmetro de rota fora do padrão seguem o tratamento geral da aplicação.
 
@@ -4325,6 +4324,55 @@ components:
             "$ref": "#/components/schemas/PrecoCongelado"
         proximo: {type: ["integer", "null"], minimum: 1}
         disponivel: {type: "boolean"}
+    PromocaoDoPreco:
+      type: "object"
+      additionalProperties: false
+      description: >-
+        Promoção do preço (campo novo e opcional desde 21/11/2026; nenhum campo existente mudou). Vem com a oferta que deu o
+        preço (faltam "0") ou, quando a quantidade ainda não chega na meta da promoção, com a oferta que a mesma regra da venda
+        dá numa quantidade maior: o preço da linha continua o normal e o bloco diz quanto falta ("leve mais 2 caixas e pague
+        R$ 43,90 cada"). Tudo na unidade da linha: numa caixa, os preços, a meta, o faltam e o restam são da caixa, e o preço
+        da oferta é o da caixa. O servidor decide o preço; o bloco só informa e pode mudar entre a revisão e o envio (o
+        limite da promoção é de todos os clientes).
+      required: ["promocao", "item", "nome", "preco_normal", "preco_oferta", "desconto_percentual", "meta", "a_partir", "faltam", "economia", "restam", "fim"]
+      properties:
+        promocao: {type: "integer", description: "Código da promoção no G360."}
+        item: {type: "integer", description: "Item da promoção que dá o preço."}
+        nome: {type: ["string", "null"], description: "Nome da promoção. Nulo em base sem o campo."}
+        preco_normal:
+          description: "O que o comprador pagaria na unidade sem a promoção: a tabela ou, quando o seu_preco (congelado) é menor que ela, o seu_preco. A economia e o desconto_percentual saem dele. Quando a oferta ainda não vale, o que o comprador paga hoje (com o seu_preco, se houver)."
+          anyOf:
+            - "$ref": "#/components/schemas/PrecoUnitario"
+            - type: "null"
+        preco_oferta:
+          "$ref": "#/components/schemas/PrecoUnitario"
+        desconto_percentual: {type: ["number", "null"], description: "(normal − oferta) ÷ normal × 100, com uma casa. Nulo sem preço normal."}
+        meta:
+          "$ref": "#/components/schemas/Quantidade"
+          description: "Quantidade mínima na unidade da linha. 0 vale em qualquer quantidade."
+        a_partir: {type: "boolean", description: "true: vale a partir da meta. false: só em múltiplos da meta."}
+        faltam:
+          "$ref": "#/components/schemas/Quantidade"
+          description: "Quanto falta na quantidade pedida para a oferta valer. 0 quando já vale."
+        economia:
+          description: "(normal − oferta) × a quantidade pedida, ou × a quantidade em que a oferta passa a valer, quando ainda não vale. Nula sem preço normal."
+          anyOf:
+            - "$ref": "#/components/schemas/Dinheiro"
+            - type: "null"
+        restam:
+          description: "Quanto ainda resta do limite da promoção, na unidade da linha. Nulo sem limite."
+          anyOf:
+            - "$ref": "#/components/schemas/Quantidade"
+            - type: "null"
+        fim:
+          type: "object"
+          additionalProperties: false
+          required: ["data", "hora"]
+          properties:
+            data: {type: "string", format: "date", description: "Último dia da promoção."}
+            hora: {type: ["string", "null"], pattern: "^[0-2][0-9]:[0-5][0-9]$", description: "Hora em que termina no último dia. Nula vale o dia todo."}
+      examples:
+        - {promocao: 812, item: 9031, nome: "Black Friday Ferramentas", preco_normal: "52.00", preco_oferta: "43.90", desconto_percentual: 15.6, meta: "5", a_partir: true, faltam: "2", economia: "40.50", restam: "3", fim: {data: "2026-11-30", hora: "23:59"}}
     SeuPreco:
       description: "Preço efetivo na unidade comprada, quando há congelado vigente. É o menor entre o preço negociado e a tabela aplicável. Nulo para kits, sem congelado ou sem preço de compra. Em pedidos enviados, reflete a condição gravada no envio."
       anyOf:
@@ -4360,9 +4408,17 @@ components:
           anyOf:
             - "$ref": "#/components/schemas/PrecoUnitario"
             - type: "null"
-        origem_preco: {type: ["string", "null"], enum: ["tabela", "formula", "cadastro", null]}
+        origem_preco:
+          type: ["string", "null"]
+          enum: ["tabela", "formula", "cadastro", "promocao", null]
+          description: "Regra que deu o preço. promocao quando uma promoção vigente para o cliente, o canal e a quantidade deu o preço (a mesma regra da venda do G360)."
+        promocao:
+          description: "Promoção do preço da unidade base (desde 21/11/2026; campo novo). Nulo sem promoção ou sem preço."
+          anyOf:
+            - "$ref": "#/components/schemas/PromocaoDoPreco"
+            - type: "null"
         custo_visivel: {type: "boolean", description: "Permissão 01110 para consultar custo e margem."}
-        custo: {type: ["number", "null"], description: "Custo unitário conforme o Painel de Gestão, com até quatro casas decimais. Nulo sem 01110 ou sem cadastro do produto na empresa de custos."}
+        custo: {type: ["number", "null"], description: "Custo unitário conforme o Painel de Gestão, com até quatro casas decimais. No produto marcado como kit no cadastro, é a soma do custo de cada componente vezes a quantidade dele no kit. Nulo sem 01110 ou sem cadastro do produto na empresa de custos."}
         margem_percentual: {type: ["number", "null"], description: "100 vezes (preço de venda menos custo) dividido pelo preço de venda, com até duas casas. Nula sem 01110, sem cadastro do custo ou sem preço."}
     GaleriaProduto:
       type: "object"
@@ -4456,7 +4512,7 @@ components:
         nome: {type: "string"}
         acesso_portal:
           type: "boolean"
-          description: "Situação da chave do item 03. Em base antiga sem a coluna, segue a regra anterior de acesso."
+          description: "Indica se o cadastro está liberado para acessar o portal. Em bases sem esse controle, valem as demais regras de acesso do cadastro."
         segmento:
           "$ref": "#/components/schemas/Comprador/properties/segmento"
     RequestId:
@@ -4856,6 +4912,9 @@ components:
             - type: "null"
         seu_preco:
           "$ref": "#/components/schemas/SeuPreco"
+        promocao:
+          "$ref": "#/components/schemas/PromocaoDoPreco"
+          description: "Só quando há promoção para 1 unidade base (vigente ou numa quantidade maior). Ausente sem promoção."
         compravel:
           type: "boolean"
         disponibilidade:
@@ -4890,10 +4949,14 @@ components:
                 "$ref": "#/components/schemas/PrecoUnitario"
               seu_preco:
                 "$ref": "#/components/schemas/SeuPreco"
+              promocao:
+                "$ref": "#/components/schemas/PromocaoDoPreco"
+                description: "Só quando há promoção cadastrada nesta embalagem (pelo código dela), para 1 embalagem. O preço da oferta é o da embalagem. Ausente sem promoção."
               quantidade_disponivel:
                 "$ref": "#/components/schemas/QuantidadeDisponivel"
                 description: "Saldo convertido para esta embalagem. Caixas e pacotes do tipo multiplicador contam embalagens inteiras. As unidades fracionadas seguem as casas de quantidade da venda, até quatro. Nulo com o parâmetro desligado ou ausente."
         kit:
+          description: "Componentes do kit, que é vendido por eles. O preço do kit soma os componentes, cada um pela tabela do comprador com o índice do kit cadastrado no G360, como a venda do G360. Nulo para produto que não é kit."
           anyOf:
             - type: "array"
               items:
@@ -5455,6 +5518,9 @@ components:
                   -
                     "$ref": "#/components/schemas/Dinheiro"
                   - type: "null"
+              promocao:
+                "$ref": "#/components/schemas/PromocaoDoPreco"
+                description: "Só quando há promoção para a linha, na quantidade e na unidade dela: a que deu o preço ou quanto falta para ela valer. Não entra na assinatura. Ausente sem promoção."
               aviso:
                 type: ["string","null"]
               pendencia:
