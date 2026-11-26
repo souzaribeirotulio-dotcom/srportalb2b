@@ -13,13 +13,14 @@
      já fica aprovado: o cliente cria a senha e vê preço e compra na hora.
      CPF (decisão da Souza Ribeiro em 26/11/2026) também passa direto: sem consulta prévia
      (a API não tem para CPF), cria a ficha com RG/IE "NAO CONTRIBUINTE"; se o G360 responder
-     DOCUMENTO_REPETIDO ou DOCUMENTO_E_IE_REPETIDOS, não confirma: pede o link para o e-mail
-     do cadastro existente e deixa o pedido para a equipe vincular.
+     DOCUMENTO_REPETIDO ou DOCUMENTO_E_IE_REPETIDOS, não confirma e deixa o pedido para a equipe.
+     Quem já é cliente no G360 (CNPJ ou CPF) espera a equipe (decisão de 26/11/2026): nenhum link
+     sai sozinho; a equipe confere a tabela de preço, libera pela ficha e gera o link pelo painel.
      Senha no cadastro (decisão da Souza Ribeiro em 26/11/2026, sem e-mail de confirmação):
      o "Quero ser cliente" manda {senha} junto. Só para a ficha que ESTA chamada acabou de criar,
      a função emite o link (POST acessos/links, X-Chave-Sistema) e grava a senha na hora
      (POST acessos/senha), tudo no servidor: o token nunca vai ao navegador nem a log.
-     Ficha que já existia (ja_existe/repetido) nunca recebe senha por aqui: segue o link por e-mail.
+     Ficha que já existia (ja_existe/repetido) nunca recebe senha por aqui: espera a equipe.
      Se a gravação falhar, cai no link por e-mail de sempre.
      CNPJ já cadastrado, situação irregular na Receita ou qualquer recusa da API:
      não cria nada e deixa o pedido para a equipe (auto_status ja_existe/revisar/erro).
@@ -218,9 +219,8 @@ async function processar(id: string, k: Record<string, unknown>, doc: string, or
       await marcar(id, { auto_status: "revisar", auto_obs: `Consulta do CNPJ recusada (${c.erro?.codigo ?? c.status}${c.requestId ? `, ${c.requestId}` : ""}).` }); await registrar("cnpj_erro"); return analise;
     }
     if (sug.ja_existe === true) {
-      await marcar(id, { auto_status: "ja_existe", auto_obs: sug.cliente_id ? `Já existe no G360 (código ${sug.cliente_id}). Link de senha pedido para o e-mail do G360; vincule o pedido a esse cliente.` : "Já existe no G360, fora do recorte ou em mais de um cadastro. Confira no G360." });
-      // Já é cliente: pede o link de senha para o e-mail do cadastro no G360 (o navegador não fica sabendo).
-      try { await pedirLink(doc, origem); } catch { /* a equipe segue pelo painel */ }
+      await marcar(id, { auto_status: "ja_existe", auto_obs: sug.cliente_id ? `Já existe no G360 (código ${sug.cliente_id}). Aguardando a equipe: confira a tabela de preço, vincule o pedido a esse cliente e gere o link pela ficha.` : "Já existe no G360, fora do recorte ou em mais de um cadastro. Confira no G360." });
+      // Já é cliente: espera a equipe (nenhum link sai sozinho).
       await registrar("ja_existe"); return analise;
     }
     if (sug.situacao_irregular === true) {
@@ -273,8 +273,7 @@ async function processar(id: string, k: Record<string, unknown>, doc: string, or
       const er = (fc?.erro ?? {}) as Record<string, unknown>;
       const campos = er.campos && typeof er.campos === "object" ? Object.keys(er.campos as object).slice(0, 6).join(", ") : "";
       const repetido = /DOCUMENTO_(E_IE_)?REPETIDO/.test(String(er.codigo ?? ""));
-      await marcar(id, { auto_status: repetido ? "ja_existe" : "revisar", auto_obs: `${repetido ? "Documento já tem cadastro no G360" : "O G360 recusou a ficha"} (${er.codigo ?? f.status}${campos ? `: ${campos}` : ""}${fc?.request_id ? `, ${fc.request_id}` : ""}).` });
-      if (repetido) { try { await pedirLink(doc, origem); } catch { /* a equipe segue pelo painel */ } }
+      await marcar(id, { auto_status: repetido ? "ja_existe" : "revisar", auto_obs: `${repetido ? "Documento já tem cadastro no G360: aguardando a equipe conferir a tabela, vincular e gerar o link" : "O G360 recusou a ficha"} (${er.codigo ?? f.status}${campos ? `: ${campos}` : ""}${fc?.request_id ? `, ${fc.request_id}` : ""}).` });
       await registrar(repetido ? "repetido" : `ficha_${er.codigo ?? f.status}`); return analise;
     }
     const codigo = ficha.id as number;
