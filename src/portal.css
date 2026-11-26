@@ -696,3 +696,22 @@ body.cliente-analise .card .price, body.cliente-analise .card .buy, body.cliente
 body.cliente-analise .dprice, body.cliente-analise .dbuy, body.cliente-analise #dNegociar, body.cliente-analise #cartBtn,
 body.cliente-analise .lrow .qty, body.cliente-analise #lBuy, body.cliente-analise .ccard .add { display: none !important; }
 body.cliente-analise .card .info::after { content: "Preço liberado após a aprovação do cadastro"; display: block; margin-top: auto; padding: 9px 10px; border-radius: 10px; background: var(--limas); color: var(--lima-tx, var(--lima)); font-size: 12px; font-weight: 700; text-align: center; }
+
+/* Quero ser cliente: "Criando o seu acesso" (pontinhos e barra andando) e botões da tela de pronto */
+.cad-pontos { display: flex !important; gap: 6px; align-items: center; justify-content: center; }
+.cad-pontos i { width: 10px; height: 10px; border-radius: 50%; background: #0b2207; animation: cadPulo 1.2s infinite ease-in-out; }
+.cad-pontos i:nth-child(2) { animation-delay: .15s; } .cad-pontos i:nth-child(3) { animation-delay: .3s; }
+@keyframes cadPulo { 0%, 80%, 100% { transform: translateY(0); opacity: .45; } 40% { transform: translateY(-8px); opacity: 1; } }
+.cad-criando #kEtapa { min-height: 1.5em; font-weight: 600; }
+.cad-barra { height: 6px; max-width: 260px; margin: 12px auto 8px; border-radius: 999px; background: rgba(178, 224, 74, .15); overflow: hidden; }
+.cad-barra span { display: block; height: 100%; width: 40%; border-radius: inherit; background: var(--lima, #b2e04a); animation: cadBarra 1.6s infinite ease-in-out; }
+@keyframes cadBarra { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+.cad-acoes { display: flex; flex-direction: column; align-items: stretch; gap: 6px; max-width: 360px; margin: 8px auto 0; }
+.cad-acoes .btn { width: 100%; min-height: 48px; }
+.cad-reenviar { background: none; border: 0; min-height: 44px; padding: 6px; color: var(--lima, #b2e04a); font: inherit; font-size: 14px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.cad-reenviar:disabled { opacity: .55; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .cad-pontos i, .cad-barra span { animation-duration: 3s; } }
+.cad-email { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+.cad-passos { list-style: none; counter-reset: p; text-align: left; max-width: 320px; margin: 14px auto 10px; padding: 0; display: grid; gap: 8px; }
+.cad-passos li { counter-increment: p; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(178, 224, 74, .08); font-size: 15px; }
+.cad-passos li::before { content: counter(p); flex: 0 0 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--lima, #b2e04a); color: #0b2207; font-weight: 800; font-size: 14px; }
