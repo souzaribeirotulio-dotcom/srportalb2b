@@ -177,3 +177,10 @@ Pedidos e perguntas:
 1. Existe ou está previsto um campo de cupom (código) na revisão e no pedido, com o desconto devolvido pela revisão (no total e na `assinatura`) e gravado no pedido do G360?
 2. Onde a equipe cadastraria o cupom (valor fixo ou percentual, valor mínimo do pedido, validade, uso único por cliente, só primeira compra)?
 3. Quais pendências/códigos de erro a revisão devolveria (cupom inválido, vencido, já usado, pedido abaixo do mínimo)?
+
+## Senha criada no próprio cadastro, sem e-mail (26/11/2026)
+
+- **Decisão da Souza Ribeiro:** no "Quero ser cliente", a pessoa já cria a senha no formulário e entra logada, sem link por e-mail.
+- **Como o portal faz:** só para a ficha que a função `cadastro-g360` acabou de criar na mesma chamada, ela chama `POST acessos/links` (com `X-Chave-Sistema`, pelo servidor) e usa o token na hora em `POST acessos/senha`. O token nunca vai ao navegador nem a log; ficha que já existia continua recebendo o link por e-mail.
+- **Diferença do contrato:** a descrição de `POST acessos/links` diz que o servidor parceiro envia o e-mail. Pedimos à Movimento que confirme se esse uso no servidor está ok, ou que ofereça uma operação própria (por exemplo, senha inicial no `POST operadores/clientes`).
+- **Ponto de atenção:** `POST acessos/senha` tem limite de 10 pedidos por IP em 15 minutos, e as funções do Supabase podem sair pelo mesmo IP. Se estourar, o portal cai no link por e-mail.

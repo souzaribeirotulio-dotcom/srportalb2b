@@ -481,8 +481,14 @@ class Sim:
             self.chamadas.append(('CADASTRO_AUTO', corpo.get('acao'), sorted(corpo.keys())))
             k = next((c for c in self.cadastros if c['documento'] == doc and not c.get('auto_status')), None)
             if corpo.get('acao') == 'cadastrar' and k and self.cenario.get('auto') == 'criado' and len(doc) in (11, 14):
-                k.update({'codigo_g360': self.cenario.get('auto_codigo', 4242), 'em_analise': False, 'auto_status': 'criado', 'auto_obs': 'Ficha criada pelo portal.', 'status': 'aprovado'})
-                return route.fulfill(status=200, headers=cab, content_type='application/json', body='{"resultado":"criado"}')
+                cod = self.cenario.get('auto_codigo', 4242)
+                k.update({'codigo_g360': cod, 'em_analise': False, 'auto_status': 'criado', 'auto_obs': 'Ficha criada pelo portal.', 'status': 'aprovado'})
+                senha = corpo.get('senha')
+                if isinstance(senha, str) and re.fullmatch(r'[!-~]{6,8}', senha) and self.cenario.get('senha_auto', 'gravada') == 'gravada':
+                    # Senha criada no cadastro: o comprador já entra com o documento digitado e essa senha.
+                    self.compradores[corpo['documento']] = {'senha': senha, 'codigo': cod, 'nome': k.get('razao_social') or 'Cliente Novo Fictício', 'fantasia': '', 'bloq': False}
+                    return route.fulfill(status=200, headers=cab, content_type='application/json', body='{"resultado":"criado","senha":"gravada"}')
+                return route.fulfill(status=200, headers=cab, content_type='application/json', body='{"resultado":"criado","senha":"email"}')
             if k: k.update({'auto_status': 'revisar', 'auto_obs': 'Ficou para a equipe.'})
             return route.fulfill(status=200, headers=cab, content_type='application/json', body='{"resultado":"analise"}')
         if p == '/functions/v1/executivo-link':

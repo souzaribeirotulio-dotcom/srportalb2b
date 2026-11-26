@@ -12,6 +12,9 @@ import { guardarDocCadastro } from '../estado/doccadastro.js';
 import { pedirLink, ErroPonte, MENSAGEM_PONTE_FALHOU } from '../api/ponte.js';
 import { $, esc, abrirModal, fecharModal } from './comum.js';
 import { avisarEvento } from '../api/push.js';
+import { FORMATO_SENHA, htmlRegraSenha, ligarRegraSenha } from '../ui/regra-senha.js';
+import { entrar } from '../estado/sessao.js';
+import { descartarEnvioDeOutroComprador } from '../estado/envio.js';
 
 const UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
 const so = (t) => String(t || '').replace(/\D/g, '');
@@ -124,10 +127,14 @@ export function esquecerCadastroEmAnalise() { try { localStorage.removeItem(CHAV
 /** jaCliente: "Já sou cliente e ainda não tenho senha". Mesmo formulário; o pedido chega ao painel marcado. */
 export const ORIGEM_JA_CLIENTE = 'Já é cliente (pedir acesso)';
 export function abrirCadastro(ctx, { jaCliente = false } = {}) {
+  // Senha já no cadastro (decisão da Souza Ribeiro em 26/11/2026): sem e-mail de confirmação para cliente novo.
+  const comSenha = !jaCliente && ctx.loja?.troca_senha !== false;
+  const longa = Number(ctx.loja?.continuar_conectado_dias) > 0;
   const opcoes = (lista) => `<option value="">Selecione…</option>${lista.map((o) => `<option>${esc(o)}</option>`).join('')}`;
   $('cadBox').innerHTML = `<div class="kcad"><h3>${jaCliente ? 'Pedir acesso ao portal' : 'Quero ser cliente'}</h3>
     <div class="sub">${jaCliente
       ? 'Já compra com a Souza Ribeiro e ainda não tem senha? Preencha os dados da empresa. A equipe confere o seu cadastro e manda por e-mail o link para criar a sua senha.'
+      : comSenha ? 'Leva uns 2 minutos. Digite o CNPJ que a gente preenche o resto pela Receita, crie a sua senha e pronto: você já entra vendo os preços.'
       : 'Leva uns 2 minutos. Digite o CNPJ que a gente preenche o resto pela Receita. A equipe da Souza Ribeiro confere e, depois de aprovado, você recebe por e-mail o link para criar a sua senha.'}</div>
 
     <div class="ksec"><div class="ktit"><span>1</span>Sua empresa</div>
@@ -150,7 +157,7 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
       ${campo('kResp', 'Seu nome', 'maxlength="120" autocomplete="name" autocapitalize="words" enterkeyhint="next"', true)}
       <div class="grade2k">
         ${campo('kWhats', 'WhatsApp', 'type="tel" inputmode="tel" maxlength="20" autocomplete="tel-national" placeholder="(34) 99999-0000" enterkeyhint="next"', true)}
-        ${campo('kEmail', 'E-mail', 'type="email" maxlength="160" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" enterkeyhint="next"', true, 'O link para criar a senha chega neste e-mail.')}
+        ${campo('kEmail', 'E-mail', 'type="email" maxlength="160" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" enterkeyhint="next"', true, comSenha ? 'Para recuperar a senha e receber os avisos dos pedidos.' : 'O link para criar a senha chega neste e-mail.')}
       </div>
       ${campo('kTel', 'Outro telefone', 'type="tel" inputmode="tel" maxlength="20" placeholder="(34) 3200-0000"')}
     </div>
@@ -170,6 +177,14 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
       </div>
     </div>
 
+    ${comSenha ? `<div class="ksec"><div class="ktit"><span>4</span>Sua senha</div>
+      <div class="kc"><label for="kSenha">Crie uma senha</label><input class="inp" id="kSenha" type="password" maxlength="8" autocomplete="new-password" spellcheck="false" autocapitalize="off" aria-describedby="kSenhaRs kSenhaErr"></div>
+      ${htmlRegraSenha('kSenhaRs')}
+      <div class="kc"><label for="kSenha2">Repita a senha</label><input class="inp" id="kSenha2" type="password" maxlength="8" autocomplete="new-password" spellcheck="false" autocapitalize="off" aria-describedby="kSenhaErr"><div class="err" id="kSenhaErr" aria-live="polite"></div></div>
+      <label class="kchk"><input type="checkbox" id="kMostrar"> Mostrar senha</label>
+      ${longa ? '<label class="kchk"><input type="checkbox" id="kCont" checked> Continuar conectado</label><div class="hint">Desmarque em computador compartilhado.</div>' : ''}
+      <div class="hint">Se o seu CPF ou CNPJ já tiver cadastro com a gente, mandamos o link para criar a senha no e-mail desse cadastro.</div>
+    </div>` : ''}
     <div class="ksec"${jaCliente ? ' hidden' : ''}><div class="kc"><label for="kOrigem">Como conheceu a Souza Ribeiro <span class="kop">(opcional)</span></label><select class="inp" id="kOrigem">${opcoes(ORIGENS)}</select></div></div>
     <div class="ksec" id="kExecBox" hidden><div class="kc"><label for="kExec">Código do executivo</label><input class="inp" id="kExec" maxlength="20" autocapitalize="characters" spellcheck="false" autocomplete="off" value="" placeholder="Ex.: JOAO"><small class="hint" id="kExecHint" style="display:block;margin-top:4px">O código que o executivo passou para você (opcional).</small></div></div>
     <div id="kRes" aria-live="polite"></div>
@@ -286,6 +301,10 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
     $(id).addEventListener(id === 'kSeg' ? 'change' : 'input', () => { $(`${id}Err`).textContent = ''; $(id).removeAttribute('aria-invalid'); });
   });
   $('kEmail').addEventListener('blur', () => { $('kEmail').value = $('kEmail').value.trim().toLowerCase(); });
+  // Cliente novo ainda não tem código: o item "diferente do código de cliente" não se aplica aqui.
+  $('kSenhaRs')?.querySelector('[data-r="cod"]')?.remove();
+  const senhaOk = comSenha ? ligarRegraSenha($('kSenhaRs'), $('kSenha'), $('kSenha2')) : () => true;
+  $('kMostrar')?.addEventListener('change', (e) => { ['kSenha', 'kSenha2'].forEach((id) => { $(id).type = e.target.checked ? 'text' : 'password'; }); });
 
   $('kEnviar').onclick = async () => {
     if (jaCadastrado) { $('kJa').scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
@@ -312,6 +331,20 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
     if (erros.kRazao) mostrarCampos();
     const primeiro = ids.find((id) => erros[id]);
     if (primeiro) { $(primeiro).focus(); $(primeiro).scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+    // Senha: confere aqui; quem valida de verdade é a API do G360 ao gravar.
+    let senha = null;
+    if (comSenha) {
+      const s1 = $('kSenha').value; const s2 = $('kSenha2').value;
+      const errS = !FORMATO_SENHA.test(s1) ? 'A senha precisa ter de 6 a 8 caracteres, sem espaços nem acentos.' : s1 !== s2 ? 'As duas senhas não são iguais.' : '';
+      $('kSenhaErr').textContent = errS;
+      if (errS || !senhaOk()) {
+        if (!errS) $('kSenhaErr').textContent = 'Confira a regra da senha.';
+        const alvo = !FORMATO_SENHA.test(s1) ? $('kSenha') : $('kSenha2');
+        alvo.focus(); alvo.scrollIntoView({ block: 'center', behavior: 'smooth' }); return;
+      }
+      senha = s1;
+    }
+    const continuar = comSenha && longa && $('kCont')?.checked === true;
     const b = $('kEnviar'); b.disabled = true; b.textContent = 'Enviando…';
     const d = {
       documento: v('kDoc'), razao_social: v('kRazao'), fantasia: pf ? '' : v('kFantasia'),
@@ -336,13 +369,33 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
         <h3>Criando o seu acesso</h3><p id="kEtapa">${docLen === 14 ? 'Conferindo o CNPJ na Receita…' : 'Conferindo o seu CPF…'}</p><div class="cad-barra" aria-hidden="true"><span></span></div>
         <small class="hint">Leva alguns segundos. Não feche esta tela.</small></div>`;
       // As etapas só mostram que está andando; o resultado de verdade vem da função.
-      const etapas = [docLen === 14 ? 'Conferindo o CNPJ na Receita…' : 'Conferindo o seu CPF…', 'Criando o seu cadastro…', 'Liberando os seus preços…', 'Enviando o link para o seu e-mail…'];
+      const etapas = [docLen === 14 ? 'Conferindo o CNPJ na Receita…' : 'Conferindo o seu CPF…', 'Criando o seu cadastro…', 'Liberando os seus preços…', senha ? 'Criando a sua senha…' : 'Enviando o link para o seu e-mail…'];
       let ie = 0;
       const relogio = setInterval(() => { ie = Math.min(ie + 1, etapas.length - 1); const el = $('kEtapa'); if (el) el.textContent = etapas[ie]; }, 3500);
-      try { auto = await cadastroAutomatico(d.documento); } finally { clearInterval(relogio); }
+      try { auto = await cadastroAutomatico(d.documento, senha); } finally { clearInterval(relogio); }
     }
     // Aviso para os gestores só depois do cadastro automático: "cliente cadastrado" ou "para aprovar".
     avisarEvento('cadastro');
+    if (auto.resultado === 'criado' && auto.senha === 'gravada' && senha) {
+      // Ficha e senha criadas: entra direto, como no login comum (sem e-mail de confirmação).
+      esquecerCadastroEmAnalise(); window.dispatchEvent(new Event('g360:cadastro-enviado'));
+      $('cadBox').innerHTML = `<div class="ok cad-criando" role="status" aria-live="polite"><div class="ic2 cad-pontos" aria-hidden="true"><i></i><i></i><i></i></div><h3>Acesso criado!</h3><p>Entrando no portal…</p></div>`;
+      try {
+        await entrar(d.documento, senha, continuar);
+        senha = null; descartarEnvioDeOutroComprador();
+        fecharModal('mCad');
+        ctx.ir('/', { aviso: 'entrou_senha_nova' });
+      } catch {
+        // A senha já está gravada; se a entrada automática não deu (rede), entra pelo login de sempre.
+        senha = null;
+        $('cadBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>Pronto! Seu acesso foi criado</h3>
+          <p>Entre com o seu CPF ou CNPJ e a senha que você acabou de criar.</p></div>
+          <div class="act" style="justify-content:center"><button type="button" class="btn pri" id="kEntrarJa">Entrar</button></div>`;
+        $('kEntrarJa').onclick = () => { fecharModal('mCad'); ctx.abrirLogin?.(d.documento); };
+      }
+      return;
+    }
+    senha = null;
     if (auto.resultado === 'criado') {
       // Acesso criado: o topo volta ao normal ("Já sou cliente: entrar"), sem o aviso de análise.
       esquecerCadastroEmAnalise(); window.dispatchEvent(new Event('g360:cadastro-enviado'));
