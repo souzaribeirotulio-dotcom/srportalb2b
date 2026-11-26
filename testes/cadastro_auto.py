@@ -19,12 +19,13 @@ def abrir(br, sim, largura):
     pg.goto(BASE + '/'); pg.wait_for_selector('#grid .card')
     return ctx, pg, erros
 
-def preencher(pg, doc):
+def preencher(pg, doc, senha='Fict12', senha2=None):
     for i, v in [('kDoc', doc), ('kRazao', 'Empresa Fictícia LTDA'), ('kResp', 'Pessoa Fictícia'), ('kWhats', '(34) 99999-0000'),
                  ('kEmail', 'compras@example.invalid'), ('kRua', 'Rua Exemplo'), ('kNum', '10'), ('kCidade', 'Cidade Exemplo'), ('kBairro', 'Centro')]:
         pg.fill('#' + i, v)
     pg.fill('#kCep', '38400000'); pg.select_option('#kSeg', 'Escritório')
     if pg.locator('#kOrigem').is_visible(): pg.select_option('#kOrigem', 'Instagram')
+    if pg.locator('#kSenha').count(): pg.fill('#kSenha', senha); pg.fill('#kSenha2', senha2 if senha2 is not None else senha)
 
 def entrar(pg, sim, doc):
     pg.eval_on_selector('#tbConta', 'b => b.click()'); pg.wait_for_selector('#lgC')
@@ -34,18 +35,37 @@ def entrar(pg, sim, doc):
 with sync_playwright() as pw:
     br = pw.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
     for largura in (390, 1280):
-        # 1) Quero ser cliente com CNPJ: ficha criada, link de senha enviado
+        # 1) Quero ser cliente com CNPJ e senha no cadastro: ficha criada e já entra logado (sem e-mail)
         sim = Sim(); sim.cenario['auto'] = 'criado'
+        ctx, pg, erros = abrir(br, sim, largura)
+        pg.click('#heroCadB'); pg.wait_for_selector('#mCad.open #kDoc')
+        preencher(pg, '12.ABC.345/01DE-35'); pg.click('#kEnviar')
+        pg.wait_for_selector('body.logged', timeout=40000)
+        cha = [c for c in sim.chamadas if c[0] == 'CADASTRO_AUTO']
+        checar(len(cha) == 1 and cha[0][1] == 'cadastrar' and cha[0][2] == ['acao', 'documento', 'senha'], f'{largura}: chamada da função: {cha}')
+        checar(sim.cadastros[0].get('status') == 'aprovado' and not sim.cadastros[0].get('em_analise'), f'{largura}: pedido não ficou aprovado')
+        checar('senha' not in sim.cadastros[0] and 'Fict12' not in __import__('json').dumps(sim.cadastros), f'{largura}: senha foi para o Supabase')
+        checar(not pg.locator('#mCad.open').count(), f'{largura}: cadastro continuou aberto')
+        checar(sim.ultimo_login.get('continuar_conectado') in (None, True), f'{largura}: login: {sim.ultimo_login}')
+        checar(not erros, f'{largura}: erros: {erros}')
+        ctx.close()
+
+        # 1a) Senha não gravou no G360: cai no link por e-mail de sempre
+        sim = Sim(); sim.cenario['auto'] = 'criado'; sim.cenario['senha_auto'] = 'email'
         ctx, pg, erros = abrir(br, sim, largura)
         pg.click('#heroCadB'); pg.wait_for_selector('#mCad.open #kDoc')
         preencher(pg, '12.ABC.345/01DE-35'); pg.click('#kEnviar')
         pg.wait_for_function("document.querySelector('#cadBox h3')?.textContent.includes('Pronto')", timeout=40000)
         t = ' '.join(pg.inner_text('#cadBox').split())
-        checar('compras@example.invalid' in t and 'Crie a sua senha' in t and 'vendo os preços' in t, f'{largura}: mensagem do cadastro automático: {t[:200]}')
-        cha = [c for c in sim.chamadas if c[0] == 'CADASTRO_AUTO']
-        checar(len(cha) == 1 and cha[0][1] == 'cadastrar' and cha[0][2] == ['acao', 'documento'], f'{largura}: chamada da função: {cha}')
-        checar(sim.cadastros[0].get('status') == 'aprovado' and not sim.cadastros[0].get('em_analise'), f'{largura}: pedido não ficou aprovado')
-        checar(not erros, f'{largura}: erros: {erros}')
+        checar('compras@example.invalid' in t and 'Crie a sua senha' in t, f'{largura}: mensagem do link por e-mail: {t[:200]}')
+        ctx.close()
+
+        # 1c) Tem de dar erro: senhas diferentes não enviam nada
+        sim = Sim(); sim.cenario['auto'] = 'criado'
+        ctx, pg, erros = abrir(br, sim, largura)
+        pg.click('#heroCadB'); pg.wait_for_selector('#mCad.open #kDoc')
+        preencher(pg, '12.ABC.345/01DE-35', 'Fict12', 'Fict13'); pg.click('#kEnviar'); pg.wait_for_timeout(700)
+        checar('iguais' in pg.inner_text('#kSenhaErr') and not sim.cadastros and not [c for c in sim.chamadas if c[0] == 'CADASTRO_AUTO'], f'{largura}: senhas diferentes passaram')
         ctx.close()
 
         # 1b) Tem de dar erro: o e-mail da Receita não entra no campo; sem e-mail digitado, o cadastro não sai
@@ -65,12 +85,12 @@ with sync_playwright() as pw:
         checar('e-mail' in pg.inner_text('#kEmailErr').lower() and not sim.cadastros, f'{largura}: cadastro saiu sem e-mail')
         ctx.close()
 
-        # 2) CPF novo também passa direto (decisão de 26/11/2026): a função cria a ficha e manda o link
+        # 2) CPF novo também passa direto: a função cria a ficha, grava a senha e já entra
         sim = Sim(); sim.cenario['auto'] = 'criado'
         ctx, pg, erros = abrir(br, sim, largura)
         pg.click('#heroCadB'); pg.wait_for_selector('#mCad.open #kDoc')
         preencher(pg, '529.982.247-25'); pg.click('#kEnviar')
-        pg.wait_for_function("document.querySelector('#cadBox h3')?.textContent.includes('Pronto')", timeout=40000)
+        pg.wait_for_selector('body.logged', timeout=40000)
         checar([c for c in sim.chamadas if c[0] == 'CADASTRO_AUTO'], f'{largura}: CPF não chamou o cadastro automático')
         ctx.close()
 

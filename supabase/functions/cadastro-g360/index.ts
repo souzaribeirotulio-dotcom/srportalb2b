@@ -15,6 +15,12 @@
      (a API não tem para CPF), cria a ficha com RG/IE "NAO CONTRIBUINTE"; se o G360 responder
      DOCUMENTO_REPETIDO ou DOCUMENTO_E_IE_REPETIDOS, não confirma: pede o link para o e-mail
      do cadastro existente e deixa o pedido para a equipe vincular.
+     Senha no cadastro (decisão da Souza Ribeiro em 26/11/2026, sem e-mail de confirmação):
+     o "Quero ser cliente" manda {senha} junto. Só para a ficha que ESTA chamada acabou de criar,
+     a função emite o link (POST acessos/links, X-Chave-Sistema) e grava a senha na hora
+     (POST acessos/senha), tudo no servidor: o token nunca vai ao navegador nem a log.
+     Ficha que já existia (ja_existe/repetido) nunca recebe senha por aqui: segue o link por e-mail.
+     Se a gravação falhar, cai no link por e-mail de sempre.
      CNPJ já cadastrado, situação irregular na Receita ou qualquer recusa da API:
      não cria nada e deixa o pedido para a equipe (auto_status ja_existe/revisar/erro).
    Cada ação abre a sessão do usuário técnico e encerra na hora (DELETE operadores/sessao).
@@ -65,6 +71,28 @@ const CATEGORIA_RESERVA = (Deno.env.get("G360_CADASTRO_CATEGORIA_RESERVA") ?? "E
 const LIMITE = (Deno.env.get("G360_CADASTRO_LIMITE") ?? "500.00").trim();
 const POR_HORA = 20;
 const SUPABASE_URL = obrigatoria("SUPABASE_URL").replace(/\/$/, "");
+const FORMATO_SENHA = /^[!-~]{6,8}$/;
+
+/** Grava a senha da ficha recém-criada: emite o link no servidor e usa o token na hora.
+ *  true = gravada; texto = motivo (código da API), sem token nem senha. */
+async function gravarSenhaDaFichaNova(doc: string, senha: string): Promise<true | string> {
+  const chaveSistema = Deno.env.get("G360_CHAVE_SISTEMA")?.trim() ?? "";
+  if (!chaveSistema || chaveSistema === "<preencha>") return "sem_chave";
+  const l = await fetch(base + "acessos/links", {
+    method: "POST", headers: { "Content-Type": "application/json", "X-Chave-Sistema": chaveSistema },
+    body: JSON.stringify({ documento: doc }), redirect: "error", signal: AbortSignal.timeout(15_000),
+  });
+  const lc = await l.json().catch(() => null) as Record<string, unknown> | null;
+  const token = (lc?.dados as Record<string, unknown> | undefined)?.token;
+  if (l.status !== 201 || typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token)) return `link_${(lc?.erro as Record<string, unknown> | undefined)?.codigo ?? l.status}`;
+  const g = await fetch(base + "acessos/senha", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, senha_nova: senha }), redirect: "error", signal: AbortSignal.timeout(15_000),
+  });
+  if (g.status === 204) { await g.body?.cancel(); return true; }
+  const gc = await g.json().catch(() => null) as Record<string, unknown> | null;
+  return `senha_${(gc?.erro as Record<string, unknown> | undefined)?.codigo ?? g.status}`;
+}
 
 async function sair(token: string) {
   try { await api("operadores/sessao", { method: "DELETE", token }); } catch { /* a sessão vence sozinha */ }
@@ -86,7 +114,8 @@ Deno.serve(async (req) => {
   catch { return json(400, { mensagem: "Pedido inválido." }); }
 
   if (corpo.acao === "cadastrar") {
-    try { return json(200, await cadastrar(String(corpo.documento ?? ""), origem)); }
+    const senha = typeof corpo.senha === "string" && FORMATO_SENHA.test(corpo.senha) ? corpo.senha : null;
+    try { return json(200, await cadastrar(String(corpo.documento ?? ""), origem, senha)); }
     catch (e) {
       console.warn("cadastro-g360: falha no cadastro", String((e as Error)?.message ?? "").slice(0, 120));
       return json(200, { resultado: "analise" });
@@ -135,7 +164,7 @@ async function marcar(id: string, mud: Record<string, unknown>) {
   await admin.from("portal_cadastros").update({ ...mud, auto_em: new Date().toISOString(), atualizado_em: new Date().toISOString() }).eq("id", id).eq("loja", LOJA);
 }
 
-async function cadastrar(documentoBruto: string, origem: string): Promise<Record<string, unknown>> {
+async function cadastrar(documentoBruto: string, origem: string, senha: string | null): Promise<Record<string, unknown>> {
   const doc = docLimpo(documentoBruto);
   // Resposta para o navegador: "criado" (link enviado) ou "analise" (a equipe segue). Nunca diz se o CNPJ já é cliente.
   const analise = { resultado: "analise" };
@@ -149,7 +178,7 @@ async function cadastrar(documentoBruto: string, origem: string): Promise<Record
   const id = String(k.id);
   const registrar = (resultado: string) => admin.from("portal_cadastro_auto_log").insert({ loja: LOJA, acao: "cadastrar", resultado: resultado.slice(0, 60) });
   try {
-  return await processar(id, k, doc, origem, registrar);
+  return await processar(id, k, doc, origem, registrar, senha);
   } catch (e) {
     await marcar(id, { auto_status: "erro", auto_obs: `Falha inesperada no cadastro automático: ${String((e as Error)?.message ?? "").slice(0, 120)}` });
     throw e;
@@ -167,7 +196,7 @@ async function pedirLink(doc: string, origem: string) {
   return p;
 }
 
-async function processar(id: string, k: Record<string, unknown>, doc: string, origem: string, registrar: (r: string) => PromiseLike<unknown>): Promise<Record<string, unknown>> {
+async function processar(id: string, k: Record<string, unknown>, doc: string, origem: string, registrar: (r: string) => PromiseLike<unknown>, senha: string | null = null): Promise<Record<string, unknown>> {
   const analise = { resultado: "analise" };
   // Pedido de "Já sou cliente": é cliente antigo, a equipe libera.
   if (String(k.origem ?? "").toLowerCase().includes("já é cliente") || String(k.origem ?? "").toLowerCase().includes("ja e cliente")) {
@@ -268,9 +297,20 @@ async function processar(id: string, k: Record<string, unknown>, doc: string, or
     // 5. Link de senha (mesmo caminho do "esqueci minha senha": vai para o e-mail da ficha).
     //    Espera uns segundos: logo depois de liberar, o G360 pode ainda não ter gravado o acesso.
     await new Promise((r) => setTimeout(r, 4000));
+    if (senha) {
+      // Ficha criada agora por esta chamada: grava a senha já digitada no cadastro (sem e-mail).
+      let r: true | string;
+      try { r = await gravarSenhaDaFichaNova(doc, senha); } catch (e) { r = `falha_${(e as Error)?.name ?? "erro"}`; }
+      if (r === true) {
+        await marcar(id, { auto_obs: `Ficha ${codigo} criada pelo portal com acesso liberado e senha criada no cadastro.${cpf ? " CPF: confira RG e nome no G360." : ""}${catObs}` });
+        await registrar("criado_senha");
+        return { resultado: "criado", senha: "gravada" };
+      }
+      await registrar(`senha_${r}`.slice(0, 60));
+    }
     const p = await pedirLink(doc, origem);
     if (p.status !== 202) await marcar(id, { auto_obs: `Ficha ${codigo} criada com acesso liberado, mas o link de senha não saiu (${p.status}). Gere pela ficha.${catObs}` });
     await registrar("criado");
-    return { resultado: "criado" };
+    return { resultado: "criado", senha: senha ? "email" : "nao_enviada" };
   } finally { await sair(token); }
 }

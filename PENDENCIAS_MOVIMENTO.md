@@ -177,3 +177,10 @@ A Souza Ribeiro quer cupons de desconto no portal (primeiro caso: boas-vindas de
 3. **Registro e análise**: o desconto do cupom gravado no pedido do G360 separado do desconto comercial comum, com o código do cupom no pedido, para a DRE e os relatórios mostrarem quanto cada cupom/campanha custou e vendeu (sem misturar com os outros descontos). Relatório de uso por cupom: pedidos, clientes, valor vendido e desconto concedido.
 4. **Alternativa**: a API pode aceitar desconto comercial por item ou no total em `POST revisoes`/`POST pedidos`? Hoje `ItemEntrada`, `RevisaoEntrada` e `PedidoEntrada` não têm o campo. Só funcionaria com segurança se o desconto fosse aceito apenas em chamada de servidor (função da Souza Ribeiro, chave e permissão próprias), recusado vindo do navegador, com teto configurado no G360, gravando o código do cupom e a origem separada do desconto comercial.
 5. **Perguntas**: o desconto do cupom pode ir como uma conta/tipo de desconto próprio na nota e no financeiro? Rateio do desconto nos itens (para a nota) é feito pelo G360? Cupom consumido em pedido cancelado volta a ficar disponível?
+
+## Senha criada no próprio cadastro, sem e-mail (26/11/2026)
+
+- **Decisão da Souza Ribeiro:** no "Quero ser cliente", a pessoa já cria a senha no formulário e entra logada, sem link por e-mail.
+- **Como o portal faz:** só para a ficha que a função `cadastro-g360` acabou de criar na mesma chamada, ela chama `POST acessos/links` (com `X-Chave-Sistema`, pelo servidor) e usa o token na hora em `POST acessos/senha`. O token nunca vai ao navegador nem a log; ficha que já existia continua recebendo o link por e-mail.
+- **Diferença do contrato:** a descrição de `POST acessos/links` diz que o servidor parceiro envia o e-mail. Pedimos à Movimento que confirme se esse uso no servidor está ok, ou que ofereça uma operação própria (por exemplo, senha inicial no `POST operadores/clientes`).
+- **Ponto de atenção:** `POST acessos/senha` tem limite de 10 pedidos por IP em 15 minutos, e as funções do Supabase podem sair pelo mesmo IP. Se estourar, o portal cai no link por e-mail.
