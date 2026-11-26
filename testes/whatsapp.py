@@ -36,7 +36,7 @@ with sync_playwright() as pw:
 
     # 2) Painel: aba WhatsApp em simulação, salvar, simular, erro de prazo, não mandar mais
     sim = Sim()
-    sim.cadastros.append({'id': 'c1', 'documento': '11111111000111', 'razao_social': 'Empresa Fictícia LTDA', 'whats': '34999990000', 'aceita_whatsapp': True, 'status': 'aprovado', 'codigo_g360': 77, 'criado_em': '2026-11-25T10:00:00Z'})
+    sim.cadastros.append({'id': 'c1', 'documento': '11111111000111', 'razao_social': 'Empresa Fictícia LTDA', 'whats': '34999990000', 'email': 'compras@example.invalid', 'aceita_whatsapp': True, 'status': 'aprovado', 'codigo_g360': 77, 'criado_em': '2026-11-25T10:00:00Z'})
     for largura in (390, 1280):
         ctx = br.new_context(viewport={'width': largura, 'height': 900}); pg = ctx.new_page(); erros = []
         pg.on('pageerror', lambda e: erros.append(str(e)))
@@ -44,8 +44,8 @@ with sync_playwright() as pw:
         pg.fill('#aUsu', 'operador'); pg.fill('#aSen', 'senha1'); pg.click('#aOk'); pg.wait_for_selector('#vAdm [data-at="cli"].on')
         pg.click('#vAdm [data-at="wpp"]'); pg.wait_for_selector('#wppPanel .wpp-topo')
         t = pg.inner_text('#wppPanel')
-        checar('Modo simulação' in t and '1 cliente aceitou' in t, f'{largura}: topo da aba: {t[:160]}')
-        checar(pg.is_disabled('#wpLig'), f'{largura}: dava para ligar o envio sem a API do parceiro')
+        checar('Remarketing' in t and 'WhatsApp: 🧪 simulação' in t and '1 cliente cadastrado' in t, f'{largura}: topo da aba: {t[:200]}')
+        checar(pg.is_disabled('#wpLig') and not pg.is_disabled('#wpLigEmail'), f'{largura}: chaves de ligar WhatsApp/e-mail erradas')
         # tem de dar erro: prazo fora do limite
         g = pg.locator('.wpp-g[data-g="cadastro_sem_senha"]')
         g.locator('[data-ativo]').check(); g.locator('[data-espera]').fill('999')
@@ -55,15 +55,45 @@ with sync_playwright() as pw:
         g.locator('[data-ativo]').check(); g.locator('[data-espera]').fill('24'); pg.click('#wpSalvar')
         pg.wait_for_function("!document.querySelector('#wppPanel .okmsg.bad')", timeout=10000)
         checar(sim.wpp_cfg['gatilhos']['cadastro_sem_senha']['ativo'] is True and sim.wpp_cfg['gatilhos']['cadastro_sem_senha']['espera'] == 24, f'{largura}: não salvou o gatilho')
-        pg.click('#wpSim'); pg.wait_for_function("document.querySelector('#wpRes')?.textContent.includes('simulado')", timeout=15000)
-        checar('Empresa Fictícia LTDA' in pg.inner_text('#wppPanel') and 'final 0000' in pg.inner_text('#wppPanel'), f'{largura}: envio simulado não apareceu na lista')
+        # tem de dar erro: gatilho ligado sem canal
+        g = pg.locator('.wpp-g[data-g="cadastro_sem_senha"]')
+        g.locator('[data-canal="whatsapp"]').uncheck(); g.locator('[data-canal="email"]').uncheck(); pg.click('#wpSalvar'); pg.wait_for_selector('#wppPanel .okmsg.bad')
+        checar('escolha WhatsApp, e-mail' in pg.inner_text('#wppPanel'), f'{largura}: salvou gatilho sem canal')
+        g = pg.locator('.wpp-g[data-g="cadastro_sem_senha"]')
+        g.locator('[data-canal="whatsapp"]').check(); g.locator('[data-canal="email"]').check()
+        checar(g.locator('[data-assunto]').is_visible(), f'{largura}: campos do e-mail não aparecem')
+        pg.click('#wpSalvar'); pg.wait_for_function("!document.querySelector('#wppPanel .okmsg.bad')", timeout=10000)
+        pg.click('#wpSim'); pg.wait_for_function("document.querySelector('#wpRes')?.textContent.includes('simulada')", timeout=15000)
+        tp = pg.inner_text('#wppPanel')
+        checar('Empresa Fictícia LTDA' in tp and 'final 0000' in tp and 'co***@example.invalid' in tp, f'{largura}: envios simulados (WhatsApp e e-mail) não apareceram')
+        checar('compras@example.invalid' not in tp, f'{largura}: e-mail completo na tela')
         checar('34999990000' not in pg.inner_text('#wppPanel'), f'{largura}: telefone completo na tela')
         # não mandar mais: celular inválido dá erro; válido entra na lista
         pg.fill('#wpSaiTel', '123'); pg.click('#wpSaiOk'); pg.wait_for_selector('#wppPanel .okmsg.bad')
-        checar('DDD' in pg.inner_text('#wppPanel'), f'{largura}: celular inválido aceito')
+        checar('DDD ou o e-mail' in pg.inner_text('#wppPanel'), f'{largura}: contato inválido aceito')
+        pg.fill('#wpSaiTel', 'sai@example.invalid'); pg.click('#wpSaiOk'); pg.wait_for_function("document.querySelector('#wppPanel').innerText.includes('sa***@example.invalid')", timeout=10000)
         pg.fill('#wpSaiTel', '(34) 98888-1234'); pg.click('#wpSaiOk'); pg.wait_for_function("document.querySelector('#wppPanel').innerText.includes('Final 1234')", timeout=10000)
         checar(pg.evaluate('document.documentElement.scrollWidth') <= largura, f'{largura}: rolagem horizontal')
         if largura == 390: pg.screenshot(path='/tmp/wpp390.png', full_page=True)
+        checar(not erros, f'{largura}: erros: {erros}')
+        ctx.close()
+
+    # 3) Página "Não quero mais receber": link válido sai; link quebrado dá erro
+    for largura in (390, 1280):
+        sim = Sim()
+        ctx = br.new_context(viewport={'width': largura, 'height': 900}); pg = ctx.new_page(); erros = []
+        pg.on('pageerror', lambda e: erros.append(str(e))); pg.route('**/*', sim.rota)
+        pg.goto(BASE + '/sair-emails#t=' + 'a' * 64 + '.' + 'b' * 32); pg.wait_for_selector('#g360Sair')
+        checar('#t=' not in pg.url, f'{largura}: token ficou no endereço')
+        checar(not any(c[1] == 'sair_email' for c in sim.chamadas if c[0] == 'WPP'), f'{largura}: saiu sem tocar no botão')
+        pg.click('#g360Sair'); pg.wait_for_selector('#g360SairRes .g360-msg')
+        checar('não vai mais receber' in pg.inner_text('#g360SairRes') and sim.wpp_saidas, f'{largura}: não saiu pelo link')
+        ctx.close()
+        sim = Sim()
+        ctx = br.new_context(viewport={'width': largura, 'height': 900}); pg = ctx.new_page(); pg.route('**/*', sim.rota)
+        pg.goto(BASE + '/sair-emails#t=quebrado'); pg.wait_for_selector('#g360Sair')
+        pg.click('#g360Sair'); pg.wait_for_selector('#g360SairRes .g360-msg-corrigir')
+        checar('não é válido' in pg.inner_text('#g360SairRes'), f'{largura}: link quebrado não deu erro')
         checar(not erros, f'{largura}: erros: {erros}')
         ctx.close()
     br.close()

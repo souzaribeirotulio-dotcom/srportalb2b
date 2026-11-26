@@ -19,6 +19,7 @@ import { limparOcorrenciasSessao } from './estado/ocorrencias.js';
 import { liberarFotosDaTela, limparCacheFotos } from './ui/fotos.js';
 import { telaPedirLink } from './telas/pedir-link.js';
 import { telaDefinirSenha, receberTokenDoLink } from './telas/definir-senha.js';
+import { telaSairEmails } from './telas/sair-emails.js';
 import { mostrarLoja, limparLoja, fecharTudo, prepararCasca } from './portal/loja.js';
 import { limparCheckout } from './portal/checkout.js';
 import { ligarCamadas } from './ui/camadas.js';
@@ -48,6 +49,7 @@ const CARTAO = {
   '/primeiro-acesso': (ctx) => telaPedirLink(ctx, 'primeiro'),
   '/esqueci-senha': (ctx) => telaPedirLink(ctx, 'esqueci'),
   '/definir-senha': telaDefinirSenha,
+  '/sair-emails': telaSairEmails,
 };
 // [padrão, tela do layout original, exige login, extras]
 const LOJA = [

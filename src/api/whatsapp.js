@@ -17,3 +17,16 @@ export async function chamarWhatsapp(token, acao, dados = {}) {
   if (!resp.ok) throw new ErroPainel(corpo.mensagem || 'Não foi possível concluir agora. Tente de novo em instantes.', resp.status, corpo);
   return corpo;
 }
+
+/** Página /sair-emails: tira o e-mail do remarketing pelo link assinado do próprio e-mail (sem login). */
+export async function sairDosEmails(t) {
+  if (!/\/whatsapp-g360$/.test(URL_WPP)) throw new ErroPainel('Não foi possível concluir agora.');
+  let resp;
+  try {
+    resp = await fetch(URL_WPP, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'sair_email', t }), credentials: 'omit', signal: AbortSignal.timeout(20000) });
+  } catch { throw new ErroPainel(MENSAGEM_REDE); }
+  let corpo = {};
+  try { corpo = await resp.json(); } catch { /* sem corpo */ }
+  if (!resp.ok) throw new ErroPainel(corpo.mensagem || 'Não foi possível concluir agora. Tente de novo em instantes.', resp.status, corpo);
+  return corpo.mensagem || 'Pronto.';
+}

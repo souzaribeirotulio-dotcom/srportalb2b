@@ -128,8 +128,8 @@ function ligar() {
   // Executivos de contas: o botão só aparece para quem tem a permissão própria (conferida pela função).
   if (!abas.querySelector('[data-at="exe"]')) abas.querySelector('[data-at="cfg"]').insertAdjacentHTML('beforebegin', '<button data-at="exe" hidden>🤝 Executivos</button>');
   if (!$('atExe')) v.insertAdjacentHTML('beforeend', '<div id="atExe" hidden><div class="panel" id="exePanel"></div></div>');
-  // WhatsApp (remarketing): gatilhos, simulação e envios.
-  if (!abas.querySelector('[data-at="wpp"]')) abas.querySelector('[data-at="cfg"]').insertAdjacentHTML('beforebegin', '<button data-at="wpp">💬 WhatsApp</button>');
+  // Remarketing (WhatsApp e e-mail): gatilhos, simulação e envios.
+  if (!abas.querySelector('[data-at="wpp"]')) abas.querySelector('[data-at="cfg"]').insertAdjacentHTML('beforebegin', '<button data-at="wpp">📣 Remarketing</button>');
   if (!$('atWpp')) v.insertAdjacentHTML('beforeend', '<div id="atWpp" hidden><div class="panel" id="wppPanel"></div></div>');
   if (!$('atOcor')) v.insertAdjacentHTML('beforeend', '<div id="atOcor" hidden><div class="panel" id="ocPanel"></div></div>');
   if (!$('aLogin')) v.querySelector('.ph').insertAdjacentHTML('afterend', '<div id="aLogin" hidden></div>');

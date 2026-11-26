@@ -734,3 +734,6 @@ body.cliente-analise .card .info::after { content: "Preço liberado após a apro
 .wpp-m.erro { background: rgba(255, 107, 107, .14); color: #ff9a9a; }
 .kchk-wpp { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; background: rgba(178, 224, 74, .07); font-size: 13.5px; line-height: 1.45; color: var(--tx2); }
 .kchk-wpp input { width: 20px; height: 20px; flex: 0 0 20px; margin-top: 2px; accent-color: var(--lima, #b2e04a); }
+.wpp-sit { margin: 4px 0 2px; padding-left: 18px; font-size: 14px; color: var(--tx2); display: grid; gap: 2px; }
+.wpp-canais { margin-top: 2px; }
+.wpp-bloco { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--linha, #ffffff1a); }

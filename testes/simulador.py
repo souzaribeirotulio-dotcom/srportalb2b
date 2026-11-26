@@ -530,39 +530,63 @@ class Sim:
             self.chamadas.append(('EXEC_LINK', v['id'], sorted(corpo.keys())))
             return rs(200, {'dados': {'link_em': em}, 'mensagem': 'Pedido enviado. Se o acesso do cliente estiver liberado no G360, ele recebe o link no e-mail do cadastro. O link vale 30 minutos e serve uma vez só.'})
         if p == '/functions/v1/whatsapp-g360':
-            # Remarketing pelo WhatsApp (painel). Sem a API do parceiro: modo simulação.
+            # Remarketing (WhatsApp e e-mail). WhatsApp sem a API do parceiro: simulação. E-mail: sim.wpp_email_pronto.
             corpo = json.loads(req.post_data or '{}')
             res = lambda st, b: route.fulfill(status=st, headers=cab, content_type='application/json', body=json.dumps(b))
-            if corpo.get('token') not in self.op_tokens: return res(401, {'mensagem': 'Sua sessão do painel terminou. Entre novamente.'})
             ac = corpo.get('acao'); d = corpo.get('dados') or {}
+            saidas = self.__dict__.setdefault('wpp_saidas', [])
+            if ac == 'sair_email':
+                self.chamadas.append(('WPP', 'sair_email', []))
+                if not re.fullmatch(r'[a-f0-9]{64}\.[a-f0-9]{32}', str(corpo.get('t', ''))): return res(400, {'mensagem': 'Este link não é válido. Abra o link direto do e-mail.'})
+                saidas.insert(0, {'canal': 'email', 'telefone_final': None, 'email_mascara': None, 'motivo': 'Pediu pelo link do e-mail', 'criado_em': '2026-11-26T12:00:00Z'})
+                return res(200, {'mensagem': 'Pronto. Você não vai mais receber estes e-mails da Souza Ribeiro.'})
+            if corpo.get('token') not in self.op_tokens: return res(401, {'mensagem': 'Sua sessão do painel terminou. Entre novamente.'})
             self.chamadas.append(('WPP', ac, sorted(d.keys())))
             defs = {'cadastro_sem_senha': {'rotulo': 'Cadastrou e não criou a senha', 'unidade': 'horas', 'min': 1, 'max': 168},
                     'sem_primeira_compra': {'rotulo': 'Entrou e ainda não comprou', 'unidade': 'dias', 'min': 1, 'max': 30},
                     'carrinho_abandonado': {'rotulo': 'Deixou itens no carrinho', 'unidade': 'horas', 'min': 1, 'max': 72}}
-            cfg = self.__dict__.setdefault('wpp_cfg', {'envio_ligado': False, 'intervalo_dias': 3, 'gatilhos': {k: {'ativo': False, 'espera': v['min'] + 3, 'modelo': '', 'texto': 'Olá, {nome}! Mensagem de exemplo {portal}'} for k, v in defs.items()}})
-            envios = self.__dict__.setdefault('wpp_envios', []); saidas = self.__dict__.setdefault('wpp_saidas', [])
+            cfg = self.__dict__.setdefault('wpp_cfg', {'envio_ligado': False, 'email_ligado': False, 'intervalo_dias': 3, 'gatilhos': {k: {'ativo': False, 'espera': v['min'] + 3, 'modelo': '', 'texto': 'Olá, {nome}! Mensagem de exemplo {portal}',
+                'canais': {'whatsapp': True, 'email': True}, 'assunto': '{nome}, assunto de exemplo', 'email_texto': 'Olá, {nome}!\n\nTexto de exemplo do e-mail.'} for k, v in defs.items()}})
+            envios = self.__dict__.setdefault('wpp_envios', [])
+            email_pronto = getattr(self, 'wpp_email_pronto', True)
             if ac == 'config_ler':
-                return res(200, {'dados': {**cfg, 'definicoes': defs, 'provedor_pronto': getattr(self, 'wpp_provedor', False), 'agenda_pronta': False,
+                return res(200, {'dados': {**cfg, 'definicoes': defs, 'provedor_pronto': getattr(self, 'wpp_provedor', False), 'email_pronto': email_pronto, 'remetente': 'Souza Ribeiro <ofertas@example.invalid>', 'agenda_pronta': False,
                                            'com_aceite': sum(1 for c in self.cadastros if c.get('aceita_whatsapp') is True), 'atualizado_em': None, 'atualizado_por': None}})
             if ac == 'config_salvar':
                 for k, v in defs.items():
                     g = (d.get('gatilhos') or {}).get(k) or {}
                     if not isinstance(g.get('espera'), int) or not v['min'] <= g['espera'] <= v['max']:
                         return res(400, {'mensagem': f"{v['rotulo']}: o prazo vai de {v['min']} a {v['max']} {v['unidade']}."})
+                    cx = g.get('canais') or {}
+                    if g.get('ativo') and not cx.get('whatsapp') and not cx.get('email'): return res(400, {'mensagem': f"{v['rotulo']}: escolha WhatsApp, e-mail ou os dois."})
+                    if cx.get('email') and len(str(g.get('assunto', '')).strip()) < 3: return res(400, {'mensagem': f"{v['rotulo']}: escreva o assunto do e-mail."})
                 if d.get('envio_ligado') and not getattr(self, 'wpp_provedor', False):
-                    return res(400, {'mensagem': 'Cadastre a API do parceiro antes de ligar o envio. Até lá, tudo roda em simulação.'})
-                cfg.update({'envio_ligado': d.get('envio_ligado') is True, 'intervalo_dias': d.get('intervalo_dias'), 'gatilhos': d.get('gatilhos')})
+                    return res(400, {'mensagem': 'Cadastre a API do parceiro antes de ligar o WhatsApp. Até lá, ele roda em simulação.'})
+                if d.get('email_ligado') and not email_pronto: return res(400, {'mensagem': 'O envio de e-mail (Resend) não está configurado nos segredos.'})
+                cfg.update({'envio_ligado': d.get('envio_ligado') is True, 'email_ligado': d.get('email_ligado') is True, 'intervalo_dias': d.get('intervalo_dias'), 'gatilhos': d.get('gatilhos')})
                 return res(200, {'dados': cfg})
             if ac == 'rodar':
-                alvo = [c for c in self.cadastros if c.get('aceita_whatsapp') is True and cfg['gatilhos']['cadastro_sem_senha']['ativo']]
-                for c in alvo: envios.insert(0, {'id': len(envios) + 1, 'gatilho': 'cadastro_sem_senha', 'empresa': c.get('razao_social'), 'telefone_final': re.sub(r'\D', '', c.get('whats', ''))[-4:], 'modo': 'simulado', 'detalhe': 'Simulação: nada foi enviado.', 'criado_em': '2026-11-26T12:00:00Z'})
-                return res(200, {'dados': {'modo': 'simulacao', 'candidatos': len(alvo), 'enviados': 0, 'simulados': len(alvo), 'erros': 0, 'pulados': 0}})
+                g = cfg['gatilhos']['cadastro_sem_senha']; alvo = [c for c in self.cadastros if c.get('aceita_whatsapp') is True] if g['ativo'] else []
+                n = {'simulados': 0, 'enviados': 0}
+                for c in alvo:
+                    if g['canais'].get('whatsapp') and c.get('whats'):
+                        envios.insert(0, {'id': len(envios) + 1, 'canal': 'whatsapp', 'gatilho': 'cadastro_sem_senha', 'empresa': c.get('razao_social'), 'telefone_final': re.sub(r'\D', '', c.get('whats', ''))[-4:], 'email_mascara': None, 'modo': 'simulado', 'detalhe': 'Simulação: nada foi enviado.', 'criado_em': '2026-11-26T12:00:00Z'}); n['simulados'] += 1
+                    if g['canais'].get('email') and c.get('email'):
+                        real = cfg['email_ligado'] and email_pronto and not d.get('simular')
+                        envios.insert(0, {'id': len(envios) + 1, 'canal': 'email', 'gatilho': 'cadastro_sem_senha', 'empresa': c.get('razao_social'), 'telefone_final': None, 'email_mascara': c['email'][:2] + '***@' + c['email'].split('@')[1], 'modo': 'enviado' if real else 'simulado', 'detalhe': '', 'criado_em': '2026-11-26T12:00:00Z'})
+                        n['enviados' if real else 'simulados'] += 1
+                return res(200, {'dados': {'modo': 'simulacao', 'candidatos': len(alvo), 'enviados': n['enviados'], 'simulados': n['simulados'], 'erros': 0, 'pulados': 0}})
             if ac == 'envios_listar': return res(200, {'dados': envios})
             if ac == 'saidas_listar': return res(200, {'dados': saidas})
             if ac == 'saida_adicionar':
-                t = re.sub(r'\D', '', str(d.get('telefone', '')))
-                if len(t) not in (10, 11): return res(400, {'mensagem': 'Digite o celular com DDD.'})
-                saidas.insert(0, {'telefone_final': t[-4:], 'motivo': 'Incluído por Operador Fictício', 'criado_em': '2026-11-26T12:00:00Z'})
+                t = str(d.get('contato') or d.get('telefone') or '').strip()
+                if '@' in t:
+                    if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', t): return res(400, {'mensagem': 'Digite o celular com DDD ou o e-mail.'})
+                    saidas.insert(0, {'canal': 'email', 'telefone_final': None, 'email_mascara': t[:2] + '***@' + t.split('@')[1], 'motivo': 'Incluído por Operador Fictício', 'criado_em': '2026-11-26T12:00:00Z'})
+                    return res(200, {'ok': True})
+                t = re.sub(r'\D', '', t)
+                if len(t) not in (10, 11): return res(400, {'mensagem': 'Digite o celular com DDD ou o e-mail.'})
+                saidas.insert(0, {'canal': 'whatsapp', 'telefone_final': t[-4:], 'email_mascara': None, 'motivo': 'Incluído por Operador Fictício', 'criado_em': '2026-11-26T12:00:00Z'})
                 return res(200, {'ok': True})
             return res(400, {'mensagem': 'Ação desconhecida.'})
         if p == '/functions/v1/executivos-g360':
