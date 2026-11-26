@@ -11,7 +11,11 @@
      (POST operadores/clientes, categoria PORTAL, situação LIBERADO, limite R$ 500,00),
      libera o acesso (PUT .../acesso) e pede o link de senha pela ponte-g360. O pedido
      já fica aprovado: o cliente cria a senha e vê preço e compra na hora.
-     CNPJ já cadastrado, CPF, situação irregular na Receita ou qualquer recusa da API:
+     CPF (decisão da Souza Ribeiro em 26/11/2026) também passa direto: sem consulta prévia
+     (a API não tem para CPF), cria a ficha com RG/IE "NAO CONTRIBUINTE"; se o G360 responder
+     DOCUMENTO_REPETIDO ou DOCUMENTO_E_IE_REPETIDOS, não confirma: pede o link para o e-mail
+     do cadastro existente e deixa o pedido para a equipe vincular.
+     CNPJ já cadastrado, situação irregular na Receita ou qualquer recusa da API:
      não cria nada e deixa o pedido para a equipe (auto_status ja_existe/revisar/erro).
    Cada ação abre a sessão do usuário técnico e encerra na hora (DELETE operadores/sessao).
    Nada de usuário, senha ou token vai para log ou para a resposta.
@@ -169,7 +173,8 @@ async function processar(id: string, k: Record<string, unknown>, doc: string, or
   if (String(k.origem ?? "").toLowerCase().includes("já é cliente") || String(k.origem ?? "").toLowerCase().includes("ja e cliente")) {
     await marcar(id, { auto_status: "ja_existe", auto_obs: "Pedido de quem já é cliente: a equipe confere e libera o acesso." }); await registrar("ja_cliente"); return analise;
   }
-  if (doc.length !== 14) { await marcar(id, { auto_status: "revisar", auto_obs: "CPF: o cadastro automático vale só para CNPJ." }); await registrar("cpf"); return analise; }
+  const cpf = doc.length === 11;
+  if (!cpf && doc.length !== 14) { await marcar(id, { auto_status: "revisar", auto_obs: "Documento com tamanho inesperado." }); await registrar("documento"); return analise; }
   const { count } = await admin.from("portal_cadastro_auto_log").select("id", { count: "exact", head: true }).eq("loja", LOJA).eq("acao", "cadastrar").gte("em", new Date(Date.now() - 3600_000).toISOString());
   if ((count ?? 0) >= POR_HORA) { await marcar(id, { auto_status: "revisar", auto_obs: "Muitos cadastros nesta hora: este ficou para a equipe." }); await registrar("limite_hora"); return analise; }
 
@@ -177,8 +182,8 @@ async function processar(id: string, k: Record<string, unknown>, doc: string, or
   if (!s.token) { await marcar(id, { auto_status: "erro", auto_obs: `Usuário técnico não entrou no G360 (${s.motivo}${s.codigo ? ` ${s.codigo}` : ""}).` }); await registrar(`login_${s.motivo}`); return analise; }
   const token = s.token;
   try {
-    // 1. CNPJ na Receita (e se já existe no G360)
-    const c = await api("operadores/cadastro/cnpj", { method: "POST", token, body: JSON.stringify({ cnpj: doc }) });
+    // 1. CNPJ na Receita (e se já existe no G360). CPF não tem consulta prévia: quem barra a duplicidade é o POST da ficha.
+    const c = cpf ? { status: 200, corpo: null as Record<string, unknown> | null, requestId: "", erro: null as Record<string, unknown> | null } : await api("operadores/cadastro/cnpj", { method: "POST", token, body: JSON.stringify({ cnpj: doc }) });
     const sug = (c.corpo?.dados ?? {}) as Record<string, unknown>;
     if (c.status !== 200 && c.status !== 201) {
       await marcar(id, { auto_status: "revisar", auto_obs: `Consulta do CNPJ recusada (${c.erro?.codigo ?? c.status}${c.requestId ? `, ${c.requestId}` : ""}).` }); await registrar("cnpj_erro"); return analise;
@@ -251,7 +256,7 @@ async function processar(id: string, k: Record<string, unknown>, doc: string, or
       await registrar("acesso"); return analise;
     }
     // CNPJ novo (decisão da Souza Ribeiro em 25/11/2026): aprovado na hora, já vê preço e compra.
-    await marcar(id, { codigo_g360: codigo, em_analise: false, status: "aprovado", decidido_por: "Portal (cadastro automático)", auto_status: "criado", auto_obs: `Ficha ${codigo} criada pelo portal com acesso liberado.${catObs}` });
+    await marcar(id, { codigo_g360: codigo, em_analise: false, status: "aprovado", decidido_por: "Portal (cadastro automático)", auto_status: "criado", auto_obs: `Ficha ${codigo} criada pelo portal com acesso liberado.${cpf ? " CPF: confira RG e nome no G360." : ""}${catObs}` });
     // Indicado por executivo: o vínculo começa a contar (cliente novo), pela mesma regra do painel.
     try {
       const v = await fetch(`${SUPABASE_URL}/functions/v1/executivos-g360`, {
