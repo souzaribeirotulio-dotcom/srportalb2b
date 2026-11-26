@@ -529,6 +529,42 @@ class Sim:
             self.chamadas.append(('PONTE', 'pedir_link', {'via': 'executivo-link'}, {'documento': v['documento']}))
             self.chamadas.append(('EXEC_LINK', v['id'], sorted(corpo.keys())))
             return rs(200, {'dados': {'link_em': em}, 'mensagem': 'Pedido enviado. Se o acesso do cliente estiver liberado no G360, ele recebe o link no e-mail do cadastro. O link vale 30 minutos e serve uma vez só.'})
+        if p == '/functions/v1/whatsapp-g360':
+            # Remarketing pelo WhatsApp (painel). Sem a API do parceiro: modo simulação.
+            corpo = json.loads(req.post_data or '{}')
+            res = lambda st, b: route.fulfill(status=st, headers=cab, content_type='application/json', body=json.dumps(b))
+            if corpo.get('token') not in self.op_tokens: return res(401, {'mensagem': 'Sua sessão do painel terminou. Entre novamente.'})
+            ac = corpo.get('acao'); d = corpo.get('dados') or {}
+            self.chamadas.append(('WPP', ac, sorted(d.keys())))
+            defs = {'cadastro_sem_senha': {'rotulo': 'Cadastrou e não criou a senha', 'unidade': 'horas', 'min': 1, 'max': 168},
+                    'sem_primeira_compra': {'rotulo': 'Entrou e ainda não comprou', 'unidade': 'dias', 'min': 1, 'max': 30},
+                    'carrinho_abandonado': {'rotulo': 'Deixou itens no carrinho', 'unidade': 'horas', 'min': 1, 'max': 72}}
+            cfg = self.__dict__.setdefault('wpp_cfg', {'envio_ligado': False, 'intervalo_dias': 3, 'gatilhos': {k: {'ativo': False, 'espera': v['min'] + 3, 'modelo': '', 'texto': 'Olá, {nome}! Mensagem de exemplo {portal}'} for k, v in defs.items()}})
+            envios = self.__dict__.setdefault('wpp_envios', []); saidas = self.__dict__.setdefault('wpp_saidas', [])
+            if ac == 'config_ler':
+                return res(200, {'dados': {**cfg, 'definicoes': defs, 'provedor_pronto': getattr(self, 'wpp_provedor', False), 'agenda_pronta': False,
+                                           'com_aceite': sum(1 for c in self.cadastros if c.get('aceita_whatsapp') is True), 'atualizado_em': None, 'atualizado_por': None}})
+            if ac == 'config_salvar':
+                for k, v in defs.items():
+                    g = (d.get('gatilhos') or {}).get(k) or {}
+                    if not isinstance(g.get('espera'), int) or not v['min'] <= g['espera'] <= v['max']:
+                        return res(400, {'mensagem': f"{v['rotulo']}: o prazo vai de {v['min']} a {v['max']} {v['unidade']}."})
+                if d.get('envio_ligado') and not getattr(self, 'wpp_provedor', False):
+                    return res(400, {'mensagem': 'Cadastre a API do parceiro antes de ligar o envio. Até lá, tudo roda em simulação.'})
+                cfg.update({'envio_ligado': d.get('envio_ligado') is True, 'intervalo_dias': d.get('intervalo_dias'), 'gatilhos': d.get('gatilhos')})
+                return res(200, {'dados': cfg})
+            if ac == 'rodar':
+                alvo = [c for c in self.cadastros if c.get('aceita_whatsapp') is True and cfg['gatilhos']['cadastro_sem_senha']['ativo']]
+                for c in alvo: envios.insert(0, {'id': len(envios) + 1, 'gatilho': 'cadastro_sem_senha', 'empresa': c.get('razao_social'), 'telefone_final': re.sub(r'\D', '', c.get('whats', ''))[-4:], 'modo': 'simulado', 'detalhe': 'Simulação: nada foi enviado.', 'criado_em': '2026-11-26T12:00:00Z'})
+                return res(200, {'dados': {'modo': 'simulacao', 'candidatos': len(alvo), 'enviados': 0, 'simulados': len(alvo), 'erros': 0, 'pulados': 0}})
+            if ac == 'envios_listar': return res(200, {'dados': envios})
+            if ac == 'saidas_listar': return res(200, {'dados': saidas})
+            if ac == 'saida_adicionar':
+                t = re.sub(r'\D', '', str(d.get('telefone', '')))
+                if len(t) not in (10, 11): return res(400, {'mensagem': 'Digite o celular com DDD.'})
+                saidas.insert(0, {'telefone_final': t[-4:], 'motivo': 'Incluído por Operador Fictício', 'criado_em': '2026-11-26T12:00:00Z'})
+                return res(200, {'ok': True})
+            return res(400, {'mensagem': 'Ação desconhecida.'})
         if p == '/functions/v1/executivos-g360':
             # Programa Executivo de Contas (painel). exec_pode: o operador tem a permissão 'executivos'.
             corpo = json.loads(req.post_data or '{}')

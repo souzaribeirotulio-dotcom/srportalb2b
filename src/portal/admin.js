@@ -128,6 +128,9 @@ function ligar() {
   // Executivos de contas: o botão só aparece para quem tem a permissão própria (conferida pela função).
   if (!abas.querySelector('[data-at="exe"]')) abas.querySelector('[data-at="cfg"]').insertAdjacentHTML('beforebegin', '<button data-at="exe" hidden>🤝 Executivos</button>');
   if (!$('atExe')) v.insertAdjacentHTML('beforeend', '<div id="atExe" hidden><div class="panel" id="exePanel"></div></div>');
+  // WhatsApp (remarketing): gatilhos, simulação e envios.
+  if (!abas.querySelector('[data-at="wpp"]')) abas.querySelector('[data-at="cfg"]').insertAdjacentHTML('beforebegin', '<button data-at="wpp">💬 WhatsApp</button>');
+  if (!$('atWpp')) v.insertAdjacentHTML('beforeend', '<div id="atWpp" hidden><div class="panel" id="wppPanel"></div></div>');
   if (!$('atOcor')) v.insertAdjacentHTML('beforeend', '<div id="atOcor" hidden><div class="panel" id="ocPanel"></div></div>');
   if (!$('aLogin')) v.querySelector('.ph').insertAdjacentHTML('afterend', '<div id="aLogin" hidden></div>');
   abas.querySelectorAll('[data-at]').forEach((b) => b.addEventListener('click', () => { aba = b.dataset.at; desenharAba(); }));
@@ -283,7 +286,7 @@ function telaLogin() {
 
 function desenharAba() {
   document.querySelectorAll('#vAdm [data-at]').forEach((b) => b.classList.toggle('on', b.dataset.at === aba));
-  const ids = { cli: 'atCli', prod: 'atProd', cong: 'atCong', mrg: 'atMrg', intel: 'atIntel', neg: 'atNeg', souzinha: 'atSouzinha', cfg: 'atCfg', ocor: 'atOcor', ban: 'atBan', exe: 'atExe' };
+  const ids = { cli: 'atCli', prod: 'atProd', cong: 'atCong', mrg: 'atMrg', intel: 'atIntel', neg: 'atNeg', souzinha: 'atSouzinha', cfg: 'atCfg', ocor: 'atOcor', ban: 'atBan', exe: 'atExe', wpp: 'atWpp' };
   Object.entries(ids).forEach(([k, id]) => { $(id).hidden = k !== aba; });
   if (aba === 'cli') desenharClientes();
   else if (aba === 'prod') desenharProdutos(!prod.lista);
@@ -295,6 +298,7 @@ function desenharAba() {
   else if (aba === 'souzinha') desenharEscola();
   else if (aba === 'neg') desenharNegociacoes();
   else if (aba === 'ban') import('./adminbanners.js').then((m) => m.desenharBannersPainel($('banPanel'), { painel })).catch((e) => toast(e.message));
+  else if (aba === 'wpp') import('./adminwhatsapp.js').then((m) => m.desenharWhatsappPainel($('wppPanel'), { token: op.token, aoEncerrar: encerrarOperador })).catch((e) => toast(e.message));
   else if (aba === 'exe') import('./adminexecutivos.js').then((m) => m.desenharExecutivosPainel($('exePanel'), { token: op.token, aoEncerrar: encerrarOperador })).catch((e) => toast(e.message));
 }
 

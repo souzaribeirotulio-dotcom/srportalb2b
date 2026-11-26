@@ -152,6 +152,7 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
         ${campo('kEmail', 'E-mail', 'type="email" maxlength="160" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" enterkeyhint="next"', true, 'O link para criar a senha chega neste e-mail.')}
       </div>
       ${campo('kTel', 'Outro telefone', 'type="tel" inputmode="tel" maxlength="20" placeholder="(34) 3200-0000"')}
+      <label class="kchk-wpp"><input type="checkbox" id="kWppOk"> <span>Aceito receber pelo WhatsApp avisos do meu acesso, lembretes e ofertas da Souza Ribeiro. Posso pedir para sair quando quiser.</span></label>
     </div>
 
     <div class="ksec"><div class="ktit"><span>3</span>Endereço de entrega</div>
@@ -319,6 +320,7 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
       whats: fone(v('kWhats')), telefone: v('kTel') ? fone(v('kTel')) : '', email: v('kEmail').toLowerCase(), cep: v('kCep'), logradouro: v('kRua'), numero: v('kNum'),
       complemento: v('kComp'), bairro: v('kBairro'), cidade: v('kCidade'), uf: $('kUf').value, origem: jaCliente ? ORIGEM_JA_CLIENTE : $('kOrigem').value, segmento: $('kSeg').value,
       executivo: jaCliente || $('kOrigem').value !== ORIGEM_EXECUTIVO ? '' : String($('kExec').value || '').toUpperCase().replace(/[^A-Z0-9]/g, ''),
+      aceita_whatsapp: $('kWppOk')?.checked === true, // LGPD: só com a caixa marcada (começa desmarcada)
     };
     const sb = supabaseComprador();
     const { error } = sb ? await sb.rpc('portal_cadastro_solicitar', { p_loja: LOJA, d }) : { error: { message: 'Cadastro indisponível no momento.' } };
