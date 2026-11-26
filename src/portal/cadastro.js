@@ -331,8 +331,14 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
     // Cliente novo com CNPJ: a função cria a ficha no G360 e já manda o link de senha.
     let auto = { resultado: 'analise' };
     if (!jaCliente && d.documento.replace(/[^A-Za-z0-9]/g, '').length === 14) {
-      $('cadBox').innerHTML = '<div class="ok"><div class="ic2">…</div><h3>Criando o seu acesso</h3><p>Conferindo o CNPJ e preparando o seu cadastro. Leva alguns segundos.</p></div>';
-      auto = await cadastroAutomatico(d.documento);
+      $('cadBox').innerHTML = `<div class="ok cad-criando" role="status" aria-live="polite"><div class="ic2 cad-pontos" aria-hidden="true"><i></i><i></i><i></i></div>
+        <h3>Criando o seu acesso</h3><p id="kEtapa">Conferindo o CNPJ na Receita…</p><div class="cad-barra" aria-hidden="true"><span></span></div>
+        <small class="hint">Leva alguns segundos. Não feche esta tela.</small></div>`;
+      // As etapas só mostram que está andando; o resultado de verdade vem da função.
+      const etapas = ['Conferindo o CNPJ na Receita…', 'Criando o seu cadastro…', 'Liberando os seus preços…', 'Enviando o link para o seu e-mail…'];
+      let ie = 0;
+      const relogio = setInterval(() => { ie = Math.min(ie + 1, etapas.length - 1); const el = $('kEtapa'); if (el) el.textContent = etapas[ie]; }, 3500);
+      try { auto = await cadastroAutomatico(d.documento); } finally { clearInterval(relogio); }
     }
     // Aviso para os gestores só depois do cadastro automático: "cliente cadastrado" ou "para aprovar".
     avisarEvento('cadastro');
@@ -341,10 +347,10 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
       esquecerCadastroEmAnalise(); window.dispatchEvent(new Event('g360:cadastro-enviado'));
       guardarDocCadastro(d.documento); // a página do link já abre com o CNPJ preenchido neste aparelho
       $('cadBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>Pronto! Seu acesso foi criado</h3>
-        <p>Mandamos para o e-mail <b>${esc(d.email || '')}</b> o link para você criar a sua senha. O link vale 30 minutos; se passar, use "Esqueci minha senha".</p>
-        <p>Depois de criar a senha, é só entrar com o CNPJ: os preços e as compras já estão liberados.</p>
-        <p class="hint">Não chegou em alguns minutos? Olhe também a caixa de spam ou de promoções.</p></div>
-        <div class="act" style="justify-content:center;flex-wrap:wrap"><button type="button" class="btn out" id="kReenviar">Mandar o link de novo</button><button type="button" class="btn pri" id="kOk">Entendi</button></div>
+        <p>Mandamos o link para criar a senha para<br><b class="cad-email">${esc(d.email || '')}</b>.</p>
+        <ol class="cad-passos"><li><span>Abra o e-mail <b>Defina sua senha</b></span></li><li><span>Crie a sua senha</span></li><li><span>Pronto: você já entra vendo os preços</span></li></ol>
+        <p class="hint">O link vale 30 minutos. Não achou? Veja o spam ou a aba Promoções.</p></div>
+        <div class="act cad-acoes"><button type="button" class="btn pri" id="kOk">Entendi</button><button type="button" class="cad-reenviar" id="kReenviar">Não chegou? Mandar o link de novo</button></div>
         <div id="kReRes" aria-live="polite" style="text-align:center"></div>`;
       $('kOk').onclick = () => fecharModal('mCad');
       // Mesmo pedido do "Esqueci minha senha": um link novo invalida o anterior (no máximo 3 a cada 15 minutos).
@@ -353,7 +359,7 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
         try { $('kReRes').innerHTML = `<p class="hint">${esc(await pedirLink(d.documento))} Vale sempre o e-mail mais recente.</p>`; }
         catch (e) { $('kReRes').innerHTML = `<p class="hint">${esc(e instanceof ErroPonte ? e.message : MENSAGEM_PONTE_FALHOU)}</p>`; }
         // Espera 1 minuto antes de deixar pedir outro, para não gastar o limite de pedidos.
-        b.textContent = 'Mandar o link de novo'; setTimeout(() => { b.disabled = false; }, 60000);
+        b.textContent = 'Não chegou? Mandar o link de novo'; setTimeout(() => { b.disabled = false; }, 60000);
       };
       return;
     }
