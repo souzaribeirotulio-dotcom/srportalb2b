@@ -65,14 +65,22 @@ with sync_playwright() as pw:
         checar('e-mail' in pg.inner_text('#kEmailErr').lower() and not sim.cadastros, f'{largura}: cadastro saiu sem e-mail')
         ctx.close()
 
-        # 2) Tem de dar erro (não cria nada): CPF fica para a equipe, mensagem de análise de sempre
+        # 2) CPF novo também passa direto (decisão de 26/11/2026): a função cria a ficha e manda o link
         sim = Sim(); sim.cenario['auto'] = 'criado'
         ctx, pg, erros = abrir(br, sim, largura)
         pg.click('#heroCadB'); pg.wait_for_selector('#mCad.open #kDoc')
-        preencher(pg, '529.982.247-25'); pg.click('#kEnviar'); pg.wait_for_selector('#cadBox .ok h3'); pg.wait_for_timeout(800)
-        h3 = pg.inner_text('#cadBox h3')
-        checar('Pronto' not in h3 and 'análise' in h3, f'{largura}: CPF: {h3}')
-        checar(not [c for c in sim.chamadas if c[0] == 'CADASTRO_AUTO'], f'{largura}: CPF chamou o cadastro automático')
+        preencher(pg, '529.982.247-25'); pg.click('#kEnviar')
+        pg.wait_for_function("document.querySelector('#cadBox h3')?.textContent.includes('Pronto')", timeout=40000)
+        checar([c for c in sim.chamadas if c[0] == 'CADASTRO_AUTO'], f'{largura}: CPF não chamou o cadastro automático')
+        ctx.close()
+
+        # 2b) Tem de dar erro: CPF que o G360 recusa (já tem cadastro) fica para a equipe, mensagem de análise com "CPF"
+        sim = Sim(); sim.cenario['auto'] = 'analise'
+        ctx, pg, erros = abrir(br, sim, largura)
+        pg.click('#heroCadB'); pg.wait_for_selector('#mCad.open #kDoc')
+        preencher(pg, '529.982.247-25'); pg.click('#kEnviar'); pg.wait_for_selector('#cadBox .ok h3', timeout=40000); pg.wait_for_timeout(800)
+        h3 = pg.inner_text('#cadBox h3'); t = pg.inner_text('#cadBox')
+        checar('Pronto' not in h3 and 'análise' in h3 and 'Se esse CPF' in t, f'{largura}: CPF recusado: {h3} / {t[:160]}')
         ctx.close()
 
         # 3) Cliente em análise entra: catálogo sem preço e sem compra

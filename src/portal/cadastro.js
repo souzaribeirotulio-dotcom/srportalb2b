@@ -329,14 +329,15 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
       return;
     }
     marcarEmAnalise(); window.dispatchEvent(new Event('g360:cadastro-enviado'));
-    // Cliente novo com CNPJ: a função cria a ficha no G360 e já manda o link de senha.
+    // Cliente novo (CNPJ ou CPF): a função cria a ficha no G360 e já manda o link de senha.
     let auto = { resultado: 'analise' };
-    if (!jaCliente && d.documento.replace(/[^A-Za-z0-9]/g, '').length === 14) {
+    const docLen = d.documento.replace(/[^A-Za-z0-9]/g, '').length;
+    if (!jaCliente && (docLen === 14 || docLen === 11)) {
       $('cadBox').innerHTML = `<div class="ok cad-criando" role="status" aria-live="polite"><div class="ic2 cad-pontos" aria-hidden="true"><i></i><i></i><i></i></div>
-        <h3>Criando o seu acesso</h3><p id="kEtapa">Conferindo o CNPJ na Receita…</p><div class="cad-barra" aria-hidden="true"><span></span></div>
+        <h3>Criando o seu acesso</h3><p id="kEtapa">${docLen === 14 ? 'Conferindo o CNPJ na Receita…' : 'Conferindo o seu CPF…'}</p><div class="cad-barra" aria-hidden="true"><span></span></div>
         <small class="hint">Leva alguns segundos. Não feche esta tela.</small></div>`;
       // As etapas só mostram que está andando; o resultado de verdade vem da função.
-      const etapas = ['Conferindo o CNPJ na Receita…', 'Criando o seu cadastro…', 'Liberando os seus preços…', 'Enviando o link para o seu e-mail…'];
+      const etapas = [docLen === 14 ? 'Conferindo o CNPJ na Receita…' : 'Conferindo o seu CPF…', 'Criando o seu cadastro…', 'Liberando os seus preços…', 'Enviando o link para o seu e-mail…'];
       let ie = 0;
       const relogio = setInterval(() => { ie = Math.min(ie + 1, etapas.length - 1); const el = $('kEtapa'); if (el) el.textContent = etapas[ie]; }, 3500);
       try { auto = await cadastroAutomatico(d.documento); } finally { clearInterval(relogio); }
@@ -365,7 +366,7 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
     $('cadBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>${jaCliente ? 'Pedido de acesso em análise' : 'Cadastro em análise'}</h3>
       <p>Recebemos os dados da <b>${esc(d.razao_social)}</b>. A equipe da Souza Ribeiro confere e fala com você pelo WhatsApp <b>${esc(foneBonito(d.whats))}</b>.</p>
       <p>${jaCliente ? `Quando o acesso for liberado, chega no e-mail <b>${esc(d.email || '')}</b> o link para você criar a sua senha e começar a comprar.`
-        : 'Se esse CNPJ já tem cadastro com a gente, o link para criar a senha chega em instantes no e-mail desse cadastro. Se não chegar, a equipe fala com você.'}</p></div>
+        : `Se esse ${docLen === 14 ? 'CNPJ' : 'CPF'} já tem cadastro com a gente, o link para criar a senha chega em instantes no e-mail desse cadastro. Se não chegar, a equipe fala com você.`}</p></div>
       <div class="act" style="justify-content:center"><button type="button" class="btn pri" id="kOk">Entendi</button></div>`;
     $('kOk').onclick = () => fecharModal('mCad');
     void ctx;

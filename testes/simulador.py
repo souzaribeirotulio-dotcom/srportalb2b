@@ -506,7 +506,7 @@ class Sim:
             doc = re.sub(r'[^A-Za-z0-9]', '', str(corpo.get('documento', ''))).upper()
             self.chamadas.append(('CADASTRO_AUTO', corpo.get('acao'), sorted(corpo.keys())))
             k = next((c for c in self.cadastros if c['documento'] == doc and not c.get('auto_status')), None)
-            if corpo.get('acao') == 'cadastrar' and k and self.cenario.get('auto') == 'criado' and len(doc) == 14:
+            if corpo.get('acao') == 'cadastrar' and k and self.cenario.get('auto') == 'criado' and len(doc) in (11, 14):
                 k.update({'codigo_g360': self.cenario.get('auto_codigo', 4242), 'em_analise': False, 'auto_status': 'criado', 'auto_obs': 'Ficha criada pelo portal.', 'status': 'aprovado'})
                 return route.fulfill(status=200, headers=cab, content_type='application/json', body='{"resultado":"criado"}')
             if k: k.update({'auto_status': 'revisar', 'auto_obs': 'Ficou para a equipe.'})
