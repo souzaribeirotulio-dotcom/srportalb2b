@@ -183,7 +183,7 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
       <div class="kc"><label for="kSenha2">Repita a senha</label><input class="inp" id="kSenha2" type="password" maxlength="8" autocomplete="new-password" spellcheck="false" autocapitalize="off" aria-describedby="kSenhaErr"><div class="err" id="kSenhaErr" aria-live="polite"></div></div>
       <label class="kchk"><input type="checkbox" id="kMostrar"> Mostrar senha</label>
       ${longa ? '<label class="kchk"><input type="checkbox" id="kCont" checked> Continuar conectado</label><div class="hint">Desmarque em computador compartilhado.</div>' : ''}
-      <div class="hint">Se o seu CPF ou CNPJ já tiver cadastro com a gente, mandamos o link para criar a senha no e-mail desse cadastro.</div>
+      <div class="hint">Se o seu CPF ou CNPJ já tiver cadastro com a gente, a equipe confere os seus dados e libera o seu acesso.</div>
     </div>` : ''}
     <div class="ksec"${jaCliente ? ' hidden' : ''}><div class="kc"><label for="kOrigem">Como conheceu a Souza Ribeiro <span class="kop">(opcional)</span></label><select class="inp" id="kOrigem">${opcoes(ORIGENS)}</select></div></div>
     <div class="ksec" id="kExecBox" hidden><div class="kc"><label for="kExec">Código do executivo</label><input class="inp" id="kExec" maxlength="20" autocapitalize="characters" spellcheck="false" autocomplete="off" value="" placeholder="Ex.: JOAO"><small class="hint" id="kExecHint" style="display:block;margin-top:4px">O código que o executivo passou para você (opcional).</small></div></div>
@@ -420,7 +420,7 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
     $('cadBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>${jaCliente ? 'Pedido de acesso em análise' : 'Cadastro em análise'}</h3>
       <p>Recebemos os dados da <b>${esc(d.razao_social)}</b>. A equipe da Souza Ribeiro confere e fala com você pelo WhatsApp <b>${esc(foneBonito(d.whats))}</b>.</p>
       <p>${jaCliente ? `Quando o acesso for liberado, chega no e-mail <b>${esc(d.email || '')}</b> o link para você criar a sua senha e começar a comprar.`
-        : `Se esse ${docLen === 14 ? 'CNPJ' : 'CPF'} já tem cadastro com a gente, o link para criar a senha chega em instantes no e-mail desse cadastro. Se não chegar, a equipe fala com você.`}</p></div>
+        : `Se esse ${docLen === 14 ? 'CNPJ' : 'CPF'} já tem cadastro com a gente, a equipe confere os seus dados e manda o link para criar a senha no e-mail do cadastro.`}</p></div>
       <div class="act" style="justify-content:center"><button type="button" class="btn pri" id="kOk">Entendi</button></div>`;
     $('kOk').onclick = () => fecharModal('mCad');
     void ctx;

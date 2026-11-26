@@ -1456,7 +1456,7 @@ async function abrirFicha(k) {
 function htmlAuto(k) {
   if (!k.auto_status) return '';
   const cor = k.auto_status === 'criado' ? 'var(--lima-tx, var(--lima))' : k.auto_status === 'processando' ? 'var(--tx2)' : '#d9822b';
-  const rot = { criado: k.em_analise ? '🤖 Criado no G360 pelo portal · em análise (o cliente vê o catálogo sem preço)' : '🤖 Criado no G360 pelo portal', ja_existe: '🤖 Cadastro automático: já existe no G360', revisar: '🤖 Cadastro automático não concluído', erro: '🤖 Cadastro automático com falha', processando: '🤖 Cadastro automático em andamento' }[k.auto_status] || '';
+  const rot = { criado: k.em_analise ? '🤖 Criado no G360 pelo portal · em análise (o cliente vê o catálogo sem preço)' : '🤖 Criado no G360 pelo portal', ja_existe: '🤖 Já é cliente no G360: confira a tabela de preço e libere', revisar: '🤖 Cadastro automático não concluído', erro: '🤖 Cadastro automático com falha', processando: '🤖 Cadastro automático em andamento' }[k.auto_status] || '';
   return `<small style="color:${cor};font-weight:600">${esc(rot)}</small>${k.auto_obs ? `<small>${esc(k.auto_obs)}</small>` : ''}`;
 }
 
