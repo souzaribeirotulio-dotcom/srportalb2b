@@ -19,29 +19,19 @@ def preencher(pg, doc):
 with sync_playwright() as pw:
     br = pw.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
     for largura in (390, 1280):
-        # 1) Cadastro: a caixa começa desmarcada; sem marcar, não aceita (LGPD)
+        # 1) Cadastro: o aviso do WhatsApp aparece e o envio grava o aceite
+        erros = []
         sim = Sim()
-        ctx = br.new_context(viewport={'width': largura, 'height': 900}); pg = ctx.new_page(); erros = []
+        ctx = br.new_context(viewport={'width': largura, 'height': 900}); pg = ctx.new_page()
         pg.on('pageerror', lambda e: erros.append(str(e)))
         pg.route('**/*', sim.rota)
         for h in ('publica.cnpj.ws', 'open.cnpja.com', 'brasilapi.com.br', 'viacep.com.br'):
             pg.route(f'**/{h}/**', lambda r: r.fulfill(status=404, headers={'Access-Control-Allow-Origin': '*'}, body='{}'))
         pg.goto(BASE + '/'); pg.wait_for_selector('#grid .card')
         pg.click('#heroCadB'); pg.wait_for_selector('#mCad.open #kDoc')
-        checar(not pg.is_checked('#kWppOk'), f'{largura}: caixa do WhatsApp veio marcada')
+        checar('responder SAIR' in pg.inner_text('#kWppAviso'), f'{largura}: aviso do WhatsApp ausente')
         preencher(pg, '529.982.247-25'); pg.click('#kEnviar'); pg.wait_for_selector('#cadBox .ok h3', timeout=40000)
-        checar(sim.cadastros and sim.cadastros[-1].get('aceita_whatsapp') is False, f'{largura}: sem marcar, gravou aceite: {sim.cadastros[-1].get("aceita_whatsapp") if sim.cadastros else None}')
-        ctx.close()
-        # marcando: grava o aceite
-        sim = Sim()
-        ctx = br.new_context(viewport={'width': largura, 'height': 900}); pg = ctx.new_page()
-        pg.route('**/*', sim.rota)
-        for h in ('publica.cnpj.ws', 'open.cnpja.com', 'brasilapi.com.br', 'viacep.com.br'):
-            pg.route(f'**/{h}/**', lambda r: r.fulfill(status=404, headers={'Access-Control-Allow-Origin': '*'}, body='{}'))
-        pg.goto(BASE + '/'); pg.wait_for_selector('#grid .card')
-        pg.click('#heroCadB'); pg.wait_for_selector('#mCad.open #kDoc')
-        preencher(pg, '529.982.247-25'); pg.check('#kWppOk'); pg.click('#kEnviar'); pg.wait_for_selector('#cadBox .ok h3', timeout=40000)
-        checar(sim.cadastros and sim.cadastros[-1].get('aceita_whatsapp') is True, f'{largura}: marcou e não gravou o aceite')
+        checar(sim.cadastros and sim.cadastros[-1].get('aceita_whatsapp') is True, f'{largura}: não gravou o aceite')
         checar(not erros, f'{largura}: erros: {erros}')
         ctx.close()
 
