@@ -19,7 +19,7 @@ def preencher(pg, doc):
 with sync_playwright() as pw:
     br = pw.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
     for largura in (390, 1280):
-        # 1) Cadastro: o aviso do WhatsApp aparece e o envio grava o aceite
+        # 1) Cadastro: todo cadastro entra no remarketing
         erros = []
         sim = Sim()
         ctx = br.new_context(viewport={'width': largura, 'height': 900}); pg = ctx.new_page()
@@ -29,7 +29,6 @@ with sync_playwright() as pw:
             pg.route(f'**/{h}/**', lambda r: r.fulfill(status=404, headers={'Access-Control-Allow-Origin': '*'}, body='{}'))
         pg.goto(BASE + '/'); pg.wait_for_selector('#grid .card')
         pg.click('#heroCadB'); pg.wait_for_selector('#mCad.open #kDoc')
-        checar('responder SAIR' in pg.inner_text('#kWppAviso'), f'{largura}: aviso do WhatsApp ausente')
         preencher(pg, '529.982.247-25'); pg.click('#kEnviar'); pg.wait_for_selector('#cadBox .ok h3', timeout=40000)
         checar(sim.cadastros and sim.cadastros[-1].get('aceita_whatsapp') is True, f'{largura}: não gravou o aceite')
         checar(not erros, f'{largura}: erros: {erros}')

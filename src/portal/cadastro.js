@@ -152,7 +152,6 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
         ${campo('kEmail', 'E-mail', 'type="email" maxlength="160" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" enterkeyhint="next"', true, 'O link para criar a senha chega neste e-mail.')}
       </div>
       ${campo('kTel', 'Outro telefone', 'type="tel" inputmode="tel" maxlength="20" placeholder="(34) 3200-0000"')}
-      <p class="kchk-wpp" id="kWppAviso"><span aria-hidden="true">💬</span> <span>Ao enviar o cadastro, você aceita receber da Souza Ribeiro, pelo WhatsApp, avisos do seu acesso, lembretes e ofertas. Para parar de receber, é só responder <b>SAIR</b>.</span></p>
     </div>
 
     <div class="ksec"><div class="ktit"><span>3</span>Endereço de entrega</div>
@@ -320,7 +319,7 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
       whats: fone(v('kWhats')), telefone: v('kTel') ? fone(v('kTel')) : '', email: v('kEmail').toLowerCase(), cep: v('kCep'), logradouro: v('kRua'), numero: v('kNum'),
       complemento: v('kComp'), bairro: v('kBairro'), cidade: v('kCidade'), uf: $('kUf').value, origem: jaCliente ? ORIGEM_JA_CLIENTE : $('kOrigem').value, segmento: $('kSeg').value,
       executivo: jaCliente || $('kOrigem').value !== ORIGEM_EXECUTIVO ? '' : String($('kExec').value || '').toUpperCase().replace(/[^A-Z0-9]/g, ''),
-      aceita_whatsapp: true, // aceite pelo aviso no formulário (quem envia o cadastro foi avisado; sai respondendo SAIR)
+      aceita_whatsapp: true, // decisão da Souza Ribeiro (25/11/2026): todo cadastro do portal entra no remarketing; sai pela lista "Não mandar mais"
     };
     const sb = supabaseComprador();
     const { error } = sb ? await sb.rpc('portal_cadastro_solicitar', { p_loja: LOJA, d }) : { error: { message: 'Cadastro indisponível no momento.' } };
