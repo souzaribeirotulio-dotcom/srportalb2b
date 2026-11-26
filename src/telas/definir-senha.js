@@ -5,6 +5,7 @@
 import { gravarSenhaPorLink, ErroApi } from '../api/g360.js';
 import { entrar } from '../estado/sessao.js';
 import { descartarEnvioDeOutroComprador } from '../estado/envio.js';
+import { docCadastroGuardado, esquecerDocCadastro } from '../estado/doccadastro.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { esc, focarTitulo } from '../ui/util.js';
 import { FORMATO_SENHA, REGRA_SENHA as REGRA, htmlRegraSenha, ligarRegraSenha } from '../ui/regra-senha.js';
@@ -79,6 +80,9 @@ export function telaDefinirSenha({ loja, conteudo, ir }) {
     s1.type = s2.type = ev.target.checked ? 'text' : 'password';
   });
   focarTitulo(conteudo);
+  // Cadastro feito há pouco neste aparelho: o CNPJ já vem preenchido e o cursor vai para a senha.
+  const docCad = docCadastroGuardado();
+  if (docCad) { docIn.value = docCad; setTimeout(() => s1.focus(), 60); }
 
   let tentativa = 0;
   const marcar = (msg, campo) => {
@@ -107,7 +111,7 @@ export function telaDefinirSenha({ loja, conteudo, ir }) {
       const continuar = longa && conteudo.querySelector('#g360Cont')?.checked === true;
       try {
         await entrar(documento, senha, continuar);
-        s1.value = s2.value = ''; docIn.value = '';
+        s1.value = s2.value = ''; docIn.value = ''; esquecerDocCadastro();
         descartarEnvioDeOutroComprador();
         ir('/', { aviso: 'entrou_senha_nova' });
       } catch {

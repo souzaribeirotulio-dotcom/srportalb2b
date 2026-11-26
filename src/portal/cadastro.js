@@ -8,6 +8,7 @@
 import { codigoExecutivoGuardado } from '../estado/executivo.js';
 import { supabaseComprador, LOJA } from '../api/supabase.js';
 import { cadastroAutomatico } from '../api/cadastroauto.js';
+import { guardarDocCadastro } from '../estado/doccadastro.js';
 import { pedirLink, ErroPonte, MENSAGEM_PONTE_FALHOU } from '../api/ponte.js';
 import { $, esc, abrirModal, fecharModal } from './comum.js';
 
@@ -336,6 +337,7 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
     if (auto.resultado === 'criado') {
       // Acesso criado: o topo volta ao normal ("Já sou cliente: entrar"), sem o aviso de análise.
       esquecerCadastroEmAnalise(); window.dispatchEvent(new Event('g360:cadastro-enviado'));
+      guardarDocCadastro(d.documento); // a página do link já abre com o CNPJ preenchido neste aparelho
       $('cadBox').innerHTML = `<div class="ok"><div class="ic2">✓</div><h3>Pronto! Seu acesso foi criado</h3>
         <p>Mandamos para o e-mail <b>${esc(d.email || '')}</b> o link para você criar a sua senha. O link vale 30 minutos; se passar, use "Esqueci minha senha".</p>
         <p>Depois de criar a senha, é só entrar com o CNPJ: os preços e as compras já estão liberados.</p>
