@@ -326,7 +326,6 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
       $('kRes').innerHTML = `<div class="rv-aviso bad">${esc(error.message && !/^(new row|permission|JWT|fetch)/i.test(error.message) ? error.message : 'Não foi possível enviar agora. Tente de novo em instantes.')}</div>`;
       return;
     }
-    avisarEvento('cadastro'); // aviso para os gestores
     marcarEmAnalise(); window.dispatchEvent(new Event('g360:cadastro-enviado'));
     // Cliente novo com CNPJ: a função cria a ficha no G360 e já manda o link de senha.
     let auto = { resultado: 'analise' };
@@ -334,6 +333,8 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
       $('cadBox').innerHTML = '<div class="ok"><div class="ic2">…</div><h3>Criando o seu acesso</h3><p>Conferindo o CNPJ e preparando o seu cadastro. Leva alguns segundos.</p></div>';
       auto = await cadastroAutomatico(d.documento);
     }
+    // Aviso para os gestores só depois do cadastro automático: "cliente cadastrado" ou "para aprovar".
+    avisarEvento('cadastro');
     if (auto.resultado === 'criado') {
       // Acesso criado: o topo volta ao normal ("Já sou cliente: entrar"), sem o aviso de análise.
       esquecerCadastroEmAnalise(); window.dispatchEvent(new Event('g360:cadastro-enviado'));

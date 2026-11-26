@@ -13,7 +13,8 @@
    - {"acao":"painel_teste","token"} → aviso de teste para os aparelhos desse gestor.
 
    Eventos (avisam TODOS os gestores; o conteúdo vem do banco/G360, nunca do navegador):
-   - {"acao":"evento","tipo":"cadastro"} → cadastros pendentes dos últimos 30 min ainda não avisados.
+   - {"acao":"evento","tipo":"cadastro"} → cadastros dos últimos 30 min ainda não avisados: "Novo cliente cadastrado"
+     (cadastro automático concluído) ou "Novo cadastro para aprovar" (pendente para a equipe).
    - {"acao":"evento","tipo":"negociacao"} → negociações abertas dos últimos 30 min ainda não avisadas.
    - {"acao":"evento","tipo":"pedido","pedido_id":N,"token":<comprador>} → confere o pedido com
      GET pedidos/{id} usando o token do próprio comprador; cada pedido é avisado uma vez só.
@@ -262,17 +263,27 @@ Deno.serve(async (req) => {
       const desde = new Date(Date.now() - JANELA_MS).toISOString();
 
       if (corpo.tipo === "cadastro") {
-        const { data, error } = await admin.from("portal_cadastros").select("id, razao_social, fantasia, cidade")
-          .eq("loja", LOJA).eq("status", "pendente").gte("criado_em", desde).order("criado_em").limit(10);
+        // Cadastro automático (CNPJ novo, ficha criada e liberada): "Novo cliente cadastrado", sem nada a aprovar.
+        // Pendente (já é cliente no G360, CPF ou o automático não concluiu): "Novo cadastro para aprovar".
+        // Em andamento ("processando"): ainda não avisa; o portal chama de novo quando terminar.
+        const { data, error } = await admin.from("portal_cadastros").select("id, razao_social, fantasia, cidade, status, auto_status")
+          .eq("loja", LOJA).in("status", ["pendente", "aprovado"]).gte("criado_em", desde).order("criado_em").limit(10);
         if (error) throw error;
         const lista = await aparelhosDosGestores();
         let avisados = 0;
         for (const c of data || []) {
+          const criado = c.status === "aprovado" && c.auto_status === "criado";
+          if (c.auto_status === "processando" || (c.status === "aprovado" && !criado)) continue;
           if (!(await marcar("cadastro", c.id))) continue;
           avisados++;
-          if (lista.length) await enviar(lista, "painel_push_inscricoes", {
+          const nome = `${curto(c.fantasia || c.razao_social)}${c.cidade ? ` · ${curto(c.cidade, 30)}` : ""}`;
+          if (lista.length) await enviar(lista, "painel_push_inscricoes", criado ? {
+            titulo: "Novo cliente cadastrado",
+            texto: `${nome} se cadastrou pelo portal e já pode comprar.`,
+            url: "/painel?aba=cli", tag: `cad-${c.id}`,
+          } : {
             titulo: "Novo cadastro para aprovar",
-            texto: `${curto(c.fantasia || c.razao_social)}${c.cidade ? ` · ${curto(c.cidade, 30)}` : ""} quer ser cliente.`,
+            texto: `${nome} quer ser cliente${c.auto_status === "ja_existe" ? " (já tem cadastro no G360)" : ""}.`,
             url: "/painel?aba=cli", tag: `cad-${c.id}`,
           });
         }
