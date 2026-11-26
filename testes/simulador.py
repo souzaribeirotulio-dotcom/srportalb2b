@@ -576,6 +576,24 @@ class Sim:
                         envios.insert(0, {'id': len(envios) + 1, 'canal': 'email', 'gatilho': 'cadastro_sem_senha', 'empresa': c.get('razao_social'), 'telefone_final': None, 'email_mascara': c['email'][:2] + '***@' + c['email'].split('@')[1], 'modo': 'enviado' if real else 'simulado', 'detalhe': '', 'criado_em': '2026-11-26T12:00:00Z'})
                         n['enviados' if real else 'simulados'] += 1
                 return res(200, {'dados': {'modo': 'simulacao', 'candidatos': len(alvo), 'enviados': n['enviados'], 'simulados': n['simulados'], 'erros': 0, 'pulados': 0}})
+            if ac in ('manual_contar', 'manual_teste', 'manual_enviar'):
+                canal = d.get('canal')
+                if canal not in ('email', 'whatsapp'): return res(400, {'mensagem': 'Escolha o canal: e-mail ou WhatsApp.'})
+                if canal == 'email' and len(str(d.get('assunto', '')).strip()) < 3: return res(400, {'mensagem': 'Escreva o assunto do e-mail.'})
+                if len(str(d.get('texto', '')).strip()) < 10: return res(400, {'mensagem': 'Escreva a mensagem.'})
+                pronto = email_pronto if canal == 'email' else getattr(self, 'wpp_provedor', False)
+                if ac != 'manual_contar' and not pronto: return res(400, {'mensagem': 'O WhatsApp ainda não está ligado: falta a API do parceiro.' if canal == 'whatsapp' else 'O envio de e-mail (Resend) não está configurado nos segredos.'})
+                if ac == 'manual_teste':
+                    if canal == 'email' and '@' not in str(d.get('para', '')): return res(400, {'mensagem': 'Digite o e-mail que vai receber o teste.'})
+                    self.__dict__.setdefault('wpp_testes', []).append(d.get('para')); return res(200, {'mensagem': 'Teste enviado. Confira a caixa de entrada (e o spam).'})
+                camp = self.__dict__.setdefault('wpp_campanhas', {}).setdefault(d.get('campanha'), set())
+                alvo = [c for c in self.cadastros if c.get('aceita_whatsapp') is True and (c.get('email') if canal == 'email' else c.get('whats')) and c['id'] not in camp]
+                if ac == 'manual_contar': return res(200, {'dados': {'total': len(alvo), 'ja_enviados': len(camp), 'lote': 100, 'pronto': pronto}})
+                if d.get('confirmar') is not True: return res(400, {'mensagem': 'Confirme o envio.'})
+                for c in alvo[:100]:
+                    camp.add(c['id'])
+                    envios.insert(0, {'id': len(envios) + 1, 'canal': canal, 'gatilho': 'manual', 'empresa': c.get('razao_social'), 'telefone_final': None, 'email_mascara': (c.get('email') or 'x@x')[:2] + '***@' + (c.get('email') or 'x@x').split('@')[1], 'modo': 'enviado', 'detalhe': '', 'criado_em': '2026-11-26T12:00:00Z'})
+                return res(200, {'dados': {'enviados': min(len(alvo), 100), 'erros': 0, 'restantes': max(0, len(alvo) - 100)}})
             if ac == 'envios_listar': return res(200, {'dados': envios})
             if ac == 'saidas_listar': return res(200, {'dados': saidas})
             if ac == 'saida_adicionar':

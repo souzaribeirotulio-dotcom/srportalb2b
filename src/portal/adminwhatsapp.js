@@ -6,7 +6,7 @@
 import { chamarWhatsapp } from '../api/whatsapp.js';
 import { esc, toast } from './comum.js';
 
-const ROT = { cadastro_sem_senha: 'Cadastrou e não criou a senha', sem_primeira_compra: 'Entrou e ainda não comprou', carrinho_abandonado: 'Deixou itens no carrinho' };
+const ROT = { cadastro_sem_senha: 'Cadastrou e não criou a senha', sem_primeira_compra: 'Entrou e ainda não comprou', carrinho_abandonado: 'Deixou itens no carrinho', manual: 'Envio manual' };
 const MODO = { simulado: 'Simulação', enviado: 'Enviado', erro: 'Erro' };
 const ICONE = { whatsapp: '💬', email: '✉️' };
 const quando = (iso) => { try { return new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
@@ -14,6 +14,9 @@ const contatoDe = (x) => (x.canal === 'email' ? (x.email_mascara || 'e-mail') : 
 
 export async function desenharWhatsappPainel(alvo, { token, aoEncerrar }) {
   let cfg = null; let envios = null; let saidas = null; let erro = ''; let ultimaRodada = null;
+  // Envio manual: o rascunho fica aqui enquanto a aba está aberta (a tela redesenha a cada ação).
+  const novaCampanha = () => (crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`).toLowerCase();
+  const manual = { canal: 'email', publico: 'todos', cidade: '', assunto: '', texto: '', modelo: '', para: '', id: novaCampanha(), total: null, msg: '', msgErro: false, confirmando: false };
   const chamar = async (acao, dados) => {
     try { return await chamarWhatsapp(token, acao, dados); } catch (e) { if (e.status === 401) aoEncerrar?.(e.message); throw e; }
   };
@@ -85,6 +88,32 @@ export async function desenharWhatsappPainel(alvo, { token, aoEncerrar }) {
       <div id="wpRes" class="okmsg" aria-live="polite">${ultimaRodada ? esc(ultimaRodada) : ''}</div>
       ${cfg.atualizado_em ? `<small class="hint">Última alteração: ${esc(quando(cfg.atualizado_em))}${cfg.atualizado_por ? ` por ${esc(cfg.atualizado_por)}` : ''}</small>` : ''}
 
+      <h3 class="wpp-h">✍️ Envio manual</h3>
+      <div class="wpp-g on" id="wmBox">
+        <div class="fgrid">
+          <div><label for="wmCanal">Canal</label><select class="inp" id="wmCanal"><option value="email"${manual.canal === 'email' ? ' selected' : ''}>✉️ E-mail</option><option value="whatsapp"${manual.canal === 'whatsapp' ? ' selected' : ''}>💬 WhatsApp</option></select></div>
+          <div><label for="wmPub">Quem recebe</label><select class="inp" id="wmPub">
+            <option value="todos"${manual.publico === 'todos' ? ' selected' : ''}>Todos os cadastrados pelo portal</option>
+            <option value="aprovados"${manual.publico === 'aprovados' ? ' selected' : ''}>Só os aprovados (já são clientes)</option>
+            <option value="pendentes"${manual.publico === 'pendentes' ? ' selected' : ''}>Só os pendentes (ainda não aprovados)</option></select></div>
+          <div><label for="wmCid">Cidade (opcional)</label><input class="inp" id="wmCid" maxlength="60" value="${esc(manual.cidade)}" placeholder="Ex.: Uberlândia"></div>
+          <div class="full" ${manual.canal === 'email' ? '' : 'hidden'}><label for="wmAss">Assunto</label><input class="inp" id="wmAss" maxlength="120" value="${esc(manual.assunto)}" placeholder="Ex.: {nome}, ofertas da semana na Souza Ribeiro"></div>
+          <div ${manual.canal === 'whatsapp' ? '' : 'hidden'}><label for="wmMod">Nome do modelo aprovado na Meta</label><input class="inp" id="wmMod" maxlength="80" value="${esc(manual.modelo)}" spellcheck="false" autocapitalize="off"></div>
+          <div class="full"><label for="wmTxt">Mensagem</label><textarea class="inp" id="wmTxt" rows="5" maxlength="2000" placeholder="Use {nome}, {empresa} e {portal}.">${esc(manual.texto)}</textarea></div>
+        </div>
+        <div class="row" style="gap:6px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">
+          <div style="flex:1 1 200px"><label for="wmPara">Mandar um teste para</label><input class="inp" id="wmPara" maxlength="160" value="${esc(manual.para)}" placeholder="${manual.canal === 'email' ? 'seu@email.com' : '(34) 99999-0000'}" autocapitalize="off" spellcheck="false"></div>
+          <button class="tool" id="wmTeste" type="button">Mandar teste</button>
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="tool" id="wmContar" type="button">Ver quantos recebem</button>
+          ${manual.total ? `<button class="btn ${manual.confirmando ? 'perigo' : 'pri'}" id="wmEnviar" type="button">${manual.confirmando ? `Toque de novo para enviar a ${Math.min(manual.total, 100)}` : `Enviar para ${Math.min(manual.total, 100)}${manual.total > 100 ? ` (de ${manual.total})` : ''}`}</button>` : ''}
+          <button class="tool" id="wmNova" type="button">Nova mensagem</button>
+        </div>
+        <div id="wmRes" class="okmsg${manual.msgErro ? ' bad' : ''}" aria-live="polite">${esc(manual.msg)}</div>
+        <small class="hint" style="display:block">Quem saiu da lista não recebe. O envio vai em lotes de até 100; se sobrar gente, toque de novo para mandar o próximo lote, sem repetir quem já recebeu.</small>
+      </div>
+
       <h3 class="wpp-h">Últimos envios</h3>
       ${envios?.length ? `<div class="wpp-lista">${envios.map((e) => `<div class="wpp-l"><span><b>${ICONE[e.canal] || ''} ${esc(e.empresa || 'Cliente')}</b><small>${esc(ROT[e.gatilho] || e.gatilho)} · ${esc(contatoDe(e))} · ${esc(quando(e.criado_em))}</small></span><span class="wpp-m ${esc(e.modo)}" title="${esc(e.detalhe || '')}">${esc(MODO[e.modo] || e.modo)}</span></div>`).join('')}</div>`
         : '<div class="hint">Nenhum envio ainda. Ligue um gatilho, salve e toque em "Simular agora".</div>'}
@@ -101,7 +130,7 @@ export async function desenharWhatsappPainel(alvo, { token, aoEncerrar }) {
     alvo.querySelectorAll('[data-canal]').forEach((c) => c.addEventListener('change', () => { c.closest('.wpp-g').querySelector(`[data-bloco="${c.dataset.canal}"]`).hidden = !c.checked; }));
     const lerForm = () => {
       const gatilhos = {};
-      alvo.querySelectorAll('.wpp-g').forEach((el) => {
+      alvo.querySelectorAll('.wpp-g[data-g]').forEach((el) => {
         gatilhos[el.dataset.g] = {
           ativo: el.querySelector('[data-ativo]').checked, espera: Number(el.querySelector('[data-espera]').value),
           canais: { whatsapp: el.querySelector('[data-canal="whatsapp"]').checked, email: el.querySelector('[data-canal="email"]').checked },
@@ -133,6 +162,45 @@ export async function desenharWhatsappPainel(alvo, { token, aoEncerrar }) {
     };
     alvo.querySelector('#wpSim').onclick = (ev) => rodar(true, ev.currentTarget);
     alvo.querySelector('#wpReal')?.addEventListener('click', (ev) => rodar(false, ev.currentTarget));
+    // ---- envio manual ----
+    const lerManual = () => {
+      const antes = JSON.stringify([manual.canal, manual.publico, manual.cidade, manual.assunto, manual.texto, manual.modelo]);
+      manual.canal = alvo.querySelector('#wmCanal').value; manual.publico = alvo.querySelector('#wmPub').value;
+      manual.cidade = alvo.querySelector('#wmCid').value.trim(); manual.assunto = alvo.querySelector('#wmAss').value.trim();
+      manual.texto = alvo.querySelector('#wmTxt').value.trim(); manual.modelo = alvo.querySelector('#wmMod').value.trim(); manual.para = alvo.querySelector('#wmPara').value.trim();
+      // Mudou a mensagem ou o público: é outra campanha (o próximo lote não mistura com a anterior).
+      if (antes !== JSON.stringify([manual.canal, manual.publico, manual.cidade, manual.assunto, manual.texto, manual.modelo])) { manual.total = null; manual.confirmando = false; }
+    };
+    const dadosManual = () => ({ canal: manual.canal, publico: manual.publico, cidade: manual.cidade, assunto: manual.assunto, texto: manual.texto, modelo: manual.modelo, campanha: manual.id });
+    ['#wmCanal', '#wmPub', '#wmCid', '#wmAss', '#wmTxt', '#wmMod', '#wmPara'].forEach((sel) => alvo.querySelector(sel).addEventListener('change', () => { const canalAntes = manual.canal; lerManual(); if (sel === '#wmCanal' && canalAntes !== manual.canal) pintar(); }));
+    const avisar = (t, ruim = false) => { manual.msg = t; manual.msgErro = ruim; };
+    alvo.querySelector('#wmContar').onclick = async (ev) => {
+      lerManual(); const b = ev.currentTarget; b.disabled = true;
+      try {
+        const r = (await chamar('manual_contar', dadosManual())).dados; manual.total = r.total; manual.confirmando = false;
+        avisar(r.total ? `${r.total} pessoa${r.total === 1 ? '' : 's'} vai${r.total === 1 ? '' : 'o'} receber${r.ja_enviados ? ` (${r.ja_enviados} já receberam esta mensagem)` : ''}.${r.pronto ? '' : ' Atenção: este canal ainda não está pronto para enviar.'}` : (r.ja_enviados ? 'Todos desse público já receberam esta mensagem.' : 'Ninguém para receber com esse público.'));
+      } catch (e) { manual.total = null; avisar(e.message, true); }
+      pintar();
+    };
+    alvo.querySelector('#wmTeste').onclick = async (ev) => {
+      lerManual(); const b = ev.currentTarget; b.disabled = true; b.textContent = 'Mandando…';
+      try { avisar((await chamar('manual_teste', { ...dadosManual(), para: manual.para })).mensagem || 'Teste enviado.'); } catch (e) { avisar(e.message, true); }
+      pintar();
+    };
+    alvo.querySelector('#wmEnviar')?.addEventListener('click', async (ev) => {
+      lerManual();
+      if (!manual.confirmando) { manual.confirmando = true; pintar(); return; }
+      const b = ev.currentTarget; b.disabled = true; b.textContent = 'Enviando… não feche a página';
+      try {
+        const r = (await chamar('manual_enviar', { ...dadosManual(), confirmar: true })).dados;
+        manual.total = r.restantes || null; manual.confirmando = false;
+        avisar(`${r.enviados} enviada${r.enviados === 1 ? '' : 's'}${r.erros ? ` · ${r.erros} com erro` : ''}.${r.restantes ? ` Faltam ${r.restantes}: toque em "Enviar" de novo para o próximo lote.` : ' Pronto, todos receberam.'}`, r.erros > 0 && !r.enviados);
+        envios = (await chamar('envios_listar')).dados;
+      } catch (e) { manual.confirmando = false; avisar(e.message, true); }
+      pintar();
+    });
+    alvo.querySelector('#wmNova').onclick = () => { Object.assign(manual, { assunto: '', texto: '', modelo: '', id: novaCampanha(), total: null, msg: '', msgErro: false, confirmando: false }); pintar(); };
+
     alvo.querySelector('#wpSaiOk').onclick = async (ev) => {
       const contato = alvo.querySelector('#wpSaiTel').value.trim();
       const b = ev.currentTarget; b.disabled = true;

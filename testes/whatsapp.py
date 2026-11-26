@@ -38,6 +38,7 @@ with sync_playwright() as pw:
     sim = Sim()
     sim.cadastros.append({'id': 'c1', 'documento': '11111111000111', 'razao_social': 'Empresa Fictícia LTDA', 'whats': '34999990000', 'email': 'compras@example.invalid', 'aceita_whatsapp': True, 'status': 'aprovado', 'codigo_g360': 77, 'criado_em': '2026-11-25T10:00:00Z'})
     for largura in (390, 1280):
+        sim.wpp_testes = []
         ctx = br.new_context(viewport={'width': largura, 'height': 900}); pg = ctx.new_page(); erros = []
         pg.on('pageerror', lambda e: erros.append(str(e)))
         pg.route('**/*', sim.rota); pg.goto(BASE + '/painel'); pg.wait_for_selector('#aUsu')
@@ -73,6 +74,21 @@ with sync_playwright() as pw:
         checar('DDD ou o e-mail' in pg.inner_text('#wppPanel'), f'{largura}: contato inválido aceito')
         pg.fill('#wpSaiTel', 'sai@example.invalid'); pg.click('#wpSaiOk'); pg.wait_for_function("document.querySelector('#wppPanel').innerText.includes('sa***@example.invalid')", timeout=10000)
         pg.fill('#wpSaiTel', '(34) 98888-1234'); pg.click('#wpSaiOk'); pg.wait_for_function("document.querySelector('#wppPanel').innerText.includes('Final 1234')", timeout=10000)
+        # envio manual: sem assunto dá erro; teste; contar; enviar com confirmação (2 toques); não repete na mesma campanha
+        pg.fill('#wmTxt', 'Olá, {nome}! Ofertas da semana no portal: {portal}'); pg.click('#wmContar'); pg.wait_for_selector('#wmRes.bad')
+        checar('assunto' in pg.inner_text('#wmRes'), f'{largura}: contou sem assunto')
+        pg.fill('#wmAss', '{nome}, ofertas da semana'); pg.fill('#wmPara', 'teste@example.invalid'); pg.click('#wmTeste')
+        pg.wait_for_function("document.querySelector('#wmRes')?.textContent.includes('Teste enviado')", timeout=10000)
+        checar(sim.wpp_testes == ['teste@example.invalid'], f'{largura}: teste não saiu para o e-mail digitado')
+        pg.click('#wmContar'); pg.wait_for_selector('#wmEnviar')
+        checar('1 pessoa vai receber' in pg.inner_text('#wmRes'), f'{largura}: contagem: {pg.inner_text("#wmRes")}')
+        antes = sum(1 for c in sim.chamadas if c[0] == 'WPP' and c[1] == 'manual_enviar')
+        pg.click('#wmEnviar'); pg.wait_for_function("document.querySelector('#wmEnviar')?.textContent.includes('Toque de novo')", timeout=5000)
+        checar(sum(1 for c in sim.chamadas if c[0] == 'WPP' and c[1] == 'manual_enviar') == antes, f'{largura}: enviou no primeiro toque')
+        pg.click('#wmEnviar'); pg.wait_for_function("document.querySelector('#wmRes')?.textContent.includes('todos receberam')", timeout=15000)
+        checar('Envio manual' in pg.inner_text('#wppPanel'), f'{largura}: envio manual não apareceu em Últimos envios')
+        pg.click('#wmContar'); pg.wait_for_function("document.querySelector('#wmRes')?.textContent.includes('já receberam')", timeout=10000)
+        checar(not pg.locator('#wmEnviar').count(), f'{largura}: dava para reenviar a mesma campanha')
         checar(pg.evaluate('document.documentElement.scrollWidth') <= largura, f'{largura}: rolagem horizontal')
         if largura == 390: pg.screenshot(path='/tmp/wpp390.png', full_page=True)
         checar(not erros, f'{largura}: erros: {erros}')

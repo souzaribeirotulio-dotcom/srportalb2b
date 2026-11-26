@@ -5,8 +5,8 @@
    - cadastro_sem_senha: ficha criada (aprovado com código do G360) e o cliente ainda não entrou.
    - sem_primeira_compra: já entrou no portal e ainda não fez pedido.
    - carrinho_abandonado: deixou itens no carrinho e não finalizou.
-   Só recebe quem marcou "Aceito receber pelo WhatsApp" no Quero ser cliente (LGPD), não está na
-   lista de saída e não recebeu nada nos últimos N dias (intervalo do painel).
+   Recebe quem se cadastrou pelo portal (aceita_whatsapp, gravado em todo cadastro por decisão da Souza
+   Ribeiro), não está na lista de saída e não recebeu nada nos últimos N dias (intervalo do painel).
 
    Cada gatilho escolhe os canais (WhatsApp, e-mail ou os dois).
    WhatsApp de verdade: segredos WHATSAPP_ENDPOINT e WHATSAPP_CHAVE (API do parceiro) + "WhatsApp ligado".
@@ -18,11 +18,14 @@
    Ações (POST, só Content-Type, origens de PORTAL_ORIGENS, token do operador do G360):
    - config_ler, config_salvar {envio_ligado, intervalo_dias, gatilhos}
    - rodar {simular?}  → roda os gatilhos agora
+   - manual_contar / manual_teste {para} / manual_enviar {confirmar} → envio manual escrito no painel
+     {canal, publico (todos|aprovados|pendentes), cidade?, assunto, texto, modelo?}: respeita a lista de saída,
+     em lotes de 100 (campanha = id gerado no painel; o lote seguinte pula quem já recebeu)
    - envios_listar     → últimos 100 envios (empresa, gatilho, final do telefone, modo)
    - saida_adicionar {contato, motivo} (celular ou e-mail) / saidas_listar → quem pediu para não receber
    - sair_email {t} (sem token de operador) → descadastro pelo link do e-mail
    Agendado (sem navegador): POST com o cabeçalho X-Agenda-Chave = segredo WHATSAPP_AGENDA_CHAVE.
-   Descadastro de um clique (provedor de e-mail): POST/GET ?sair=<t>.
+   Descadastro de um clique (provedor de e-mail): POST ?sair=<t> (GET só mostra o aviso).
 
    Telefone e e-mail completos, token e chaves não vão para log nem para as tabelas de envio
    (lá ficam só os 4 últimos dígitos, o e-mail mascarado e um resumo).
@@ -55,6 +58,9 @@ const REMETENTE = segredo("REMARKETING_REMETENTE") || "Souza Ribeiro <ofertas@so
 const emailPronto = () => /^https:\/\/[^\s]+$/.test(EMAIL_ENDPOINT) && EMAIL_CHAVE.length >= 10;
 const SUPABASE_URL = obrigatoria("SUPABASE_URL").replace(/\/$/, "");
 const MAX_POR_RODADA = 50;
+const MAX_MANUAL = 100; // por lote: o painel manda o próximo lote da mesma campanha sem repetir ninguém
+const RITMO_EMAIL_MS = 500; // o Resend aceita poucas mensagens por segundo
+const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 type Gatilho = { ativo: boolean; espera: number; modelo: string; texto: string; canais: { whatsapp: boolean; email: boolean }; assunto: string; email_texto: string };
 const DEF: Record<string, { rotulo: string; unidade: "horas" | "dias"; min: number; max: number; padrao: Gatilho }> = {
@@ -331,10 +337,53 @@ async function rodar(forcarSimulacao: boolean) {
       if (error && error.code !== "23505") throw error;
       ultimo.set(dest, new Date().toISOString()); feitos++;
       if (modo === "enviado") res.enviados++; else if (modo === "erro") res.erros++; else res.simulados++;
+      if (real && canal === "email") await esperar(RITMO_EMAIL_MS);
     }
   }
   return res;
 }
+
+/* ---------- envio manual (campanha escrita no painel) ---------- */
+type Publico = "todos" | "aprovados" | "pendentes";
+async function publicoManual(publico: Publico, cidade: string) {
+  let q = admin.from("portal_cadastros").select("id, razao_social, fantasia, responsavel, whats, email, cidade, status")
+    .eq("loja", LOJA).eq("aceita_whatsapp", true).order("criado_em", { ascending: false }).limit(2000);
+  if (publico === "aprovados") q = q.eq("status", "aprovado");
+  if (publico === "pendentes") q = q.eq("status", "pendente");
+  if (cidade) q = q.ilike("cidade", cidade.replace(/[%_]/g, ""));
+  const { data, error } = await q;
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Destinatários de uma campanha, já sem quem saiu da lista e sem contato repetido. */
+async function destinatariosManual(canal: "whatsapp" | "email", publico: Publico, cidade: string) {
+  const [lista, { data: saidas }] = await Promise.all([publicoManual(publico, cidade), admin.from("whatsapp_saidas").select("destinatario").eq("loja", LOJA)]);
+  const fora = new Set((saidas ?? []).map((x) => x.destinatario));
+  const vistos = new Set<string>(); const saida: Array<{ c: Cand; contato: string; dest: string }> = [];
+  for (const k of lista) {
+    const contato = canal === "email" ? emailValido(k.email) : telefone(k.whats);
+    if (!contato) continue;
+    const dest = canal === "email" ? await destinoEmail(contato) : await destino(contato);
+    if (fora.has(dest) || vistos.has(dest)) continue;
+    vistos.add(dest);
+    saida.push({ contato, dest, c: { gatilho: "manual", ref: `cad:${k.id}`, empresa: texto(k.fantasia || k.razao_social, 200), nome: primeiroNome(k.responsavel) || texto(k.fantasia || k.razao_social, 60), fone: canal === "whatsapp" ? contato : null, email: canal === "email" ? contato : null } });
+  }
+  return saida;
+}
+
+function lerCampanha(d: Record<string, unknown>) {
+  const canal = d.canal === "whatsapp" ? "whatsapp" : d.canal === "email" ? "email" : null;
+  const publico = (["todos", "aprovados", "pendentes"].includes(String(d.publico)) ? d.publico : "todos") as Publico;
+  const cidade = texto(d.cidade, 60);
+  const assunto = texto(d.assunto, 120); const corpo = texto(d.texto, 2000); const modelo = texto(d.modelo, 80);
+  if (!canal) return "Escolha o canal: e-mail ou WhatsApp.";
+  if (canal === "email" && assunto.length < 3) return "Escreva o assunto do e-mail.";
+  if (corpo.length < 10) return "Escreva a mensagem.";
+  if (canal === "whatsapp" && modelo && !/^[a-z0-9_]{1,80}$/.test(modelo)) return "O nome do modelo usa só letras minúsculas, números e _.";
+  return { canal, publico, cidade, assunto, corpo, modelo } as const;
+}
+const canalPronto = (canal: string) => (canal === "email" ? emailPronto() : provedorPronto());
 
 /* ---------- servidor ---------- */
 Deno.serve(async (req) => {
@@ -397,6 +446,44 @@ Deno.serve(async (req) => {
       return json(200, { dados: await lerConfig() });
     }
     if (corpo.acao === "rodar") return json(200, { dados: await rodar(d.simular === true) });
+    if (corpo.acao === "manual_contar" || corpo.acao === "manual_teste" || corpo.acao === "manual_enviar") {
+      const camp = lerCampanha(d);
+      if (typeof camp === "string") return json(400, { mensagem: camp });
+      if (corpo.acao !== "manual_contar" && !canalPronto(camp.canal)) return json(400, { mensagem: camp.canal === "email" ? "O envio de e-mail (Resend) não está configurado nos segredos." : "O WhatsApp ainda não está ligado: falta a API do parceiro." });
+      const exemplo: Cand = { gatilho: "manual", ref: "teste", empresa: "Sua empresa", nome: primeiroNome(op.nome) || "Equipe", fone: null, email: null };
+      if (corpo.acao === "manual_teste") {
+        const para = camp.canal === "email" ? emailValido(d.para) : telefone(d.para);
+        if (!para) return json(400, { mensagem: camp.canal === "email" ? "Digite o e-mail que vai receber o teste." : "Digite o celular com DDD que vai receber o teste." });
+        const r = camp.canal === "email"
+          ? await enviarEmail(para, await destinoEmail(para), `[Teste] ${montarTexto(camp.assunto, exemplo)}`.slice(0, 150), montarTexto(camp.corpo, exemplo))
+          : await enviarParceiro(para, camp.modelo, montarTexto(camp.corpo, exemplo), exemplo);
+        return r.ok ? json(200, { mensagem: "Teste enviado. Confira a caixa de entrada (e o spam)." }) : json(502, { mensagem: r.detalhe });
+      }
+      const id = String(d.campanha ?? "");
+      if (!/^[a-z0-9-]{8,40}$/.test(id)) return json(400, { mensagem: "Campanha inválida. Recarregue a página." });
+      const { data: feitos } = await admin.from("whatsapp_envios").select("destinatario").eq("loja", LOJA).eq("gatilho", "manual").like("ref", `man:${id}:%`).eq("modo", "enviado").limit(5000);
+      const jaFoi = new Set((feitos ?? []).map((x) => x.destinatario));
+      const lista = (await destinatariosManual(camp.canal, camp.publico, camp.cidade)).filter((x) => !jaFoi.has(x.dest));
+      if (corpo.acao === "manual_contar") return json(200, { dados: { total: lista.length, ja_enviados: jaFoi.size, lote: MAX_MANUAL, pronto: canalPronto(camp.canal) } });
+      if (d.confirmar !== true) return json(400, { mensagem: "Confirme o envio." });
+      if (!lista.length) return json(400, { mensagem: jaFoi.size ? "Todos desse público já receberam esta mensagem." : "Ninguém para receber com esse público." });
+      const res = { enviados: 0, erros: 0, restantes: Math.max(0, lista.length - MAX_MANUAL) };
+      for (const { c, contato, dest } of lista.slice(0, MAX_MANUAL)) {
+        const r = camp.canal === "email"
+          ? await enviarEmail(contato, dest, montarTexto(camp.assunto, c).slice(0, 150), montarTexto(camp.corpo, c))
+          : await enviarParceiro(contato, camp.modelo, montarTexto(camp.corpo, c), c);
+        const { error } = await admin.from("whatsapp_envios").insert({
+          loja: LOJA, canal: camp.canal, gatilho: "manual", ref: `man:${id}:${dest.slice(0, 16)}:${Date.now().toString(36)}`, empresa: c.empresa || null, destinatario: dest,
+          modo: r.ok ? "enviado" : "erro", detalhe: `${r.detalhe} Envio manual de ${op.nome}.`.slice(0, 300),
+          telefone_final: camp.canal === "whatsapp" ? contato.slice(-4) : null, email_mascara: camp.canal === "email" ? mascarar(contato) : null,
+        });
+        if (error && error.code !== "23505") throw error;
+        if (r.ok) res.enviados++; else res.erros++;
+        if (camp.canal === "email") await esperar(RITMO_EMAIL_MS);
+      }
+      res.restantes = Math.max(0, lista.length - res.enviados - res.erros);
+      return json(200, { dados: res });
+    }
     if (corpo.acao === "envios_listar") {
       const { data, error } = await admin.from("whatsapp_envios").select("id, canal, gatilho, empresa, telefone_final, email_mascara, modo, detalhe, criado_em").eq("loja", LOJA).order("criado_em", { ascending: false }).limit(100);
       if (error) throw error;

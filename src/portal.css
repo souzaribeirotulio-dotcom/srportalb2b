@@ -737,3 +737,4 @@ body.cliente-analise .card .info::after { content: "Preço liberado após a apro
 .wpp-sit { margin: 4px 0 2px; padding-left: 18px; font-size: 14px; color: var(--tx2); display: grid; gap: 2px; }
 .wpp-canais { margin-top: 2px; }
 .wpp-bloco { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--linha, #ffffff1a); }
+.btn.perigo { background: #ffb020; color: #1d1300; border-color: #ffb020; }
