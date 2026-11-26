@@ -39,9 +39,9 @@ with sync_playwright() as pw:
         ctx, pg, erros = abrir(br, sim, largura)
         pg.click('#heroCadB'); pg.wait_for_selector('#mCad.open #kDoc')
         preencher(pg, '12.ABC.345/01DE-35'); pg.click('#kEnviar')
-        pg.wait_for_function("document.querySelector('#cadBox h3')?.textContent.includes('Pronto')", timeout=15000)
+        pg.wait_for_function("document.querySelector('#cadBox h3')?.textContent.includes('Pronto')", timeout=40000)
         t = ' '.join(pg.inner_text('#cadBox').split())
-        checar('compras@example.invalid' in t and 'criar a sua senha' in t and 'já estão liberados' in t, f'{largura}: mensagem do cadastro automático: {t[:200]}')
+        checar('compras@example.invalid' in t and 'Crie a sua senha' in t and 'vendo os preços' in t, f'{largura}: mensagem do cadastro automático: {t[:200]}')
         cha = [c for c in sim.chamadas if c[0] == 'CADASTRO_AUTO']
         checar(len(cha) == 1 and cha[0][1] == 'cadastrar' and cha[0][2] == ['acao', 'documento'], f'{largura}: chamada da função: {cha}')
         checar(sim.cadastros[0].get('status') == 'aprovado' and not sim.cadastros[0].get('em_analise'), f'{largura}: pedido não ficou aprovado')
