@@ -37,6 +37,26 @@ with sync_playwright() as pw:
     checar(not erros, f'erros de script: {erros}')
     br.close()
 
+    # 1b) Cadastro feito há pouco neste aparelho: o CNPJ já vem preenchido; depois de entrar, sai do aparelho.
+    sim = Sim(); sim.links = {TOKEN: DOC}
+    br = pw.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
+    pg = br.new_page(viewport={'width': 390, 'height': 900}); pg.route('**/*', sim.rota)
+    pg.add_init_script(f"if (!sessionStorage.getItem('x')) {{ sessionStorage.setItem('x','1'); localStorage.setItem('g360:{LOJA}:doc-cadastro', JSON.stringify({{d:'{DOC}', ate: Date.now()+600000}})); }}")
+    pg.goto(BASE + '/definir-senha#token=' + TOKEN); pg.wait_for_selector('#g360Doc')
+    checar(pg.input_value('#g360Doc') == DOC, f'CNPJ do cadastro não veio preenchido: {pg.input_value("#g360Doc")}')
+    pg.fill('#g360Senha1', 'Nova123'); pg.fill('#g360Senha2', 'Nova123'); pg.click('#g360SalvarSenha')
+    pg.wait_for_selector('body.logged #grid .card', timeout=30000)
+    checar(pg.evaluate(f"localStorage.getItem('g360:{LOJA}:doc-cadastro')") is None, 'CNPJ do cadastro ficou guardado depois de entrar')
+    br.close()
+    # tem de dar erro (não preenche): guardado vencido
+    sim = Sim(); sim.links = {TOKEN: DOC}
+    br = pw.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
+    pg = br.new_page(viewport={'width': 390, 'height': 900}); pg.route('**/*', sim.rota)
+    pg.add_init_script(f"localStorage.setItem('g360:{LOJA}:doc-cadastro', JSON.stringify({{d:'{DOC}', ate: Date.now()-1000}}))")
+    pg.goto(BASE + '/definir-senha#token=' + TOKEN); pg.wait_for_selector('#g360Doc')
+    checar(pg.input_value('#g360Doc') == '', 'CNPJ vencido foi preenchido')
+    br.close()
+
     # 2) Continuar conectado marcado: entra com a sessão longa (localStorage)
     sim = Sim(); sim.links = {TOKEN: DOC}; sim.loja['continuar_conectado_dias'] = 30
     br, pg, erros, console = abrir(pw, sim)
