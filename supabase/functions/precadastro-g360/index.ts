@@ -85,7 +85,9 @@ async function executar(acao: string, d: Record<string, unknown>): Promise<[numb
       const ultima = texto(c.ultima_compra, 10);
       linhas.push({ loja, comprador_codigo: codigo, documento, nome: texto(c.nome, 120) || `Cliente ${codigo}`, cidade: texto(c.cidade, 60) || null, bairro: texto(c.bairro, 60) || null,
         vendedores: texto(c.vendedores, 120) || null, ultima_compra: /^\d{4}-\d{2}-\d{2}$/.test(ultima) ? ultima : null,
-        itens_lista: Math.max(0, Math.trunc(Number(c.itens_lista) || 0)), itens_congelados: Math.max(0, Math.trunc(Number(c.itens_congelados) || 0)), lote });
+        itens_lista: Math.max(0, Math.trunc(Number(c.itens_lista) || 0)), itens_congelados: Math.max(0, Math.trunc(Number(c.itens_congelados) || 0)), lote,
+        curva: ["A", "B", "C"].includes(texto(c.curva, 1).toUpperCase()) ? texto(c.curva, 1).toUpperCase() : null,
+        faturamento: Number.isFinite(Number(c.faturamento)) && Number(c.faturamento) >= 0 ? Math.round(Number(c.faturamento) * 100) / 100 : null });
     }
     // Reimportar o mesmo cliente atualiza os dados, mas não apaga o andamento (acesso e senha).
     const { error } = await admin.from("portal_pre_cadastro").upsert(linhas, { onConflict: "loja,comprador_codigo" });

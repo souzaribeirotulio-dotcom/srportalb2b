@@ -1113,10 +1113,36 @@ async function montarLista(c, alvo = $('clLista'), embutido = false) {
       <div class="pin"><span>R$</span><input data-cgv inputmode="decimal" placeholder="${esc(valorTela(p.preco_congelado || p.preco))}" aria-label="Preço congelado"></div>
       <label class="hint" style="margin:0">De <input type="date" data-cgi value="${hoje}"></label>
       <label class="hint" style="margin:0">Até <input type="date" data-cgf value="${f.toISOString().slice(0, 10)}" min="${hoje}"></label>
-      <button class="btn pri" data-cgok type="button" style="height:36px">Congelar no G360</button>
-      <span class="hint" data-cgmg style="margin:0">Tabela para o cliente: <b>${esc(dinheiro(p.preco))}</b>${custo !== null ? ` · custo R$ ${esc(numeroPainel(custo, 2))}` : ''}${p.preco_congelado ? ' · já tem preço congelado: para alterar o atual, use a aba Preços congelados' : ''}</span>
+      <button class="btn pri" data-cgok type="button" style="height:36px">${p.preco_congelado ? 'Alterar no G360' : 'Congelar no G360'}</button>
+      ${p.preco_congelado ? '<button class="btn sec" data-cgfim type="button" style="height:36px">Tirar o congelado</button>' : ''}
+      <span class="hint" data-cgmg style="margin:0">Tabela para o cliente: <b>${esc(dinheiro(p.preco))}</b>${custo !== null ? ` · custo R$ ${esc(numeroPainel(custo, 2))}` : ''}${p.preco_congelado ? ` · congelado hoje: <b>${esc(dinheiro(p.preco_congelado))}</b>` : ''}</span>
       <div data-cgerr style="flex-basis:100%" aria-live="polite"></div></div>`;
     const inp = box.querySelector('[data-cgv]'); inp.focus();
+    // Já congelado: acha o registro vigente no G360 para alterar (valor e datas) ou encerrar.
+    let vigente = null;
+    const acharVigente = async () => {
+      if (vigente) return vigente;
+      let apos; let d; const hojeIso = new Date().toISOString().slice(0, 10);
+      do {
+        d = await listarPrecosCongelados(op.token, c.codigo, apos); if (!d.disponivel) break;
+        vigente = d.itens.find((r) => Number(r.produto) === Number(p.id) && !r.unidade_id && r.situacao === 'ativo' && r.inicio <= hojeIso && r.fim >= hojeIso) || null;
+        apos = d.proximo;
+      } while (!vigente && apos);
+      return vigente;
+    };
+    if (p.preco_congelado) {
+      acharVigente().then((v) => { if (!v) return; inp.value = valorTela(v.valor); box.querySelector('[data-cgi]').value = v.inicio; box.querySelector('[data-cgf]').value = v.fim; box.querySelector('[data-cgf]').min = v.inicio; }).catch(() => {});
+      box.querySelector('[data-cgfim]').onclick = async (ev) => {
+        const b = ev.currentTarget; const err = box.querySelector('[data-cgerr]'); err.innerHTML = '';
+        b.disabled = true; b.textContent = 'Tirando…';
+        try {
+          const v = await acharVigente();
+          if (!v) { err.innerHTML = '<div class="okmsg bad">Não achei o preço congelado vigente deste produto. Confira na aba Preços congelados.</div>'; b.disabled = false; b.textContent = 'Tirar o congelado'; return; }
+          await encerrarPrecoCongelado(op.token, c.codigo, v.id);
+          toast('Preço congelado encerrado ✓ — o cliente volta a ver o preço da tabela'); itens();
+        } catch (e) { b.disabled = false; b.textContent = 'Tirar o congelado'; if (e.status === 401) { encerrarOperador(e.message); return; } mostrarMensagemErro(err, e); }
+      };
+    }
     inp.addEventListener('input', () => {
       const v = Number(valorPreco(inp.value) || 0); const el = box.querySelector('[data-cgmg]');
       const base = `Tabela para o cliente: <b>${esc(dinheiro(p.preco))}</b>${custo !== null ? ` · custo R$ ${esc(numeroPainel(custo, 2))}` : ''}`;
@@ -1131,10 +1157,12 @@ async function montarLista(c, alvo = $('clLista'), embutido = false) {
       if (!inicio || !fim || fim < inicio) { err.innerHTML = '<div class="okmsg bad">A data final precisa ser igual ou depois da inicial.</div>'; return; }
       b.disabled = true; b.textContent = 'Gravando no G360…';
       try {
-        await incluirPrecoCongelado(op.token, c.codigo, { produto: Number(p.id), unidade_id: null, valor, inicio, fim });
+        const v = p.preco_congelado ? await acharVigente() : null;
+        if (v) await alterarPrecoCongelado(op.token, c.codigo, v.id, { valor, inicio, fim });
+        else await incluirPrecoCongelado(op.token, c.codigo, { produto: Number(p.id), unidade_id: null, valor, inicio, fim });
         const naLista = await paraMinhaLista(c.codigo, [p.id]);
         toast(`Preço congelado no G360 ✓ ${dinheiro(valor)}${naLista ? ' · na Minha Lista' : ''}`); itens();
-      } catch (e) { b.disabled = false; b.textContent = 'Congelar no G360'; if (e.status === 401) { encerrarOperador(e.message); return; } mostrarMensagemErro(err, e); }
+      } catch (e) { b.disabled = false; b.textContent = p.preco_congelado ? 'Alterar no G360' : 'Congelar no G360'; if (e.status === 401) { encerrarOperador(e.message); return; } mostrarMensagemErro(err, e); }
     };
   }
   async function buscar() {

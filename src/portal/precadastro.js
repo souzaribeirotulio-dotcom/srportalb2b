@@ -49,7 +49,7 @@ export function lerCsv(texto) {
  */
 export function desenharPreCadastro(o) {
   const alvo = o.alvo;
-  const st = { lista: null, q: '', filtro: '', pagina: 1, cfg: null, rodando: false, pausar: false };
+  const st = { lista: null, q: '', filtro: '', curva: '', pagina: 1, cfg: null, rodando: false, pausar: false };
 
   async function carregar() {
     alvo.innerHTML = '<div class="empty2">Carregando a carteira…</div>';
@@ -79,7 +79,8 @@ export function desenharPreCadastro(o) {
         <div class="hint" style="margin:2px 0 0">Quem está nesta lista cria a senha no próprio formulário ("Quero ser cliente" ou "Pedir acesso") e já entra vendo a Minha Lista e os preços dele, sem e-mail e sem aprovação.</div>
         <div id="preBox" aria-live="polite"></div></div>
       ${l.length ? `<div class="afil" style="padding:0 16px"><div class="search"><input id="preQ" type="search" placeholder="Buscar por nome, código, CNPJ/CPF, cidade ou vendedor…" value="${esc(st.q)}" aria-label="Buscar cliente da carteira"></div>
-        <select id="preF" aria-label="Situação"><option value="">Todos</option><option value="nao" ${st.filtro === 'nao' ? 'selected' : ''}>Ainda não entraram</option><option value="entrou" ${st.filtro === 'entrou' ? 'selected' : ''}>Entraram</option><option value="comprou" ${st.filtro === 'comprou' ? 'selected' : ''}>Compraram pelo portal</option><option value="pend" ${st.filtro === 'pend' ? 'selected' : ''}>Com preço pendente</option></select></div>
+        <select id="preF" aria-label="Situação"><option value="">Todos</option><option value="nao" ${st.filtro === 'nao' ? 'selected' : ''}>Ainda não entraram</option><option value="entrou" ${st.filtro === 'entrou' ? 'selected' : ''}>Entraram</option><option value="comprou" ${st.filtro === 'comprou' ? 'selected' : ''}>Compraram pelo portal</option><option value="pend" ${st.filtro === 'pend' ? 'selected' : ''}>Com preço pendente</option></select>
+        <select id="preCv" aria-label="Curva do cliente"><option value="">Todas as curvas</option>${['A', 'B', 'C'].map((k) => `<option value="${k}" ${st.curva === k ? 'selected' : ''}>Curva ${k} (${l.filter((c) => c.curva === k).length})</option>`).join('')}</select></div>
         <div id="preLinhas"></div>` : '<div class="empty2" style="margin:0 16px 16px">Nenhum cliente na carteira ainda. Clique em "📥 Importar lote" e escolha os dois arquivos do lote.</div>'}`;
     $('preImp').onclick = abrirImportar;
     $('preCong')?.addEventListener('click', abrirCongelar);
@@ -91,16 +92,20 @@ export function desenharPreCadastro(o) {
     if (!l.length) return;
     $('preQ').addEventListener('input', () => { st.q = $('preQ').value; st.pagina = 1; linhas(); });
     $('preF').onchange = () => { st.filtro = $('preF').value; st.pagina = 1; linhas(); };
+    $('preCv').onchange = () => { st.curva = $('preCv').value; st.pagina = 1; linhas(); };
     linhas();
   }
 
   function filtrados() {
     const q = semAcento(st.q.trim()); const qd = q.replace(/[^a-z0-9]/g, '');
-    return (st.lista || []).filter((c) => {
+    const l = (st.lista || []).filter((c) => {
+      if (st.curva && c.curva !== st.curva) return false;
       if (st.filtro === 'pend' ? !Number(c.cong_pendentes) : st.filtro && situacao(c) !== st.filtro) return false;
       if (!q) return true;
       return semAcento(`${c.nome} ${c.cidade || ''} ${c.vendedores || ''} ${c.comprador_codigo}`).includes(q) || (qd.length >= 4 && String(c.documento || '').toLowerCase().includes(qd));
     });
+    // Filtrando por curva: do cliente que mais comprou para o que menos comprou.
+    return st.curva ? l.sort((a, b) => Number(b.faturamento || 0) - Number(a.faturamento || 0)) : l;
   }
 
   function linhas() {
@@ -111,7 +116,7 @@ export function desenharPreCadastro(o) {
     $('preLinhas').innerHTML = `<div class="crow2 h"><div>Cliente (${f.length})</div><div>Cód. G360</div><div>Situação</div><div>Lista e preços</div><div></div></div>`
       + (pag.length ? pag.map((c) => {
         const [rot, cor] = ROTULO[situacao(c)];
-        return `<div class="crow2" data-cod="${esc(c.comprador_codigo)}"><div class="nm"><b>${esc(c.nome)}</b><small>${esc(c.tipo)} ${esc(c.documento || '')} · ${esc(c.cidade || '—')}${c.vendedores ? ` · ${esc(c.vendedores)}` : ''} · última compra ${esc(dataBr(c.ultima_compra))}</small></div>
+        return `<div class="crow2" data-cod="${esc(c.comprador_codigo)}"><div class="nm"><b>${c.curva ? `<span class="mk" style="background:${c.curva === 'A' ? 'rgba(178,224,74,.22);color:var(--lima)' : 'rgba(255,255,255,.08)'};margin-right:6px">${esc(c.curva)}</span>` : ''}${esc(c.nome)}</b><small>${esc(c.tipo)} ${esc(c.documento || '')} · ${esc(c.cidade || '—')}${c.vendedores ? ` · ${esc(c.vendedores)}` : ''} · última compra ${esc(dataBr(c.ultima_compra))}${c.faturamento ? ` · comprou ${esc(brl(c.faturamento))} no período` : ''}</small></div>
           <div class="sm sm2">${esc(c.comprador_codigo)}</div>
           <div class="sm"><b style="color:${cor}">${esc(rot)}</b>${c.ultimo_acesso ? `<small style="display:block">último acesso ${esc(new Date(c.ultimo_acesso).toLocaleDateString('pt-BR'))}</small>` : ''}${c.pedidos ? `<small style="display:block">${c.pedidos} pedido${c.pedidos === 1 ? '' : 's'} · ${esc(brl(c.valor))}</small>` : ''}</div>
           <div class="sm">${Number(c.itens_lista)} na lista<small style="display:block">❄ ${Number(c.cong_gravados)} congelados${Number(c.cong_pendentes) ? ` · ${Number(c.cong_pendentes)} pendentes` : ''}</small></div>
@@ -189,7 +194,7 @@ export function desenharPreCadastro(o) {
       itens.forEach((i) => { const r = porCli.get(i.codigo) || { lista: 0, cong: 0 }; r.lista++; if (i.congelar) r.cong++; porCli.set(i.codigo, r); });
       const clientes = arqs.c.linhas.map((r) => ({
         codigo: Number(r.cod_cliente), documento: r.cnpj_cpf, nome: r.cliente, cidade: r.cidade, bairro: r.bairro, vendedores: r.vendedores,
-        ultima_compra: isoDeBr(r.ultima_compra), itens_lista: porCli.get(Number(r.cod_cliente))?.lista || 0, itens_congelados: porCli.get(Number(r.cod_cliente))?.cong || 0,
+        ultima_compra: isoDeBr(r.ultima_compra), curva: r.curva || '', faturamento: r.faturamento_periodo ? valorPonto(r.faturamento_periodo) : '', itens_lista: porCli.get(Number(r.cod_cliente))?.lista || 0, itens_congelados: porCli.get(Number(r.cod_cliente))?.cong || 0,
       }));
       const codigos = new Set(clientes.map((c) => c.codigo));
       const semCliente = itens.filter((i) => !codigos.has(i.codigo)).length;
