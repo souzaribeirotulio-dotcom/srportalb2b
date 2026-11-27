@@ -31,6 +31,7 @@ def preencher(pg, doc):
                  ('kEmail', 'indicada@example.invalid'), ('kRua', 'Rua Exemplo'), ('kNum', '10'), ('kCidade', 'Cidade Exemplo'), ('kBairro', 'Centro')]:
         pg.fill('#' + i, v)
     pg.fill('#kCep', '38400000'); pg.select_option('#kSeg', 'Escritório')
+    if pg.locator('#kSenha').count(): pg.fill('#kSenha', 'Fict12'); pg.fill('#kSenha2', 'Fict12')  # senha no próprio cadastro (26/11)
 
 with sync_playwright() as pw:
     sim = Sim(); ex = executivo(sim); outro = executivo(sim, 'MARIA', ocultar_termos=[]); sim.perms_painel = ['visita', 'cli', 'neg', 'prod', 'cong', 'mrg', 'intel', 'souzinha', 'cfg', 'ocor', 'executivos']

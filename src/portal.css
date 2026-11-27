@@ -977,3 +977,56 @@ body.cliente-analise .card .info::after { content: "Preço liberado após a apro
 .cad-passos { list-style: none; counter-reset: p; text-align: left; max-width: 320px; margin: 14px auto 10px; padding: 0; display: grid; gap: 8px; }
 .cad-passos li { counter-increment: p; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(178, 224, 74, .08); font-size: 15px; }
 .cad-passos li::before { content: counter(p); flex: 0 0 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--lima, #b2e04a); color: #0b2207; font-weight: 800; font-size: 14px; }
+
+/* =====================================================================
+   Painel da equipe: menu lateral agrupado (computador) e Início com
+   "Pendências" no estilo do Resumo do Mercado Livre (adminmenu.js).
+   ===================================================================== */
+#vAdm > .atabs .amg{display:contents}
+#vAdm > .atabs .amt{display:none}
+#vAdm > .atabs .amic{margin-right:6px}
+/* Grupo sem nenhuma aba liberada não mostra o título */
+#vAdm > .atabs .amg:not(:has(> button:not([hidden]))){display:none}
+.eq-card .eq-ver{display:none}
+.eq-card .eq-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#ff6b6b;margin-left:6px;vertical-align:middle}
+.eq-linha{display:block}
+
+@media (min-width: 1024px){
+  body.g360-painel.g360-op #vAdm:not([hidden]){display:grid !important}
+  body.g360-painel.g360-op #vAdm{grid-template-columns:232px minmax(0,1fr);column-gap:28px;row-gap:0;align-items:start;max-width:1480px}
+  body.g360-painel.g360-op #vAdm > *{grid-column:2;min-width:0}
+  body.g360-painel.g360-op #vAdm > .atabs{grid-column:1;grid-row:1 / span 40;position:sticky;top:84px;max-height:calc(100vh - 100px);overflow-y:auto;
+    display:flex !important;flex-direction:column;flex-wrap:nowrap;gap:2px;margin:0;padding:10px;max-width:none;border-radius:16px;background:var(--n950);border:1px solid var(--linha2)}
+  body.g360-painel.g360-op #vAdm > .atabs .amg{display:flex;flex-direction:column;gap:2px;padding:6px 0;border-top:1px solid var(--linha2)}
+  body.g360-painel.g360-op #vAdm > .atabs .amg:first-child{border-top:0;padding-top:0}
+  body.g360-painel.g360-op #vAdm > .atabs .amg:not(:has(> button:not([hidden]))){display:none}
+  body.g360-painel.g360-op #vAdm > .atabs .amt{display:block;padding:6px 10px 4px;font-size:11.5px;font-weight:700;letter-spacing:.02em;color:var(--tx3)}
+  body.g360-painel.g360-op #vAdm > .atabs button{flex:0 0 auto;width:100%;height:auto;min-height:38px;padding:7px 10px;justify-content:flex-start;text-align:left;
+    display:flex;align-items:center;gap:0;border-radius:10px;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx2)}
+  body.g360-painel.g360-op #vAdm > .atabs button:hover{background:rgba(178,224,74,.08);color:var(--tx)}
+  body.g360-painel.g360-op #vAdm > .atabs button.on{background:var(--limas);color:var(--lima);box-shadow:inset 3px 0 0 var(--lima)}
+  body.g360-painel.g360-op #vAdm > .atabs button .mk{margin-left:auto}
+  body.g360-painel.g360-op #vAdm > .atabs .amic{width:22px;flex:0 0 22px;text-align:center}
+  /* Topo mais limpo */
+  body.g360-painel.g360-op #vAdm > .ph{margin:0 0 14px;align-items:center}
+  body.g360-painel.g360-op #vAdm > .ph h2{font-size:30px}
+  body.g360-painel.g360-op #vAdm > .ph p{font-size:13.5px;margin-top:2px}
+  /* Início: Pendências em cartões (número grande + Ver mais), vendas e visita lado a lado */
+  #iniPanel .eq-pend-t{margin-top:0}
+  #iniPanel .eq-pend{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+  #iniPanel .eq-pend .eq-card{flex-direction:column;align-items:flex-start;gap:6px;padding:16px 18px 14px;min-height:150px;border-radius:16px}
+  #iniPanel .eq-pend .eq-card .eq-txt{display:contents}
+  #iniPanel .eq-pend .eq-card b{order:1;font-size:15px}
+  #iniPanel .eq-pend .eq-card .eq-num{order:2}
+  #iniPanel .eq-pend .eq-card small{order:3;margin:0}
+  #iniPanel .eq-pend .eq-card .eq-ver{order:4}
+  #iniPanel .eq-pend .eq-card .eq-num{font-size:34px;line-height:1.05}
+  #iniPanel .eq-pend .eq-card .eq-ver{display:block;margin-top:auto;font-size:13px;font-weight:700;color:var(--lima)}
+  #iniPanel .eq-pend .eq-card:hover{border-color:rgba(178,224,74,.5)}
+  #iniPanel .eq-linha{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:14px;margin-top:18px;align-items:stretch}
+  #iniPanel .eq-linha > *{margin:0;height:100%}
+  #iniPanel .eq-linha > :only-child{grid-column:1 / -1}
+  /* O menu lateral já mostra todas as áreas */
+  #iniPanel .eq-todas-t, #iniPanel .eq-todas-t + .eq-grade{display:none}
+  html.tema-claro body.g360-painel.g360-op #vAdm > .atabs{background:#fff}
+}

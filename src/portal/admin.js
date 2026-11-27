@@ -6,6 +6,7 @@
      token do G360: não existe conta separada do painel.
    Preço, custo e margem vêm da API; nada é calculado aqui.
    ===================================================================== */
+import { montarMenuLateral } from './adminmenu.js';
 import { sempreBloqueada } from '../estado/condicoes.js';
 import {
   entrarOperador, sairOperador, consultarClienteOperador, buscarProdutosOperador, consultarPrecosOperador,
@@ -162,6 +163,7 @@ function ligar() {
   if (!$('aLogin')) v.querySelector('.ph').insertAdjacentHTML('afterend', '<div id="aLogin" hidden></div>');
   if (!$('aAvisos')) v.querySelector('.ph').insertAdjacentHTML('afterend', '<div id="aAvisos" class="av-painel" hidden aria-live="polite"></div>');
   abas.querySelectorAll('[data-at]').forEach((b) => b.addEventListener('click', () => irAba(b.dataset.at)));
+  montarMenuLateral(abas); // no computador vira o menu lateral agrupado (adminmenu.js)
   $('aSair').addEventListener('click', async () => {
     const t = op.token;
     try { await sairOperador(t); } catch { /* sai localmente de qualquer jeito */ }
@@ -2156,14 +2158,15 @@ async function desenharInicio() {
   }
   const nNeg = Array.isArray(negs) ? negs.filter((n) => n.status === 'aberta').length : null;
   const nCad = Array.isArray(cadastros) ? cadastros.filter((k) => k.status === 'pendente').length : null;
-  const cartao = (id, n, t, vazio) => `<button class="eq-card ${n ? 'tem' : ''}" data-ir="${id}"><span class="eq-num">${n === null ? '…' : n}</span><span><b>${esc(t)}</b><small>${n === null ? 'Carregando…' : n ? 'Toque para resolver' : esc(vazio)}</small></span></button>`;
+  // Pendências no estilo do "Resumo" do Mercado Livre: título, número grande e "Ver mais".
+  const cartao = (id, n, t, vazio) => `<button class="eq-card ${n ? 'tem' : ''}" data-ir="${id}"><span class="eq-num">${n === null ? '…' : n}</span><span class="eq-txt"><b>${esc(t)}${n ? '<i class="eq-dot" aria-hidden="true"></i>' : ''}</b><small>${n === null ? 'Carregando…' : n ? 'Toque para resolver' : esc(vazio)}</small></span><span class="eq-ver" aria-hidden="true">Ver mais ›</span></button>`;
   const vendasOk = !!perms?.has('vendas');
-  const nCards = [pode('neg') && cartao('neg', nNeg, 'Negociações aguardando', 'Nenhuma aguardando'), pode('cli') && cartao('cli', nCad, 'Cadastros para aprovar', 'Nenhum aguardando')].filter(Boolean);
-  alvo.innerHTML = `${vendasOk ? '<button class="eq-vendas" data-ir="vendas" id="iniVendas"><div class="eqv-l"><b>📊 Vendas pelo portal · últimos 7 dias</b><span class="eqv-ir">Ver painel ›</span></div><div class="eqv-n"><div><b>…</b><small>vendas</small></div></div></button>' : ''}
-    ${estoqueOk && pode('estoque') ? `<button class="eq-estoque" data-ir="estoque" id="iniEst"><span class="ic2">⚠</span><span><b>Estoque em queda</b><small>${estoqueAlertas === null ? 'Conferindo…' : estoqueAlertas ? `${estoqueAlertas} produto${estoqueAlertas === 1 ? '' : 's'} caindo rápido · toque para ver` : 'Nenhum produto caindo rápido'}</small></span><span class="eq-num">${estoqueAlertas ?? '…'}</span></button>` : ''}
-    ${pode('visita') ? '<button class="eq-visita" data-ir="visita"><span class="ic2">➕</span><span><b>Preparar cliente (visita)</b><small>Cadastre, monte a lista, combine os preços e mande o link</small></span></button>' : ''}
-    ${nCards.length ? `<h3 class="eq-tit">Para resolver</h3><div class="eq-cards">${nCards.join('')}</div>` : ''}
-    <h3 class="eq-tit">Todas as áreas</h3>${gradeAreas(AREAS.slice(1))}`;
+  const nCards = [pode('cli') && cartao('cli', nCad, 'Cadastros para aprovar', 'Nenhum aguardando'), pode('neg') && cartao('neg', nNeg, 'Negociações aguardando', 'Nenhuma aguardando'),
+    estoqueOk && pode('estoque') && cartao('estoque', estoqueAlertas, 'Estoque em queda', 'Nenhum produto caindo rápido')].filter(Boolean);
+  alvo.innerHTML = `${nCards.length ? `<h3 class="eq-tit eq-pend-t">Pendências</h3><div class="eq-cards eq-pend">${nCards.join('')}</div>` : ''}
+    <div class="eq-linha">${vendasOk ? '<button class="eq-vendas" data-ir="vendas" id="iniVendas"><div class="eqv-l"><b>📊 Vendas pelo portal · últimos 7 dias</b><span class="eqv-ir">Ver painel ›</span></div><div class="eqv-n"><div><b>…</b><small>vendas</small></div></div></button>' : ''}
+    ${pode('visita') ? '<button class="eq-visita" data-ir="visita"><span class="ic2">➕</span><span><b>Preparar cliente (visita)</b><small>Cadastre, monte a lista, combine os preços e mande o link</small></span></button>' : ''}</div>
+    <h3 class="eq-tit eq-todas-t">Todas as áreas</h3>${gradeAreas(AREAS.slice(1))}`;
   ligarGrade(alvo);
   if (vendasOk) resumoVendasInicio();
   // Contagens atualizadas (sem travar a tela).
