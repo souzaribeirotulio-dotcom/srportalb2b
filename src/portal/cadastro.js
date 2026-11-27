@@ -185,7 +185,6 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
       <div class="kc"><label for="kSenha2">Repita a senha</label><input class="inp" id="kSenha2" type="password" maxlength="8" autocomplete="new-password" spellcheck="false" autocapitalize="off" aria-describedby="kSenhaErr"><div class="err" id="kSenhaErr" aria-live="polite"></div></div>
       <label class="kchk"><input type="checkbox" id="kMostrar"> Mostrar senha</label>
       ${longa ? '<label class="kchk"><input type="checkbox" id="kCont" checked> Continuar conectado</label><div class="hint">Desmarque em computador compartilhado.</div>' : ''}
-      <div class="hint">Se o seu CPF ou CNPJ já tiver cadastro com a gente, a equipe confere os seus dados e libera o seu acesso.</div>
     </div>` : ''}
     <div class="ksec"${jaCliente ? ' hidden' : ''}><div class="kc"><label for="kOrigem">Como conheceu a Souza Ribeiro <span class="kop">(opcional)</span></label><select class="inp" id="kOrigem">${opcoes(ORIGENS)}</select></div></div>
     <div class="ksec" id="kExecBox" hidden><div class="kc"><label for="kExec">Código do executivo</label><input class="inp" id="kExec" maxlength="20" autocapitalize="characters" spellcheck="false" autocomplete="off" value="" placeholder="Ex.: JOAO"><small class="hint" id="kExecHint" style="display:block;margin-top:4px">O código que o executivo passou para você (opcional).</small></div></div>
