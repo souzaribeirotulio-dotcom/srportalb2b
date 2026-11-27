@@ -1139,6 +1139,7 @@ async function montarLista(c, alvo = $('clLista'), embutido = false) {
           const v = await acharVigente();
           if (!v) { err.innerHTML = '<div class="okmsg bad">Não achei o preço congelado vigente deste produto. Confira na aba Preços congelados.</div>'; b.disabled = false; b.textContent = 'Tirar o congelado'; return; }
           await encerrarPrecoCongelado(op.token, c.codigo, v.id);
+          preCadastro('pre_congelado_atualizar', { comprador: Number(c.codigo), produto_id: Number(p.id), encerrado: true }).catch(() => {});
           toast('Preço congelado encerrado ✓ — o cliente volta a ver o preço da tabela'); itens();
         } catch (e) { b.disabled = false; b.textContent = 'Tirar o congelado'; if (e.status === 401) { encerrarOperador(e.message); return; } mostrarMensagemErro(err, e); }
       };
@@ -1158,8 +1159,10 @@ async function montarLista(c, alvo = $('clLista'), embutido = false) {
       b.disabled = true; b.textContent = 'Gravando no G360…';
       try {
         const v = p.preco_congelado ? await acharVigente() : null;
-        if (v) await alterarPrecoCongelado(op.token, c.codigo, v.id, { valor, inicio, fim });
-        else await incluirPrecoCongelado(op.token, c.codigo, { produto: Number(p.id), unidade_id: null, valor, inicio, fim });
+        const gravado = v ? await alterarPrecoCongelado(op.token, c.codigo, v.id, { valor, inicio, fim })
+          : await incluirPrecoCongelado(op.token, c.codigo, { produto: Number(p.id), unidade_id: null, valor, inicio, fim });
+        // Controle de margem dos congelados (Clientes → Carteira): guarda o valor novo.
+        preCadastro('pre_congelado_atualizar', { comprador: Number(c.codigo), produto_id: Number(p.id), sku: String(p.codigo || ''), unidade: String(p.unidade || ''), valor, inicio, fim, preco_id: gravado?.id ?? v?.id ?? null }).catch(() => {});
         const naLista = await paraMinhaLista(c.codigo, [p.id]);
         toast(`Preço congelado no G360 ✓ ${dinheiro(valor)}${naLista ? ' · na Minha Lista' : ''}`); itens();
       } catch (e) { b.disabled = false; b.textContent = p.preco_congelado ? 'Alterar no G360' : 'Congelar no G360'; if (e.status === 401) { encerrarOperador(e.message); return; } mostrarMensagemErro(err, e); }

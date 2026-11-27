@@ -9,7 +9,7 @@
  * 3. O cliente da lista cria a senha no "Quero ser cliente" (ou "Pedir acesso") e entra na hora
  *    (função cadastro-g360). Quem já entrou no portal aparece como "Entrou".
  */
-import { buscarProdutosOperador, incluirPrecoCongelado, interpretarErro, ErroApi } from '../api/g360.js';
+import { buscarProdutosOperador, incluirPrecoCongelado, alterarPrecoCongelado, encerrarPrecoCongelado, listarPrecosCongelados, interpretarErro, ErroApi } from '../api/g360.js';
 import { comEspera } from './lotesfotos.js';
 import { dinheiro, numeroPainel } from '../ui/formato.js';
 import { $, esc, toast } from './comum.js';
@@ -72,6 +72,7 @@ export function desenharPreCadastro(o) {
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">👥 Carteira do portal</b>
           <span class="hint" style="margin:0">${l.length} cliente${l.length === 1 ? '' : 's'} · <b style="color:var(--lima)">${nEntrou} já entraram</b> · ${l.length - nEntrou} ainda não</span>
           <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+            ${grav ? '<button class="tool ab" id="preMg" type="button">📉 Margem dos congelados</button>' : ''}
             <button class="tool ab" id="preImp" type="button">📥 Importar lote</button>
             ${pend ? `<button class="btn pri" id="preCong" type="button" style="height:36px">❄ Congelar no G360 (${pend.toLocaleString('pt-BR')} pendentes)</button>` : ''}</span></div>
         ${l.length ? `<div class="hint" style="margin:6px 0 0">Preços do lote: <b style="color:var(--lima)">${grav.toLocaleString('pt-BR')} congelados no G360</b> · ${pend.toLocaleString('pt-BR')} pendentes${fora ? ` · ${fora.toLocaleString('pt-BR')} ficaram de fora (veja em ❄ Preços do cliente)` : ''}</div>` : ''}
@@ -83,6 +84,7 @@ export function desenharPreCadastro(o) {
         <select id="preCv" aria-label="Curva do cliente"><option value="">Todas as curvas</option>${['A', 'B', 'C'].map((k) => `<option value="${k}" ${st.curva === k ? 'selected' : ''}>Curva ${k} (${l.filter((c) => c.curva === k).length})</option>`).join('')}</select></div>
         <div id="preLinhas"></div>` : '<div class="empty2" style="margin:0 16px 16px">Nenhum cliente na carteira ainda. Clique em "📥 Importar lote" e escolha os dois arquivos do lote.</div>'}`;
     $('preImp').onclick = abrirImportar;
+    $('preMg')?.addEventListener('click', painelMargem);
     $('preCong')?.addEventListener('click', abrirCongelar);
     $('preTrava').onchange = async (e) => {
       const v = e.target.checked; e.target.disabled = true;
@@ -317,6 +319,122 @@ export function desenharPreCadastro(o) {
     try { st.lista = (await o.pre('pre_listar')).dados || []; } catch { /* mantém a lista */ }
     const salvo = $('preBox').innerHTML; pintar(); $('preBox').innerHTML = salvo;
     $('preIr')?.remove(); $('prePausa')?.remove();
+  }
+
+  /* ---------- 3. Margem dos congelados ----------
+     Custo de hoje (busca do operador) contra cada preço congelado do controle: mostra os que ficaram
+     abaixo da margem mínima (Configurações) para reajustar rápido no G360. */
+  async function painelMargem() {
+    const box = $('preBox');
+    if (box.dataset.tipo === 'mg' && box.innerHTML) { box.innerHTML = ''; box.dataset.tipo = ''; return; }
+    box.dataset.tipo = 'mg';
+    box.innerHTML = '<div class="empty2">Lendo os preços congelados…</div>';
+    let grav; const prods = new Map();
+    try {
+      grav = (await o.pre('pre_congelados_gravados')).dados || [];
+      const ids = [...new Set(grav.map((g) => Number(g.produto_id)))];
+      for (let i = 0; i < ids.length; i += 50) {
+        box.innerHTML = `<div class="empty2">Conferindo o custo de hoje no G360… ${Math.min(i + 50, ids.length)} de ${ids.length} produtos</div>`;
+        const { dados } = await comEspera(() => buscarProdutosOperador(o.token(), { ids: ids.slice(i, i + 50), limite: 50 }));
+        (dados || []).forEach((p) => prods.set(Number(p.id), p));
+      }
+    } catch (e) { erro(box, e); return; }
+    if ([...prods.values()].length && ![...prods.values()].some((p) => p.custo_visivel)) { box.innerHTML = '<div class="rv-aviso bad">O seu usuário do G360 não tem acesso ao custo (permissão 01110), então não dá para calcular a margem.</div>'; return; }
+    const lim = o.limiteMargem(); const hoje = new Date().toISOString().slice(0, 10);
+    const cli = new Map((st.lista || []).map((c) => [Number(c.comprador_codigo), c]));
+    const linhasMg = [];
+    for (const g of grav) {
+      if (g.fim < hoje) continue;
+      const p = prods.get(Number(g.produto_id));
+      if (!p?.custo_visivel || p.custo === null || p.custo === undefined) continue;
+      const v = Number(g.valor); const custo = Number(p.custo);
+      const m = v > 0 ? ((v - custo) / v) * 100 : -100;
+      if (m >= lim) continue;
+      const sugerido = (Math.ceil((custo / (1 - lim / 100)) * 100) / 100).toFixed(2);
+      linhasMg.push({ g, p, m, custo, sugerido, c: cli.get(Number(g.comprador_codigo)) });
+    }
+    linhasMg.sort((a, b) => a.m - b.m);
+    const n = (x) => x.toLocaleString('pt-BR');
+    const tela = (v) => String(v).replace('.', ',');
+    box.innerHTML = `<div class="panel" style="margin:12px 0 0;padding:12px 14px">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b>📉 Congelados abaixo de ${esc(numeroPainel(lim, 0))}% de margem</b>
+        <span class="hint" style="margin:0">${linhasMg.length ? `<b style="color:#ff8a8a">${n(linhasMg.length)}</b> de ${n(grav.length)} preços congelados, pelo custo de hoje no G360` : `✓ Nenhum dos ${n(grav.length)} preços congelados está abaixo da margem mínima`}</span>
+        <button class="tool" id="mgAtual" type="button" style="margin-left:auto">↻ Conferir de novo</button></div>
+      ${linhasMg.length ? `<div class="hint" style="margin:6px 0 8px">O preço sugerido é o menor que volta à margem mínima com o custo de hoje. Reajustar troca o valor no G360 e mantém a validade.</div>
+      <div class="row" style="gap:8px;margin-bottom:8px"><button class="btn pri" id="mgTodos" type="button" style="height:36px">Reajustar todos para o sugerido</button><span class="hint" id="mgAnd" style="margin:0" aria-live="polite"></span></div>
+      <div style="max-height:480px;overflow:auto" data-rolar><table class="ivtab"><thead><tr><th>Cliente</th><th>Produto</th><th>Congelado</th><th>Custo hoje</th><th>Margem</th><th>Novo preço</th><th></th></tr></thead><tbody>
+      ${linhasMg.map((l, i) => `<tr data-i="${i}"><td><small>${esc(l.c?.nome || l.g.comprador_codigo)}${l.c?.curva ? ` · curva ${esc(l.c.curva)}` : ''}</small></td>
+        <td><b>${esc(l.p.nome || l.g.sku)}</b><small>Cód. ${esc(l.p.codigo || l.g.sku)} · até ${esc(dataBr(l.g.fim))}</small></td>
+        <td>${esc(dinheiro(l.g.valor))}</td><td>${esc(dinheiro(String(l.custo)))}</td>
+        <td><b class="mg bad">${esc(numeroPainel(l.m, 1))}%</b></td>
+        <td><div class="pin" style="width:110px"><span>R$</span><input data-nv inputmode="decimal" value="${esc(tela(l.sugerido))}" aria-label="Novo preço"></div></td>
+        <td style="white-space:nowrap"><button class="tool ab" data-rj type="button">Reajustar</button> <button class="tool" data-tf type="button" title="Tirar o congelado: o cliente volta ao preço da tabela">Tirar</button><small data-st style="display:block"></small></td></tr>`).join('')}
+      </tbody></table></div>` : ''}</div>`;
+    $('mgAtual').onclick = () => { box.innerHTML = ''; box.dataset.tipo = ''; painelMargem(); };
+    if (!linhasMg.length) return;
+    const tb = box.querySelector('tbody');
+    const idDoPreco = async (g) => {
+      if (g.preco_id) return Number(g.preco_id);
+      let apos; let d;
+      do {
+        d = await listarPrecosCongelados(o.token(), Number(g.comprador_codigo), apos); if (!d.disponivel) return null;
+        const r = d.itens.find((x) => Number(x.produto) === Number(g.produto_id) && !x.unidade_id && x.situacao === 'ativo' && x.fim >= hoje);
+        if (r) return Number(r.id);
+        apos = d.proximo;
+      } while (apos);
+      return null;
+    };
+    const reajustar = async (i) => {
+      const l = linhasMg[i]; const tr = tb.querySelector(`tr[data-i="${i}"]`); const stt = tr.querySelector('[data-st]');
+      const valor = valorPonto(tr.querySelector('[data-nv]').value);
+      if (!/^(?:0|[1-9][0-9]{0,10})(?:\.[0-9]{1,7})?$/.test(valor) || Number(valor) <= 0) { stt.innerHTML = '<span class="ruim">Confira o preço</span>'; return false; }
+      tr.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+      try {
+        const id = await idDoPreco(l.g);
+        if (!id) { stt.innerHTML = '<span class="ruim">Não achei no G360</span>'; return false; }
+        await comEspera(() => alterarPrecoCongelado(o.token(), Number(l.g.comprador_codigo), id, { valor, inicio: l.g.inicio, fim: l.g.fim }));
+        await o.pre('pre_congelado_atualizar', { comprador: Number(l.g.comprador_codigo), produto_id: Number(l.g.produto_id), valor, inicio: l.g.inicio, fim: l.g.fim, preco_id: id });
+        const m = ((Number(valor) - l.custo) / Number(valor)) * 100;
+        tr.children[2].textContent = dinheiro(valor);
+        tr.children[4].innerHTML = `<b class="mg ${m < lim ? 'bad' : 'ok'}">${esc(numeroPainel(m, 1))}%</b>`;
+        stt.innerHTML = '<span class="okmsg">✓ Reajustado</span>'; l.feito = true; return true;
+      } catch (e) {
+        if (e instanceof ErroApi && e.status === 401) { o.aoSessaoEncerrada?.(e); return false; }
+        const info = e instanceof ErroApi ? interpretarErro(e) : { mensagem: e.message };
+        stt.innerHTML = `<span class="ruim">${esc(info.mensagem)}</span>`; tr.querySelectorAll('button').forEach((b) => { b.disabled = false; }); return false;
+      }
+    };
+    tb.addEventListener('click', async (ev) => {
+      const tr = ev.target.closest('tr[data-i]'); if (!tr) return; const i = Number(tr.dataset.i); const l = linhasMg[i];
+      if (ev.target.matches('[data-rj]')) { if (await reajustar(i)) toast('Preço reajustado no G360 ✓'); }
+      if (ev.target.matches('[data-tf]')) {
+        const b = ev.target; const stt = tr.querySelector('[data-st]');
+        if (b.dataset.conf !== '1') { b.dataset.conf = '1'; b.textContent = 'Confirmar'; return; }
+        tr.querySelectorAll('button').forEach((x) => { x.disabled = true; });
+        try {
+          const id = await idDoPreco(l.g);
+          if (id) await encerrarPrecoCongelado(o.token(), Number(l.g.comprador_codigo), id);
+          await o.pre('pre_congelado_atualizar', { comprador: Number(l.g.comprador_codigo), produto_id: Number(l.g.produto_id), encerrado: true });
+          stt.innerHTML = '<span class="okmsg">✓ Tirado: volta ao preço da tabela</span>'; l.feito = true;
+        } catch (e) {
+          if (e instanceof ErroApi && e.status === 401) { o.aoSessaoEncerrada?.(e); return; }
+          const info = e instanceof ErroApi ? interpretarErro(e) : { mensagem: e.message };
+          stt.innerHTML = `<span class="ruim">${esc(info.mensagem)}</span>`; tr.querySelectorAll('button').forEach((x) => { x.disabled = false; });
+        }
+      }
+    });
+    $('mgTodos').onclick = async (ev) => {
+      const b = ev.currentTarget;
+      if (b.dataset.conf !== '1') { b.dataset.conf = '1'; b.textContent = `Confirmar: reajustar ${n(linhasMg.filter((l) => !l.feito).length)} preços`; return; }
+      b.disabled = true; let ok = 0;
+      for (const [i, l] of linhasMg.entries()) {
+        if (l.feito) continue;
+        $('mgAnd').textContent = `${n(i + 1)} de ${n(linhasMg.length)}…`;
+        if (await reajustar(i)) ok++;
+        await sleep(RITMO_MS);
+      }
+      $('mgAnd').textContent = `${n(ok)} reajustados ✓`; b.textContent = 'Reajustar todos para o sugerido';
+    };
   }
 
   const n2 = (x) => Number(x).toLocaleString('pt-BR');

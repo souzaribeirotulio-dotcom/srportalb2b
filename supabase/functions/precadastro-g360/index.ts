@@ -176,6 +176,46 @@ async function executar(acao: string, d: Record<string, unknown>): Promise<[numb
     }
     return [200, { marcados: n }];
   }
+  if (acao === "pre_congelados_gravados") {
+    // Todos os preços do lote já congelados no G360 (para o painel de margem dos congelados).
+    const linhas: Record<string, unknown>[] = [];
+    for (let de = 0; de < 50000; de += 1000) {
+      const { data, error } = await admin.from("portal_pre_congelados").select("comprador_codigo, produto_id, sku, valor, inicio, fim, preco_id")
+        .eq("loja", loja).eq("situacao", "gravado").order("comprador_codigo").order("produto_id").range(de, de + 999);
+      if (error) throw error;
+      linhas.push(...(data ?? []));
+      if ((data ?? []).length < 1000) break;
+    }
+    return [200, { dados: linhas }];
+  }
+  if (acao === "pre_congelado_atualizar") {
+    // O painel alterou ou encerrou o preço no G360: guarda o novo valor/validade (ou tira do controle).
+    const comprador = Number(d.comprador); const produto = Number(d.produto_id);
+    if (!Number.isSafeInteger(comprador) || comprador <= 0 || !Number.isSafeInteger(produto) || produto <= 0) return [400, { mensagem: "Dados inválidos." }];
+    const datas = /^\d{4}-\d{2}-\d{2}$/;
+    const mud: Record<string, unknown> = { atualizado_em: new Date().toISOString() };
+    if (d.encerrado === true) { mud.situacao = "ignorado"; mud.obs = "Preço congelado encerrado pelo painel."; }
+    else {
+      const valor = texto(d.valor, 20);
+      if (!/^(?:0|[1-9][0-9]{0,10})(?:\.[0-9]{1,7})?$/.test(valor)) return [400, { mensagem: "Valor inválido." }];
+      mud.valor = valor; mud.situacao = "gravado"; mud.obs = null;
+      if (datas.test(texto(d.inicio, 10))) mud.inicio = texto(d.inicio, 10);
+      if (datas.test(texto(d.fim, 10))) mud.fim = texto(d.fim, 10);
+      const pid = Number(d.preco_id); if (Number.isSafeInteger(pid) && pid > 0) mud.preco_id = pid;
+    }
+    const { data: feitos, error } = await admin.from("portal_pre_congelados").update(mud).eq("loja", loja).eq("comprador_codigo", comprador).eq("produto_id", produto).select("produto_id");
+    if (error) throw error;
+    // Congelado novo (fora do lote) de um cliente da carteira: entra no controle de margem também.
+    if (!feitos?.length && d.encerrado !== true && mud.inicio && mud.fim) {
+      const { data: cli } = await admin.from("portal_pre_cadastro").select("comprador_codigo").eq("loja", loja).eq("comprador_codigo", comprador).maybeSingle();
+      if (cli) {
+        const { error: e2 } = await admin.from("portal_pre_congelados").insert({ loja, comprador_codigo: comprador, produto_id: produto, sku: texto(d.sku, 30) || String(produto), unidade_venda: texto(d.unidade, 6).toUpperCase() || "UN",
+          valor: mud.valor, inicio: mud.inicio, fim: mud.fim, situacao: "gravado", preco_id: mud.preco_id ?? null, obs: "Congelado pelo painel." });
+        if (e2) throw e2;
+      }
+    }
+    return [200, { ok: true }];
+  }
   if (acao === "pre_congelados_cliente") {
     const comprador = Number(d.comprador);
     if (!Number.isSafeInteger(comprador) || comprador <= 0) return [400, { mensagem: "Cliente inválido." }];
