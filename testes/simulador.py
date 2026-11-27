@@ -479,6 +479,22 @@ class Sim:
             return route.fulfill(status=200, headers=cab, content_type='application/json', body=json.dumps({
                 'sessao': {'access_token': at, 'refresh_token': 'r' + uuid.uuid4().hex}, 'api_expira_em': '2099-01-01T00:00:00.000Z',
                 'api_inatividade_minutos': self.loja['sessao_minutos'], 'api_vinculo_expira_em': iso(exp)}))
+        if p == '/functions/v1/margens-g360':
+            # Margens automáticas: guarda só produtos com estoque positivo; "rodar" confere tudo de uma vez.
+            corpo = json.loads(req.post_data or '{}')
+            res = lambda st, b: route.fulfill(status=st, headers=cab, content_type='application/json', body=json.dumps(b))
+            self.__dict__.setdefault('mrg_chamadas', []).append(corpo.get('acao'))
+            if not str(corpo.get('token', '')).startswith('op_'): return res(401, {'mensagem': 'Sua sessão do painel terminou. Entre novamente.'})
+            if 'mrg' not in getattr(self, 'perms_painel', ['mrg']): return res(403, {'mensagem': 'Você não tem acesso às margens.'})
+            if not hasattr(self, 'mrg_rodada'): self.mrg_rodada = None; self.mrg_produtos = []
+            if corpo.get('acao') == 'rodar':
+                lista = getattr(self, 'mrg_g360', [])
+                self.mrg_produtos = [dict(x) for x in lista if float(x.get('disponivel', 0)) > 0]
+                self.mrg_rodada = {'dia': '2026-11-27', 'pagina': 1, 'paginas': 1, 'produtos': len(self.mrg_produtos), 'iniciada_em': '2026-11-27T21:00:00Z', 'concluida_em': '2026-11-27T21:01:00Z', 'origem': 'manual', 'erro': None}
+                return res(200, {'dados': self.mrg_rodada})
+            if corpo.get('acao') == 'ler':
+                return res(200, {'dados': {'rodada': self.mrg_rodada, 'margem_minima': 25, 'produtos': self.mrg_produtos}})
+            return res(400, {'mensagem': 'Ação desconhecida.'})
         if p == '/functions/v1/permissoes-g360':
             # Permissões próprias do painel: sim.perms_painel (padrão: tudo, menos 'executivos').
             corpo = json.loads(req.post_data or '{}')

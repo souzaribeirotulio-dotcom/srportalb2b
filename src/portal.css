@@ -1030,3 +1030,13 @@ body.cliente-analise .card .info::after { content: "Preço liberado após a apro
   #iniPanel .eq-todas-t, #iniPanel .eq-todas-t + .eq-grade{display:none}
   html.tema-claro body.g360-painel.g360-op #vAdm > .atabs{background:#fff}
 }
+
+/* Margens: faixa da conferência automática (seg a sex, 18h) */
+.mg-auto{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;justify-content:space-between;margin:16px 18px 0;padding:14px 16px;border-radius:14px;border:1px solid rgba(178,224,74,.3);background:rgba(178,224,74,.06)}
+.mg-auto > div:first-child{display:flex;flex-direction:column;gap:3px;min-width:0}
+.mg-auto b{font-size:14.5px}
+.mg-auto span{font-size:13px;color:var(--tx2);line-height:1.4}
+.mg-auto .mg-erro{color:#ffb4a0}
+.mg-acao{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.mg-acao .btn{min-height:44px}
+@media (max-width:760px){.mg-auto{margin:12px 12px 0}.mg-acao{width:100%}.mg-acao .btn{width:100%}}

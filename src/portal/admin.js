@@ -6,6 +6,7 @@
      token do G360: não existe conta separada do painel.
    Preço, custo e margem vêm da API; nada é calculado aqui.
    ===================================================================== */
+import { chamarMargens } from '../api/margens.js';
 import { montarMenuLateral } from './adminmenu.js';
 import { sempreBloqueada } from '../estado/condicoes.js';
 import {
@@ -494,7 +495,7 @@ function desenharAba() {
   else if (aba === 'acessos') desenharClientesPortal();
   else if (aba === 'prod') desenharProdutos(!prod.lista);
   else if (aba === 'cong') desenharCong();
-  else if (aba === 'mrg') desenharMargens(!mrg.carregado);
+  else if (aba === 'mrg') desenharMargens(true);
   else if (aba === 'ocor') desenharOcorrencias();
   else if (aba === 'perm') desenharPermissoes();
   else if (aba === 'cfg') desenharConfig();
@@ -1680,36 +1681,66 @@ async function carregarConfigLoja(forcar = false) {
 const gravarLimite = adiar(async (n) => { try { cfgLoja = (await painel('config_salvar', { margem_minima: n })).dados; toast('Margem mínima salva ✓'); } catch (e) { toast(e.message); } }, 800);
 function guardarLimite(v) { const n = Number(String(v).replace(',', '.')); if (!(n >= 0 && n <= 100)) return; limiteMem = n; gravarLimite(n); }
 
-const mrg = { carregado: false, lista: [], pagina: 0, total: 0, semAcesso: false };
+const mrg = { carregado: false, lendo: false, dados: null, erro: '', rodando: false, progresso: '' };
 
-async function desenharMargens(carregarMais = false) {
+/* Margens: a conferência roda sozinha de segunda a sexta, a partir das 18h (função margens-g360, só produtos
+   com estoque disponível positivo). A aba mostra o que ficou guardado e deixa conferir agora. */
+async function lerMargens() {
+  mrg.lendo = true;
+  try { mrg.dados = (await chamarMargens(op.token, 'ler')).dados; mrg.erro = ''; mrg.carregado = true; }
+  catch (e) { if (e.status === 401) { encerrarOperador(e.message); return; } mrg.erro = e.message; }
+  finally { mrg.lendo = false; }
+}
+
+async function conferirMargensAgora() {
+  if (mrg.rodando) return;
+  mrg.rodando = true; mrg.progresso = 'Começando…'; desenharMargens(false);
+  try {
+    let primeira = true;
+    for (let i = 0; i < 40; i += 1) {
+      const r = (await chamarMargens(op.token, 'rodar', primeira ? { recomecar: true } : {})).dados;
+      primeira = false;
+      mrg.progresso = r.paginas ? `Página ${r.pagina} de ${r.paginas} · ${r.produtos} com estoque` : 'Conferindo…';
+      if ($('mgProg')) $('mgProg').textContent = mrg.progresso;
+      if (r.concluida_em || r.sem_custo_acesso) break;
+    }
+    toast('Margens conferidas ✓');
+  } catch (e) { if (e.status === 401) { encerrarOperador(e.message); return; } toast(e.message); }
+  finally { mrg.rodando = false; }
+  await lerMargens(); desenharMargens(false);
+}
+
+const dataHoraBr = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', ' às'); };
+
+async function desenharMargens(recarregar = false) {
   $('mgLim').value = limiteMargem();
   const alvo = $('mgPanel');
-  if (carregarMais) {
-    const btn = $('mgMais'); if (btn) { btn.disabled = true; btn.textContent = 'Verificando…'; } else alvo.innerHTML = carregandoHtml('Verificando as margens no G360…');
-    try {
-      const { dados, paginacao } = await buscarProdutosOperador(op.token, { pagina: mrg.pagina + 1, limite: 50 });
-      mrg.pagina += 1; mrg.total = paginacao?.total || 0; mrg.lista = mrg.lista.concat(dados); mrg.carregado = true;
-      mrg.semAcesso = dados.length > 0 && dados.every((p) => !p.custo_visivel);
-    } catch (e) { erroEm(alvo, e, () => desenharMargens(true)); return; }
+  if (recarregar || (!mrg.carregado && !mrg.lendo)) {
+    if (!mrg.carregado) alvo.innerHTML = carregandoHtml('Carregando as margens conferidas…');
+    await lerMargens();
   }
+  if (!mrg.dados) { alvo.innerHTML = mrg.erro ? `<div class="g360-erro" style="margin:16px 18px"><div class="okmsg bad">${esc(mrg.erro)}</div></div><div style="padding:0 18px 18px"><button class="btn sec" id="mgDeNovo">Tentar de novo</button></div>` : carregandoHtml('Carregando…'); $('mgDeNovo')?.addEventListener('click', () => desenharMargens(true)); return; }
   const lim = limiteMargem();
-  const baixo = mrg.lista.filter((p) => p.custo_visivel && p.margem_percentual !== null && p.margem_percentual < lim).sort((a, b) => a.margem_percentual - b.margem_percentual);
-  const sem = mrg.lista.filter((p) => p.custo_visivel && p.custo === null);
+  const { rodada, produtos } = mrg.dados;
+  const comCusto = produtos.filter((p) => p.custo_visivel);
+  const baixo = comCusto.filter((p) => p.margem !== null && Number(p.margem) < lim).sort((a, b) => Number(a.margem) - Number(b.margem));
+  const sem = comCusto.filter((p) => p.custo === null);
   $('mrgN').textContent = baixo.length || '';
-  const resta = mrg.total - mrg.lista.length;
-  alvo.innerHTML = (mrg.semAcesso ? '<div class="rv-aviso" style="margin:16px 18px 0">Seu usuário do G360 não tem acesso a custo e margem (permissão 01110). Peça a liberação no G360.</div>' : '')
-    + `<div style="padding:16px 18px 0" class="mgsum"><div class="stat bad"><b>${baixo.length}</b><span>Abaixo de ${esc(String(lim))}%</span></div><div class="stat"><b>${mrg.lista.length}</b><span>Preços verificados de ${mrg.total}</span></div><div class="stat"><b>${sem.length}</b><span>Sem custo</span></div></div>`
+  const emAndamento = rodada && rodada.iniciada_em && !rodada.concluida_em;
+  const quando = rodada?.concluida_em ? `Última conferência: ${esc(dataHoraBr(rodada.concluida_em))}${rodada.origem === 'manual' ? ' (feita no painel)' : ' (automática)'}`
+    : emAndamento ? `Conferência em andamento: página ${Number(rodada.pagina)} de ${Number(rodada.paginas) || '…'}` : 'Ainda não houve conferência.';
+  alvo.innerHTML = `<div class="mg-auto"><div><b>🕕 Conferência automática</b><span>De segunda a sexta, a partir das 18h, só produtos com estoque disponível.</span><span>${quando}</span>
+      ${rodada?.erro ? `<span class="mg-erro">${esc(rodada.erro)}</span>` : ''}</div>
+      <div class="mg-acao"><button class="btn sec" id="mgAgora" ${mrg.rodando ? 'disabled' : ''}>${mrg.rodando ? 'Conferindo…' : '🔄 Conferir agora'}</button><span class="hint" id="mgProg" aria-live="polite" style="margin:0">${mrg.rodando ? esc(mrg.progresso) : ''}</span></div></div>`
+    + `<div style="padding:16px 18px 0" class="mgsum"><div class="stat bad"><b>${baixo.length}</b><span>Abaixo de ${esc(String(lim))}%</span></div><div class="stat"><b>${produtos.length}</b><span>Produtos com estoque conferidos</span></div><div class="stat"><b>${sem.length}</b><span>Sem custo</span></div></div>`
     + (baixo.length ? `<div class="mrow h"><div></div><div>Produto</div><div>Origem do preço</div><div style="text-align:right">Preço</div><div style="text-align:right">Custo</div><div style="text-align:right">Margem</div><div></div></div>`
-      + baixo.map((p) => `<div class="mrow" data-id="${Number(p.id)}" data-nome="${esc(p.nome)}" data-cod="${esc(p.codigo)}"><div class="g360-mini" data-foto="${Number(p.id)}"><span>…</span></div>
-        <div class="nm">${esc(p.nome)}<small>Cód. ${esc(p.codigo)}</small></div><div class="src">${esc(p.origem_preco || 'tabela')}</div>
-        <div class="num">${esc(dinheiro(p.preco))}</div><div class="num">R$ ${esc(numeroPainel(p.custo, 2))}</div><div class="mg bad">${esc(numeroPainel(p.margem_percentual, 1))}%</div>
+      + baixo.map((p) => `<div class="mrow" data-id="${Number(p.produto_id)}" data-nome="${esc(p.nome)}" data-cod="${esc(p.codigo)}"><div class="g360-mini" data-foto="${Number(p.produto_id)}"><span>…</span></div>
+        <div class="nm">${esc(p.nome)}<small>Cód. ${esc(p.codigo)} · Disponível: ${esc(numeroPainel(Number(p.disponivel), 0))}</small></div><div class="src">${esc(p.origem_preco || 'tabela')}</div>
+        <div class="num">${esc(dinheiro(p.preco))}</div><div class="num">R$ ${esc(numeroPainel(Number(p.custo), 2))}</div><div class="mg bad">${esc(numeroPainel(Number(p.margem), 1))}%</div>
         <button class="tool ab" data-cg>❄ Congelar</button></div>`).join('')
-      : vazio(mrg.lista.length ? `✓ Nenhum preço verificado abaixo de ${esc(String(lim))}% de margem bruta.` : 'Clique em "Verificar" para conferir as margens dos produtos.'))
-    + (sem.length ? `<div style="padding:12px 18px;font-size:12px;color:var(--tx3)">Sem custo cadastrado: ${sem.map((p) => esc(p.codigo)).join(', ')}</div>` : '')
-    + (resta > 0 || !mrg.carregado ? `<div style="padding:12px 18px 18px"><button class="btn sec" id="mgMais">${mrg.carregado ? `Verificar mais ${Math.min(50, resta)} produtos (faltam ${resta})` : 'Verificar os primeiros 50 produtos'}</button>
-        <span class="hint" style="margin-left:8px">A verificação vai de 50 em 50 para não pesar no G360.</span></div>` : '');
-  $('mgMais')?.addEventListener('click', () => desenharMargens(true));
+      : vazio(produtos.length ? `✓ Nenhum produto com estoque abaixo de ${esc(String(lim))}% de margem bruta.` : 'Nenhuma conferência guardada ainda. Toque em "Conferir agora" ou espere a das 18h.'))
+    + (sem.length ? `<div style="padding:12px 18px 18px;font-size:12px;color:var(--tx3)">Sem custo cadastrado: ${sem.map((p) => esc(p.codigo)).join(', ')}</div>` : '');
+  $('mgAgora')?.addEventListener('click', conferirMargensAgora);
   alvo.querySelectorAll('.mrow [data-cg]').forEach((b) => b.addEventListener('click', () => {
     const r = b.closest('.mrow'); aba = 'cong'; cong.produto = { id: Number(r.dataset.id), rotulo: `${r.dataset.cod} · ${r.dataset.nome}` }; desenharAba();
   }));
