@@ -22,6 +22,10 @@
      (POST acessos/senha), tudo no servidor: o token nunca vai ao navegador nem a log.
      Ficha que já existia (ja_existe/repetido) nunca recebe senha por aqui: espera a equipe.
      Se a gravação falhar, cai no link por e-mail de sempre.
+     Pré-cadastro em lote (decisão de 27/11/2026): documento que está em portal_pre_cadastro (clientes
+     ativos importados pela equipe no painel) e ainda sem senha no portal → confere a ficha no G360,
+     libera o acesso, grava a senha digitada e o cliente entra na hora. Opcional (portal_config
+     .pre_conferir_contato): só se o WhatsApp ou o e-mail digitado for o da ficha. Até 60 por hora.
      CNPJ já cadastrado, situação irregular na Receita ou qualquer recusa da API:
      não cria nada e deixa o pedido para a equipe (auto_status ja_existe/revisar/erro).
    Cada ação abre a sessão do usuário técnico e encerra na hora (DELETE operadores/sessao).
@@ -186,6 +190,81 @@ async function cadastrar(documentoBruto: string, origem: string, senha: string |
   }
 }
 
+const POR_HORA_PRE = 60;
+const ultimos = (v: unknown, n: number) => so(v).slice(-n);
+
+/** Cliente do pré-cadastro: confere a ficha no G360, libera o acesso e grava a senha digitada.
+ *  null = não é um caso de pré-cadastro (segue o fluxo de sempre). Resposta = caso resolvido aqui. */
+async function tentarPreCadastro(id: string, k: Record<string, unknown>, doc: string, senha: string, registrar: (r: string) => PromiseLike<unknown>): Promise<Record<string, unknown> | null> {
+  const analise = { resultado: "analise" };
+  const { data: pres, error: e1 } = await admin.from("portal_pre_cadastro").select("comprador_codigo, senha_criada_em").eq("loja", LOJA).eq("documento", doc).limit(3);
+  if (e1) throw e1;
+  if (!pres?.length) return null;
+  if (pres.length > 1) {
+    await marcar(id, { auto_status: "ja_existe", auto_obs: "Pré-cadastro: este documento tem mais de uma ficha no G360. A equipe escolhe a ficha, libera e gera o link." });
+    await registrar("pre_varias_fichas"); return analise;
+  }
+  const codigo = Number(pres[0].comprador_codigo);
+  // Já criou a senha pelo pré-cadastro ou já entrou no portal: nunca troca a senha por aqui (usa "Esqueci minha senha").
+  const { data: ac } = await admin.from("portal_acessos").select("comprador_codigo").eq("loja", LOJA).eq("comprador_codigo", codigo).limit(1);
+  if (pres[0].senha_criada_em || ac?.length) {
+    await marcar(id, { auto_status: "ja_existe", auto_obs: `Pré-cadastro: o cliente ${codigo} já tem senha no portal. Ele pode usar "Esqueci minha senha".` });
+    await registrar("pre_ja_tem_senha"); return analise;
+  }
+  const { count } = await admin.from("portal_cadastro_auto_log").select("id", { count: "exact", head: true }).eq("loja", LOJA).eq("acao", "cadastrar").like("resultado", "pre_%").gte("em", new Date(Date.now() - 3600_000).toISOString());
+  if ((count ?? 0) >= POR_HORA_PRE) {
+    await marcar(id, { auto_status: "revisar", auto_obs: "Pré-cadastro: muitos acessos nesta hora; este ficou para a equipe." });
+    await registrar("pre_limite_hora"); return analise;
+  }
+  const s = await entrar();
+  if (!s.token) { await marcar(id, { auto_status: "erro", auto_obs: `Pré-cadastro: usuário técnico não entrou no G360 (${s.motivo}).` }); await registrar(`pre_login_${s.motivo}`); return analise; }
+  const token = s.token;
+  try {
+    const f = await api(`operadores/clientes/${codigo}`, { token });
+    const ficha = (f.corpo?.dados ?? null) as Record<string, unknown> | null;
+    if (f.status !== 200 || !ficha) {
+      await marcar(id, { auto_status: "revisar", auto_obs: `Pré-cadastro: não abri a ficha ${codigo} no G360 (${f.erro?.codigo ?? f.status}).` }); await registrar("pre_ficha"); return analise;
+    }
+    if (docLimpo(ficha.documento) !== doc) {
+      await marcar(id, { auto_status: "revisar", auto_obs: `Pré-cadastro: o documento da ficha ${codigo} no G360 não é o digitado.` }); await registrar("pre_documento"); return analise;
+    }
+    // Trava opcional (Configurações do pré-cadastro): o WhatsApp ou o e-mail digitado tem de ser o da ficha.
+    const { data: cfg } = await admin.from("portal_config").select("pre_conferir_contato").eq("loja", LOJA).maybeSingle();
+    if (cfg?.pre_conferir_contato) {
+      const digitados = [ultimos(k.whats, 8), ultimos(k.telefone, 8)].filter((t) => t.length === 8);
+      const daFicha = [ficha.telefone1, ficha.telefone2, ficha.telefone3].map((t) => ultimos(t, 8)).filter((t) => t.length === 8);
+      const email = String(k.email ?? "").trim().toLowerCase();
+      const confere = digitados.some((t) => daFicha.includes(t)) || (!!email && email === String(ficha.email ?? "").trim().toLowerCase());
+      if (!confere) {
+        await marcar(id, { codigo_g360: codigo, auto_status: "ja_existe", auto_obs: `Pré-cadastro: o WhatsApp e o e-mail digitados não são os da ficha ${codigo} no G360. Confira com o cliente e gere o link pela ficha.` });
+        await registrar("pre_contato"); return analise;
+      }
+    }
+    if (ficha.acesso_liberado !== true) {
+      const a = await api(`operadores/clientes/${codigo}/acesso`, { method: "PUT", token, body: JSON.stringify({ liberado: true, revisao: Number(ficha.revisao ?? 0) }) });
+      if (a.status !== 200) {
+        await marcar(id, { codigo_g360: codigo, auto_status: "revisar", auto_obs: `Pré-cadastro: o acesso da ficha ${codigo} não foi liberado (${a.erro?.codigo ?? a.status}). Libere pela ficha.` });
+        await admin.from("portal_pre_cadastro").update({ acesso_obs: `Acesso não liberado (${a.erro?.codigo ?? a.status})` }).eq("loja", LOJA).eq("comprador_codigo", codigo);
+        await registrar("pre_acesso"); return analise;
+      }
+      await admin.from("portal_pre_cadastro").update({ acesso_liberado_em: new Date().toISOString(), acesso_obs: null }).eq("loja", LOJA).eq("comprador_codigo", codigo);
+      // Logo depois de liberar, o G360 pode ainda não ter gravado o acesso.
+      await new Promise((r) => setTimeout(r, 4000));
+    }
+    let r: true | string;
+    try { r = await gravarSenhaDaFichaNova(doc, senha); } catch (e) { r = `falha_${(e as Error)?.name ?? "erro"}`; }
+    if (r !== true) {
+      await marcar(id, { codigo_g360: codigo, auto_status: "revisar", auto_obs: `Pré-cadastro: acesso liberado, mas a senha não foi gravada (${r}). Gere o link pela ficha ${codigo}.` });
+      await registrar(`pre_senha_${r}`.slice(0, 60)); return analise;
+    }
+    const agora = new Date().toISOString();
+    await admin.from("portal_pre_cadastro").update({ senha_criada_em: agora }).eq("loja", LOJA).eq("comprador_codigo", codigo);
+    await marcar(id, { codigo_g360: codigo, em_analise: false, status: "aprovado", decidido_por: "Portal (pré-cadastro)", auto_status: "criado", auto_obs: `Cliente ${codigo} do pré-cadastro: acesso liberado e senha criada no formulário.` });
+    await registrar("pre_criado_senha");
+    return { resultado: "criado", senha: "gravada" };
+  } finally { await sair(token); }
+}
+
 /** Link de senha pela ponte, igual ao "esqueci minha senha": vai para o e-mail da ficha no G360
  *  (e só sai se o acesso estiver liberado lá). A resposta da ponte é sempre a mesma. */
 async function pedirLink(doc: string, origem: string) {
@@ -199,13 +278,19 @@ async function pedirLink(doc: string, origem: string) {
 
 async function processar(id: string, k: Record<string, unknown>, doc: string, origem: string, registrar: (r: string) => PromiseLike<unknown>, senha: string | null = null): Promise<Record<string, unknown>> {
   const analise = { resultado: "analise" };
+  // Pré-cadastro em lote (decisão da Souza Ribeiro em 27/11/2026): cliente ativo do G360 que está na lista
+  // cria a senha no próprio formulário e entra, sem e-mail e sem aprovação.
+  if (senha) {
+    const pre = await tentarPreCadastro(id, k, doc, senha, registrar);
+    if (pre) return pre;
+  }
   // Pedido de "Já sou cliente": é cliente antigo, a equipe libera.
   if (String(k.origem ?? "").toLowerCase().includes("já é cliente") || String(k.origem ?? "").toLowerCase().includes("ja e cliente")) {
     await marcar(id, { auto_status: "ja_existe", auto_obs: "Pedido de quem já é cliente: a equipe confere e libera o acesso." }); await registrar("ja_cliente"); return analise;
   }
   const cpf = doc.length === 11;
   if (!cpf && doc.length !== 14) { await marcar(id, { auto_status: "revisar", auto_obs: "Documento com tamanho inesperado." }); await registrar("documento"); return analise; }
-  const { count } = await admin.from("portal_cadastro_auto_log").select("id", { count: "exact", head: true }).eq("loja", LOJA).eq("acao", "cadastrar").gte("em", new Date(Date.now() - 3600_000).toISOString());
+  const { count } = await admin.from("portal_cadastro_auto_log").select("id", { count: "exact", head: true }).eq("loja", LOJA).eq("acao", "cadastrar").not("resultado", "like", "pre_%").gte("em", new Date(Date.now() - 3600_000).toISOString());
   if ((count ?? 0) >= POR_HORA) { await marcar(id, { auto_status: "revisar", auto_obs: "Muitos cadastros nesta hora: este ficou para a equipe." }); await registrar("limite_hora"); return analise; }
 
   const s = await entrar();

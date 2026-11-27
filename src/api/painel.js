@@ -13,13 +13,18 @@ export class ErroPainel extends Error {
   constructor(mensagem, status = 0, corpo = {}) { super(mensagem); this.name = 'ErroPainel'; this.status = status; this.corpo = corpo; }
 }
 
-export async function chamarPainel(token, acao, dados = {}) {
-  if (!/\/painel-g360$/.test(PAINEL_URL)) throw new ErroPainel('O painel não está configurado neste site.');
+const PRE_URL = PAINEL_URL.replace(/\/painel-g360$/, '/precadastro-g360');
+
+/** Função precadastro-g360 (Clientes → Carteira do portal): mesmo formato e mesmo login da painel-g360. */
+export function chamarPreCadastro(token, acao, dados = {}) { return chamarPainel(token, acao, dados, PRE_URL); }
+
+export async function chamarPainel(token, acao, dados = {}, url = PAINEL_URL) {
+  if (!/\/(painel|precadastro)-g360$/.test(url)) throw new ErroPainel('O painel não está configurado neste site.');
   const controle = new AbortController();
   const relogio = setTimeout(() => controle.abort(), TEMPO_LIMITE_MS);
   let resp;
   try {
-    resp = await fetch(PAINEL_URL, {
+    resp = await fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ acao, token, dados }), credentials: 'omit', signal: controle.signal,
     });

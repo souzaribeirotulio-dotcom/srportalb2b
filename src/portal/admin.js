@@ -12,7 +12,7 @@ import {
   listarPrecosCongelados, incluirPrecoCongelado, alterarPrecoCongelado, encerrarPrecoCongelado,
   consultarFichaClienteOperador, alterarAcessoClienteOperador, consultarCepOperador, listarFotosOperador, obterFotoOperador, incluirFotoOperador, definirCapaOperador, ordenarFotosOperador, removerFotoOperador,
 } from '../api/g360.js';
-import { chamarPainel } from '../api/painel.js';
+import { chamarPainel, chamarPreCadastro } from '../api/painel.js';
 import { pedirLink } from '../api/ponte.js';
 import { consultarCnpj } from './cadastro.js';
 import { abrirFichaG360 } from './fichag360.js';
@@ -24,6 +24,7 @@ import { carregarVinculos, podeVincular, htmlIndicado, abrirVinculoPedido, execu
 import { abrirLotesFotos, comEspera } from './lotesfotos.js';
 import { abrirCacaCapa } from './cacacapa.js';
 import { abrirImportarVendas } from './importarvendas.js';
+import { desenharPreCadastro } from './precadastro.js';
 import { definirEncerramentoOperador, definirAtividadeOperador } from '../estado/sessao.js';
 import { mostrarMensagemErro } from '../ui/mensagem.js';
 import { dinheiro, numeroPainel, dataBr } from '../ui/formato.js';
@@ -119,7 +120,7 @@ export function mostrarAdmin(contexto) {
   restaurarOp();
   // Aviso tocado no celular abre a aba certa (/painel?aba=neg, /painel?aba=cli).
   const abaPedida = new URLSearchParams(location.search).get('aba');
-  if (abaPedida && ['ini', 'vendas', 'estoque', 'visita', 'cli', 'prod', 'cong', 'mrg', 'intel', 'neg', 'souzinha', 'cfg', 'ban', 'ocor', 'mais', 'perm', 'exe'].includes(abaPedida)) aba = abaPedida;
+  if (abaPedida && ['ini', 'vendas', 'estoque', 'visita', 'cli', 'acessos', 'prod', 'cong', 'mrg', 'intel', 'neg', 'souzinha', 'cfg', 'ban', 'ocor', 'mais', 'perm', 'exe'].includes(abaPedida)) aba = abaPedida;
   modoAppEquipe(true);
   document.body.classList.add('g360-painel');
   document.querySelectorAll('.view').forEach((el) => { el.hidden = el.id !== 'vAdm'; });
@@ -382,7 +383,7 @@ const NOMES_PERM = {
   permissoes: ['🔐 Permissões', 'Mudar o que cada pessoa vê no painel'],
 };
 let perms = null; let permsCarregando = null; let permsDados = null; let permsErro = '';
-const pode = (k) => { if (k === 'perm') k = 'permissoes'; if (k === 'exe') k = 'executivos'; if (k === 'ban') k = 'cfg'; // banners seguem a permissão de Configurações
+const pode = (k) => { if (k === 'perm') k = 'permissoes'; if (k === 'exe') k = 'executivos'; if (k === 'acessos') k = 'cli'; /* Acessos segue a permissão de Clientes */ if (k === 'ban') k = 'cfg'; // banners seguem a permissão de Configurações
   return k === 'ini' || k === 'mais' || (perms ? perms.has(k) : PADRAO.includes(k)); };
 
 function carregarPermissoes() {
@@ -477,9 +478,9 @@ async function desenharPermissoes(msg = '') {
 function desenharAba() {
   if (!pode(aba)) aba = 'ini';
   document.querySelectorAll('#vAdm [data-at]').forEach((b) => b.classList.toggle('on', b.dataset.at === aba));
-  const MAIS = ['vendas', 'estoque', 'prod', 'cong', 'mrg', 'intel', 'souzinha', 'cfg', 'ban', 'ocor', 'perm', 'exe', 'mais'];
+  const MAIS = ['acessos', 'vendas', 'estoque', 'prod', 'cong', 'mrg', 'intel', 'souzinha', 'cfg', 'ban', 'ocor', 'perm', 'exe', 'mais'];
   document.querySelectorAll('#eqBar [data-eq]').forEach((b) => b.classList.toggle('on', b.dataset.eq === aba || (b.dataset.eq === 'mais' && MAIS.includes(aba))));
-  const ids = { ini: 'atIni', vendas: 'atVendas', estoque: 'atEstoque', visita: 'atVisita', mais: 'atMais', cli: 'atCli', prod: 'atProd', cong: 'atCong', mrg: 'atMrg', intel: 'atIntel', neg: 'atNeg', souzinha: 'atSouzinha', cfg: 'atCfg', ban: 'atBan', ocor: 'atOcor', perm: 'atPerm', exe: 'atExe' };
+  const ids = { ini: 'atIni', vendas: 'atVendas', estoque: 'atEstoque', visita: 'atVisita', mais: 'atMais', cli: 'atCli', acessos: 'atAcessos', prod: 'atProd', cong: 'atCong', mrg: 'atMrg', intel: 'atIntel', neg: 'atNeg', souzinha: 'atSouzinha', cfg: 'atCfg', ban: 'atBan', ocor: 'atOcor', perm: 'atPerm', exe: 'atExe' };
   Object.entries(ids).forEach(([k, id]) => { $(id).hidden = k !== aba; });
   if ($('aAvisos')) $('aAvisos').classList.toggle('so-inicio', aba !== 'ini');
   if (aba === 'ini') desenharInicio();
@@ -488,6 +489,7 @@ function desenharAba() {
   else if (aba === 'visita') desenharVisita();
   else if (aba === 'mais') desenharMais();
   else if (aba === 'cli') desenharClientes();
+  else if (aba === 'acessos') desenharClientesPortal();
   else if (aba === 'prod') desenharProdutos(!prod.lista);
   else if (aba === 'cong') desenharCong();
   else if (aba === 'mrg') desenharMargens(!mrg.carregado);
@@ -1024,9 +1026,13 @@ async function enviarArquivos(lista) {
 
 function desenharClientes() {
   const p = $('clPanel');
-  if (!$('clCad')) p.innerHTML = '<div id="clLista"></div><div id="clCad"></div><div id="clPortal"></div>';
+  if (!$('clCad')) p.innerHTML = '<div id="clLista"></div><div id="clPre"></div><div class="crow2 h"><div>Pedidos de cadastro (Quero ser cliente)</div></div><div id="clCad"></div>';
   desenharCadastros();
-  desenharClientesPortal();
+  desenharPreCadastro({
+    alvo: $('clPre'), pre: preCadastro, token: () => op.token, limiteMargem,
+    montarLista: (c) => { montarLista(c, $('clLista')); $('clLista').scrollIntoView({ block: 'start', behavior: 'smooth' }); },
+    painelCondicoes, aoSessaoEncerrada: (e) => encerrarOperador(e.message),
+  });
 }
 
 /** Minha Lista do cliente montada pela equipe: ele já encontra pronta no login. */
@@ -1168,7 +1174,9 @@ async function montarLista(c, alvo = $('clLista'), embutido = false) {
 
 /** Clientes que já entraram no portal (contas abertas pela ponte + nome gravado no login). */
 async function desenharClientesPortal() {
-  const alvo = $('clPortal');
+  const caixa = $('acPanel');
+  if (!$('acCorpo')) caixa.innerHTML = '<div id="acLista"></div><div id="acCorpo"></div>';
+  const alvo = $('acCorpo');
   alvo.innerHTML = carregandoHtml('Carregando clientes do portal…');
   let lista;
   try { lista = (await painel('clientes_listar')).dados || []; } catch (e) { alvo.innerHTML = vazio(esc(e.message)); return; }
@@ -1180,7 +1188,13 @@ async function desenharClientesPortal() {
         <div class="sm">${c.pedidos ? `<b>${c.pedidos}</b> · ${esc(brl(c.valor))}` : '—'}</div><div><button class="tool ab" data-mlc="${esc(c.codigo)}" data-nome="${esc(c.nome || '')}" type="button">⭐ Minha Lista</button></div></div>`).join('')
       : vazio('Nenhum cliente entrou no portal ainda.'))
     + '<div class="hint" style="padding:10px 18px">A lista mostra quem já entrou pelo menos uma vez. Quem tem acesso liberado no G360 mas nunca entrou ainda não aparece (pedido feito à Movimento).</div>';
-  alvo.querySelectorAll('[data-mlc]').forEach((b) => b.onclick = () => montarLista({ codigo: Number(b.dataset.mlc), nome: b.dataset.nome || `cliente ${b.dataset.mlc}` }));
+  alvo.querySelectorAll('[data-mlc]').forEach((b) => b.onclick = () => montarLista({ codigo: Number(b.dataset.mlc), nome: b.dataset.nome || `cliente ${b.dataset.mlc}` }, $('acLista')));
+}
+
+/* Carteira do portal (função precadastro-g360), mesmo login. 401 encerra o painel. */
+async function preCadastro(acao, dados) {
+  try { return await chamarPreCadastro(op.token, acao, dados); }
+  catch (e) { if (e.status === 401) encerrarOperador(e.message); throw e; }
 }
 
 /* Dados do Supabase pelo mesmo login do G360 (função painel-g360). 401 encerra o painel. */
@@ -2076,7 +2090,8 @@ async function desenharVisitaCliente() {
    ===================================================================== */
 const AREAS = [
   ['visita', '➕', 'Preparar cliente', 'Cadastro, lista, preços e link'],
-  ['cli', '👥', 'Clientes', 'Cadastros, fichas e listas'],
+  ['cli', '👥', 'Clientes', 'Carteira do portal, cadastros e listas'],
+  ['acessos', '🔑', 'Acessos', 'Quem já entrou no portal'],
   ['neg', '💬', 'Negociações', 'Pedidos de preço dos clientes'],
   ['prod', '📦', 'Produtos', 'Nomes, fotos, preços e margens'],
   ['cong', '❄', 'Preços congelados', 'Preços combinados por cliente'],

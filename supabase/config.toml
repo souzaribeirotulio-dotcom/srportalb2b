@@ -3,5 +3,7 @@ verify_jwt = false
 
 [functions.painel-g360]
 verify_jwt = false
+[functions.precadastro-g360]
+verify_jwt = false
 [functions.permissoes-g360]
 verify_jwt = false

@@ -128,12 +128,14 @@ export function esquecerCadastroEmAnalise() { try { localStorage.removeItem(CHAV
 export const ORIGEM_JA_CLIENTE = 'Já é cliente (pedir acesso)';
 export function abrirCadastro(ctx, { jaCliente = false } = {}) {
   // Senha já no cadastro (decisão da Souza Ribeiro em 26/11/2026): sem e-mail de confirmação para cliente novo.
-  const comSenha = !jaCliente && ctx.loja?.troca_senha !== false;
+  // Pré-cadastro (27/11/2026): quem já é cliente também cria a senha aqui; se estiver na lista da equipe, entra na hora.
+  const comSenha = ctx.loja?.troca_senha !== false;
   const longa = Number(ctx.loja?.continuar_conectado_dias) > 0;
   const opcoes = (lista) => `<option value="">Selecione…</option>${lista.map((o) => `<option>${esc(o)}</option>`).join('')}`;
   $('cadBox').innerHTML = `<div class="kcad"><h3>${jaCliente ? 'Pedir acesso ao portal' : 'Quero ser cliente'}</h3>
     <div class="sub">${jaCliente
-      ? 'Já compra com a Souza Ribeiro e ainda não tem senha? Preencha os dados da empresa. A equipe confere o seu cadastro e manda por e-mail o link para criar a sua senha.'
+      ? (comSenha ? 'Já compra com a Souza Ribeiro e ainda não tem senha? Preencha os dados da empresa e crie a sua senha. Se o seu cadastro já estiver liberado para o portal, você entra na hora. Se não, a equipe confere e fala com você.'
+        : 'Já compra com a Souza Ribeiro e ainda não tem senha? Preencha os dados da empresa. A equipe confere o seu cadastro e manda por e-mail o link para criar a sua senha.')
       : comSenha ? 'Leva uns 2 minutos. Digite o CNPJ que a gente preenche o resto pela Receita, crie a sua senha e pronto: você já entra vendo os preços.'
       : 'Leva uns 2 minutos. Digite o CNPJ que a gente preenche o resto pela Receita. A equipe da Souza Ribeiro confere e, depois de aprovado, você recebe por e-mail o link para criar a sua senha.'}</div>
 
@@ -364,12 +366,13 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
     // Cliente novo (CNPJ ou CPF): a função cria a ficha no G360 e já manda o link de senha.
     let auto = { resultado: 'analise' };
     const docLen = d.documento.replace(/[^A-Za-z0-9]/g, '').length;
-    if (!jaCliente && (docLen === 14 || docLen === 11)) {
+    if ((!jaCliente || senha) && (docLen === 14 || docLen === 11)) {
       $('cadBox').innerHTML = `<div class="ok cad-criando" role="status" aria-live="polite"><div class="ic2 cad-pontos" aria-hidden="true"><i></i><i></i><i></i></div>
-        <h3>Criando o seu acesso</h3><p id="kEtapa">${docLen === 14 ? 'Conferindo o CNPJ na Receita…' : 'Conferindo o seu CPF…'}</p><div class="cad-barra" aria-hidden="true"><span></span></div>
+        <h3>Criando o seu acesso</h3><p id="kEtapa">${jaCliente ? 'Conferindo o seu cadastro…' : docLen === 14 ? 'Conferindo o CNPJ na Receita…' : 'Conferindo o seu CPF…'}</p><div class="cad-barra" aria-hidden="true"><span></span></div>
         <small class="hint">Leva alguns segundos. Não feche esta tela.</small></div>`;
       // As etapas só mostram que está andando; o resultado de verdade vem da função.
-      const etapas = [docLen === 14 ? 'Conferindo o CNPJ na Receita…' : 'Conferindo o seu CPF…', 'Criando o seu cadastro…', 'Liberando os seus preços…', senha ? 'Criando a sua senha…' : 'Enviando o link para o seu e-mail…'];
+      const etapas = jaCliente ? ['Conferindo o seu cadastro…', 'Liberando os seus preços…', 'Criando a sua senha…']
+        : [docLen === 14 ? 'Conferindo o CNPJ na Receita…' : 'Conferindo o seu CPF…', 'Criando o seu cadastro…', 'Liberando os seus preços…', senha ? 'Criando a sua senha…' : 'Enviando o link para o seu e-mail…'];
       let ie = 0;
       const relogio = setInterval(() => { ie = Math.min(ie + 1, etapas.length - 1); const el = $('kEtapa'); if (el) el.textContent = etapas[ie]; }, 3500);
       try { auto = await cadastroAutomatico(d.documento, senha); } finally { clearInterval(relogio); }
