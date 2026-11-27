@@ -215,16 +215,23 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
   };
   const mostrarCampos = () => { $('kEmpresa').hidden = false; $('kResumo').hidden = true; };
   // Documento que já tem cadastro no portal: avisa na hora e mostra o caminho certo (entrar ou aguardar).
+  // O resto do formulário some (não dá para seguir preenchendo nem enviar).
   let jaConsultado = ''; let jaCadastrado = null;
+  const travarFormulario = (sim) => {
+    const caixa = $('cadBox');
+    [...caixa.querySelectorAll('.ksec')].slice(1).forEach((el) => el.classList.toggle('kja-oculto', sim));
+    ['kResumo', 'kEmpresa', 'kEnviar', 'kDocSt'].forEach((id) => $(id)?.classList.toggle('kja-oculto', sim));
+  };
   const conferirJaCadastrado = async () => {
     const c = doc.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
     const completo = c.length === 14 || (c.length === 11 && /^\d+$/.test(c));
-    if (!completo) { jaConsultado = ''; jaCadastrado = null; $('kJa').hidden = true; $('kEnviar').disabled = false; return; }
+    if (!completo) { jaConsultado = ''; jaCadastrado = null; travarFormulario(false); $('kJa').hidden = true; $('kEnviar').disabled = false; return; }
     if (c === jaConsultado) return; jaConsultado = c;
     const st = await situacaoNoPortal(c);
     if (doc.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase() !== c) return;
     jaCadastrado = st;
     const caixa = $('kJa');
+    travarFormulario(Boolean(st));
     if (!st) { caixa.hidden = true; $('kEnviar').disabled = false; return; }
     const tipo = c.length === 11 ? 'CPF' : 'CNPJ';
     const textos = {
@@ -244,7 +251,9 @@ export function abrirCadastro(ctx, { jaCliente = false } = {}) {
     const pos = doc.selectionStart === doc.value.length; doc.value = mascaraDoc(doc.value); if (pos) doc.setSelectionRange(doc.value.length, doc.value.length);
     $('kDocErr').textContent = ''; doc.removeAttribute('aria-invalid');
     ajustarTipo();
-    conferirJaCadastrado();
+    await conferirJaCadastrado();
+    // Já tem cadastro no portal: não busca a Receita nem desce para a próxima etapa.
+    if (jaCadastrado) return;
     const d = so(doc.value);
     if (d.length !== 14 || /[A-Za-z]/.test(doc.value)) { $('kDocSt').textContent = ''; if (!$('kResumo').hidden) mostrarCampos(); return; }
     if (d === ultimaConsulta) return; ultimaConsulta = d;
