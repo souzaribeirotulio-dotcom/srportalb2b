@@ -1040,3 +1040,24 @@ body.cliente-analise .card .info::after { content: "Preço liberado após a apro
 .mg-acao{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .mg-acao .btn{min-height:44px}
 @media (max-width:760px){.mg-auto{margin:12px 12px 0}.mg-acao{width:100%}.mg-acao .btn{width:100%}}
+/* Margens: abas Para conferir / Precisa ajustar / Margem ok e botões de marcação */
+.mg-vistas{margin:14px 18px 6px;max-width:none}
+.mg-vistas button{flex:0 1 auto;padding:0 14px}
+.mg-lin .mg-bts{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.mg-lin .mg-bts .tool{white-space:nowrap;min-height:36px}
+.mg-marca{display:block;margin-top:3px;font-size:11.5px;color:var(--lima)}
+.mg.ok{color:var(--lima)}
+@media (max-width:760px){.mg-vistas{margin:12px 12px 4px;overflow-x:auto}.mg-lin .mg-bts{justify-content:flex-start}.mg-lin .mg-bts .tool{min-height:44px}}
+@media (min-width:761px){#mgPanel .mrow{grid-template-columns:52px minmax(0,1fr) 110px 90px 90px 76px minmax(250px,auto)}}
+@media (max-width:760px){#mgPanel .mrow.mg-lin{grid-template-areas:"img nm mg" "img src src" "num num num" "ab ab ab"}#mgPanel .mg-lin .mg-bts{grid-area:ab}}
+@media (max-width:760px){
+  #mgPanel .mgsum{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 12px 0 !important}
+  #mgPanel .mgsum .stat{min-width:0;padding:10px 12px}
+  #mgPanel .mgsum .stat span{font-size:10.5px}
+  .mg-vistas button{white-space:nowrap;flex:0 0 auto}
+  #mgPanel .mrow.mg-lin{grid-template-areas:"img nm mg" "img src src" "pr pr pr" "ab ab ab"}
+  #mgPanel .mg-lin .num{display:none}
+  #mgPanel .mg-lin .mg-pc{display:block;grid-area:pr;font-size:12.5px;color:var(--tx2)}
+}
+
+.mg-lin .mg-pc{display:none}

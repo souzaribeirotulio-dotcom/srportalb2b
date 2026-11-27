@@ -33,7 +33,22 @@ with sync_playwright() as pw:
         # Tem de dar errado: produto com estoque zerado não entra, mesmo com margem baixa; margem boa também não.
         checar('Produto Zerado' not in t and 'Produto Margem Boa' not in t, f'{largura}: entrou produto que não devia: {t[:300]}')
         stats = pg.eval_on_selector_all('#mgPanel .mgsum .stat b', 'bs => bs.map(b => b.textContent)')
-        checar(stats[:2] == ['1', '2'], f'{largura}: contagem (abaixo, com estoque): {stats}')
+        checar([stats[0], stats[2]] == ['1', '2'], f'{largura}: contagem (abaixo, com estoque): {stats}')
+        # Marcar como "margem ok": sai de Para conferir e não volta na próxima conferência.
+        sim.mrg_g360.append(produto(4, 'Produto Para Ajustar', 10.0, 5))
+        pg.click('#mgAgora'); pg.wait_for_function("document.querySelector('#mgPanel').innerText.includes('Produto Para Ajustar')", timeout=15000)
+        pg.click('.mrow[data-id="1"] [data-mk="ok"]'); pg.wait_for_timeout(300)
+        pg.click('.mrow[data-id="4"] [data-mk="ajustar"]'); pg.wait_for_timeout(300)
+        t = pg.inner_text('#mgPanel')
+        checar('Produto Baixa Margem' not in t and 'Produto Para Ajustar' not in t, f'{largura}: marcados continuam em Para conferir')
+        checar(sim.mrg_marcas.get(1, {}).get('status') == 'ok' and sim.mrg_marcas.get(4, {}).get('status') == 'ajustar', f'{largura}: marcas: {sim.mrg_marcas}')
+        pg.click('#mgAgora'); pg.wait_for_timeout(1500)
+        checar('Produto Baixa Margem' not in pg.inner_text('#mgPanel'), f'{largura}: margem ok voltou depois de nova conferência')
+        pg.click('[data-mv="ajustar"]'); pg.wait_for_timeout(200)
+        checar('Produto Para Ajustar' in pg.inner_text('#mgPanel') and 'Precisa ajustar' in pg.inner_text('#mgPanel'), f'{largura}: aba Precisa ajustar')
+        # Tem de dar errado: margem que caiu 1 ponto ou mais depois de "margem ok" volta para conferir.
+        sim.mrg_g360[0]['margem'] = 11.0
+        pg.click('[data-mv="conferir"]'); pg.click('#mgAgora'); pg.wait_for_function("document.querySelector('#mgPanel').innerText.includes('Produto Baixa Margem')", timeout=15000)
         checar(not erros, f'{largura}: erros: {erros}')
         ctx.close()
     # Sem a permissão de Margens: a função recusa e a aba não aparece.

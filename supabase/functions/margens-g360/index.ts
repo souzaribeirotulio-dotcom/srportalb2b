@@ -12,6 +12,8 @@
    Ações do painel (POST, só Content-Type, origens de PORTAL_ORIGENS, token do operador; permissão 'mrg'):
    - {"acao":"ler"}     → { rodada, produtos (todos os guardados), margem_minima }
    - {"acao":"rodar"}   → confere agora com o token do próprio operador (um lote; o painel chama até terminar)
+   - {"acao":"marcar","produto_id":N,"status":"ajustar"|"ok"} / {"acao":"desmarcar","produto_id":N}
+     → marca a margem baixa como conferida ("precisa ajustar" ou "margem ok"); vem junto em "ler" (marcas)
    Usuário, senha e tokens nunca vão para log nem para as tabelas.
    ===================================================================== */
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
@@ -149,7 +151,9 @@ Deno.serve(async (req) => {
     const me = await g360("operadores/me", { token });
     if (me.status === 401) { await me.body?.cancel(); return res(401, { mensagem: "Sua sessão do painel terminou. Entre novamente." }); }
     if (!me.ok) { await me.body?.cancel(); return res(503, { mensagem: "Não foi possível conferir a sessão. Tente de novo." }); }
-    const codigoOp = (await me.json())?.dados?.operador?.codigo;
+    const opMe = (await me.json())?.dados?.operador ?? {};
+    const codigoOp = opMe.codigo;
+    const nomeOp = String(opMe.nome || opMe.usuario || "Equipe").slice(0, 80);
     const { data: perms } = await admin.rpc("painel_permissoes_efetivas", { p_loja: LOJA, p_codigo: codigoOp });
     if (!(perms || []).includes("mrg")) return res(403, { mensagem: "Você não tem acesso às margens." });
 
@@ -164,7 +168,24 @@ Deno.serve(async (req) => {
         produtos.push(...(data ?? []));
         if (!data || data.length < 1000) break;
       }
-      return res(200, { dados: { rodada, margem_minima: Number(cfg.data?.margem_minima ?? 15), produtos } });
+      const { data: marcas, error: em } = await admin.from("margens_marcas").select("produto_id, status, margem_marcada, marcado_por, marcado_em").eq("loja", LOJA).limit(10000);
+      if (em) throw em;
+      return res(200, { dados: { rodada, margem_minima: Number(cfg.data?.margem_minima ?? 15), produtos, marcas: marcas ?? [] } });
+    }
+    if (corpo.acao === "marcar" || corpo.acao === "desmarcar") {
+      const id = Number(corpo.produto_id);
+      if (!Number.isSafeInteger(id) || id < 1) return res(400, { mensagem: "Produto inválido." });
+      if (corpo.acao === "desmarcar") {
+        const { error } = await admin.from("margens_marcas").delete().eq("loja", LOJA).eq("produto_id", id);
+        if (error) throw error;
+        return res(200, { ok: true });
+      }
+      const status = corpo.status === "ok" ? "ok" : corpo.status === "ajustar" ? "ajustar" : null;
+      if (!status) return res(400, { mensagem: "Escolha: precisa ajustar ou margem ok." });
+      const { data: p } = await admin.from("margens_produtos").select("margem").eq("loja", LOJA).eq("produto_id", id).maybeSingle();
+      const { error } = await admin.from("margens_marcas").upsert({ loja: LOJA, produto_id: id, status, margem_marcada: p?.margem ?? null, marcado_por: nomeOp, marcado_em: new Date().toISOString() }, { onConflict: "loja,produto_id" });
+      if (error) throw error;
+      return res(200, { ok: true });
     }
     if (corpo.acao === "rodar") {
       try { const r = await conferirLote(token, "manual", corpo.recomecar === true); return res(200, { dados: r }); }

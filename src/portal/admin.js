@@ -1681,7 +1681,7 @@ async function carregarConfigLoja(forcar = false) {
 const gravarLimite = adiar(async (n) => { try { cfgLoja = (await painel('config_salvar', { margem_minima: n })).dados; toast('Margem mínima salva ✓'); } catch (e) { toast(e.message); } }, 800);
 function guardarLimite(v) { const n = Number(String(v).replace(',', '.')); if (!(n >= 0 && n <= 100)) return; limiteMem = n; gravarLimite(n); }
 
-const mrg = { carregado: false, lendo: false, dados: null, erro: '', rodando: false, progresso: '' };
+const mrg = { carregado: false, lendo: false, dados: null, erro: '', rodando: false, progresso: '', vista: 'conferir' };
 
 /* Margens: a conferência roda sozinha de segunda a sexta, a partir das 18h (função margens-g360, só produtos
    com estoque disponível positivo). A aba mostra o que ficou guardado e deixa conferir agora. */
@@ -1712,6 +1712,24 @@ async function conferirMargensAgora() {
 
 const dataHoraBr = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', ' às'); };
 
+/** Marca a margem baixa como conferida ("ajustar" ou "ok") ou tira a marca. A tela muda na hora. */
+async function marcarMargem(id, acao) {
+  if (!mrg.dados) return;
+  const antes = mrg.dados.marcas || [];
+  const p = mrg.dados.produtos.find((x) => Number(x.produto_id) === id);
+  mrg.dados.marcas = antes.filter((m) => Number(m.produto_id) !== id);
+  if (acao !== 'desmarcar') mrg.dados.marcas.push({ produto_id: id, status: acao, margem_marcada: p?.margem ?? null, marcado_por: 'você', marcado_em: new Date().toISOString() });
+  desenharMargens(false);
+  try {
+    await chamarMargens(op.token, acao === 'desmarcar' ? 'desmarcar' : 'marcar', acao === 'desmarcar' ? { produto_id: id } : { produto_id: id, status: acao });
+    toast(acao === 'ok' ? 'Marcado: margem ok ✓' : acao === 'ajustar' ? 'Marcado: precisa ajustar ✓' : 'Marca tirada ✓');
+  } catch (e) {
+    mrg.dados.marcas = antes; desenharMargens(false);
+    if (e.status === 401) { encerrarOperador(e.message); return; }
+    toast(e.message);
+  }
+}
+
 async function desenharMargens(recarregar = false) {
   $('mgLim').value = limiteMargem();
   const alvo = $('mgPanel');
@@ -1722,25 +1740,49 @@ async function desenharMargens(recarregar = false) {
   if (!mrg.dados) { alvo.innerHTML = mrg.erro ? `<div class="g360-erro" style="margin:16px 18px"><div class="okmsg bad">${esc(mrg.erro)}</div></div><div style="padding:0 18px 18px"><button class="btn sec" id="mgDeNovo">Tentar de novo</button></div>` : carregandoHtml('Carregando…'); $('mgDeNovo')?.addEventListener('click', () => desenharMargens(true)); return; }
   const lim = limiteMargem();
   const { rodada, produtos } = mrg.dados;
+  const marcas = new Map((mrg.dados.marcas || []).map((m) => [Number(m.produto_id), m]));
   const comCusto = produtos.filter((p) => p.custo_visivel);
-  const baixo = comCusto.filter((p) => p.margem !== null && Number(p.margem) < lim).sort((a, b) => Number(a.margem) - Number(b.margem));
+  const baixo = comCusto.filter((p) => p.margem !== null && Number(p.margem) < lim);
+  // "Margem ok" só volta para conferir se a margem cair 1 ponto ou mais abaixo da que estava ao marcar.
+  const voltou = (p, m) => m.margem_marcada !== null && p.margem !== null && Number(p.margem) <= Number(m.margem_marcada) - 1;
+  const porMargem = (a, b) => Number(a.margem) - Number(b.margem);
+  const listas = {
+    conferir: baixo.filter((p) => { const m = marcas.get(Number(p.produto_id)); return !m || (m.status === 'ok' && voltou(p, m)); }).sort(porMargem),
+    ajustar: produtos.filter((p) => marcas.get(Number(p.produto_id))?.status === 'ajustar').sort(porMargem),
+    ok: produtos.filter((p) => { const m = marcas.get(Number(p.produto_id)); return m?.status === 'ok' && !voltou(p, m); }).sort(porMargem),
+  };
   const sem = comCusto.filter((p) => p.custo === null);
-  $('mrgN').textContent = baixo.length || '';
+  $('mrgN').textContent = listas.conferir.length || '';
+  if (!listas[mrg.vista]) mrg.vista = 'conferir';
   const emAndamento = rodada && rodada.iniciada_em && !rodada.concluida_em;
   const quando = rodada?.concluida_em ? `Última conferência: ${esc(dataHoraBr(rodada.concluida_em))}${rodada.origem === 'manual' ? ' (feita no painel)' : ' (automática)'}`
     : emAndamento ? `Conferência em andamento: página ${Number(rodada.pagina)} de ${Number(rodada.paginas) || '…'}` : 'Ainda não houve conferência.';
+  const VISTAS = [['conferir', '🔎 Para conferir'], ['ajustar', '🔧 Precisa ajustar'], ['ok', '✓ Margem ok']];
+  const linha = (p) => {
+    const m = marcas.get(Number(p.produto_id));
+    const abaixo = p.margem !== null && Number(p.margem) < lim;
+    const marca = m ? `<small class="mg-marca">${m.status === 'ok' ? 'Margem ok' : 'Precisa ajustar'} · ${esc(m.marcado_por || '')} em ${esc(dataHoraBr(m.marcado_em))}${m.margem_marcada !== null && Number(m.margem_marcada) !== Number(p.margem) ? ` · era ${esc(numeroPainel(Number(m.margem_marcada), 1))}%` : ''}</small>` : '';
+    const botoes = mrg.vista === 'conferir' ? '<button class="tool ab" data-mk="ajustar">🔧 Precisa ajustar</button><button class="tool ab" data-mk="ok">✓ Margem ok</button><button class="tool ab" data-cg>❄ Congelar</button>'
+      : mrg.vista === 'ajustar' ? '<button class="tool ab" data-mk="desmarcar">✓ Já ajustei</button><button class="tool ab" data-cg>❄ Congelar</button>'
+        : '<button class="tool ab" data-mk="desmarcar">↩ Voltar para conferir</button>';
+    return `<div class="mrow mg-lin" data-id="${Number(p.produto_id)}" data-nome="${esc(p.nome)}" data-cod="${esc(p.codigo)}"><div class="g360-mini" data-foto="${Number(p.produto_id)}"><span>…</span></div>
+        <div class="nm">${esc(p.nome)}<small>Cód. ${esc(p.codigo)} · Disponível: ${esc(numeroPainel(Number(p.disponivel), 0))}</small>${marca}</div><div class="src">${esc(p.origem_preco || 'tabela')}</div>
+        <div class="num">${esc(dinheiro(p.preco))}</div><div class="num">R$ ${esc(numeroPainel(Number(p.custo), 2))}</div><div class="mg ${abaixo ? 'bad' : 'ok'}">${esc(numeroPainel(Number(p.margem), 1))}%</div>
+        <div class="mg-pc">Preço ${esc(dinheiro(p.preco))} · Custo R$ ${esc(numeroPainel(Number(p.custo), 2))}</div><div class="mg-bts">${botoes}</div></div>`;
+  };
+  const vazios = { conferir: produtos.length ? `✓ Nada para conferir: nenhum produto com estoque abaixo de ${esc(String(lim))}% sem marcação.` : 'Nenhuma conferência guardada ainda. Toque em "Conferir agora" ou espere a das 18h.',
+    ajustar: 'Nenhum produto marcado como "precisa ajustar".', ok: 'Nenhum produto marcado como "margem ok".' };
+  const atual = listas[mrg.vista];
   alvo.innerHTML = `<div class="mg-auto"><div><b>🕕 Conferência automática</b><span>De segunda a sexta, a partir das 18h, só produtos com estoque disponível.</span><span>${quando}</span>
       ${rodada?.erro ? `<span class="mg-erro">${esc(rodada.erro)}</span>` : ''}</div>
       <div class="mg-acao"><button class="btn sec" id="mgAgora" ${mrg.rodando ? 'disabled' : ''}>${mrg.rodando ? 'Conferindo…' : '🔄 Conferir agora'}</button><span class="hint" id="mgProg" aria-live="polite" style="margin:0">${mrg.rodando ? esc(mrg.progresso) : ''}</span></div></div>`
-    + `<div style="padding:16px 18px 0" class="mgsum"><div class="stat bad"><b>${baixo.length}</b><span>Abaixo de ${esc(String(lim))}%</span></div><div class="stat"><b>${produtos.length}</b><span>Produtos com estoque conferidos</span></div><div class="stat"><b>${sem.length}</b><span>Sem custo</span></div></div>`
-    + (baixo.length ? `<div class="mrow h"><div></div><div>Produto</div><div>Origem do preço</div><div style="text-align:right">Preço</div><div style="text-align:right">Custo</div><div style="text-align:right">Margem</div><div></div></div>`
-      + baixo.map((p) => `<div class="mrow" data-id="${Number(p.produto_id)}" data-nome="${esc(p.nome)}" data-cod="${esc(p.codigo)}"><div class="g360-mini" data-foto="${Number(p.produto_id)}"><span>…</span></div>
-        <div class="nm">${esc(p.nome)}<small>Cód. ${esc(p.codigo)} · Disponível: ${esc(numeroPainel(Number(p.disponivel), 0))}</small></div><div class="src">${esc(p.origem_preco || 'tabela')}</div>
-        <div class="num">${esc(dinheiro(p.preco))}</div><div class="num">R$ ${esc(numeroPainel(Number(p.custo), 2))}</div><div class="mg bad">${esc(numeroPainel(Number(p.margem), 1))}%</div>
-        <button class="tool ab" data-cg>❄ Congelar</button></div>`).join('')
-      : vazio(produtos.length ? `✓ Nenhum produto com estoque abaixo de ${esc(String(lim))}% de margem bruta.` : 'Nenhuma conferência guardada ainda. Toque em "Conferir agora" ou espere a das 18h.'))
+    + `<div style="padding:16px 18px 0" class="mgsum"><div class="stat bad"><b>${listas.conferir.length}</b><span>Para conferir (abaixo de ${esc(String(lim))}%)</span></div><div class="stat"><b>${listas.ajustar.length}</b><span>Precisa ajustar</span></div><div class="stat"><b>${produtos.length}</b><span>Produtos com estoque conferidos</span></div><div class="stat"><b>${sem.length}</b><span>Sem custo</span></div></div>`
+    + `<div class="ltabs mg-vistas" role="tablist">${VISTAS.map(([k, t]) => `<button role="tab" data-mv="${k}" class="${mrg.vista === k ? 'on' : ''}" aria-selected="${mrg.vista === k}">${t} <span class="mk">${listas[k].length || ''}</span></button>`).join('')}</div>`
+    + (atual.length ? `<div class="mrow h"><div></div><div>Produto</div><div>Origem do preço</div><div style="text-align:right">Preço</div><div style="text-align:right">Custo</div><div style="text-align:right">Margem</div><div></div></div>` + atual.map(linha).join('') : vazio(vazios[mrg.vista]))
     + (sem.length ? `<div style="padding:12px 18px 18px;font-size:12px;color:var(--tx3)">Sem custo cadastrado: ${sem.map((p) => esc(p.codigo)).join(', ')}</div>` : '');
   $('mgAgora')?.addEventListener('click', conferirMargensAgora);
+  alvo.querySelectorAll('[data-mv]').forEach((b) => b.addEventListener('click', () => { mrg.vista = b.dataset.mv; desenharMargens(false); }));
+  alvo.querySelectorAll('[data-mk]').forEach((b) => b.addEventListener('click', () => marcarMargem(Number(b.closest('.mrow').dataset.id), b.dataset.mk)));
   alvo.querySelectorAll('.mrow [data-cg]').forEach((b) => b.addEventListener('click', () => {
     const r = b.closest('.mrow'); aba = 'cong'; cong.produto = { id: Number(r.dataset.id), rotulo: `${r.dataset.cod} · ${r.dataset.nome}` }; desenharAba();
   }));

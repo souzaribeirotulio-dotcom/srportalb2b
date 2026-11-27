@@ -492,8 +492,15 @@ class Sim:
                 self.mrg_produtos = [dict(x) for x in lista if float(x.get('disponivel', 0)) > 0]
                 self.mrg_rodada = {'dia': '2026-11-27', 'pagina': 1, 'paginas': 1, 'produtos': len(self.mrg_produtos), 'iniciada_em': '2026-11-27T21:00:00Z', 'concluida_em': '2026-11-27T21:01:00Z', 'origem': 'manual', 'erro': None}
                 return res(200, {'dados': self.mrg_rodada})
+            if not hasattr(self, 'mrg_marcas'): self.mrg_marcas = {}
             if corpo.get('acao') == 'ler':
-                return res(200, {'dados': {'rodada': self.mrg_rodada, 'margem_minima': 25, 'produtos': self.mrg_produtos}})
+                return res(200, {'dados': {'rodada': self.mrg_rodada, 'margem_minima': 25, 'produtos': self.mrg_produtos, 'marcas': list(self.mrg_marcas.values())}})
+            if corpo.get('acao') == 'marcar':
+                pid = int(corpo['produto_id']); pr = next((x for x in self.mrg_produtos if x['produto_id'] == pid), {})
+                self.mrg_marcas[pid] = {'produto_id': pid, 'status': corpo['status'], 'margem_marcada': pr.get('margem'), 'marcado_por': 'Operador Fictício', 'marcado_em': '2026-11-27T20:10:00Z'}
+                return res(200, {'ok': True})
+            if corpo.get('acao') == 'desmarcar':
+                self.mrg_marcas.pop(int(corpo['produto_id']), None); return res(200, {'ok': True})
             return res(400, {'mensagem': 'Ação desconhecida.'})
         if p == '/functions/v1/permissoes-g360':
             # Permissões próprias do painel: sim.perms_painel (padrão: tudo, menos 'executivos').
