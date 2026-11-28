@@ -251,20 +251,42 @@ export function secoesDoProduto(p) {
   const auto = secaoPelasPalavras(r)?.s || null; const manual = secaoManual(r);
   return { automatica: auto?.nome || null, escolhida: r.secao || null, vale: (manual || auto)?.nome || null };
 }
+/** Medida do nome, para os iguais ficarem juntos: líquidos (ml/L) primeiro, depois peso (g/kg), depois o resto;
+ *  dentro de cada um, do menor para o maior. "Detergente Neutro 500ml" fica junto dos outros de 500ml, e os de 5L depois. */
+const RE_MEDIDA = /(\d+(?:[.,]\d+)?) ?(ml|litros?|lts?|l|kg|kgs|gramas?|grs?|g)(?![a-z])/i;
+export function medidaDoNome(nome) {
+  const t = String(nome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/(\d),(\d)/g, '$1.$2');
+  const m = t.match(RE_MEDIDA);
+  if (!m) return [2, 0];
+  const n = Number(m[1]); const u = m[2].toLowerCase();
+  if (u === 'ml') return [0, n];
+  if (/^l/.test(u)) return [0, n * 1000];
+  if (/^kg/.test(u)) return [1, n * 1000];
+  return [1, n];
+}
+function chaveDoTipo(r, sec) {
+  const tk = tokensDe(r); let k = [9999, 9999];
+  const man = secaoManual(r);
+  if (sec) { const m = melhorTermo(tk, sec.termos); k = m ? [0, m.idx] : [0, 9998]; } else if (man) {
+    const m = melhorTermo(tk, man.termos); k = [man.ordem, m ? m.idx : 9998];
+  } else {
+    const best = secaoPelasPalavras(r);
+    if (best) k = [best.s.ordem, best.m.idx];
+  }
+  const md = medidaDoNome(r.nome || r.nome_g360);
+  return [k[0], k[1], md[0], md[1], nomeOrdem(r)];
+}
+const compararChaves = (x, y) => x[0] - y[0] || x[1] - y[1] || x[2] - y[2] || x[3] - y[3] || x[4].localeCompare(y[4], 'pt', { numeric: true });
 function ordenarPorTipo(regs, sec) {
   const chave = new Map();
-  for (const r of regs) {
-    const tk = tokensDe(r); let k = [9999, 9999];
-    const man = secaoManual(r);
-    if (sec) { const m = melhorTermo(tk, sec.termos); k = m ? [0, m.idx] : [0, 9998]; } else if (man) {
-      const m = melhorTermo(tk, man.termos); k = [man.ordem, m ? m.idx : 9998];
-    } else {
-      const best = secaoPelasPalavras(r);
-      if (best) k = [best.s.ordem, best.m.idx];
-    }
-    chave.set(r, [k[0], k[1], nomeOrdem(r)]);
-  }
-  return regs.sort((a, b) => { const x = chave.get(a); const y = chave.get(b); return x[0] - y[0] || x[1] - y[1] || x[2].localeCompare(y[2], 'pt', { numeric: true }); });
+  for (const r of regs) chave.set(r, chaveDoTipo(r, sec));
+  return regs.sort((a, b) => compararChaves(chave.get(a), chave.get(b)));
+}
+/** Para a busca: compara dois produtos pela ordem por tipo (departamento → seção → termo → medida → nome). */
+export function compararPorTipo(a, b) {
+  const ra = registro(a) || { nome: a?.nome, categoria: a?.categoria }; const rb = registro(b) || { nome: b?.nome, categoria: b?.categoria };
+  const ca = categorias().indexOf(ra.categoria); const cb = categorias().indexOf(rb.categoria);
+  return ((ca < 0 ? 999 : ca) - (cb < 0 ? 999 : cb)) || compararChaves(chaveDoTipo(ra, null), chaveDoTipo(rb, null));
 }
 /** Códigos (visíveis) de uma seção ou linha, na ordem por tipo. */
 export function codigosDaSecao(id) {

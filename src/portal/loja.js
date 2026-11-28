@@ -9,7 +9,7 @@ import { carregarOcultosComprador, carregarOcultosVisitante } from '../estado/oc
 import Decimal from 'decimal.js';
 import { registrarBusca, registrarAcesso, limparEventosSessao } from '../estado/eventos.js';
 import { desenho } from './desenhos.js';
-import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, codigosDoFiltro, secoesDe, caminhoDoFiltro, secaoPorId, codigosDaSecao, filtroDoEndereco, enderecoDoFiltro, apresentar, pesoCurva, oculto, soEstoque, abaixoDoMinimo, estoqueMinimoAtual, codigosAtivosPublicos } from '../catalogo/exibicao.js';
+import { carregarExibicao, categorias as categoriasPortal, codigosDaCategoria, codigosDoFiltro, secoesDe, caminhoDoFiltro, secaoPorId, codigosDaSecao, filtroDoEndereco, enderecoDoFiltro, apresentar, pesoCurva, compararPorTipo, oculto, soEstoque, abaixoDoMinimo, estoqueMinimoAtual, codigosAtivosPublicos } from '../catalogo/exibicao.js';
 
 import { buscarLocal, temEstoque, variacoes, corrigirBusca, nomeBate, variacoesMedida } from '../catalogo/busca.js';
 import { listarProdutos, buscarProdutos, listarMarcas, produtosPorIds } from '../api/g360.js';
@@ -621,10 +621,11 @@ async function buscarItens(q, grupo) {
   }
   const falha = res.find((r) => r.status === 'rejected');
   if (falha && (!achados.size || falha.reason?.status === 401)) throw falha.reason;
-  // Ordem: com estoque primeiro; depois o que mais bate com a busca; na mesma faixa, os mais vendidos (curva A, B, C).
+  // Ordem: com estoque primeiro; depois o que mais bate com a busca; na mesma faixa, por tipo (seção → medida → nome:
+  // os detergentes de 500ml juntos, depois os de 5L).
   const naSecao = filtros.secao && grupo ? new Set(codigosDoFiltro(filtros) || []) : null;
   const todos = [...achados.values()].filter((p) => !oculto(p) && !abaixoDoMinimo(p) && (!soEstoque() || temEstoque(p)) && (!naSecao || naSecao.has(String(p.codigo)))).sort((a, b) => (temEstoque(b) - temEstoque(a)) || (faixa(b) - faixa(a))
-    || (pesoCurva(a) - pesoCurva(b)) || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
+    || compararPorTipo(a, b) || (pesoCurva(a) - pesoCurva(b)) || ((pontos.get(String(b.codigo)) || 0) - (pontos.get(String(a.codigo)) || 0)) || a.nome.localeCompare(b.nome, 'pt'));
   return { todos, falha };
 }
 
