@@ -32,7 +32,7 @@ with sync_playwright() as pw:
             checar('Pano Multiuso' in t, f'{caminho} {w}: pano sumiu: {t[:200]}')
             if esconde:
                 checar('Saco para Lixo' not in t and 'Detergente' not in t, f'{caminho} {w}: escondido aparecendo antes do cadastro: {t[:300]}')
-                checar(pg.evaluate("location.search") == '', 'código ficou no endereço')
+                checar('ex=' not in pg.evaluate("location.search") and 'oc=' not in pg.evaluate("location.search"), 'código ficou no endereço')  # a busca (?busca=) fica, desde 28/11
                 # a seção que só tem escondidos some do menu Departamentos e da página do departamento
                 lado = ' '.join((pg.inner_text('#depLado') if pg.is_visible('#depLado') else '').split())
                 checar('Sacos de lixo' not in lado, f'{caminho} {w}: seção Sacos de lixo na página do departamento: {lado[:200]}')

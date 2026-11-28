@@ -249,7 +249,14 @@ export function corrigirBusca(consulta) {
  */
 export function buscarLocal(consulta, opcoes = {}) {
   const melhor = new Map();
-  for (const v of variacoes(consulta)) for (const r of buscarUma(v, opcoes)) if (!melhor.has(r.codigo) || melhor.get(r.codigo).pontos < r.pontos) melhor.set(r.codigo, r);
+  // A palavra digitada vale mais que o sinônimo: em "fibra", as fibras vêm antes das esponjas Scotch-Brite
+  // (sinônimo "scotch brite" = "fibra" cadastrado no painel). O sinônimo entra, mas numa faixa abaixo.
+  variacoes(consulta).forEach((v, i) => {
+    for (const r0 of buscarUma(v, opcoes)) {
+      const r = i === 0 || r0.pontos >= 1000 ? r0 : { ...r0, pontos: r0.pontos * 0.7 };
+      if (!melhor.has(r.codigo) || melhor.get(r.codigo).pontos < r.pontos) melhor.set(r.codigo, r);
+    }
+  });
   return [...melhor.values()].sort((a, b) => b.pontos - a.pontos || a.nome.localeCompare(b.nome, 'pt')).slice(0, opcoes.max || 150);
 }
 

@@ -197,11 +197,11 @@ async function desenhar() {
   document.body.classList.toggle('logged', sessao.ativa);
   const params = c.match(rota[0])?.slice(1) || [];
   const estado = { ...(rota[3] || {}), ...(history.state || {}) };
-  if (history.state?.aviso) history.replaceState(null, '', location.pathname); // o aviso aparece uma vez só
+  if (history.state?.aviso) history.replaceState(null, '', location.pathname + location.search); // o aviso aparece uma vez só
   mostrarLoja({
     loja: sessao.loja ? { ...loja, ...sessao.loja } : loja,
     ir,
-    aoEntrar: () => { descartarEnvioDeOutroComprador(); document.body.classList.add('logged'); history.replaceState(null, '', location.pathname); desenhar(); },
+    aoEntrar: () => { descartarEnvioDeOutroComprador(); document.body.classList.add('logged'); history.replaceState(null, '', location.pathname + location.search); desenhar(); },
   }, rota[1], params, estado);
 }
 

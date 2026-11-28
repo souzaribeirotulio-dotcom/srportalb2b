@@ -266,7 +266,27 @@ function desenharChips() {
 /* ---------------- árvore: departamento → seção ---------------- */
 
 /** O endereço manda no departamento/seção: /limpeza/sacos-de-lixo → filtros. Início e /catalogo = sem departamento. */
+/** A busca também fica no endereço (?busca=fibra): dá para salvar, mandar o link e o F5 mantém a pesquisa.
+ *  Aceita ?search= também, para links feitos no padrão de outros sites. */
+function buscaDoEndereco() {
+  const p = new URLSearchParams(location.search);
+  const v = p.get('busca') ?? p.get('search');
+  return v == null ? null : v.trim().slice(0, 100);
+}
+function gravarBuscaNoEndereco() {
+  const u = new URL(location.href);
+  const antes = u.search;
+  u.searchParams.delete('search');
+  if (filtros.q) u.searchParams.set('busca', filtros.q); else u.searchParams.delete('busca');
+  // replaceState: cada letra digitada não vira uma página a mais no Voltar do navegador.
+  if (u.search !== antes) history.replaceState(history.state, '', u.pathname + u.search + u.hash);
+}
 async function lerEndereco() {
+  await lerCaminho();
+  const b = buscaDoEndereco();
+  if (b != null && b !== filtros.q) { filtros.q = b; filtros.pagina = 1; const q = $('q'); if (q) q.value = b; }
+}
+async function lerCaminho() {
   const c = location.pathname.replace(/\/+$/, '') || '/';
   if (c === '/' || c === '/catalogo' || c === '/carrinho' || c === '/minha-conta') {
     if (c === '/' || c === '/catalogo') { filtros.grupo = ''; filtros.secao = ''; }
@@ -732,6 +752,7 @@ async function abrirDestinoBanner(b) {
 }
 
 export async function desenharCatalogo() {
+  gravarBuscaNoEndereco();
   atualizarBanners();
   atualizarCarrinhoGuardado();
   sincronizarCarrinho();
