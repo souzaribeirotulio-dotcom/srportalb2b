@@ -604,8 +604,10 @@ async function buscarItens(q, grupo) {
   // 2) A busca do G360 (pega código de barras, aplicação e o que ainda não tem nome no portal).
   //    Termos alternativos: a busca digitada e as variações pelos sinônimos (basta um bater).
   const vs = variacoes(q);
-  // Uma palavra só (código de barras, aplicação): vale o que o G360 achar. Duas ou mais: precisa bater no nome.
-  const umaPalavra = q.trim().split(/\s+/).length === 1;
+  // O que o G360 acha só entra se bater no nome. Exceções: busca com número (código, código de barras) e busca
+  // que não achou nada pelos nomes do portal (aí vale a aplicação do G360). Antes, uma palavra só aceitava tudo
+  // e a busca do G360 achava pedaço de palavra ("cha" em "Chave").
+  const umaPalavra = q.trim().split(/\s+/).length === 1 && (/\d/.test(q) || !locais.length);
   const pedidos = [
     ...blocos.map((b) => buscarProdutos(sessao.token, { codigos: b, marca, limite: 50 })),
     listarProdutos(sessao.token, termosG360(q, vs) ? { termos: termosG360(q, vs), marca, limite: 50 } : { q: q, marca, limite: 50 }),

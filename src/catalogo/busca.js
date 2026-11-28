@@ -139,21 +139,27 @@ function pontoPalavra(q, palavras) {
   for (const w of palavras) {
     for (const f of formas) {
       if (w === f) return 6;
-      if (f.length >= 2 && w.startsWith(f)) melhor = Math.max(melhor, f === q ? 4 : 3);           // "deterg" → "detergente"
-      // Abreviação de 3 letras só vale perto do tamanho da palavra ("alc" → "alcool"); as de 3 letras mais longas
-      // estão nos sinônimos ("det", "sab"). Sem isso, a marca "Mares" (→ "mar") batia com "marmitex".
-      else if (w.length >= 3 && f.startsWith(w) && f.length > w.length && (w.length >= 4 || f.length - w.length <= 3)) {
+      // Começo de palavra ("deterg" → "detergente"). Forma curta de sinônimo ("det") só vale inteira, senão "det" achava "Detectora".
+      if (f.length >= 2 && w.startsWith(f) && (f === q || f.length >= 5)) melhor = Math.max(melhor, f === q ? 4 : 3);
+      // Abreviação no nome ("Tamp" → tampa, "Inset" → inseticida): só com 4+ letras (as de 3 estão nos sinônimos:
+      // "alc", "det", "sab") e só se a forma curta for mais rara que a palavra inteira no catálogo. Sem isso,
+      // "Mares" (→ "mar") batia com marmitex, "Pra Festa" com prato e "Saco" com sacola.
+      else if (w.length >= 4 && f.startsWith(w) && f.length > w.length && abreviacao(w, f)) {
         // "descartavel" → "desc" é abreviação (3). Mas se o resto também é palavra ("superlimpo" → "super" + "limpo"),
         // a busca era de duas palavras juntas, e bater só a primeira vale pouco (1).
         melhor = Math.max(melhor, composta(f) ? 1 : 3);
       }
-      else if (f.length >= 5 && w.length >= 4 && quase(f, w)) melhor = Math.max(melhor, 2);           // 1 letra errada
+      // 1 letra errada: só para a palavra digitada e só se ela não existe no catálogo (erro de digitação).
+      // Palavra certa não vira outra: "toalha" não acha "folha", "caneta" não acha "canela", "touca" não acha "louça".
+      else if (f === q && f.length >= 5 && w.length >= 4 && !VOCABULARIO.has(q) && quase(f, w)) melhor = Math.max(melhor, 2);
     }
   }
   return melhor;
 }
 
 let indice = null; // [{ codigo, produto_id, palavras, nome, categoria }]
+/** A palavra do nome é abreviação da buscada? Abreviação é rara; palavra comum ("saco", "pra") é palavra de verdade. */
+function abreviacao(w, f) { return (FREQ.get(w) || 0) * 2 <= Math.max(1, FREQ.get(f) || 0) || !VOCABULARIO.has(w); }
 let VOCABULARIO = new Set(); // palavras de 3+ letras que existem nos nomes
 let FREQ = new Map();         // palavra → em quantos produtos aparece (para escolher a correção mais comum)
 const COMPOSTAS = new Map();
