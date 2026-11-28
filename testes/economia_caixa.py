@@ -22,7 +22,7 @@ with sync_playwright() as pw:
         pg.wait_for_selector('body.logged #grid .card'); pg.wait_for_timeout(800)
         # 101: UN R$ 11,50, CX com 12 = R$ 125,00 → 12 × 11,50 = 138,00 → economiza R$ 13,00 (9%)
         t = txt(pg, '.card[data-id="101"] .price')
-        checar('Na CX com 12 você economiza R$ 13,00' in t and '(9%)' in t, f'{largura}: linha na unidade: {t}')
+        checar('Comprando CX com 12, você economiza R$ 13,00' in t and '(9%)' in t, f'{largura}: linha na unidade: {t}')
         pg.click('.card[data-id="101"] .unsel [data-un="CX12"]'); pg.wait_for_timeout(200)
         t = txt(pg, '.card[data-id="101"] .price')
         checar('Você economiza R$ 13,00 por cx' in t and 'R$ 1,08 a menos por un' in t, f'{largura}: linha na caixa: {t}')

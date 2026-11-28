@@ -53,7 +53,7 @@ export function economiaCaixa(p, op) {
   } catch { return null; }
 }
 
-/** Linha de economia. Na unidade base: a melhor caixa ("Na CX com 12 você economiza R$ 6,00"). Na caixa: quanto economiza nela. */
+/** Linha de economia. Na unidade base: a melhor caixa ("Comprando CX com 12, você economiza R$ 6,00"; sem artigo, porque CX, FD e PCT mudam o gênero). Na caixa: quanto economiza nela. */
 export function htmlEconomiaCaixa(p, op) {
   if (op?.id) {
     const e = economiaCaixa(p, op);
@@ -61,7 +61,7 @@ export function htmlEconomiaCaixa(p, op) {
   }
   const melhor = opcoesUnidade(p).slice(1).map((o) => ({ o, e: economiaCaixa(p, o) })).filter((x) => x.e)
     .sort((a, b) => Number(b.e.pct) - Number(a.e.pct))[0];
-  return melhor ? `<div class="eco-cx">💰 Na ${esc(melhor.o.nome)} com ${esc(quantidade(melhor.e.fator))} você economiza <b>${esc(dinheiro(melhor.e.total))}</b> <small>(${esc(melhor.e.pct)}%)</small></div>` : '';
+  return melhor ? `<div class="eco-cx">💰 Comprando ${esc(melhor.o.nome)} com ${esc(quantidade(melhor.e.fator))}, você economiza <b>${esc(dinheiro(melhor.e.total))}</b> <small>(${esc(melhor.e.pct)}%)</small></div>` : '';
 }
 
 /** Selo e aviso da regra única: selo só para comprável sob consulta; aviso só para não comprável, como veio. */
