@@ -1061,3 +1061,9 @@ body.cliente-analise .card .info::after { content: "Preço liberado após a apro
 }
 
 .mg-lin .mg-pc{display:none}
+
+/* "Você economiza" na caixa (cartão, detalhe e Minha Lista) */
+.eco-cx{flex-basis:100%;margin-top:4px;font-size:12.5px;line-height:1.35;color:var(--lima);font-weight:600}
+.eco-cx b{font-size:inherit;color:inherit}
+.eco-cx small{font-weight:500;color:var(--tx2);font-size:11.5px}
+html.tema-claro .eco-cx{color:#3d6b10}

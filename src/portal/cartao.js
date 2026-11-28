@@ -7,9 +7,10 @@
    - "seu_preco" preenchido = selo "Seu preço", sem preço riscado;
    - fotos só pela lista fotos[] (vazia = espaço reservado). */
 import { esc } from './comum.js';
-import { dinheiro } from '../ui/formato.js';
+import { dinheiro, quantidade } from '../ui/formato.js';
 import { htmlFoto } from '../ui/fotos.js';
 import { htmlDisponivel } from './estoque.js';
+import Decimal from 'decimal.js';
 import { seloOferta, linhaPromoCatalogo, ofertaValendo } from './promocao.js';
 
 export function opcoesUnidade(p) {
@@ -24,9 +25,43 @@ export function podeComprar(p) {
 /** Preço da embalagem. A unidade ("/ un", "/ cx") só aparece quando o produto tem caixa ou pacote para escolher.
  *  Com promoção (bloco "promocao" da API): selo "Oferta" e o preço de antes riscado quando ela vale, ou a linha
  *  "Leve N e pague X cada" quando ainda não vale. O valor mostrado é sempre o "preco" da API. */
-export function htmlPreco(op, mostrarUnidade = false) {
+export function htmlPreco(op, mostrarUnidade = false, produto = null) {
   if (op.preco === null || op.preco === undefined) return '';
-  return `<b>${esc(dinheiro(op.preco))}</b>${mostrarUnidade ? `<small>/ ${esc(String(op.nome).toLowerCase())}</small>` : ''}${seloOferta(op.promocao)}${op.seu_preco && !ofertaValendo(op.promocao) ? '<span class="tagcg">Seu preço</span>' : ''}${linhaPromoCatalogo(op.promocao, mostrarUnidade ? op.nome : '')}`;
+  return `<b>${esc(dinheiro(op.preco))}</b>${mostrarUnidade ? `<small>/ ${esc(String(op.nome).toLowerCase())}</small>` : ''}${seloOferta(op.promocao)}${op.seu_preco && !ofertaValendo(op.promocao) ? '<span class="tagcg">Seu preço</span>' : ''}${linhaPromoCatalogo(op.promocao, mostrarUnidade ? op.nome : '')}${produto ? htmlEconomiaCaixa(produto, op) : ''}`;
+}
+
+/** Quantas unidades base cabem na embalagem: pelo id da API ("CX*12.0000") ou pela descrição ("CX com 12 UN").
+ *  null quando não dá para saber (aí não mostramos economia). */
+export function fatorEmbalagem(op) {
+  const m = /\*(\d+(?:\.\d+)?)$/.exec(String(op?.id || '')) || /\bcom\s+(\d+(?:[.,]\d+)?)\s/i.exec(String(op?.descricao || '') + ' ');
+  if (!m) return null;
+  try { const f = new Decimal(m[1].replace(',', '.')); return f.gt(1) ? f : null; } catch { return null; }
+}
+
+/** "Você economiza" da caixa: compara o preço da embalagem com o da unidade vezes a quantidade dela, os dois
+ *  como a API mandou para este comprador. Só mostra (nada vai para a API) e só quando a caixa sai mais barata. */
+export function economiaCaixa(p, op) {
+  const base = opcoesUnidade(p)[0];
+  if (!op?.id || !base?.preco || !op.preco) return null;
+  const f = fatorEmbalagem(op);
+  if (!f) return null;
+  try {
+    const cheio = new Decimal(base.preco).times(f);
+    const eco = cheio.minus(new Decimal(op.preco));
+    if (eco.lt('0.01')) return null;
+    return { total: eco.toFixed(2), porUnidade: eco.div(f).toFixed(2), pct: eco.div(cheio).times(100).toFixed(0), fator: f.toString(), nome: op.nome, base: base.nome };
+  } catch { return null; }
+}
+
+/** Linha de economia. Na unidade base: a melhor caixa ("Na CX com 12 você economiza R$ 6,00"). Na caixa: quanto economiza nela. */
+export function htmlEconomiaCaixa(p, op) {
+  if (op?.id) {
+    const e = economiaCaixa(p, op);
+    return e ? `<div class="eco-cx">💰 Você economiza <b>${esc(dinheiro(e.total))}</b> por ${esc(String(e.nome).toLowerCase())} <small>(${esc(dinheiro(e.porUnidade))} a menos por ${esc(String(e.base).toLowerCase())} · ${esc(e.pct)}%)</small></div>` : '';
+  }
+  const melhor = opcoesUnidade(p).slice(1).map((o) => ({ o, e: economiaCaixa(p, o) })).filter((x) => x.e)
+    .sort((a, b) => Number(b.e.pct) - Number(a.e.pct))[0];
+  return melhor ? `<div class="eco-cx">💰 Na ${esc(melhor.o.nome)} com ${esc(quantidade(melhor.e.fator))} você economiza <b>${esc(dinheiro(melhor.e.total))}</b> <small>(${esc(melhor.e.pct)}%)</small></div>` : '';
 }
 
 /** Selo e aviso da regra única: selo só para comprável sob consulta; aviso só para não comprável, como veio. */
@@ -57,7 +92,7 @@ export function htmlCartao(p, { naLista = null } = {}) {
       <div class="brand">${esc(p.marca || '')}${ops.length > 1 ? `<span class="tagcx">${esc(ops[1].nome)} disponível</span>` : ''}</div>
       <div class="name" title="${esc(p.nome_g360 || p.nome)}">${esc(p.nome)}</div>
       <div class="meta">Cód. ${esc(p.codigo)}</div>
-      <div class="price">${htmlPreco(ops[0], ops.length > 1)}</div>
+      <div class="price">${htmlPreco(ops[0], ops.length > 1, p)}</div>
       ${htmlEstoque(p)}
       <div class="dispw">${htmlDisponivel(p)}</div>
       ${htmlUnidades(p)}

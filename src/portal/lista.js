@@ -156,7 +156,7 @@ function htmlLinha(x) {
     <div class="nm">${esc(p.nome)}<small>Cód. ${esc(p.codigo)} · ${esc(p.marca || '')}</small>${htmlEstoque(p)}${htmlUnidades(p, est.un, 'sm')}
       ${x.salvo ? '<button type="button" class="rm" data-rm>Remover da lista</button>' : ''}</div>
     <div class="hist">${hist}</div>
-    <div class="pr">${op.preco ? htmlPreco(op, (p.unidades || []).length > 0) : '—'}</div>
+    <div class="pr">${op.preco ? htmlPreco(op, (p.unidades || []).length > 0, p) : '—'}</div>
     <div class="qty"><button type="button" data-d="-1" ${comprar ? '' : 'disabled'} aria-label="Diminuir">−</button><input type="text" inputmode="decimal" value="${esc(est.q)}" placeholder="0" maxlength="13" aria-label="Quantidade de ${esc(p.nome)}" ${comprar ? '' : 'disabled'}><button type="button" data-d="1" ${comprar ? '' : 'disabled'} aria-label="Aumentar">+</button></div>
     <div class="sub2">${sub}</div></div>`;
 }

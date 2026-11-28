@@ -817,7 +817,7 @@ async function cliqueCartao(e) {
   if (un) {
     card.dataset.un = un.dataset.un;
     card.querySelectorAll('.unsel button').forEach((b) => b.classList.toggle('on', b === un));
-    card.querySelector('.price').innerHTML = htmlPreco(unidadeEscolhida(p, un.dataset.un), true);
+    card.querySelector('.price').innerHTML = htmlPreco(unidadeEscolhida(p, un.dataset.un), true, p);
     return;
   }
   const d = e.target.closest('[data-d]');
