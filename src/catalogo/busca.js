@@ -140,7 +140,9 @@ function pontoPalavra(q, palavras) {
     for (const f of formas) {
       if (w === f) return 6;
       if (f.length >= 2 && w.startsWith(f)) melhor = Math.max(melhor, f === q ? 4 : 3);           // "deterg" → "detergente"
-      else if (w.length >= 3 && f.startsWith(w) && f.length > w.length) {
+      // Abreviação de 3 letras só vale perto do tamanho da palavra ("alc" → "alcool"); as de 3 letras mais longas
+      // estão nos sinônimos ("det", "sab"). Sem isso, a marca "Mares" (→ "mar") batia com "marmitex".
+      else if (w.length >= 3 && f.startsWith(w) && f.length > w.length && (w.length >= 4 || f.length - w.length <= 3)) {
         // "descartavel" → "desc" é abreviação (3). Mas se o resto também é palavra ("superlimpo" → "super" + "limpo"),
         // a busca era de duas palavras juntas, e bater só a primeira vale pouco (1).
         melhor = Math.max(melhor, composta(f) ? 1 : 3);

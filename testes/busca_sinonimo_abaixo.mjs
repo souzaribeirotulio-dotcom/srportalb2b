@@ -12,3 +12,9 @@ ok(r[0].pontos > r[2].pontos, 'sinônimo com menos pontos');
 const s = buscarLocal('scotch brite');
 ok(s[0].nome.includes('Scotch'), `scotch brite: ${s.map((x) => x.nome)}`);
 console.log('Busca com sinônimo: todos os testes passaram.');
+// Marca "Mares" (→ "mar") não pode bater com "marmitex" como se fosse abreviação.
+indexar(['Plástico para Plastificacao Polaseal A4 (Pacote c/ 100 un) Mares', 'Base Marmitex Isopor Pt 102 (750ml) Exemplo', 'Alcool Liquido 70 Exemplo', 'Alc. Gel 500ml Exemplo'].map((nome, i) => ({ codigo: String(i), produto_id: i, nome, categoria: 'X' })));
+const m = buscarLocal('marmitex').map((x) => x.nome);
+ok(m.length === 1 && m[0].includes('Marmitex'), `marmitex: ${m}`);
+ok(buscarLocal('alcool').length === 2, 'abreviação curta perto do tamanho continua valendo (alc → alcool)');
+console.log('Abreviação curta: todos os testes passaram.');
